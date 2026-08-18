@@ -59,11 +59,13 @@ if(WTK_TARGET_PLATFORM STREQUAL "host")
 elseif(WTK_TARGET_PLATFORM STREQUAL "stm32")
     add_executable(wtk_rlcmeter
         src/app/main.c
+        src/bsp/stm32_dependency_probe.c
         src/bsp/startup_stm32f103c8tx.c
         src/bsp/system_stm32f1xx.c
     )
     set_target_properties(wtk_rlcmeter PROPERTIES
         OUTPUT_NAME "WTK.RLCMeter"
+        SUFFIX ".elf"
     )
     target_link_libraries(wtk_rlcmeter PRIVATE wtk_firmware_common)
     target_include_directories(wtk_rlcmeter PRIVATE

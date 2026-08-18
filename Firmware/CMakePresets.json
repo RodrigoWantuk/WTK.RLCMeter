@@ -32,6 +32,7 @@
       "name": "stm32-debug",
       "displayName": "STM32 Debug",
       "description": "Configure STM32F103C8T6 firmware with Arm GCC debug flags.",
+      "generator": "Ninja",
       "binaryDir": "${sourceDir}/build/stm32-debug",
       "toolchainFile": "${sourceDir}/cmake/toolchains/arm-none-eabi-gcc.cmake",
       "cacheVariables": {
@@ -44,6 +45,7 @@
       "name": "stm32-release",
       "displayName": "STM32 Release",
       "description": "Configure STM32F103C8T6 firmware with Arm GCC release flags.",
+      "generator": "Ninja",
       "binaryDir": "${sourceDir}/build/stm32-release",
       "toolchainFile": "${sourceDir}/cmake/toolchains/arm-none-eabi-gcc.cmake",
       "cacheVariables": {
@@ -56,25 +58,30 @@
   "buildPresets": [
     {
       "name": "host-debug",
-      "configurePreset": "host-debug"
+      "configurePreset": "host-debug",
+      "configuration": "Debug"
     },
     {
       "name": "host-release",
-      "configurePreset": "host-release"
+      "configurePreset": "host-release",
+      "configuration": "Release"
     },
     {
       "name": "stm32-debug",
-      "configurePreset": "stm32-debug"
+      "configurePreset": "stm32-debug",
+      "configuration": "Debug"
     },
     {
       "name": "stm32-release",
-      "configurePreset": "stm32-release"
+      "configurePreset": "stm32-release",
+      "configuration": "Release"
     }
   ],
   "testPresets": [
     {
       "name": "host-debug",
       "configurePreset": "host-debug",
+      "configuration": "Debug",
       "output": {
         "outputOnFailure": true
       }
@@ -82,6 +89,7 @@
     {
       "name": "host-release",
       "configurePreset": "host-release",
+      "configuration": "Release",
       "output": {
         "outputOnFailure": true
       }

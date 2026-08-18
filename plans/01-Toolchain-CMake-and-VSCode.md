@@ -1,6 +1,6 @@
 # 01 — Toolchain, CMake, and Visual Studio Code
 
-STATUS: IN_PROGRESS
+STATUS: COMPLETE
 
 ## Goal
 
@@ -315,6 +315,90 @@ Report:
 - generated artifact paths;
 - any assumptions about STM32F103C8T6 Flash/RAM;
 - readiness for Phase 02.
+
+## Phase 01 completion validation
+
+Completed on 2026-08-18 after replacing the developer-local STM32CubeF1 path option with pinned official ST component submodules and validating the host and STM32 presets.
+
+### Dependency baseline
+
+The STM32 dependency set is derived from official ST sources and aligned with `STM32CubeF1` `v1.8.7`:
+
+```text
+Firmware/third_party/st/cmsis_core              afc5ca6af0a49232fde7eb4548dd0962d119ce14
+Firmware/third_party/st/cmsis_device_f1         c8e9a4a4f16b6d2cb2a2083cbe5161025280fb22
+Firmware/third_party/st/stm32f1xx_hal_driver    fee494a92b5ad331f92ad21f76c66a5cb83773ee
+```
+
+Fresh clones reproduce the dependency state with:
+
+```bash
+git submodule update --init --recursive
+```
+
+### Tool versions observed
+
+```text
+CMake:                3.31.6-msvc6
+Host C compiler:      MSVC 19.44.35228.0
+MSBuild:              17.14.51
+STM32 C compiler:     arm-none-eabi-gcc 14.2.1, Arm GNU Toolchain 14.2.Rel1
+STM32 build tool:     Ninja 1.12.1
+```
+
+### Commands executed
+
+From `Firmware/`, with CMake, Ninja, and Arm GNU Toolchain available on `PATH`:
+
+```bash
+cmake --preset host-debug
+cmake --build --preset host-debug
+ctest --preset host-debug
+
+cmake --preset host-release
+cmake --build --preset host-release
+ctest --preset host-release
+
+cmake --preset stm32-debug
+cmake --build --preset stm32-debug
+
+cmake --preset stm32-release
+cmake --build --preset stm32-release
+cmake --build --preset stm32-release --clean-first
+```
+
+### Results
+
+- Host Debug configured, built, and passed `wtk_smoke_test` through CTest.
+- Host Release configured, built, and passed `wtk_smoke_test` through CTest.
+- STM32 Debug configured and linked with `arm-none-eabi-gcc`.
+- STM32 Release configured and linked with `arm-none-eabi-gcc`.
+- STM32 Debug and Release generated:
+
+```text
+WTK.RLCMeter.elf
+WTK.RLCMeter.bin
+WTK.RLCMeter.hex
+WTK.RLCMeter.map
+```
+
+Release memory report:
+
+```text
+FLASH: 488 B / 64 KiB, 0.74%
+RAM:   2 KiB / 20 KiB, 10.00%
+size:  text=488, data=0, bss=2048, dec=2536
+```
+
+The linker script intentionally enforces the STM32F103C8T6 / Blue Pill baseline of 64 KiB Flash and 20 KiB SRAM, even though the official broader STM32F103xB template uses 128 KiB Flash.
+
+### VS Code validation
+
+The workspace and `.vscode/settings.json` both point CMake Tools at `${workspaceFolder}/Firmware`, use `ms-vscode.cmake-tools` as the C/C++ configuration provider, and avoid developer-specific absolute paths. The STM32 Debug `compile_commands.json` contains the pinned CMSIS Core, CMSIS Device F1, STM32F1 HAL/LL include paths, and `STM32F103xB`.
+
+### Hardware validation
+
+No board behavior was implemented or bench-validated in Phase 01. Safe GPIO, clocks, UART, watchdog, and real `SystemInit()` remain Phase 02 work and require later hardware validation where applicable.
 
 ## Explicit stop conditions
 
