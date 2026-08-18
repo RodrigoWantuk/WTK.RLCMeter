@@ -1,0 +1,36 @@
+# Firmware build output
+Firmware/build/
+Firmware/out/
+Firmware/.cache/
+**/CMakeFiles/
+**/CMakeCache.txt
+**/cmake_install.cmake
+**/compile_commands.json
+
+# Embedded output
+*.o
+*.obj
+*.a
+*.elf
+*.hex
+*.bin
+*.map
+*.lst
+*.d
+
+# IDE / OS
+.vs/
+.idea/
+.DS_Store
+Thumbs.db
+*.user
+*.suo
+
+# Temporary exports
+*.tmp
+*.bak
+*.autosave
+
+# Local scratch
+scratch/
+local/
