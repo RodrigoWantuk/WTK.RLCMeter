@@ -1,6 +1,6 @@
 # 03 — SPI, Display, Flash, and User Input
 
-STATUS: NOT_STARTED
+STATUS: IMPLEMENTED_REQUIRES_BENCH_VALIDATION
 
 ## Goal
 
@@ -277,3 +277,77 @@ Report:
 - buzzer implementation/timing;
 - quiet-mode behavior/latency;
 - any concerns for later acquisition or final UI work.
+
+## Phase 03 implementation status
+
+Implemented on 2026-08-18 as the first SPI/display/Flash/input foundation. Bench validation remains required before this phase can be considered complete.
+
+### Implemented
+
+- Fixed the Phase 02 HSI fallback before starting Phase 03 so `bsp_clock_summary_t` matches hardware after HSE/PLL failure.
+- Added SPI2 BSP APIs and a central shared-bus layer for W25Q/ILI9341 mutual CS exclusion.
+- Added a quiet-mode request hook that prevents new shared-SPI acquisitions.
+- Added W25Q JEDEC/capacity decoding for W25Q16/32/64/128, range checks, page-boundary span logic, bounded reads, and stateful page-program/sector-erase start/poll APIs.
+- Added ILI9341 reset/init stepping, rotation, address-window setup, RGB565 pixel writes, and chunked solid-fill support without a framebuffer.
+- Added non-blocking button debounce with `PRESS`, `RELEASE`, `LONG_PRESS`, and `REPEAT` events.
+- Added TIM3_CH3 backlight PWM service on PB0 with a 1 kHz baseline.
+- Added TIM4-driven buzzer tone service on PB1 with a deterministic mute path.
+- Added resource-pack header/entry validation, a 256-byte UI resource streaming scratch buffer, replaceable font backend contracts, and a tiny fallback font.
+- Added UART boot diagnostics for SPI2, W25Q probe result, W25Q JEDEC/capacity when present, backlight PWM, and buzzer init status.
+
+### Provisional design choices
+
+```text
+Initial SPI mode:       mode 0
+Initial SPI prescaler:  PCLK1 / 8
+Resource scratch:       256 bytes
+Backlight PWM:          1 kHz, 0-100%
+Buzzer supported range: 100-4000 Hz, intended bring-up points 500 Hz / 1 kHz / 2 kHz
+W25Q bring-up sector:   final sector of detected capacity, reserved for controlled bench testing only
+```
+
+The font/resource work intentionally does not select MCUFont or a custom final renderer. The backend remains callback-based until real Release Flash/RAM headroom and asset-pack needs are measured.
+
+### Automated validation
+
+Automated validation passed:
+
+```bash
+cmake --preset host-debug
+cmake --build --preset host-debug
+ctest --preset host-debug
+
+cmake --preset host-release
+cmake --build --preset host-release
+ctest --preset host-release
+
+cmake --preset stm32-debug
+cmake --build --preset stm32-debug
+
+cmake --preset stm32-release
+cmake --build --preset stm32-release
+
+cmake --preset stm32-lab
+cmake --build --preset stm32-lab
+```
+
+Release memory report from the implemented firmware:
+
+```text
+FLASH: 9940 B / 64 KiB, 15.17%
+RAM:   2296 B / 20 KiB, 11.21%
+```
+
+### REQUIRES_BENCH_VALIDATION
+
+- SPI2 signal integrity and conservative/maximum validated clocks.
+- W25Q JEDEC ID, capacity detection, status read, reserved-sector erase/program/read.
+- ILI9341 reset/init, rotation, solid fills, pixel streaming, and MISO release with CS inactive.
+- Shared-bus CS exclusion on the physical board.
+- External resource/glyph streaming from actual W25Q contents to TFT.
+- Button debounce/event behavior on the real panel harness.
+- Backlight PWM brightness and noise behavior.
+- Buzzer output near 500 Hz, 1 kHz, and 2 kHz.
+- Quiet-mode request blocking new TFT/W25Q/buzzer activity during future acquisition windows.
+- No watchdog starvation during pollable W25Q erase/program operations.
+- No reset or obvious rail disturbance during TFT/backlight/buzzer activity.

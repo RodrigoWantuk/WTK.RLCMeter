@@ -42,3 +42,14 @@ screen_diagnostics.c/.h
 ## Interaction
 
 Three buttons: UP, OK, and DOWN, with press, long-press, and repeat events where appropriate.
+
+## Phase 03 resource/font baseline
+
+The current UI resource layer provides only stable streaming and backend contracts:
+
+```text
+W25Q/resource reader -> 256-byte scratch buffer -> renderer/display writer
+font backend lookup/read callbacks -> replaceable glyph source
+```
+
+This keeps the font renderer replaceable. The firmware is not committed to MCUFont or any other library yet. A tiny built-in 5x7 fallback font exists only for minimal diagnostic/error rendering if W25Q resources are absent or corrupt.

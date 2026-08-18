@@ -20,6 +20,8 @@ Every persistent record must contain identification, version, bounds information
 
 W25Q is the instrument's external resource/data ROM. Large UI fonts, numeric glyphs, measurement symbols, icons, and bitmap resources stay in W25Q and are read in bounded chunks through stable resource IDs. STM32 internal Flash stores only rendering/decoding code and a tiny emergency fallback font.
 
+Phase 03 introduces a provisional resource-pack header/entry contract for manifest bounds checking and stable ID/offset addressing. It is deliberately not a final asset-pack format.
+
 Because W25Q and ILI9341 share SPI, storage/resource access must release Flash CS before TFT transfer begins. A small fixed scratch buffer is shared by resource streaming; installed font/resource size must not scale SRAM usage.
 
 ## Rules
@@ -29,5 +31,5 @@ Because W25Q and ILI9341 share SPI, storage/resource access must release Flash C
 - incompatible versions are rejected or migrated explicitly;
 - erase/program does not occur during critical acquisition;
 - Flash size/address assumptions stay inside the driver/layout layers;
-- UI accesses assets by stable IDs, never raw physical offsets.
+- UI accesses assets by stable IDs, never pointer-like physical assumptions.
 - STM32 firmware does not parse TTF/OTF and does not embed FreeType.

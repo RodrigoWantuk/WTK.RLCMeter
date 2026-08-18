@@ -47,6 +47,11 @@ configure_file(
 
 add_library(wtk_firmware_common STATIC
     src/app/app_version.c
+    src/drivers/buttons.c
+    src/drivers/w25q_core.c
+    src/storage/resource_store.c
+    src/ui/ui_fallback_font.c
+    src/ui/ui_resources.c
 )
 target_include_directories(wtk_firmware_common
     PUBLIC
@@ -73,9 +78,16 @@ elseif(WTK_TARGET_PLATFORM STREQUAL "stm32")
         src/bsp/bsp_gpio.c
         src/bsp/bsp_reset.c
         src/bsp/bsp_status.c
+        src/bsp/bsp_spi.c
+        src/bsp/bsp_timers.c
         src/bsp/bsp_time.c
         src/bsp/bsp_uart.c
         src/bsp/bsp_watchdog.c
+        src/drivers/ili9341.c
+        src/drivers/spi_bus.c
+        src/drivers/w25q_device.c
+        src/hardware/hw_backlight.c
+        src/hardware/hw_buzzer.c
         src/bsp/stm32_dependency_probe.c
         src/bsp/startup_stm32f103c8tx.c
         src/bsp/system_stm32f1xx.c

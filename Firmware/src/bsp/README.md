@@ -30,11 +30,28 @@ independent watchdog service
 reset-cause capture and clearing
 ```
 
-If HSE/PLL startup fails, the BSP keeps the instrument in safe GPIO state and reports fallback to HSI rather than silently claiming the 72 MHz baseline.
+If HSE/PLL startup fails, the BSP restores a deterministic HSI-safe clock tree before reporting fallback to HSI rather than silently claiming the 72 MHz baseline. This matters for later peripherals that derive baud rates from `bsp_clock_summary_t`: the recorded `PCLK1`/`PCLK2` values must match hardware after every fallback path.
 
 Public APIs are project-level functions such as `bsp_time_now_ms()`, `bsp_uart_write()`, `bsp_reset_get_reason()`, and `bsp_watchdog_service()`. Higher layers should not reach around these APIs to manipulate RCC/GPIO/USART/IWDG registers directly.
 
 Phase 02 implementation remains `REQUIRES_BENCH_VALIDATION` until real hardware confirms UART output, reset cause reporting, SWD preservation after JTAG remap, watchdog reset behavior, and safe pin levels for K1/K2/RANGE_EN/buzzer/excitation.
+
+## Phase 03 additions
+
+Phase 03 adds SPI2 and timer support behind BSP APIs:
+
+```text
+bsp_spi2_init()
+bsp_spi2_configure()
+bsp_spi2_transfer()
+bsp_timer3_pwm_ch3_init()
+bsp_timer3_pwm_ch3_set_duty()
+bsp_timer4_buzzer_init()
+bsp_timer4_buzzer_start()
+bsp_timer4_buzzer_stop()
+```
+
+Higher layers continue to avoid STM32 register access directly. Drivers and hardware services use these BSP calls plus limited non-safety GPIO outputs for TFT/Flash chip selects, TFT control pins, backlight, and buzzer only.
 
 ## Planned files
 

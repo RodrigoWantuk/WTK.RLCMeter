@@ -39,6 +39,11 @@ static void gpio_clear(GPIO_TypeDef *const port, uint32_t pin)
     port->BSRR = 1u << (pin + 16u);
 }
 
+static bool gpio_read(GPIO_TypeDef const *const port, uint32_t pin)
+{
+    return ((port->IDR & (1u << pin)) != 0u);
+}
+
 bsp_status_t bsp_gpio_init_safe(void)
 {
     RCC->APB2ENR |= RCC_APB2ENR_AFIOEN |
@@ -93,4 +98,77 @@ bsp_status_t bsp_gpio_init_safe(void)
 bool bsp_gpio_swd_preserved(void)
 {
     return g_swd_preserved;
+}
+
+bsp_status_t bsp_gpio_write_output(bsp_gpio_output_t output, bool high)
+{
+    GPIO_TypeDef *port = NULL;
+    uint32_t pin = 0u;
+
+    switch (output)
+    {
+    case BSP_GPIO_OUTPUT_FLASH_CS:
+        port = GPIOA;
+        pin = 12u;
+        break;
+    case BSP_GPIO_OUTPUT_TFT_CS:
+        port = GPIOB;
+        pin = 12u;
+        break;
+    case BSP_GPIO_OUTPUT_TFT_DC:
+        port = GPIOB;
+        pin = 11u;
+        break;
+    case BSP_GPIO_OUTPUT_TFT_RST:
+        port = GPIOB;
+        pin = 10u;
+        break;
+    case BSP_GPIO_OUTPUT_TFT_BL:
+        port = GPIOB;
+        pin = 0u;
+        break;
+    case BSP_GPIO_OUTPUT_BUZZER:
+        port = GPIOB;
+        pin = 1u;
+        break;
+    default:
+        return BSP_STATUS_INVALID_ARG;
+    }
+
+    if (high)
+    {
+        gpio_set(port, pin);
+    }
+    else
+    {
+        gpio_clear(port, pin);
+    }
+
+    return BSP_STATUS_OK;
+}
+
+bsp_status_t bsp_gpio_read_input(bsp_gpio_input_t input, bool *active)
+{
+    if (active == NULL)
+    {
+        return BSP_STATUS_INVALID_ARG;
+    }
+
+    switch (input)
+    {
+    case BSP_GPIO_INPUT_BUTTON_UP:
+        *active = !gpio_read(GPIOB, 3u);
+        return BSP_STATUS_OK;
+    case BSP_GPIO_INPUT_BUTTON_OK:
+        *active = !gpio_read(GPIOC, 13u);
+        return BSP_STATUS_OK;
+    case BSP_GPIO_INPUT_BUTTON_DOWN:
+        *active = !gpio_read(GPIOB, 4u);
+        return BSP_STATUS_OK;
+    case BSP_GPIO_INPUT_CHARGER_DETECT:
+        *active = gpio_read(GPIOA, 15u);
+        return BSP_STATUS_OK;
+    default:
+        return BSP_STATUS_INVALID_ARG;
+    }
 }

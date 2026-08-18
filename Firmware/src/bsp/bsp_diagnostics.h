@@ -15,6 +15,9 @@ typedef enum
 
 void bsp_diagnostics_set_level(bsp_log_level_t level);
 void bsp_diagnostics_write(bsp_log_level_t level, const char *message);
+void bsp_diagnostics_write_key_value_text(const char *key, const char *value);
+void bsp_diagnostics_write_key_value_u32(const char *key, unsigned long value);
+void bsp_diagnostics_write_key_value_hex8(const char *key, unsigned int value);
 void bsp_diagnostics_boot_banner(bsp_reset_reason_t reset_reason, bsp_status_t clock_status);
 void bsp_diagnostics_step(void);
 

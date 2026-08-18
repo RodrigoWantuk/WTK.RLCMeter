@@ -230,7 +230,8 @@ APB1 timers:     72 MHz because APB1 prescaler is not 1
 APB2 timers:     72 MHz
 ADC clock:       12 MHz from PCLK2 / 6
 SysTick:         1 kHz low-resolution timebase
-Fallback:        HSI 8 MHz with safe GPIO retained and clock failure reported
+Fallback:        deterministic HSI 8 MHz with APB prescalers restored to DIV1,
+                 ADC prescaler restored to DIV2, safe GPIO retained, and clock failure reported
 ```
 
 ### BSP public APIs
@@ -307,3 +308,24 @@ RAM:   2112 B / 20 KiB, 10.31%
 - Watchdog reset detection under controlled test.
 
 No pin-polarity discrepancy was discovered from documentation during implementation. Physical polarity and safe levels still require bench confirmation.
+
+### Post-implementation correction
+
+On 2026-08-18, Phase 03 preparation found and fixed a Phase 02 fallback bug in `bsp_clock_init()`.
+
+If HSE became ready but PLL startup or SYSCLK switch later failed, the firmware had already programmed APB/ADC prescalers for the 72 MHz path. The previous fallback only updated `bsp_clock_summary_t`, which could report `PCLK1=8 MHz` while hardware still had `PPRE1=DIV2` and therefore `PCLK1=4 MHz` on HSI.
+
+The fallback path now restores a deterministic HSI-safe RCC configuration before recording the summary:
+
+```text
+SYSCLK source: HSI
+HPRE:          DIV1
+PPRE1:         DIV1
+PPRE2:         DIV1
+ADCPRE:        DIV2
+PLL:           off
+HSE:           off after fallback
+Flash latency: 0 wait states
+```
+
+This keeps hardware clocks, UART baud calculation, SPI baud calculation, and diagnostics consistent when HSE/PLL startup fails.

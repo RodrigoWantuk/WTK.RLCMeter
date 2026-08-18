@@ -44,7 +44,19 @@ static void write_u32(uint32_t value)
     }
 }
 
-static void write_key_value_text(const char *key, const char *value)
+static void write_hex8(uint32_t value)
+{
+    static const char digits[] = "0123456789ABCDEF";
+
+    write_text("0x");
+    for (int32_t shift = 28; shift >= 0; shift -= 4)
+    {
+        const uint32_t nibble = (value >> (uint32_t)shift) & 0xFu;
+        (void)bsp_uart_write(&digits[nibble], 1u);
+    }
+}
+
+void bsp_diagnostics_write_key_value_text(const char *key, const char *value)
 {
     write_text(key);
     write_text(": ");
@@ -52,11 +64,19 @@ static void write_key_value_text(const char *key, const char *value)
     write_text("\r\n");
 }
 
-static void write_key_value_u32(const char *key, uint32_t value)
+void bsp_diagnostics_write_key_value_u32(const char *key, unsigned long value)
 {
     write_text(key);
     write_text(": ");
-    write_u32(value);
+    write_u32((uint32_t)value);
+    write_text("\r\n");
+}
+
+void bsp_diagnostics_write_key_value_hex8(const char *key, unsigned int value)
+{
+    write_text(key);
+    write_text(": ");
+    write_hex8((uint32_t)value);
     write_text("\r\n");
 }
 
@@ -83,21 +103,21 @@ void bsp_diagnostics_boot_banner(bsp_reset_reason_t reset_reason, bsp_status_t c
     const bsp_clock_summary_t *const clock = bsp_clock_get_summary();
 
     write_text("\r\nWTK.RLCMeter\r\n");
-    write_key_value_text("firmware", version->project_version);
-    write_key_value_text("git", version->git_commit);
-    write_key_value_text("build", version->build_type);
-    write_key_value_text("hardware", version->hardware_compatibility);
-    write_key_value_text("reset", bsp_reset_reason_string(reset_reason));
-    write_key_value_text("clock_status", bsp_status_string(clock_status));
-    write_key_value_text("clock_source", bsp_clock_source_string(clock->source));
-    write_key_value_u32("sysclk_hz", clock->sysclk_hz);
-    write_key_value_u32("hclk_hz", clock->hclk_hz);
-    write_key_value_u32("pclk1_hz", clock->pclk1_hz);
-    write_key_value_u32("pclk2_hz", clock->pclk2_hz);
-    write_key_value_u32("adc_hz", clock->adc_hz);
-    write_key_value_text("swd", bsp_gpio_swd_preserved() ? "PRESERVED" : "UNKNOWN");
-    write_key_value_text("boot_state", "SAFE_BOOT");
-    write_key_value_text("watchdog_policy", "IWDG_START_AFTER_UART_BANNER");
+    bsp_diagnostics_write_key_value_text("firmware", version->project_version);
+    bsp_diagnostics_write_key_value_text("git", version->git_commit);
+    bsp_diagnostics_write_key_value_text("build", version->build_type);
+    bsp_diagnostics_write_key_value_text("hardware", version->hardware_compatibility);
+    bsp_diagnostics_write_key_value_text("reset", bsp_reset_reason_string(reset_reason));
+    bsp_diagnostics_write_key_value_text("clock_status", bsp_status_string(clock_status));
+    bsp_diagnostics_write_key_value_text("clock_source", bsp_clock_source_string(clock->source));
+    bsp_diagnostics_write_key_value_u32("sysclk_hz", clock->sysclk_hz);
+    bsp_diagnostics_write_key_value_u32("hclk_hz", clock->hclk_hz);
+    bsp_diagnostics_write_key_value_u32("pclk1_hz", clock->pclk1_hz);
+    bsp_diagnostics_write_key_value_u32("pclk2_hz", clock->pclk2_hz);
+    bsp_diagnostics_write_key_value_u32("adc_hz", clock->adc_hz);
+    bsp_diagnostics_write_key_value_text("swd", bsp_gpio_swd_preserved() ? "PRESERVED" : "UNKNOWN");
+    bsp_diagnostics_write_key_value_text("boot_state", "SAFE_BOOT");
+    bsp_diagnostics_write_key_value_text("watchdog_policy", "IWDG_START_AFTER_UART_BANNER");
 }
 
 void bsp_diagnostics_step(void)

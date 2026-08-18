@@ -41,6 +41,16 @@ static bool wait_until_set(volatile uint32_t *const reg, uint32_t mask)
     return ((*reg & mask) != 0u);
 }
 
+static void wait_until_clear_best_effort(volatile uint32_t *const reg, uint32_t mask)
+{
+    uint32_t timeout = WTK_CLOCK_READY_TIMEOUT;
+
+    while (((*reg & mask) != 0u) && (timeout > 0u))
+    {
+        timeout--;
+    }
+}
+
 static void record_hsi_summary(void)
 {
     g_clock_summary.source = BSP_CLOCK_SOURCE_HSI;
@@ -56,19 +66,44 @@ static void record_hsi_summary(void)
     SystemCoreClock = WTK_HSI_HZ;
 }
 
+static void restore_hsi_safe_clock(void)
+{
+    RCC->CR |= RCC_CR_HSION;
+    (void)wait_until_set(&RCC->CR, RCC_CR_HSIRDY);
+
+    RCC->CFGR = (RCC->CFGR & ~RCC_CFGR_SW) | RCC_CFGR_SW_HSI;
+    (void)wait_until_set(&RCC->CFGR, RCC_CFGR_SWS_HSI);
+
+    RCC->CR &= ~RCC_CR_PLLON;
+    wait_until_clear_best_effort(&RCC->CR, RCC_CR_PLLRDY);
+
+    RCC->CFGR &= ~(RCC_CFGR_HPRE | RCC_CFGR_PPRE1 | RCC_CFGR_PPRE2 |
+                   RCC_CFGR_ADCPRE | RCC_CFGR_PLLSRC | RCC_CFGR_PLLXTPRE |
+                   RCC_CFGR_PLLMULL);
+    RCC->CFGR |= RCC_CFGR_HPRE_DIV1 |
+                 RCC_CFGR_PPRE1_DIV1 |
+                 RCC_CFGR_PPRE2_DIV1 |
+                 RCC_CFGR_ADCPRE_DIV2;
+
+    RCC->CR &= ~(RCC_CR_HSEON | RCC_CR_HSEBYP);
+    FLASH->ACR = (FLASH->ACR & ~FLASH_ACR_LATENCY) | FLASH_ACR_PRFTBE | FLASH_ACR_LATENCY_0;
+
+    record_hsi_summary();
+}
+
 bsp_status_t bsp_clock_init(void)
 {
     RCC->CR |= RCC_CR_HSION;
     if (!wait_until_set(&RCC->CR, RCC_CR_HSIRDY))
     {
-        record_hsi_summary();
+        restore_hsi_safe_clock();
         return BSP_STATUS_TIMEOUT;
     }
 
     RCC->CR |= RCC_CR_HSEON;
     if (!wait_until_set(&RCC->CR, RCC_CR_HSERDY))
     {
-        record_hsi_summary();
+        restore_hsi_safe_clock();
         return BSP_STATUS_TIMEOUT;
     }
 
@@ -87,14 +122,14 @@ bsp_status_t bsp_clock_init(void)
     RCC->CR |= RCC_CR_PLLON;
     if (!wait_until_set(&RCC->CR, RCC_CR_PLLRDY))
     {
-        record_hsi_summary();
+        restore_hsi_safe_clock();
         return BSP_STATUS_TIMEOUT;
     }
 
     RCC->CFGR = (RCC->CFGR & ~RCC_CFGR_SW) | RCC_CFGR_SW_PLL;
     if (!wait_until_set(&RCC->CFGR, RCC_CFGR_SWS_PLL))
     {
-        record_hsi_summary();
+        restore_hsi_safe_clock();
         return BSP_STATUS_TIMEOUT;
     }
 
