@@ -1,15 +1,15 @@
 # `config`
 
-Configurações versionadas e defaults de build/firmware.
+Versioned build and firmware defaults.
 
-## Conteúdo planejado
+## Planned content
 
-- feature flags de laboratório;
-- defaults de UI;
-- parâmetros de logging;
-- identificação de revisão de hardware;
-- parâmetros não metrológicos que precisam existir mesmo com Flash inválida.
+- laboratory feature flags;
+- UI defaults;
+- logging defaults;
+- hardware-revision identity;
+- non-metrology defaults required even when external Flash is invalid.
 
-Configurações de calibração não pertencem aqui como constantes mágicas: dados medidos devem ficar em records persistentes/versionados.
+Measured calibration data does not belong here as hard-coded constants; it belongs in versioned persistent calibration records.
 
-Nenhuma configuração de usuário pode desabilitar intertravamentos de segurança em builds normais.
+No normal configuration option may disable mandatory safety interlocks.

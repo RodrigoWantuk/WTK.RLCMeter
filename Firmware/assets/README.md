@@ -1,20 +1,20 @@
 # `assets`
 
-Fontes dos assets gráficos usados pela UI.
+Source assets for the graphical UI.
 
-## Conteúdo esperado
+## Expected content
 
-- splash/startup;
-- ícones;
-- fontes;
-- imagens auxiliares;
-- descrições/manifest de origem.
+- startup/splash artwork;
+- icons;
+- fonts;
+- auxiliary images;
+- source manifests/metadata.
 
-Arquivos desta pasta são fontes para processamento; o firmware consome o asset pack gerado pelas ferramentas de `tools/`.
+Files in this directory are source inputs. Firmware consumes packed/generated assets produced by tooling under `tools/`.
 
-## Regras
+## Rules
 
-- não assumir framebuffer completo;
-- preferir formatos fáceis de converter para RGB565/máscaras;
-- manter licença/origem de qualquer asset de terceiros;
-- assets devem receber IDs estáveis para não acoplar a UI a offsets físicos da Flash.
+- do not assume a full framebuffer;
+- prefer source formats that convert cleanly to RGB565 or compact masks;
+- preserve licensing/source information for third-party assets;
+- assign stable asset IDs so UI code does not depend on physical Flash offsets.

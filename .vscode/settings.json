@@ -1,0 +1,10 @@
+{
+  "cmake.sourceDirectory": "${workspaceFolder}/Firmware",
+  "cmake.configureOnOpen": false,
+  "cmake.exportCompileCommandsFile": true,
+  "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
+  "C_Cpp.intelliSenseEngine": "default",
+  "files.associations": {
+    "*.h": "c"
+  }
+}

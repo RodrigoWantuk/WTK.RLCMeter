@@ -1,66 +1,69 @@
 # PCB
 
-Esta pasta recebe os arquivos de engenharia e fabricação da PCB do WTK.RLCMeter.
+This directory contains the engineering and manufacturing artifacts for the WTK.RLCMeter PCB.
 
-A documentação técnica do funcionamento do circuito fica em [`../docs`](../docs). Este diretório deve conter os arquivos **reais exportados do EasyEDA Pro** e os artefatos usados para fabricar cada revisão.
+Circuit behavior is documented under [`../docs`](../docs). This directory should contain the **actual EasyEDA Pro exports** and the manufacturing artifacts used for each hardware revision.
 
-## Estrutura sugerida
+## Recommended layout
 
 ```text
 PCB/
 ├── README.md
-├── source/                 # export completo do projeto EasyEDA Pro
+├── source/                 # complete EasyEDA Pro project export
 ├── fabrication/
 │   ├── Rev1/
 │   │   ├── Gerber_*.zip
 │   │   ├── BOM_*.csv
 │   │   └── PCB_*.pdf
 │   └── Rev2/
-├── renders/                # vistas Top/Bottom, 3D e imagens 1:1
-└── revisions/              # notas de alterações físicas por revisão
+├── renders/                # top/bottom views, 3D renders, 1:1 images
+└── revisions/              # physical/electrical revision notes
 ```
 
-A estrutura é uma recomendação; não há obrigação de preservar exatamente os nomes acima.
+The exact filenames are not mandatory, but source, fabrication output, renders, and revision history should remain clearly separated.
 
-## Baseline Rev.1
+## Rev.1 baseline
 
-- 2 layers, FR-4.
-- Montagem manual.
-- Passivos predominantemente 0805; 1206 onde tensão, potência ou robustez justificam.
-- Sem componentes menores que SOT-23 no banco de chaveamento atual.
-- Blue Pill montada como módulo THT.
-- Plano/copper pour de GND, especialmente no Bottom.
-- Resistores série de 33 Ω em SPI SCK e MOSI.
-- `D_TVS` e `R_TVS_LINK` devem permanecer DNP na primeira montagem.
-- K2 é contingência; o baseline usa `R0_BANK = 0 Ω`.
+- Two-layer FR-4 PCB.
+- Manual assembly is a design priority.
+- Passives are predominantly 0805; 1206 is used where voltage, power, low impedance, or mechanical robustness justify it.
+- No switching-bank device smaller than SOT-23 in the current baseline.
+- Blue Pill is mounted as a THT module.
+- Ground copper pour, especially on the bottom layer.
+- 33 Ω series resistors on SPI SCK and MOSI.
+- `D_TVS` and `R_TVS_LINK` remain DNP in the first assembly.
+- K2 is a contingency option; the baseline uses `R0_BANK = 0 Ω`.
 
-## Regras de fabricação usadas como referência
+## Reference fabrication rules
 
-Valores abaixo são baseline de projeto, não substituem o DRC do arquivo EasyEDA:
+These are project baselines and do not replace EasyEDA DRC or the fabrication vendor's limits.
 
-| Regra | Baseline |
+| Rule | Baseline |
 |---|---:|
-| Track de sinal | 0,25–0,30 mm |
-| VEXC / RET / VMID | ~0,8 mm quando possível |
-| LOWZ_BUS | ~1,0 mm quando possível |
-| +3V3 / +5V_A | ~0,6 mm |
-| +5V_SYS | ~0,8 mm |
-| Clearance geral | 0,25 mm |
-| SAFE / tensão residual | clearance maior, alvo ≥1,0 mm na região sensível |
-| Via de sinal | 0,80 / 0,30 mm |
-| Via de potência | 1,00 / 0,40 mm |
+| General signal trace | 0.25–0.30 mm |
+| VEXC / RET / VMID | ~0.8 mm where practical |
+| LOWZ_BUS | ~1.0 mm where practical |
+| +3V3 / +5V_A | ~0.6 mm |
+| +5V_SYS | ~0.8 mm |
+| General clearance | 0.25 mm |
+| SAFE / residual-voltage area | larger clearance, target ≥1.0 mm in sensitive areas |
+| Signal via | 0.80 / 0.30 mm |
+| Power via | 1.00 / 0.40 mm |
 
-## Checklist antes de publicar uma revisão
+## Checklist before publishing a revision
 
-1. Sincronizar PCB a partir do esquemático.
-2. DRC sem shorts, nets abertas ou violações críticas.
-3. Conferir pinout/orientação física da Blue Pill e conectores.
-4. Conferir Board Outline e drills no Gerber viewer.
-5. Conferir Top/Bottom solder mask.
-6. Exportar Gerber novamente após qualquer alteração de PCB.
-7. Salvar BOM correspondente à mesma revisão.
-8. Registrar componentes DNP da montagem.
+1. Synchronize the PCB from the schematic.
+2. Run DRC and resolve shorts, open nets, and critical violations.
+3. Verify Blue Pill and connector pinout/orientation against the physical parts.
+4. Verify board outline and drills in a Gerber viewer.
+5. Verify top and bottom solder mask.
+6. Re-export Gerbers after every PCB change.
+7. Export a BOM matching the exact same revision.
+8. Record all DNP components for the intended assembly.
+9. Update documentation if pinout, safety behavior, or analog behavior changes.
 
-## Observação sobre o USB da Blue Pill
+## Blue Pill USB limitation
 
-Na Rev.1, PA11 e PA12 foram reutilizados como `K2_CMD` e `FLASH_CS`. Como esses pinos são D-/D+ do USB nativo do STM32F103, o conector Micro-USB da Blue Pill **não deve ser considerado uma interface USB disponível nesta revisão**. Consulte [`../docs/05-Pinout-e-Interfaces.md`](../docs/05-Pinout-e-Interfaces.md).
+In Rev.1, PA11 and PA12 are reused by board functions (`K2_CMD` and `FLASH_CS` in the current pinout). These pins are the STM32F103 native USB D-/D+ pins, so the Blue Pill Micro-USB connector must **not** be treated as an available native USB interface in this revision.
+
+See [`../docs/05-Pinout-and-Interfaces.md`](../docs/05-Pinout-and-Interfaces.md).

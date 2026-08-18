@@ -1,0 +1,28 @@
+{
+  "folders": [
+    {
+      "name": "WTK.RLCMeter",
+      "path": "."
+    }
+  ],
+  "settings": {
+    "cmake.sourceDirectory": "${workspaceFolder}/Firmware",
+    "cmake.configureOnOpen": false,
+    "cmake.exportCompileCommandsFile": true,
+    "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
+    "C_Cpp.intelliSenseEngine": "default",
+    "files.associations": {
+      "*.h": "c"
+    },
+    "files.exclude": {
+      "**/.git": true
+    }
+  },
+  "extensions": {
+    "recommendations": [
+      "ms-vscode.cmake-tools",
+      "ms-vscode.cpptools",
+      "marus25.cortex-debug"
+    ]
+  }
+}

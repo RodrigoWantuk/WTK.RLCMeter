@@ -1,21 +1,22 @@
 # `bsp`
 
-Board Support Package do STM32F103C8T6.
+Board Support Package for the STM32F103C8T6 target.
 
-## Responsabilidades
+## Responsibilities
 
 - clock tree;
-- pin mux e estados seguros de GPIO;
-- desabilitar JTAG mantendo SWD para liberar PA15/PB3/PB4;
+- GPIO pin-mux and safe defaults;
+- disable JTAG while preserving SWD to free PA15/PB3/PB4;
 - ADC1/ADC2;
 - DMA;
 - TIM1/TIM2/TIM3/TIM4;
 - SPI2;
 - USART1;
 - watchdog;
-- monotonic time e reset reason.
+- monotonic time;
+- reset reason.
 
-## Arquivos planejados
+## Planned files
 
 ```text
 bsp_clock.c/.h
@@ -30,9 +31,10 @@ bsp_time.c/.h
 bsp_reset.c/.h
 ```
 
-## Regras
+## Rules
 
-- somente esta camada conhece handles HAL/LL e registradores do STM32;
-- callbacks de ISR devem ser mínimos;
-- defaults de boot precisam deixar `RANGE_EN=0`, K1/K2 desligados e CSs SPI inativos;
-- pinout documentado em `docs/05-Pinout-e-Interfaces.md` deve ser tratado como contrato de hardware.
+- this is the primary layer allowed to own STM32 HAL/LL handles and register details;
+- ISR callbacks remain minimal;
+- boot defaults must keep `RANGE_EN=0`, K1/K2 de-energized, buzzer off, and SPI chip selects inactive;
+- `docs/05-Pinout-and-Interfaces.md` is the firmware pinout contract;
+- platform code should be deterministic and testable at API boundaries even when it cannot run in host tests.

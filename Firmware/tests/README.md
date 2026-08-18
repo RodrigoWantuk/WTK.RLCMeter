@@ -1,22 +1,22 @@
 # `tests`
 
-Testes host-side e vetores de validação do firmware.
+Host-side tests and validation vectors for the firmware.
 
-## Prioridades
+## Priorities
 
-- matemática complexa;
-- DFT/detecção síncrona;
-- equação de impedância;
-- derivação R/C/L;
-- aplicação de calibração;
+- complex mathematics;
+- synchronous I/Q / DFT extraction;
+- impedance equation;
+- R/C/L derivation;
+- calibration application;
 - autorange;
 - confidence gates;
-- parsing/CRC de records;
-- state machine pura;
-- manifest de assets.
+- persistent record parsing/CRC;
+- pure application state machine;
+- asset manifest parsing.
 
-## Vetores
+## Test vectors
 
-Manter fixtures para R, C e L ideais, além de casos com ruído, clipping, offset, skew e respostas próximas de OPEN/SHORT.
+Maintain fixtures for ideal R, C, and L cases plus noise, clipping, offset, timing/phase error, and OPEN/SHORT-adjacent conditions.
 
-Testes host-side não substituem qualificação em bancada, mas impedem regressões matemáticas e de state machine antes de gravar o MCU.
+Host tests do not replace bench qualification, but they prevent mathematical and state-machine regressions before flashing the MCU.

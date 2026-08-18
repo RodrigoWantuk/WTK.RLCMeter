@@ -1,6 +1,6 @@
 # `drivers`
 
-Drivers de dispositivos externos e abstrações pequenas de periféricos.
+Device drivers and small peripheral abstractions.
 
 ## Baseline
 
@@ -8,33 +8,33 @@ Drivers de dispositivos externos e abstrações pequenas de periféricos.
 ili9341.c/.h
 w25q.c/.h
 buttons.c/.h
-spi_bus.c/.h       # se necessário para arbitrar TFT/Flash
-crc32.c/.h         # se não vier de outra camada comum
+spi_bus.c/.h       # if shared-bus ownership needs an explicit layer
+crc32.c/.h         # location may change if a common utility module is added
 ```
 
 ## ILI9341
 
-O driver expõe operações de baixo nível: init, reset, leitura de ID/status, rotation, window, fill e envio de pixels RGB565.
+The driver exposes low-level display operations such as init, reset, ID/status readback, rotation, address window, fill, and RGB565 pixel transfer.
 
-Não conhece telas, unidades, menus ou resultados RLC.
+It does not know about screens, units, navigation, or RLC results.
 
 ## W25Q
 
-O driver expõe JEDEC ID, read/fast-read, page program, sector erase, status e wait-ready.
+The driver exposes JEDEC ID, normal/fast read, page program, sector erase, status, and wait-ready operations.
 
-Deve reconhecer densidades compatíveis W25Q16/32/64/128 sem codificar o tamanho da W25Q64 em todo o firmware.
+It should recognize compatible W25Q16/32/64/128 devices instead of assuming W25Q64 capacity everywhere.
 
-## SPI compartilhado
+## Shared SPI
 
-TFT e Flash compartilham SCK/MOSI/MISO e possuem CS independentes.
+TFT and Flash share SCK/MOSI/MISO and use independent chip selects.
 
-Invariantes:
+Invariants:
 
-- nunca selecionar os dois devices ao mesmo tempo;
-- evitar transações longas durante quiet mode;
-- TFT pode ser atualizado incrementalmente;
-- erase/program de Flash não ocorre no meio de aquisição crítica.
+- never select both devices at the same time;
+- avoid long transactions during quiet mode;
+- TFT updates are incremental;
+- Flash erase/program does not occur during critical acquisition.
 
 ## Buttons
 
-Debounce transforma GPIO em eventos `PRESS`, `RELEASE`, `LONG_PRESS` e `REPEAT`, sem incorporar navegação de UI.
+Debouncing converts GPIO states into `PRESS`, `RELEASE`, `LONG_PRESS`, and `REPEAT` events without embedding UI navigation policy.

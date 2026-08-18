@@ -1,12 +1,12 @@
 # `measurement`
 
-Núcleo metrológico do WTK.RLCMeter.
+Metrology core of WTK.RLCMeter.
 
-## Objetivo
+## Goal
 
-Manter aquisição, DSP, cálculo de impedância, autorange e confidence independentes de UI e do hardware gráfico.
+Keep acquisition, DSP, impedance calculation, autorange, confidence, and calibration application independent from UI and graphics/storage device details.
 
-## Arquivos planejados
+## Planned files
 
 ```text
 measurement_types.h
@@ -20,7 +20,7 @@ calibration_apply.c/.h
 measurement_engine.c/.h
 ```
 
-## Fluxo
+## Flow
 
 ```text
 raw ADC samples
@@ -33,7 +33,7 @@ raw ADC samples
    -> accept / retry / rerange / reject
 ```
 
-## Equação central
+## Central equation
 
 ```text
 Vs = VEXC - VMID
@@ -41,14 +41,14 @@ Vx = RET  - VMID
 Zx = ZREF * Vx / (Vs - Vx)
 ```
 
-## High gain
+## High-gain channel
 
-O hardware atual usa ganho nominal aproximado de 15,47× em `RET_HG`, mas o código deve trabalhar com resposta complexa calibrada por frequência/range/amplitude.
+The current hardware has nominal gain around 15.47× on `RET_HG`, but code must use a calibrated complex response by frequency/range/amplitude where required.
 
-## Testabilidade
+## Testability
 
-`phasor`, `complex_math`, `impedance`, `autorange`, `confidence` e aplicação de calibração devem compilar em host tests sem HAL/CMSIS.
+`phasor`, `complex_math`, `impedance`, `autorange`, `confidence`, and calibration application should compile in host tests without HAL/CMSIS dependencies.
 
-## Saída
+## Output
 
-Além do valor medido, o engine retorna metadados de qualidade: clipping, SNR, estabilidade, range/frequência/amplitude usados, canal 1X/HG, calibração aplicada e reason de retry/rerange quando houver.
+In addition to the measured value, the engine should return quality metadata such as clipping, SNR, stability, selected range/frequency/amplitude, 1X/HG channel, calibration identifier, and retry/rerange reason.

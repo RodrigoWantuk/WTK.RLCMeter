@@ -1,8 +1,8 @@
 # `ui`
 
-Interface gráfica do instrumento no ILI9341.
+Graphical user interface for the ILI9341 display.
 
-## Arquivos planejados
+## Planned files
 
 ```text
 ui_core.c/.h
@@ -19,20 +19,26 @@ screen_calibration.c/.h
 screen_diagnostics.c/.h
 ```
 
-## Regras
+## Rules
 
-- sem framebuffer full-screen;
-- renderização incremental;
-- sem delays bloqueantes para animação;
-- bitmaps grandes em streaming da W25Q;
-- UI não aciona relés ou ranges diretamente;
-- formatação SI e unidades fica separada do cálculo metrológico;
-- atualizações SPI pesadas são suspensas em quiet mode.
+- no full-screen framebuffer;
+- incremental/dirty-region rendering;
+- no blocking animation delays;
+- large bitmaps streamed from W25Q;
+- UI never controls relays or ranges directly;
+- SI-prefix/unit formatting remains separate from metrology calculations;
+- heavy SPI updates are suspended in quiet mode.
 
-## Telas baseline
+## Baseline screens
 
-Startup, medição principal, detalhes de impedância/fase, gráficos, settings, calibração e diagnóstico.
+- startup;
+- main measurement;
+- impedance/phase detail;
+- graphs/derived visualizations;
+- settings;
+- calibration;
+- diagnostics.
 
-## Interação
+## Interaction
 
-Três botões: UP, OK e DOWN, com press, long-press e repeat quando apropriado.
+Three buttons: UP, OK, and DOWN, with press, long-press, and repeat events where appropriate.

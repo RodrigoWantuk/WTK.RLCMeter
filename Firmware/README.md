@@ -1,46 +1,59 @@
 # Firmware
 
-Firmware do WTK.RLCMeter para **STM32F103C8T6 / Blue Pill**.
+Firmware for WTK.RLCMeter, targeting the **STM32F103C8T6 / Blue Pill**.
 
-Este diretório contém a arquitetura e, gradualmente, a implementação do firmware do instrumento. O objetivo é manter aquisição metrológica determinística, segurança fail-safe e UI responsiva sem acoplar DSP a periféricos específicos.
+This directory contains the firmware architecture and, progressively, the implementation of the instrument. The design goal is deterministic acquisition, fail-safe hardware control, and a responsive UI without coupling measurement algorithms to device-specific peripherals.
 
-## Stack baseline
+## Canonical development stack
 
-- C17;
-- GNU Arm Embedded (`arm-none-eabi-gcc`);
-- CMake;
-- CMSIS + STM32CubeF1 HAL/LL;
-- HAL para periféricos não críticos;
-- LL/registradores quando necessário em timer, ADC e DMA;
-- sem RTOS inicialmente;
-- testes host-side para código puro;
-- nenhuma alocação dinâmica no caminho crítico de aquisição.
+- **Language:** C17.
+- **Build system:** CMake.
+- **Embedded compiler:** GNU Arm Embedded / `arm-none-eabi-gcc`.
+- **MCU support:** CMSIS + STM32CubeF1 HAL/LL.
+- **Editor:** Visual Studio Code is the primary supported workflow.
+- **IDE independence:** builds must remain reproducible from the command line.
+- **RTOS:** none initially.
+- **Arduino:** not used; no `.ino` source files and no Arduino framework dependency.
+- **Critical-path memory:** no dynamic allocation in acquisition/DSP-critical paths.
+- **Testing:** host-side tests for pure code wherever practical.
 
-STM32CubeIDE pode ser usado como IDE/debugger, mas o build do repositório deve permanecer reproduzível por linha de comando.
+STM32CubeIDE may be used as a debugger, peripheral-reference tool, or code-generation aid during bring-up, but its project metadata must not become the canonical build definition.
 
-## Estrutura
+## VS Code workflow
+
+Open the repository using:
+
+```text
+WTK.RLCMeter.code-workspace
+```
+
+Recommended extensions are versioned under `.vscode/extensions.json`. CMake Tools should use `Firmware/` as the CMake source directory once Phase 01 creates the build files.
+
+The repository workspace is intentionally lightweight: developers and agents must still be able to configure/build through CMake from a normal terminal.
+
+## Planned structure
 
 ```text
 Firmware/
 ├── README.md
-├── assets/              # fontes de imagens/fontes antes do empacotamento
-├── config/              # defaults, feature flags e parâmetros versionados
+├── assets/              # source images/fonts before packing
+├── config/              # versioned defaults and feature flags
 ├── src/
-│   ├── app/             # state machine e orchestration
-│   ├── bsp/             # binding STM32 e clock/periféricos
-│   ├── drivers/         # ILI9341, W25Q, buttons e drivers de dispositivo
-│   ├── hardware/        # serviços seguros de relé/range/power/buzzer/etc.
-│   ├── measurement/     # acquisition, DSP, Z, autorange e confidence
-│   ├── storage/         # assets, settings e calibração persistente
-│   └── ui/              # screens, widgets, navigation e console
-├── tests/               # testes host-side, fixtures e vetores conhecidos
-├── third_party/         # dependências externas isoladas
-└── tools/               # asset packer e ferramentas de calibração/análise
+│   ├── app/             # state machine, orchestration, global policy
+│   ├── bsp/             # STM32 clock/GPIO/ADC/DMA/timer/SPI/UART binding
+│   ├── drivers/         # ILI9341, W25Q, buttons, device drivers
+│   ├── hardware/        # safe instrument hardware services
+│   ├── measurement/     # acquisition, DSP, impedance, autorange, confidence
+│   ├── storage/         # assets, settings, calibration persistence
+│   └── ui/              # screens, widgets, formatting, navigation
+├── tests/               # host-side tests and known vectors
+├── third_party/         # isolated external dependencies
+└── tools/               # asset/calibration/log tooling
 ```
 
-Cada subdiretório possui seu próprio `README.md` com responsabilidades, dependências permitidas e arquivos planejados.
+Each major module has its own README describing responsibilities and dependency boundaries.
 
-## Regras de dependência
+## Dependency rules
 
 ```text
 app
@@ -50,7 +63,7 @@ app
  └── ui
 
 hardware -> bsp
-measurement -> acquisition abstraction + tipos puros
+measurement -> acquisition abstraction + pure types
 storage -> drivers/W25Q
 ui -> drivers/ILI9341 + storage/assets
 
@@ -58,20 +71,21 @@ drivers -> bsp
 bsp -> CMSIS/HAL/LL
 ```
 
-Regras obrigatórias:
+Mandatory boundaries:
 
-- `measurement` não inclui headers de ILI9341, W25Q ou GPIO;
-- `ui` não aciona K1, K2 ou `RANGE_EN` diretamente;
-- somente `hardware` decide sequências de relés/ranges;
-- somente `bsp` conhece detalhes de pin mux, registers e handles HAL;
-- ISR apenas move/sinaliza dados; processamento pesado ocorre no loop cooperativo;
-- toda operação que possa colocar o DUT em MEASURE possui caminho explícito de abort para SAFE.
+- `measurement` must not include ILI9341, W25Q, or GPIO headers;
+- `ui` must not directly drive K1, K2, or `RANGE_EN`;
+- only `hardware` implements safe relay/range sequences;
+- only `bsp` owns STM32 pin-mux, register, and HAL/LL details;
+- ISRs move or signal data and remain short;
+- rendering, storage operations, and DSP execute outside interrupt context;
+- every transition capable of connecting the DUT to the AFE has an explicit SAFE abort path.
 
-## Scheduler cooperativo
+## Cooperative scheduler
 
-Sem RTOS na primeira implementação:
+No RTOS is planned for the first implementation. The application uses short non-blocking steps:
 
-```text
+```c
 while (1)
 {
     safety_poll();
@@ -85,35 +99,33 @@ while (1)
 }
 ```
 
-As funções `*_step()` devem ser curtas e não bloqueantes. Operações demoradas — erase de Flash, animações, atualização de grandes regiões do TFT — são fragmentadas em estados.
+Long operations such as Flash erase/program, animations, and large TFT updates must be decomposed into states or chunks rather than implemented as blocking waits.
 
-## Interrupções
+## Interrupt usage
 
-Uso planejado:
+Planned interrupt responsibilities:
 
-- timer de trigger de ADC;
-- DMA half/full complete;
-- UART RX, se necessário;
-- timebase do buzzer quando usado em software;
-- SysTick apenas como relógio de sistema de baixa resolução.
+- ADC trigger timing;
+- DMA half/full completion;
+- UART RX where required;
+- buzzer timebase if implemented through timed GPIO toggling;
+- SysTick only as a low-resolution system tick, not as the metrology sampling source.
 
-Nenhuma transformação complexa, renderização ou acesso de storage roda dentro de ISR.
+No complex transformation, screen rendering, storage transaction, or autorange decision runs inside an ISR.
 
-## Timers
+## Timer baseline
 
-Baseline:
+- **TIM1_CH1 / PA8** — `PWM_EXC` carrier.
+- **TIM2** — candidate deterministic acquisition trigger.
+- **TIM3_CH3 / PB0** — continuous TFT backlight PWM.
+- **PB1** — buzzer output; although PB1 is TIM3_CH4, buzzer and backlight cannot have independent base frequencies when sharing TIM3 ARR/prescaler.
+- **TIM4** — candidate buzzer timebase to toggle PB1 in software while preserving independent backlight PWM frequency.
 
-- **TIM1_CH1 / PA8** — carrier de `PWM_EXC`;
-- **TIM2** — candidato a trigger determinístico da aquisição;
-- **TIM3_CH3 / PB0** — PWM contínuo do backlight;
-- **PB1** — saída do buzzer; embora seja TIM3_CH4, backlight e buzzer não podem usar frequências independentes no mesmo ARR/prescaler;
-- **TIM4** — candidato a timebase para toggle de PB1 por software, preservando frequência independente do backlight.
+The exact timer/clock plan must be frozen during Phase 02/05 after validating the STM32 clock tree and acquisition requirements.
 
-O mapeamento final deve ser congelado após validação do clock tree e do esquema de amostragem.
+## Safe boot state
 
-## Estado seguro no boot
-
-Antes de inicializar TFT, Flash ou carregar configurações:
+Before TFT, external Flash, or persisted settings are initialized:
 
 ```text
 RANGE_EN = 0
@@ -125,21 +137,21 @@ FLASH_CS  = 1
 PWM_EXC   = neutral/off
 ```
 
-Depois disso:
+Then:
 
-1. configurar clock e watchdog;
-2. configurar GPIOs em estado seguro;
-3. desabilitar JTAG mantendo SWD, liberando PA15/PB3/PB4;
-4. iniciar UART;
-5. iniciar SPI, W25Q e ILI9341;
-6. iniciar ADC/DMA/timers;
-7. validar configuração/calibração persistente;
-8. executar self-test;
-9. entrar em `SAFE_CHECK`.
+1. configure clocks and watchdog;
+2. establish safe GPIO defaults;
+3. disable JTAG while preserving SWD, freeing PA15/PB3/PB4;
+4. start diagnostic UART;
+5. initialize SPI, W25Q, and ILI9341;
+6. initialize ADC/DMA/timers;
+7. validate persisted configuration/calibration;
+8. run self-test;
+9. enter `SAFE_CHECK`.
 
-Falha de TFT ou Flash nunca autoriza medição insegura.
+A TFT or Flash failure must never authorize a measurement that safety logic would otherwise block.
 
-## State machine do instrumento
+## Instrument state machine
 
 ```text
 BOOT
@@ -182,40 +194,46 @@ PROCESS
 RESULT
 ```
 
-O princípio é simples: o DUT permanece conectado ao AFE pelo menor tempo necessário e o processamento/renderização acontece preferencialmente após retorno a SAFE.
+The DUT should remain connected to the analog measurement path only for the time required to settle and acquire the requested data. Heavy processing and rendering should preferably occur after K1 returns to SAFE.
 
-## Aquisição e DSP
+## Acquisition and DSP
 
-Fluxo planejado:
+Planned flow:
 
-1. configurar frequência/amplitude de excitação;
-2. selecionar RREF com `RANGE_EN=0` durante a comutação;
-3. aguardar dead-time e settling;
-4. energizar K1 somente após safety gates;
-5. timer dispara ADCs em cadência determinística;
-6. DMA recebe blocos;
-7. DSP calcula componentes I/Q / DFT de bin único;
-8. formar fasores calibrados de VEXC, VMID e RET;
-9. calcular impedância complexa;
-10. aplicar confidence gates e, se necessário, rerange/retry;
-11. retornar K1 a SAFE antes de UI pesada.
+1. configure excitation frequency and amplitude;
+2. select RREF with `RANGE_EN=0` during switching;
+3. enforce dead-time and settling;
+4. energize K1 only after all safety gates pass;
+5. timer-trigger ADC sampling deterministically;
+6. transfer blocks through DMA;
+7. calculate I/Q components or an equivalent single-bin DFT outside the ISR;
+8. form calibrated complex phasors for VEXC, VMID, and RET;
+9. compute complex impedance;
+10. apply confidence gates and rerange/retry if needed;
+11. return K1 to SAFE before heavy UI work.
 
-O canal `RET_HG` atual possui ganho nominal `1 + 68k/4,7k ≈ 15,47×`. O firmware deve usar resposta complexa calibrada, nunca apenas essa constante nominal.
+The current `RET_HG` hardware has nominal gain:
+
+```text
+1 + 68 kΩ / 4.7 kΩ ≈ 15.47×
+```
+
+Firmware must use a calibrated complex response rather than treating 15.47 as an exact frequency-independent gain.
 
 ## Autorange
 
-A decisão de faixa considera simultaneamente:
+Range decisions consider more than estimated DUT magnitude:
 
-- magnitude estimada do DUT;
-- clipping de `RET_1X` e `RET_HG`;
+- `RET_1X` and `RET_HG` clipping;
 - SNR;
-- corrente no caminho de excitação;
-- frequência;
-- amplitude permitida;
-- combinações qualificadas em calibração;
-- proximidade de OPEN/SHORT.
+- allowed excitation current;
+- analog headroom;
+- frequency;
+- amplitude;
+- qualified range/frequency/amplitude combinations;
+- proximity to OPEN/SHORT behavior.
 
-Troca segura:
+Safe switch sequence:
 
 ```text
 RANGE_EN=0
@@ -225,28 +243,28 @@ RANGE_EN=1
 wait settling
 ```
 
-O range de 10 Ω não deve usar excitação de 500 mVrms.
+The 10 Ω reference range must not use 500 mVrms excitation.
 
 ## Quiet mode
 
-Durante aquisição crítica:
+During critical acquisition windows:
 
-- buzzer off;
-- nenhuma escrita grande no TFT;
-- nenhuma leitura/erase/program de Flash desnecessária;
-- logging UART volumoso suspenso;
-- backlight permanece com duty estável; se houver acoplamento medido, poderá ser temporariamente congelado em condição qualificada.
+- buzzer is off;
+- large TFT writes are suspended;
+- unnecessary W25Q reads/program/erase operations are suspended;
+- high-volume UART logging is suspended;
+- backlight duty remains stable; if bench testing shows measurable coupling, it may be frozen to a qualified condition.
 
-## Persistência
+## Persistence
 
-Sem filesystem inicialmente. A W25Q é particionada logicamente em:
+No filesystem is planned initially. W25Q is logically divided into:
 
 - asset pack;
 - calibration records;
 - settings;
-- diagnóstico/eventos opcionais.
+- optional diagnostic/event data.
 
-Records persistentes devem conter, no mínimo:
+Persistent records should include at least:
 
 ```text
 magic
@@ -258,64 +276,68 @@ crc32
 payload
 ```
 
-Settings e calibração usam dois slots ou journal simples para tolerar perda de energia durante atualização.
+Settings/calibration should use redundant slots or a small journal strategy to tolerate power loss during updates.
 
 ## Assets
 
-O TFT 240×320 RGB565 exige 153,6 kB para um framebuffer completo, acima da RAM disponível na Blue Pill. Portanto:
+A full 240×320 RGB565 framebuffer consumes 153.6 kB, exceeding Blue Pill RAM. Therefore:
 
-- não existe framebuffer full-screen;
-- desenho é incremental;
-- bitmaps são lidos da W25Q em blocos pequenos e transmitidos diretamente ao ILI9341;
-- assets podem ser pré-convertidos para RGB565/RLE ou formatos simples apropriados;
-- SPI é compartilhado entre TFT e Flash com CS independentes.
+- there is no full-screen framebuffer;
+- rendering is incremental;
+- large bitmaps are streamed from W25Q in small blocks;
+- assets may be preconverted to RGB565, simple RLE, or compact masks;
+- TFT and Flash share SPI with independent CS lines.
 
-## Diagnóstico
+## Diagnostics
 
-Logs compactos em ring buffer:
+Compact log levels:
 
 ```text
 ERROR
 WARN
 INFO
 DEBUG
-TRACE   # somente builds de laboratório
+TRACE   # laboratory builds only
 ```
 
-O diagnóstico deve permitir bring-up sem breakpoint, mostrando pelo TFT/UART:
+Bring-up diagnostics should expose through UART and/or TFT:
 
-- estado da state machine;
-- valores ADC crus e convertidos;
-- range e RREF;
-- K1/K2;
+- application state;
+- raw and converted ADC values;
+- active range/RREF;
+- K1/K2 state;
 - `CHG_VBUS`;
-- bateria/NTC;
-- JEDEC ID da Flash;
-- status do TFT;
+- battery and NTC;
+- W25Q JEDEC ID/status;
+- TFT status;
 - clipping/SNR/confidence;
-- códigos de fault.
+- fault codes.
 
-## Build profiles planejados
+## Planned build profiles
 
-- `Debug` — asserts, logs e símbolos completos;
-- `Lab` — instrumentação extra, TRACE e telas de engenharia;
-- `Release` — comportamento final, logs reduzidos;
-- `HostTests` — módulos puros compilados no host sem STM32.
+- `Debug` — assertions, full symbols, development logging.
+- `Lab` — extra instrumentation, TRACE, engineering screens.
+- `Release` — product behavior with reduced logging.
+- `HostTests` — pure modules compiled for the development host without STM32 dependencies.
 
-## Fases de implementação
+## Implementation program
 
-1. build system + BSP + UART;
-2. TFT + Flash + botões;
-3. safety state machine e diagnóstico;
-4. ranges + K1/K2;
-5. PWM_EXC + ADC/DMA;
-6. I/Q + cálculo complexo de Z;
-7. autorange + confidence;
-8. calibração persistente;
-9. UI final, gráficos e assets;
-10. qualificação metrológica e fechamento da matriz válida.
+Firmware implementation is governed by [`../AGENTS.md`](../AGENTS.md) and the plans under [`../plans`](../plans).
 
-Veja também:
+The intended sequence is:
 
-- [`../docs/04-Arquitetura-de-Firmware.md`](../docs/04-Arquitetura-de-Firmware.md)
-- [`../docs/13-Detalhamento-do-Firmware.md`](../docs/13-Detalhamento-do-Firmware.md)
+1. toolchain, CMake, VS Code integration, and host-test harness;
+2. platform/BSP, safe GPIO, UART, watchdog, and timing foundation;
+3. SPI, W25Q, ILI9341, buttons, backlight, and buzzer;
+4. safety sensing, power monitoring, K1/K2, and range control;
+5. PWM excitation, ADC1/ADC2, timer trigger, and DMA;
+6. phasor extraction and complex impedance calculation;
+7. autorange, confidence, and calibration persistence;
+8. final UI, asset pack, settings, and product-level diagnostics;
+9. hardware bring-up and metrology qualification.
+
+See also:
+
+- [`../docs/04-Firmware-Architecture.md`](../docs/04-Firmware-Architecture.md)
+- [`../docs/13-Detailed-Firmware-Design.md`](../docs/13-Detailed-Firmware-Design.md)
+- [`../plans/README.md`](../plans/README.md)

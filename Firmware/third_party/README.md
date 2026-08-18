@@ -1,13 +1,13 @@
 # `third_party`
 
-Dependências externas usadas pelo firmware.
+External dependencies used by firmware.
 
-## Regras
+## Rules
 
-- manter cada dependência isolada e identificável;
-- registrar versão/commit de origem;
-- preservar arquivos de licença e notices exigidos;
-- evitar copiar código de terceiros diretamente para módulos próprios;
-- preferir dependências pequenas, permissivas e adequadas a firmware embarcado.
+- keep each dependency isolated and identifiable;
+- record upstream version/commit;
+- preserve required license and notice files;
+- do not copy third-party code into project-owned modules without attribution/history;
+- prefer small, permissively licensed dependencies appropriate for embedded firmware.
 
-CMSIS/HAL gerenciados pelo fluxo de build podem ser referenciados externamente em vez de vendorizados, desde que o build continue reproduzível.
+CMSIS/HAL may be provided through a reproducible dependency mechanism instead of vendored source, provided command-line builds remain reproducible.

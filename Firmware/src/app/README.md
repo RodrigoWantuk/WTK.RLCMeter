@@ -1,24 +1,24 @@
 # `app`
 
-Camada de aplicação do firmware.
+Application layer for the firmware.
 
-## Responsabilidades
+## Responsibilities
 
-- state machine global;
-- orchestration entre safety, measurement, storage e UI;
-- fila/dispatch de eventos;
-- política de retry/rerange;
-- faults globais;
-- versionamento de firmware/hardware exposto à UI.
+- global state machine;
+- orchestration between safety, measurement, storage, and UI;
+- event dispatch;
+- retry/rerange policy;
+- global fault handling;
+- firmware/hardware version information exposed to diagnostics/UI.
 
-## Não deve fazer
+## Must not
 
-- acessar GPIO diretamente;
-- falar com ILI9341/W25Q diretamente;
-- calcular fasores/impedância;
-- energizar relés sem passar por `hardware`.
+- access GPIO directly;
+- call ILI9341/W25Q drivers directly when a higher-level service exists;
+- calculate phasors or impedance;
+- energize relays or alter ranges without going through `hardware` services.
 
-## Arquivos planejados
+## Planned files
 
 ```text
 app_state_machine.c/.h
@@ -29,9 +29,9 @@ app_faults.c/.h
 app_version.c/.h
 ```
 
-## Invariantes
+## Invariants
 
-- todo caminho que entra em MEASURE possui transição explícita de volta a SAFE;
-- faults críticos interrompem excitação e solicitam SAFE imediatamente;
-- nenhuma transição depende de delay bloqueante;
-- o estado atual deve ser visível ao diagnóstico.
+- every path entering MEASURE has an explicit return-to-SAFE path;
+- critical faults stop excitation and request SAFE immediately;
+- no state transition relies on a blocking delay;
+- current state and fault reason remain observable through diagnostics.
