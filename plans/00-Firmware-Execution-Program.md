@@ -13,6 +13,7 @@ Deliver Rev.1 firmware that is:
 - buildable through CMake without an IDE dependency;
 - convenient to edit/debug from Visual Studio Code;
 - testable on the host for pure logic;
+- testable against virtual STM32 hardware for digital integration regressions;
 - observable enough for hardware bring-up without breakpoints;
 - calibrated/qualified rather than based only on nominal component values;
 - modular enough for later hardware revisions without rewriting the metrology core;
@@ -110,7 +111,10 @@ Desktop authoring fonts are converted offline; the MCU does not parse TTF/OTF. R
           |                    |
           v                    v
 03 SPI/UI Peripherals      04 Safety/Range
-          |                    |
+          |
+          v
+03A Virtual Hardware Validation
+          |
           +----------+---------+
                      |
                      v
@@ -130,6 +134,8 @@ Desktop authoring fonts are converted offline; the MCU does not parse TTF/OTF. R
 ```
 
 Phase 03 and part of Phase 04 can progress in parallel after Phase 02, provided they do not create conflicting BSP ownership.
+
+Phase 03A is an orthogonal virtual-hardware validation layer. Establish it after the Phase 02/03 digital foundation and reuse it during later phases. It may validate digital policy and peripheral behavior, but it does not replace hardware-dependent bench criteria.
 
 ## Cross-phase interfaces
 
@@ -171,6 +177,7 @@ Firmware/
 │   └── modules/
 ├── src/
 ├── tests/
+├── sim/
 ├── tools/
 ├── assets/
 ├── config/
@@ -183,6 +190,7 @@ Plus root-level:
 CMakePresets.json or Firmware/CMakePresets.json (decision in Phase 01)
 WTK.RLCMeter.code-workspace
 .vscode/
+.github/workflows/ when CI is enabled
 AGENTS.md
 plans/
 ```
@@ -203,7 +211,20 @@ Every phase must preserve:
 
 ## Automated validation strategy
 
-The program should eventually support at least:
+The project uses three distinct evidence layers before final bench qualification:
+
+```text
+1. Host tests
+   pure C logic/state/policy/math
+
+2. Virtual hardware tests
+   real STM32 firmware artifact executing against simulated digital hardware
+
+3. Physical bench validation
+   actual Rev.1 board/electrical behavior/metrology
+```
+
+Canonical host and embedded build validation includes:
 
 ```bash
 cmake --preset host-debug
@@ -214,11 +235,26 @@ cmake --preset stm32-debug
 cmake --build --preset stm32-debug
 ```
 
-Exact preset names may differ if Phase 01 documents a better naming convention.
-
-Future CI can run host tests and cross-compile the embedded target even without hardware attached.
+The virtual-hardware layer is defined by [`03A-Wokwi-Virtual-Hardware-Validation.md`](03A-Wokwi-Virtual-Hardware-Validation.md). It initially uses Wokwi to execute the existing STM32 Lab ELF and automate digital GPIO/UART/SPI/TFT/Flash regressions where the simulator supports them.
 
 Host testing should eventually cover pure state-machine transitions, component/model classification, navigation/button semantics, calibration validity decisions, resource parsing, persistence corruption recovery, and the DSP core.
+
+Virtual hardware testing should cover externally observable digital integration behavior such as safe boot GPIOs, UART diagnostics, buttons, SPI ownership, display/Flash smoke behavior, PWM/timer outputs, and later digital safety-policy scenarios.
+
+Virtual tests must never be reported as electrical or metrology qualification. Simulator limitations remain explicit, and unsupported ADC2/DMA/IWDG behavior stays host/bench validated as appropriate.
+
+## Evidence classification
+
+Handoffs and validation reports should distinguish:
+
+```text
+HOST_TESTED
+VIRTUAL_HARDWARE_TESTED
+REQUIRES_BENCH_VALIDATION
+BENCH_VALIDATED
+```
+
+A result may legitimately be both `VIRTUAL_HARDWARE_TESTED` and `REQUIRES_BENCH_VALIDATION`.
 
 ## Bench-validation strategy
 
@@ -236,6 +272,8 @@ Hardware validation is staged so a failure cannot masquerade as a DSP bug:
 10. autorange/classification and qualification matrix;
 11. integrated UI/result-progress/quiet-mode behavior.
 
+Virtual evidence should be collected before the corresponding bench step when practical, but no virtual result removes the physical bench gate.
+
 ## Evidence requirements
 
 For bench-sensitive phases, evidence should identify:
@@ -249,6 +287,17 @@ bench supply settings
 reference instrument / fixture
 measured values
 logs/screenshots/captures
+pass/fail conclusion
+```
+
+For virtual-hardware evidence, record at least:
+
+```text
+firmware commit
+build profile
+simulator/backend version
+scenario/test name
+simulator limitations relevant to the test
 pass/fail conclusion
 ```
 
@@ -282,6 +331,8 @@ The following require explicit documentation updates before or with implementati
 - removing automatic component/model classification from normal operation;
 - changing the mandatory calibration boot gate.
 
+Changing the primary virtual-hardware simulator is not itself a firmware architecture change, but the replacement must preserve the evidence boundary between host, virtual, and bench validation.
+
 ## End-state release artifacts
 
 A Rev.1 firmware release should ultimately produce:
@@ -293,8 +344,9 @@ A Rev.1 firmware release should ultimately produce:
 - documented hardware revision compatibility;
 - calibration schema version;
 - qualification matrix;
-- release notes listing known limitations.
+- release notes listing known limitations;
+- host and virtual regression results associated with the release candidate.
 
 ## Immediate next action
 
-Complete the current Phase 01 acceptance criteria before beginning hardware feature implementation. Subsequent agents must follow the phase plans and the contracts above rather than implementing later product/UI behavior opportunistically.
+Close the Phase 03 software criteria, then establish Phase 03A virtual-hardware validation before relying on later digital integration behavior. Phase 04 may continue where independent, but subsequent agents should reuse the Phase 03A platform rather than inventing separate simulator-specific test harnesses.
