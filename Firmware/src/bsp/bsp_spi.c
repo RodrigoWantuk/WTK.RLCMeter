@@ -6,7 +6,7 @@
 enum
 {
     GPIO_MODE_INPUT_FLOATING = 0x4u,
-    GPIO_MODE_AF_PP_2MHZ = 0xAu,
+    GPIO_MODE_AF_PP_10MHZ = 0x9u,
     SPI_TIMEOUT_POLLS_PER_MS = 1000u,
     SPI_TIMEOUT_BASE_POLLS = 1000u,
 };
@@ -71,9 +71,9 @@ bsp_status_t bsp_spi2_init(const bsp_spi_config_t *config)
     RCC->APB2ENR |= RCC_APB2ENR_IOPBEN | RCC_APB2ENR_AFIOEN;
     RCC->APB1ENR |= RCC_APB1ENR_SPI2EN;
 
-    gpio_config_pin(GPIOB, 13u, GPIO_MODE_AF_PP_2MHZ);
+    gpio_config_pin(GPIOB, 13u, GPIO_MODE_AF_PP_10MHZ);
     gpio_config_pin(GPIOB, 14u, GPIO_MODE_INPUT_FLOATING);
-    gpio_config_pin(GPIOB, 15u, GPIO_MODE_AF_PP_2MHZ);
+    gpio_config_pin(GPIOB, 15u, GPIO_MODE_AF_PP_10MHZ);
 
     (void)bsp_clock_get_summary();
     (void)bsp_spi2_configure(config);

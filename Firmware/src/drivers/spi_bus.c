@@ -1,10 +1,10 @@
 #include "drivers/spi_bus.h"
 
 #include "bsp/bsp_gpio.h"
+#include "bsp/bsp_quiet.h"
 #include "bsp/bsp_spi.h"
 
 static bool g_acquired = false;
-static bool g_quiet_requested = false;
 static spi_bus_device_t g_owner = SPI_BUS_DEVICE_W25Q;
 
 static const bsp_spi_config_t g_mode0_conservative = {
@@ -27,19 +27,19 @@ bsp_status_t spi_bus_init(void)
 
 void spi_bus_request_quiet(bool requested)
 {
-    g_quiet_requested = requested;
+    bsp_quiet_request(requested);
 }
 
 bool spi_bus_quiet_requested(void)
 {
-    return g_quiet_requested;
+    return bsp_quiet_requested();
 }
 
 bsp_status_t spi_bus_acquire(spi_bus_device_t device)
 {
-    if (g_quiet_requested || g_acquired)
+    if (bsp_quiet_requested() || g_acquired)
     {
-        return BSP_STATUS_ERROR;
+        return BSP_STATUS_BUSY;
     }
 
     deselect_all();

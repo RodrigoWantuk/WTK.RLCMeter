@@ -19,12 +19,28 @@ static void expect_true(bool condition, const char *message)
     }
 }
 
-static bool read_resource(void *context, const resource_entry_t *entry, uint32_t offset, uint8_t *dst, size_t size)
+typedef struct
 {
-    (void)context;
+    bool defer_next_read;
+    bool defer_next_write;
+} stream_test_context_t;
+
+static ui_resource_status_t read_resource(void *context,
+                                          const resource_entry_t *entry,
+                                          uint32_t offset,
+                                          uint8_t *dst,
+                                          size_t size)
+{
+    stream_test_context_t *const test_context = (stream_test_context_t *)context;
+    if ((test_context != NULL) && test_context->defer_next_read)
+    {
+        test_context->defer_next_read = false;
+        return UI_RESOURCE_STATUS_DEFERRED;
+    }
+
     if ((entry == NULL) || (dst == NULL) || ((offset + size) > entry->size))
     {
-        return false;
+        return UI_RESOURCE_STATUS_ERROR;
     }
 
     for (size_t i = 0u; i < size; i++)
@@ -32,19 +48,25 @@ static bool read_resource(void *context, const resource_entry_t *entry, uint32_t
         dst[i] = g_data[offset + i];
     }
 
-    return true;
+    return UI_RESOURCE_STATUS_OK;
 }
 
-static bool write_resource(void *context, const uint8_t *src, size_t size)
+static ui_resource_status_t write_resource(void *context, const uint8_t *src, size_t size)
 {
-    (void)context;
+    stream_test_context_t *const test_context = (stream_test_context_t *)context;
+    if ((test_context != NULL) && test_context->defer_next_write)
+    {
+        test_context->defer_next_write = false;
+        return UI_RESOURCE_STATUS_DEFERRED;
+    }
+
     if (src == NULL)
     {
-        return false;
+        return UI_RESOURCE_STATUS_ERROR;
     }
 
     g_written += (uint32_t)size;
-    return true;
+    return UI_RESOURCE_STATUS_OK;
 }
 
 static void test_manifest_bounds(void)
@@ -96,13 +118,24 @@ static void test_stream_chunks(void)
     };
     ui_resource_streamer_t streamer;
     ui_resource_stream_t stream;
+    stream_test_context_t context = {
+        .defer_next_read = true,
+        .defer_next_write = false,
+    };
     g_written = 0u;
 
-    ui_resource_streamer_init(&streamer, read_resource, NULL, write_resource, NULL);
+    ui_resource_streamer_init(&streamer, read_resource, &context, write_resource, &context);
     ui_resource_stream_start(&stream, &entry);
-    expect_true(ui_resource_stream_step(&streamer, &stream), "first chunk");
-    expect_true(ui_resource_stream_step(&streamer, &stream), "second chunk");
-    expect_true(ui_resource_stream_step(&streamer, &stream), "third chunk");
+    expect_true(ui_resource_stream_step(&streamer, &stream) == UI_RESOURCE_STATUS_DEFERRED,
+                "deferred read keeps stream active");
+    expect_true(stream.active && (stream.offset == 0u) && (g_written == 0u), "deferred read preserves offset");
+    expect_true(ui_resource_stream_step(&streamer, &stream) == UI_RESOURCE_STATUS_OK, "first chunk");
+    context.defer_next_write = true;
+    expect_true(ui_resource_stream_step(&streamer, &stream) == UI_RESOURCE_STATUS_DEFERRED,
+                "deferred write keeps stream active");
+    expect_true(stream.active && (stream.offset == UI_RESOURCE_SCRATCH_BYTES), "deferred write preserves offset");
+    expect_true(ui_resource_stream_step(&streamer, &stream) == UI_RESOURCE_STATUS_OK, "second chunk");
+    expect_true(ui_resource_stream_step(&streamer, &stream) == UI_RESOURCE_STATUS_OK, "third chunk");
     expect_true(!stream.active, "stream complete");
     expect_true(g_written == entry.size, "all bytes streamed");
 }

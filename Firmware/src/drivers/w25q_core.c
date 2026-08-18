@@ -4,16 +4,18 @@
 
 typedef struct
 {
+    uint8_t manufacturer_id;
+    uint8_t memory_type;
     uint8_t capacity_code;
     uint32_t capacity_bytes;
     const char *name;
 } w25q_capacity_entry_t;
 
 static const w25q_capacity_entry_t g_supported_parts[] = {
-    {0x15u, 2u * 1024u * 1024u, "W25Q16"},
-    {0x16u, 4u * 1024u * 1024u, "W25Q32"},
-    {0x17u, 8u * 1024u * 1024u, "W25Q64"},
-    {0x18u, 16u * 1024u * 1024u, "W25Q128"},
+    {0xEFu, 0x40u, 0x15u, 2u * 1024u * 1024u, "W25Q16"},
+    {0xEFu, 0x40u, 0x16u, 4u * 1024u * 1024u, "W25Q32"},
+    {0xEFu, 0x40u, 0x17u, 8u * 1024u * 1024u, "W25Q64"},
+    {0xEFu, 0x40u, 0x18u, 16u * 1024u * 1024u, "W25Q128"},
 };
 
 w25q_status_t w25q_decode_jedec(w25q_jedec_id_t jedec, w25q_part_info_t *part)
@@ -23,14 +25,11 @@ w25q_status_t w25q_decode_jedec(w25q_jedec_id_t jedec, w25q_part_info_t *part)
         return W25Q_STATUS_INVALID_ARG;
     }
 
-    if (jedec.manufacturer_id != 0xEFu)
-    {
-        return W25Q_STATUS_UNSUPPORTED_DEVICE;
-    }
-
     for (size_t i = 0u; i < (sizeof(g_supported_parts) / sizeof(g_supported_parts[0])); i++)
     {
-        if (g_supported_parts[i].capacity_code == jedec.capacity_code)
+        if ((g_supported_parts[i].manufacturer_id == jedec.manufacturer_id) &&
+            (g_supported_parts[i].memory_type == jedec.memory_type) &&
+            (g_supported_parts[i].capacity_code == jedec.capacity_code))
         {
             part->jedec = jedec;
             part->capacity_bytes = g_supported_parts[i].capacity_bytes;

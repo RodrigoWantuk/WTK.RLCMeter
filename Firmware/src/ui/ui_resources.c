@@ -31,12 +31,12 @@ void ui_resource_stream_start(ui_resource_stream_t *stream, const resource_entry
     stream->active = (entry != NULL) && (entry->size > 0u);
 }
 
-bool ui_resource_stream_step(ui_resource_streamer_t *streamer, ui_resource_stream_t *stream)
+ui_resource_status_t ui_resource_stream_step(ui_resource_streamer_t *streamer, ui_resource_stream_t *stream)
 {
     if ((streamer == NULL) || (stream == NULL) || !stream->active ||
         (streamer->read == NULL) || (streamer->write == NULL) || (stream->entry == NULL))
     {
-        return false;
+        return UI_RESOURCE_STATUS_ERROR;
     }
 
     size_t chunk = UI_RESOURCE_SCRATCH_BYTES;
@@ -46,16 +46,27 @@ bool ui_resource_stream_step(ui_resource_streamer_t *streamer, ui_resource_strea
         chunk = remaining;
     }
 
-    if (!streamer->read(streamer->read_context, stream->entry, stream->offset, streamer->scratch, chunk))
+    ui_resource_status_t status =
+        streamer->read(streamer->read_context, stream->entry, stream->offset, streamer->scratch, chunk);
+    if (status == UI_RESOURCE_STATUS_DEFERRED)
+    {
+        return UI_RESOURCE_STATUS_DEFERRED;
+    }
+    if (status != UI_RESOURCE_STATUS_OK)
     {
         stream->active = false;
-        return false;
+        return UI_RESOURCE_STATUS_ERROR;
     }
 
-    if (!streamer->write(streamer->write_context, streamer->scratch, chunk))
+    status = streamer->write(streamer->write_context, streamer->scratch, chunk);
+    if (status == UI_RESOURCE_STATUS_DEFERRED)
+    {
+        return UI_RESOURCE_STATUS_DEFERRED;
+    }
+    if (status != UI_RESOURCE_STATUS_OK)
     {
         stream->active = false;
-        return false;
+        return UI_RESOURCE_STATUS_ERROR;
     }
 
     stream->offset += (uint32_t)chunk;
@@ -64,5 +75,5 @@ bool ui_resource_stream_step(ui_resource_streamer_t *streamer, ui_resource_strea
         stream->active = false;
     }
 
-    return true;
+    return UI_RESOURCE_STATUS_OK;
 }

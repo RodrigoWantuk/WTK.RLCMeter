@@ -4,6 +4,7 @@
 #include <stdint.h>
 
 #include "bsp/bsp_gpio.h"
+#include "drivers/ili9341_color.h"
 #include "drivers/spi_bus.h"
 
 enum
@@ -185,7 +186,9 @@ bsp_status_t ili9341_set_rotation(ili9341_t *display, uint8_t rotation)
 
 bsp_status_t ili9341_set_window(uint16_t x, uint16_t y, uint16_t width, uint16_t height)
 {
-    if ((width == 0u) || (height == 0u))
+    if ((width == 0u) || (height == 0u) || (x >= ILI9341_WIDTH) || (y >= ILI9341_HEIGHT) ||
+        ((uint32_t)width > ((uint32_t)ILI9341_WIDTH - x)) ||
+        ((uint32_t)height > ((uint32_t)ILI9341_HEIGHT - y)))
     {
         return BSP_STATUS_INVALID_ARG;
     }
@@ -222,12 +225,32 @@ bsp_status_t ili9341_set_window(uint16_t x, uint16_t y, uint16_t width, uint16_t
 
 bsp_status_t ili9341_write_pixels_rgb565(const uint16_t *pixels, size_t count)
 {
+    static uint8_t wire_pixels[ILI9341_FILL_CHUNK_PIXELS * 2u];
+
     if ((pixels == NULL) && (count > 0u))
     {
         return BSP_STATUS_INVALID_ARG;
     }
 
-    return ili9341_write_data((const uint8_t *)pixels, count * sizeof(uint16_t));
+    size_t offset = 0u;
+    while (offset < count)
+    {
+        size_t chunk = count - offset;
+        if (chunk > ILI9341_FILL_CHUNK_PIXELS)
+        {
+            chunk = ILI9341_FILL_CHUNK_PIXELS;
+        }
+
+        ili9341_rgb565_array_to_wire(&pixels[offset], wire_pixels, chunk);
+        const bsp_status_t status = ili9341_write_data(wire_pixels, chunk * 2u);
+        if (status != BSP_STATUS_OK)
+        {
+            return status;
+        }
+        offset += chunk;
+    }
+
+    return BSP_STATUS_OK;
 }
 
 void ili9341_fill_start(ili9341_fill_t *fill,

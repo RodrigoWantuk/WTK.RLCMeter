@@ -1,5 +1,6 @@
 #include "hardware/hw_buzzer.h"
 
+#include "bsp/bsp_quiet.h"
 #include "bsp/bsp_timers.h"
 
 enum
@@ -41,6 +42,12 @@ bsp_status_t hw_buzzer_play_tone(uint16_t frequency_hz, uint16_t duration_ms, ui
     {
         timer_stop();
         return BSP_STATUS_OK;
+    }
+
+    if (bsp_quiet_requested())
+    {
+        timer_stop();
+        return BSP_STATUS_BUSY;
     }
 
     const bsp_status_t status = bsp_timer4_buzzer_start(frequency_hz);

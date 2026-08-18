@@ -14,10 +14,12 @@
 #include "drivers/w25q.h"
 #include "hardware/hw_backlight.h"
 #include "hardware/hw_buzzer.h"
+#include "ui/ui_fallback_renderer.h"
 
 static buttons_t g_buttons;
 static ili9341_t g_display;
 static w25q_device_t g_flash;
+static bool g_flash_fallback_drawn = false;
 
 static uint8_t app_read_button_mask(void)
 {
@@ -52,6 +54,14 @@ static void app_step(void)
     }
 
     (void)ili9341_init_step(&g_display, now_ms);
+    if (g_display.ready && !g_flash.detected && !g_flash_fallback_drawn)
+    {
+        if (ui_fallback_draw_text(8u, 8u, "FLASH ERROR", 0xFFFFu, 0x0000u) == BSP_STATUS_OK)
+        {
+            g_flash_fallback_drawn = true;
+        }
+    }
+
     (void)w25q_device_poll(&g_flash, now_ms);
     hw_buzzer_step(now_ms);
 }
@@ -71,6 +81,7 @@ void app_shell_run(void)
     buttons_init(&g_buttons, NULL);
     w25q_device_init(&g_flash);
     ili9341_init_context(&g_display);
+    g_flash_fallback_drawn = false;
 
     const bsp_status_t spi_status = spi_bus_init();
     bsp_diagnostics_write_key_value_text("spi2", bsp_status_string(spi_status));

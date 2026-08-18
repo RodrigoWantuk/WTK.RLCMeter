@@ -26,6 +26,9 @@ static void test_decode_supported_parts(void)
     expect_true(w25q_decode_jedec((w25q_jedec_id_t){0x20u, 0x40u, 0x17u}, &part) ==
                     W25Q_STATUS_UNSUPPORTED_DEVICE,
                 "non-Winbond manufacturer rejected");
+    expect_true(w25q_decode_jedec((w25q_jedec_id_t){0xEFu, 0x99u, 0x17u}, &part) ==
+                    W25Q_STATUS_UNSUPPORTED_DEVICE,
+                "unknown memory type rejected");
     expect_true(w25q_decode_jedec((w25q_jedec_id_t){0xEFu, 0x40u, 0x19u}, &part) ==
                     W25Q_STATUS_UNSUPPORTED_DEVICE,
                 "unknown density rejected");

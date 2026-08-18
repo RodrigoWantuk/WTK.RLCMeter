@@ -16,13 +16,15 @@ crc32.c/.h         # location may change if a common utility module is added
 
 The driver exposes low-level display operations such as init, reset, ID/status readback, rotation, address window, fill, and RGB565 pixel transfer.
 
+RGB565 pixels are converted to the ILI9341 wire order explicitly: high byte first, then low byte. The driver does not reinterpret little-endian `uint16_t` memory as an SPI byte stream.
+
 It does not know about screens, units, navigation, or RLC results.
 
 ## W25Q
 
 The driver exposes JEDEC ID, normal/fast read, status, page-program start, sector-erase start, and pollable completion.
 
-Compatible W25Q16/32/64/128 parts are decoded through a table rather than assuming W25Q64 capacity everywhere. Erase/program operations are intentionally stateful (`start` then `poll`) so the cooperative superloop can continue servicing the watchdog; the low-level Flash driver does not service the application watchdog by itself.
+Compatible W25Q16/32/64/128 parts are decoded through an explicit JEDEC table containing manufacturer, memory type, and capacity. Erase/program operations are intentionally stateful (`start` then `poll`) so the cooperative superloop can continue servicing the watchdog; the low-level Flash driver does not service the application watchdog by itself.
 
 ## Shared SPI
 
@@ -35,7 +37,7 @@ Invariants:
 - TFT updates are incremental;
 - Flash erase/program does not occur during critical acquisition.
 
-The bus abstraction centrally owns chip-select exclusion and a quiet-mode request bit. Resource rendering can alternate:
+The bus abstraction centrally owns chip-select exclusion and observes the BSP quiet-mode request bit. A quiet-mode block is reported as `BSP_STATUS_BUSY`, not as a hard transaction error. Resource rendering can alternate:
 
 ```text
 select W25Q -> read bounded chunk -> release W25Q

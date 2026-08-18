@@ -12,6 +12,8 @@ const char *bsp_status_string(bsp_status_t status)
         return "TIMEOUT";
     case BSP_STATUS_INVALID_ARG:
         return "INVALID_ARG";
+    case BSP_STATUS_BUSY:
+        return "BUSY";
     default:
         return "UNKNOWN";
     }

@@ -30,6 +30,8 @@ static w25q_status_t from_bsp_status(bsp_status_t status)
         return W25Q_STATUS_TIMEOUT;
     case BSP_STATUS_INVALID_ARG:
         return W25Q_STATUS_INVALID_ARG;
+    case BSP_STATUS_BUSY:
+        return W25Q_STATUS_BUSY;
     default:
         return W25Q_STATUS_ERROR;
     }

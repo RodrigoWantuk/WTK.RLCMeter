@@ -44,6 +44,8 @@ Phase 03 adds SPI2 and timer support behind BSP APIs:
 bsp_spi2_init()
 bsp_spi2_configure()
 bsp_spi2_transfer()
+bsp_quiet_request()
+bsp_quiet_requested()
 bsp_timer3_pwm_ch3_init()
 bsp_timer3_pwm_ch3_set_duty()
 bsp_timer4_buzzer_init()
@@ -52,6 +54,10 @@ bsp_timer4_buzzer_stop()
 ```
 
 Higher layers continue to avoid STM32 register access directly. Drivers and hardware services use these BSP calls plus limited non-safety GPIO outputs for TFT/Flash chip selects, TFT control pins, backlight, and buzzer only.
+
+SPI2 starts in mode 0 at `PCLK1 / 8`. PB13/PB15 are configured as alternate-function push-pull outputs at 10 MHz so the conservative 4.5 MHz baseline clock is not driven through a 2 MHz GPIO mode. The setting deliberately avoids the 50 MHz output mode until the physical bus is qualified.
+
+`bsp_quiet_request()` is a shared peripheral gate for later acquisition-critical windows. New SPI bus acquisitions return `BSP_STATUS_BUSY` while quiet mode is requested, and buzzer playback also refuses to start and mutes the pin.
 
 ## Planned files
 
