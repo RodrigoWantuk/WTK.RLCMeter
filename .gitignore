@@ -19,6 +19,7 @@ Firmware/CMakeUserPresets.json
 *.map
 *.lst
 *.d
+*.chip.wasm
 
 # IDE / OS
 .vs/

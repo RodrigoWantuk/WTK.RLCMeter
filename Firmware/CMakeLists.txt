@@ -78,6 +78,7 @@ if(WTK_TARGET_PLATFORM STREQUAL "host")
 elseif(WTK_TARGET_PLATFORM STREQUAL "stm32")
     add_executable(wtk_rlcmeter
         src/app/app_shell.c
+        src/app/app_lab_console.c
         src/app/main.c
         src/bsp/bsp_clock.c
         src/bsp/bsp_diagnostics.c

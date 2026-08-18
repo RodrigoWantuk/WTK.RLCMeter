@@ -18,6 +18,13 @@
       "attrs": {}
     },
     {
+      "type": "chip-w25q64",
+      "id": "flash",
+      "top": 145,
+      "left": 305,
+      "attrs": { "jedecMode": "0", "noResponse": "0" }
+    },
+    {
       "type": "wokwi-pushbutton",
       "id": "btn-up",
       "top": 210,
@@ -79,6 +86,13 @@
     [ "mcu:PB14", "tft:MISO", "green", [ "h0" ] ],
     [ "mcu:PB10", "tft:RST", "green", [ "h0" ] ],
     [ "mcu:3V3", "tft:LED", "red", [ "h0" ] ],
+
+    [ "mcu:3V3", "flash:VCC", "red", [ "h0" ] ],
+    [ "mcu:GND", "flash:GND", "black", [ "h0" ] ],
+    [ "mcu:PA12", "flash:CS", "purple", [ "h0" ] ],
+    [ "mcu:PB13", "flash:SCK", "purple", [ "h0" ] ],
+    [ "mcu:PB15", "flash:MOSI", "purple", [ "h0" ] ],
+    [ "mcu:PB14", "flash:MISO", "purple", [ "h0" ] ],
 
     [ "mcu:PB3", "btn-up:1.l", "blue", [ "h0" ] ],
     [ "mcu:GND", "btn-up:2.l", "black", [ "h0" ] ],

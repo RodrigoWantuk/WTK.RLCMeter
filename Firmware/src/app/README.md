@@ -29,6 +29,8 @@ app_faults.c/.h
 app_version.c/.h
 ```
 
+`app_lab_console.c/.h` is a narrow Lab-build-only diagnostic hook for virtual/bench bring-up. It currently accepts only quiet-mode, buzzer, and reserved-sector W25Q commands. It is not the Phase 08 product debug console and must not grow relay, range, excitation, or safety-bypass commands.
+
 ## Invariants
 
 - every path entering MEASURE has an explicit return-to-SAFE path;

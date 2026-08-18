@@ -1,4 +1,4 @@
-name: ILI9341 smoke with missing W25Q
+name: ILI9341 smoke with W25Q present
 version: 1
 author: WTK.RLCMeter
 steps:

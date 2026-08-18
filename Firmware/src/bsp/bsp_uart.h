@@ -9,5 +9,6 @@
 bsp_status_t bsp_uart_init(uint32_t baud_rate);
 bsp_status_t bsp_uart_write(const char *data, size_t length);
 bsp_status_t bsp_uart_write_cstr(const char *text);
+bsp_status_t bsp_uart_try_read_byte(uint8_t *byte);
 
 #endif

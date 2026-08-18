@@ -1,5 +1,6 @@
 #include "app/app_shell.h"
 
+#include "app/app_lab_console.h"
 #include "bsp/bsp_clock.h"
 #include "bsp/bsp_diagnostics.h"
 #include "bsp/bsp_gpio.h"
@@ -20,6 +21,9 @@
 static buttons_t g_buttons;
 static ili9341_t g_display;
 static w25q_device_t g_flash;
+#if WTK_ENABLE_LAB_DIAGNOSTICS
+static app_lab_console_t g_lab_console;
+#endif
 static bool g_flash_fallback_drawn = false;
 
 static uint8_t app_read_button_mask(void)
@@ -97,7 +101,15 @@ static void app_step(void)
         }
     }
 
+#if WTK_ENABLE_LAB_DIAGNOSTICS
+    app_lab_console_step(&g_lab_console, &g_flash, &g_display, now_ms);
+    if (!app_lab_console_flash_busy(&g_lab_console))
+    {
+        (void)w25q_device_poll(&g_flash, now_ms);
+    }
+#else
     (void)w25q_device_poll(&g_flash, now_ms);
+#endif
     hw_buzzer_step(now_ms);
 }
 
@@ -114,6 +126,9 @@ void app_shell_run(void)
     (void)bsp_watchdog_start();
 
     buttons_init(&g_buttons, NULL);
+#if WTK_ENABLE_LAB_DIAGNOSTICS
+    app_lab_console_init(&g_lab_console);
+#endif
     w25q_device_init(&g_flash);
     ili9341_init_context(&g_display);
     g_flash_fallback_drawn = false;

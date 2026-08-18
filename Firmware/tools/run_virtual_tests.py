@@ -51,16 +51,73 @@ SCENARIOS = {
         "vcd": True,
         "checks": ("spi_cs",),
     },
+    "w25q-detect": {
+        "file": "w25q-detect.yaml",
+        "timeout_ms": 7000,
+        "vcd": True,
+        "checks": ("spi_cs", "display_activity"),
+    },
+    "w25q-selftest": {
+        "file": "w25q-selftest.yaml",
+        "timeout_ms": 12000,
+        "vcd": True,
+        "checks": ("spi_cs",),
+    },
+    "w25q-bad-jedec": {
+        "file": "w25q-bad-jedec.yaml",
+        "timeout_ms": 7000,
+        "vcd": True,
+        "checks": ("spi_cs",),
+        "diagram_mode": "bad-jedec",
+    },
+    "w25q-absent": {
+        "file": "w25q-absent.yaml",
+        "timeout_ms": 7000,
+        "vcd": True,
+        "checks": ("spi_cs",),
+        "diagram_mode": "absent",
+    },
+    "quiet-mode": {
+        "file": "quiet-mode.yaml",
+        "timeout_ms": 10000,
+        "vcd": True,
+        "checks": ("quiet_mode",),
+    },
 }
 
 SMOKE_SCENARIOS = ("boot-safe", "uart-boot", "buttons", "spi-cs")
 
-VCD_NAME_ALIASES = {
-    "PA12_FLASH_CS": ("PA12_FLASH_CS", "FLASH_CS", "D2"),
-    "PB12_TFT_CS": ("PB12_TFT_CS", "TFT_CS", "D6"),
-    "PB0_TFT_BL": ("PB0_TFT_BL", "TFT_BL", "D7"),
-    "PB11_TFT_DC": ("PB11_TFT_DC", "TFT_DC", "D1"),
-    "PB13_TFT_SCK": ("PB13_TFT_SCK", "TFT_SCK", "D2"),
+VCD_SIGNAL_SPECS = {
+    "PA12_FLASH_CS": {
+        "aliases": ("PA12_FLASH_CS", "FLASH_CS", "logic-safe.PA12_FLASH_CS"),
+        "qualified": ("logic-safe.D2",),
+        "generic": ("D2",),
+    },
+    "PB12_TFT_CS": {
+        "aliases": ("PB12_TFT_CS", "TFT_CS", "logic-safe.PB12_TFT_CS"),
+        "qualified": ("logic-safe.D6",),
+        "generic": ("D6",),
+    },
+    "PB0_TFT_BL": {
+        "aliases": ("PB0_TFT_BL", "TFT_BL", "logic-safe.PB0_TFT_BL"),
+        "qualified": ("logic-safe.D7",),
+        "generic": ("D7",),
+    },
+    "PB1_IO_BUZZ": {
+        "aliases": ("PB1_IO_BUZZ", "IO_BUZZ", "logic-safe.PB1_IO_BUZZ"),
+        "qualified": ("logic-safe.D3",),
+        "generic": ("D3",),
+    },
+    "PB11_TFT_DC": {
+        "aliases": ("PB11_TFT_DC", "TFT_DC", "logic-spi.PB11_TFT_DC"),
+        "qualified": ("logic-spi.D1",),
+        "generic": ("D1",),
+    },
+    "PB13_TFT_SCK": {
+        "aliases": ("PB13_TFT_SCK", "TFT_SCK", "logic-spi.PB13_TFT_SCK"),
+        "qualified": ("logic-spi.D2",),
+        "generic": ("D2",),
+    },
 }
 
 
@@ -104,6 +161,8 @@ def verify_static_files(fw_root: Path, project_dir: Path) -> bool:
         project_dir / "wokwi.toml",
         project_dir / "diagram.json",
         project_dir / "README.md",
+        project_dir / "chips" / "w25q64" / "w25q64.chip.c",
+        project_dir / "chips" / "w25q64" / "w25q64.chip.json",
     ]
     required.extend(project_dir / "scenarios" / data["file"] for data in SCENARIOS.values())
 
@@ -116,7 +175,7 @@ def verify_static_files(fw_root: Path, project_dir: Path) -> bool:
         with (project_dir / "diagram.json").open("r", encoding="utf-8") as handle:
             diagram = json.load(handle)
         part_ids = {part.get("id") for part in diagram.get("parts", [])}
-        for part_id in ("mcu", "tft", "btn-up", "btn-down", "btn-ok", "logic-safe", "logic-spi", "logic-io"):
+        for part_id in ("mcu", "tft", "flash", "btn-up", "btn-down", "btn-ok", "logic-safe", "logic-spi", "logic-io"):
             if part_id not in part_ids:
                 print(f"diagram is missing part id: {part_id}")
                 ok = False
@@ -162,6 +221,7 @@ def parse_vcd(path: Path) -> tuple[dict[str, str], dict[str, list[tuple[float, s
     timescale_s = 1e-9
     current_time_s = 0.0
     in_definitions = True
+    scopes: list[str] = []
 
     with path.open("r", encoding="utf-8", errors="replace") as handle:
         for raw_line in handle:
@@ -171,12 +231,22 @@ def parse_vcd(path: Path) -> tuple[dict[str, str], dict[str, list[tuple[float, s
             if line.startswith("$timescale"):
                 timescale_s = parse_timescale(line)
                 continue
+            if line.startswith("$scope"):
+                parts = line.split()
+                if len(parts) >= 3:
+                    scopes.append(parts[2])
+                continue
+            if line.startswith("$upscope"):
+                if scopes:
+                    scopes.pop()
+                continue
             if line.startswith("$var"):
                 parts = line.split()
                 if len(parts) >= 5:
                     code = parts[3]
                     reference = " ".join(parts[4:-1])
-                    signals[reference] = code
+                    full_reference = ".".join(scopes + [reference]) if scopes else reference
+                    signals[full_reference] = code
                     events.setdefault(code, [])
                 continue
             if line.startswith("$enddefinitions"):
@@ -199,20 +269,41 @@ def parse_vcd(path: Path) -> tuple[dict[str, str], dict[str, list[tuple[float, s
     return signals, events
 
 
-def signal_code(signals: dict[str, str], canonical: str) -> str | None:
-    aliases = VCD_NAME_ALIASES.get(canonical, (canonical,))
-    normalized_aliases = {normalized_name(alias) for alias in aliases}
+def unique_signal_code(signals: dict[str, str], canonical: str) -> str:
+    spec = VCD_SIGNAL_SPECS.get(canonical, {"aliases": (canonical,), "qualified": (), "generic": ()})
+    alias_norms = {normalized_name(alias) for alias in spec["aliases"]}
+    qualified_norms = {normalized_name(alias) for alias in spec["qualified"]}
+    generic_norms = {normalized_name(alias) for alias in spec["generic"]}
+
+    exact: list[tuple[str, str]] = []
+    qualified: list[tuple[str, str]] = []
+    generic: list[tuple[str, str]] = []
+
     for reference, code in signals.items():
         norm = normalized_name(reference)
-        if norm in normalized_aliases or any(alias in norm for alias in normalized_aliases):
-            return code
-    return None
+        components = {normalized_name(component) for component in re.split(r"[.\s/]+", reference)}
+        if norm in alias_norms:
+            exact.append((reference, code))
+        elif any(norm.endswith(alias) for alias in alias_norms):
+            qualified.append((reference, code))
+        elif norm in qualified_norms or any(norm.endswith(alias) for alias in qualified_norms):
+            qualified.append((reference, code))
+        elif norm in generic_norms or (components & generic_norms):
+            generic.append((reference, code))
+
+    for label, matches in (("exact", exact), ("qualified", qualified), ("generic", generic)):
+        unique_codes = {code for _, code in matches}
+        if len(unique_codes) == 1:
+            return next(iter(unique_codes))
+        if len(unique_codes) > 1:
+            names = ", ".join(reference for reference, _ in matches)
+            raise RuntimeError(f"ambiguous {label} VCD signal for {canonical}: {names}")
+
+    raise RuntimeError(f"VCD signal not found: {canonical}")
 
 
 def value_events(signals: dict[str, str], events: dict[str, list[tuple[float, str]]], name: str) -> list[tuple[float, str]]:
-    code = signal_code(signals, name)
-    if code is None:
-        raise RuntimeError(f"VCD signal not found: {name}")
+    code = unique_signal_code(signals, name)
     return events.get(code, [])
 
 
@@ -292,6 +383,17 @@ def check_backlight_pwm(path: Path) -> None:
     print(f"  VCD: backlight PWM {frequency_hz:.1f} Hz, duty {duty_percent:.1f}%")
 
 
+def check_quiet_mode(path: Path) -> None:
+    signals, events = parse_vcd(path)
+    buzzer_events = [(t, v) for t, v in value_events(signals, events, "PB1_IO_BUZZ") if v in ("0", "1")]
+    backlight_events = [(t, v) for t, v in value_events(signals, events, "PB0_TFT_BL") if v in ("0", "1")]
+    if len(buzzer_events) < 4:
+        raise RuntimeError("buzzer did not toggle before quiet-mode request")
+    if len(backlight_events) < 8:
+        raise RuntimeError("backlight PWM was not captured during quiet-mode scenario")
+    print("  VCD: quiet-mode buzzer/backlight capture present")
+
+
 def run_post_checks(checks: tuple[str, ...], vcd_file: Path) -> None:
     for check in checks:
         if check == "spi_cs":
@@ -302,8 +404,85 @@ def run_post_checks(checks: tuple[str, ...], vcd_file: Path) -> None:
             print("  VCD: display CS/DC/SCK activity OK")
         elif check == "backlight_pwm":
             check_backlight_pwm(vcd_file)
+        elif check == "quiet_mode":
+            check_quiet_mode(vcd_file)
         else:
             raise RuntimeError(f"unknown post-check: {check}")
+
+
+def copy_chip_json(project_dir: Path, chip_out_dir: Path) -> None:
+    source = project_dir / "chips" / "w25q64" / "w25q64.chip.json"
+    destination = chip_out_dir / "w25q64.chip.json"
+    chip_out_dir.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(source, destination)
+
+
+def build_custom_chips(wokwi_cli: str, project_dir: Path, artifact_dir: Path) -> int:
+    source = project_dir / "chips" / "w25q64" / "w25q64.chip.c"
+    chip_out_dir = artifact_dir / "chips" / "w25q64"
+    wasm = chip_out_dir / "w25q64.chip.wasm"
+    json_out = chip_out_dir / "w25q64.chip.json"
+    copy_chip_json(project_dir, chip_out_dir)
+
+    if wasm.exists() and wasm.stat().st_mtime >= source.stat().st_mtime and json_out.stat().st_mtime >= source.stat().st_mtime:
+        print(f"custom chip current: {wasm}")
+        return 0
+
+    command = [
+        wokwi_cli,
+        "chip",
+        "compile",
+        "chips/w25q64/w25q64.chip.c",
+        "-o",
+        str(wasm),
+    ]
+    print(f"+ {' '.join(command)}")
+    result = run_command(command, project_dir, timeout_s=180)
+    if result.stdout:
+        print(result.stdout, end="" if result.stdout.endswith("\n") else "\n")
+    return result.returncode
+
+
+def run_wokwi_lint(wokwi_cli: str, project_dir: Path) -> int:
+    command = [wokwi_cli, "lint"]
+    print(f"+ {' '.join(command)}")
+    result = run_command(command, project_dir, timeout_s=60)
+    if result.stdout:
+        print(result.stdout, end="" if result.stdout.endswith("\n") else "\n")
+    if result.returncode != 0:
+        print("wokwi-cli lint failed; virtual scenarios were not executed")
+    return result.returncode
+
+
+def diagram_for_mode(project_dir: Path, artifact_dir: Path, mode: str | None) -> Path:
+    if mode is None:
+        return project_dir / "diagram.json"
+
+    with (project_dir / "diagram.json").open("r", encoding="utf-8") as handle:
+        diagram = json.load(handle)
+    for part in diagram.get("parts", []):
+        if part.get("id") == "flash":
+            attrs = part.setdefault("attrs", {})
+            if mode == "bad-jedec":
+                attrs["jedecMode"] = "1"
+                attrs["noResponse"] = "0"
+            elif mode == "absent":
+                attrs["jedecMode"] = "0"
+                attrs["noResponse"] = "1"
+            else:
+                raise RuntimeError(f"unknown diagram mode: {mode}")
+
+    out_dir = artifact_dir / "diagrams"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    path = out_dir / f"diagram-{mode}.json"
+    with path.open("w", encoding="utf-8", newline="\n") as handle:
+        json.dump(diagram, handle, indent=2)
+        handle.write("\n")
+    return path
+
+
+def project_relative(path: Path, project_dir: Path) -> str:
+    return os.path.relpath(path, project_dir).replace("\\", "/")
 
 
 def run_scenario(
@@ -317,12 +496,15 @@ def run_scenario(
     serial_log = artifact_dir / f"{name}.serial.log"
     vcd_file = artifact_dir / f"{name}.vcd"
     scenario_file = Path("scenarios") / str(data["file"])
+    diagram_file = diagram_for_mode(project_dir, artifact_dir, data.get("diagram_mode"))
     timeout_ms = int(data["timeout_ms"])
     command = [
         wokwi_cli,
         ".",
         "--scenario",
         str(scenario_file).replace("\\", "/"),
+        "--diagram-file",
+        project_relative(diagram_file, project_dir),
         "--elf",
         str(elf),
         "--serial-log-file",
@@ -378,6 +560,7 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--scenario", action="append", help="run one named scenario; can be repeated")
     parser.add_argument("--keep-artifacts", action="store_true", help="keep previous logs/VCD files")
     parser.add_argument("--check-only", action="store_true", help="validate local files without invoking Wokwi")
+    parser.add_argument("--lint-only", action="store_true", help="build custom chips and run wokwi-cli lint without simulation")
     args = parser.parse_args(argv)
 
     fw_root = firmware_root()
@@ -405,18 +588,28 @@ def main(argv: list[str]) -> int:
 
     wokwi_cli = shutil.which("wokwi-cli")
     if wokwi_cli is None:
-        print("wokwi-cli not found in PATH; virtual scenarios were not executed")
+        print("wokwi-cli not found in PATH; lint/simulation were not executed")
         return 2
+
+    version = run_command([wokwi_cli, "--version"], fw_root, timeout_s=10)
+    if version.stdout:
+        print(version.stdout.strip())
+
+    chip_status = build_custom_chips(wokwi_cli, project_dir, artifact_dir)
+    if chip_status != 0:
+        return chip_status
+
+    lint_status = run_wokwi_lint(wokwi_cli, project_dir)
+    if lint_status != 0:
+        return lint_status
+    if args.lint_only:
+        return 0
 
     token = os.environ.get("WOKWI_CLI_TOKEN")
     if not token:
         print("WOKWI_CLI_TOKEN is not set; virtual scenarios were not executed")
         return 2
     print("WOKWI_CLI_TOKEN: present")
-
-    version = run_command([wokwi_cli, "--version"], fw_root, timeout_s=10)
-    if version.stdout:
-        print(version.stdout.strip())
 
     scenario_names = selected_scenarios(args)
     failures = 0

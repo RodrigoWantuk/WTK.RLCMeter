@@ -1,0 +1,11 @@
+name: W25Q64 self-test
+version: 1
+author: WTK.RLCMeter
+steps:
+  - wait-serial: 'w25q: OK'
+  - delay: 500ms
+  - write-serial: 'lab flash selftest'
+  - write-serial: "\n"
+  - wait-serial: 'lab flash selftest: START'
+  - wait-serial: 'lab flash selftest: PASS'
+  - delay: 1000ms

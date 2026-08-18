@@ -33,6 +33,9 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends cmake ninja-build gcc-arm-none-eabi binutils-arm-none-eabi python3 ca-certificates curl
 
+      - name: Run Python tooling tests
+        run: python3 -m unittest Firmware.tests.tools.test_run_virtual_tests
+
       - name: Configure STM32 Lab firmware
         working-directory: Firmware
         run: cmake --preset stm32-lab

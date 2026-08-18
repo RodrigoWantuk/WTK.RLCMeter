@@ -104,3 +104,24 @@ bsp_status_t bsp_uart_write_cstr(const char *text)
 {
     return bsp_uart_write(text, cstr_length(text));
 }
+
+bsp_status_t bsp_uart_try_read_byte(uint8_t *byte)
+{
+    if (byte == NULL)
+    {
+        return BSP_STATUS_INVALID_ARG;
+    }
+
+    if (!g_uart_ready)
+    {
+        return BSP_STATUS_ERROR;
+    }
+
+    if ((USART1->SR & USART_SR_RXNE) == 0u)
+    {
+        return BSP_STATUS_BUSY;
+    }
+
+    *byte = (uint8_t)(USART1->DR & 0xFFu);
+    return BSP_STATUS_OK;
+}

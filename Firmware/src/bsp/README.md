@@ -44,7 +44,6 @@ Phase 03 adds SPI2 and timer support behind BSP APIs:
 bsp_spi2_init()
 bsp_spi2_configure()
 bsp_spi2_transfer()
-bsp_quiet_request()
 bsp_quiet_requested()
 bsp_timer3_pwm_ch3_init()
 bsp_timer3_pwm_ch3_set_duty()
@@ -57,7 +56,7 @@ Higher layers continue to avoid STM32 register access directly. Drivers and hard
 
 SPI2 starts in mode 0 at `PCLK1 / 8`. PB13/PB15 are configured as alternate-function push-pull outputs at 10 MHz so the conservative 4.5 MHz baseline clock is not driven through a 2 MHz GPIO mode. The setting deliberately avoids the 50 MHz output mode until the physical bus is qualified.
 
-`bsp_quiet_request()` is the low-level shared peripheral gate. New SPI bus acquisitions return `BSP_STATUS_BUSY` while quiet mode is requested. Application and acquisition code should normally use the hardware-layer `hw_peripherals_request_quiet()` wrapper so active buzzer tones are stopped at the same time and backlight PWM remains unchanged.
+`bsp_quiet_request()` is the low-level shared peripheral gate used by the hardware layer. New SPI bus acquisitions return `BSP_STATUS_BUSY` while quiet mode is requested. Application and acquisition code must use the hardware-layer `hw_peripherals_request_quiet()` wrapper so active buzzer tones are stopped at the same time and backlight PWM remains unchanged. The SPI bus no longer exposes an independent public quiet-mode setter.
 
 ## Planned files
 

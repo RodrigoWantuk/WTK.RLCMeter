@@ -522,3 +522,67 @@ Not yet virtual-hardware-tested:
 Reason: current local environment did not provide `wokwi-cli` or `WOKWI_CLI_TOKEN`. No virtual scenario is claimed as passing until those are available.
 
 Phase 04 remains blocked. Phase 02/03 bench validation remains `REQUIRES_BENCH_VALIDATION`.
+
+## Stage 2 implementation status
+
+Stage 2 implementation is present but Phase 03A remains `IN_PROGRESS` until real Wokwi CLI execution evidence is collected.
+
+Implemented:
+
+- Wokwi runner hardening:
+  - deterministic custom-chip build step for W25Q64 before lint/simulation;
+  - explicit `wokwi-cli lint` step;
+  - `--lint-only` mode;
+  - generated bad-JEDEC and absent-Flash diagram variants;
+  - ambiguous VCD signal resolution now fails hard instead of using first-match behavior.
+- Python unit tests for synthetic VCD parsing and post-processing:
+  - canonical signal match;
+  - analyzer-qualified match;
+  - ambiguous generic `D2` rejection;
+  - missing-signal rejection;
+  - SPI chip-select non-overlap/overlap;
+  - 1 kHz PWM pass and out-of-tolerance PWM fail.
+- Minimal W25Q64 custom chip source under `Firmware/sim/wokwi/chips/w25q64/`:
+  - JEDEC `EF 40 17`;
+  - alternate bad-JEDEC and no-response modes;
+  - status register BUSY/WEL;
+  - write enable;
+  - read/fast-read;
+  - page program;
+  - sector erase;
+  - deterministic non-instant BUSY timing;
+  - sparse storage with a functional final reserved 4 KiB test sector.
+- Rev.1 shared-SPI W25Q wiring in the Wokwi diagram.
+- New virtual scenarios:
+  - `w25q-detect`;
+  - `w25q-selftest`;
+  - `w25q-bad-jedec`;
+  - `w25q-absent`;
+  - `quiet-mode`.
+- Lab-only serial command path:
+  - `lab quiet on`;
+  - `lab quiet off`;
+  - `lab buzzer <frequency_hz> <duration_ms>`;
+  - `lab flash info`;
+  - `lab flash selftest`.
+- Lab-only non-blocking W25Q reserved-sector self-test using erase-start/poll, page-program-start/poll, readback, verification, and cleanup erase.
+- Quiet-mode API ambiguity reduction: `spi_bus_request_quiet()` was removed from the public SPI bus API. Future acquisition code should use `hw_peripherals_request_quiet()`.
+
+Validated locally without Wokwi credentials:
+
+- host Debug and Release CTest targets remain passing;
+- Python tooling tests pass;
+- STM32 Debug/Release/Lab builds pass;
+- runner `--check-only` passes;
+- runner `--lint-only` and `--smoke` correctly return exit code 2 when `wokwi-cli` is unavailable.
+
+Not yet completed:
+
+- `wokwi-cli lint`;
+- custom-chip WASM compilation by Wokwi CLI;
+- real virtual scenario execution;
+- VCD post-processing against real Wokwi output;
+- deliberate-failure proof;
+- CI run with `WOKWI_CLI_TOKEN`.
+
+Reason: current local environment did not provide `wokwi-cli` or `WOKWI_CLI_TOKEN`. No Stage 2 scenario is claimed as `VIRTUAL_HARDWARE_TESTED` until lint/simulation actually run.

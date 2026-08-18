@@ -1,0 +1,14 @@
+name: W25Q64 detect
+version: 1
+author: WTK.RLCMeter
+steps:
+  - wait-serial: 'spi2: OK'
+  - wait-serial: 'w25q: OK'
+  - wait-serial: 'w25q_part: W25Q64'
+  - wait-serial: 'w25q_jedec: 0x00EF4017'
+  - wait-serial: 'w25q_capacity: 8388608'
+  - delay: 1500ms
+  - expect-pin:
+      part-id: mcu
+      pin: PA12
+      expected: 1

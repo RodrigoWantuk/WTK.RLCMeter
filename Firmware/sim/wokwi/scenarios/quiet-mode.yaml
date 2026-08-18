@@ -1,0 +1,27 @@
+name: Quiet mode integration
+version: 1
+author: WTK.RLCMeter
+steps:
+  - wait-serial: 'w25q: OK'
+  - delay: 500ms
+  - write-serial: 'lab buzzer 1000 3000'
+  - write-serial: "\n"
+  - wait-serial: 'lab buzzer: OK'
+  - delay: 300ms
+  - write-serial: 'lab quiet on'
+  - write-serial: "\n"
+  - wait-serial: 'lab quiet: ON'
+  - write-serial: 'lab buzzer 1000 500'
+  - write-serial: "\n"
+  - wait-serial: 'lab buzzer: BUSY'
+  - write-serial: 'lab flash selftest'
+  - write-serial: "\n"
+  - wait-serial: 'lab flash selftest: BUSY'
+  - delay: 300ms
+  - write-serial: 'lab quiet off'
+  - write-serial: "\n"
+  - wait-serial: 'lab quiet: OFF'
+  - write-serial: 'lab buzzer 1000 200'
+  - write-serial: "\n"
+  - wait-serial: 'lab buzzer: OK'
+  - delay: 500ms

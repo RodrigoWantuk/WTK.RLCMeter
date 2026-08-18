@@ -1,0 +1,23 @@
+{
+  "name": "W25Q64 Minimal SPI Flash",
+  "author": "WTK.RLCMeter",
+  "pins": [ "VCC", "GND", "CS", "SCK", "MOSI", "MISO" ],
+  "controls": [
+    {
+      "id": "jedecMode",
+      "label": "JEDEC mode",
+      "type": "range",
+      "min": 0,
+      "max": 1,
+      "step": 1
+    },
+    {
+      "id": "noResponse",
+      "label": "No response",
+      "type": "range",
+      "min": 0,
+      "max": 1,
+      "step": 1
+    }
+  ]
+}

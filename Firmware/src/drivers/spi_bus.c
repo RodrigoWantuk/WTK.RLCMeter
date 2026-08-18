@@ -25,11 +25,6 @@ bsp_status_t spi_bus_init(void)
     return bsp_spi2_init(&g_mode0_conservative);
 }
 
-void spi_bus_request_quiet(bool requested)
-{
-    bsp_quiet_request(requested);
-}
-
 bool spi_bus_quiet_requested(void)
 {
     return bsp_quiet_requested();

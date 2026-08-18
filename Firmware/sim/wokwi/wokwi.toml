@@ -2,3 +2,7 @@
 version = 1
 firmware = "../../build/stm32-lab/WTK.RLCMeter.hex"
 elf = "../../build/stm32-lab/WTK.RLCMeter.elf"
+
+[[chip]]
+name = "w25q64"
+binary = "../../build/virtual/wokwi/chips/w25q64/w25q64.chip.wasm"
