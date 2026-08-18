@@ -1,0 +1,7 @@
+name: ILI9341 smoke with missing W25Q
+version: 1
+author: WTK.RLCMeter
+steps:
+  - wait-serial: 'spi2: OK'
+  - wait-serial: 'w25q:'
+  - delay: 1500ms

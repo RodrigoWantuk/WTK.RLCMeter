@@ -33,10 +33,13 @@ endif()
 
 if(WTK_BUILD_TYPE STREQUAL "Lab")
     set(WTK_DIAGNOSTIC_LOG_LEVEL_DEFAULT 5)
+    set(WTK_ENABLE_LAB_DIAGNOSTICS 1)
 elseif(WTK_BUILD_TYPE STREQUAL "Release")
     set(WTK_DIAGNOSTIC_LOG_LEVEL_DEFAULT 2)
+    set(WTK_ENABLE_LAB_DIAGNOSTICS 0)
 else()
     set(WTK_DIAGNOSTIC_LOG_LEVEL_DEFAULT 4)
+    set(WTK_ENABLE_LAB_DIAGNOSTICS 0)
 endif()
 
 configure_file(
@@ -49,7 +52,9 @@ add_library(wtk_firmware_common STATIC
     src/app/app_version.c
     src/drivers/buttons.c
     src/drivers/ili9341_color.c
+    src/drivers/ili9341_geometry.c
     src/drivers/w25q_core.c
+    src/hardware/hw_buzzer_policy.c
     src/storage/resource_store.c
     src/ui/ui_fallback_font.c
     src/ui/ui_resources.c
@@ -90,6 +95,7 @@ elseif(WTK_TARGET_PLATFORM STREQUAL "stm32")
         src/drivers/w25q_device.c
         src/hardware/hw_backlight.c
         src/hardware/hw_buzzer.c
+        src/hardware/hw_peripherals.c
         src/ui/ui_fallback_renderer.c
         src/bsp/stm32_dependency_probe.c
         src/bsp/startup_stm32f103c8tx.c

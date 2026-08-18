@@ -174,7 +174,7 @@ bsp_status_t ili9341_set_rotation(ili9341_t *display, uint8_t rotation)
     }
 
     static const uint8_t madctl_values[4] = {0x48u, 0x28u, 0x88u, 0xE8u};
-    const uint8_t index = (uint8_t)(rotation & 0x03u);
+    const uint8_t index = ili9341_normalize_rotation(rotation);
     const bsp_status_t status = ili9341_write_command_data(ILI9341_CMD_MADCTL, &madctl_values[index], 1u);
     if (status == BSP_STATUS_OK)
     {
@@ -184,11 +184,13 @@ bsp_status_t ili9341_set_rotation(ili9341_t *display, uint8_t rotation)
     return status;
 }
 
-bsp_status_t ili9341_set_window(uint16_t x, uint16_t y, uint16_t width, uint16_t height)
+bsp_status_t ili9341_set_window(const ili9341_t *display,
+                                uint16_t x,
+                                uint16_t y,
+                                uint16_t width,
+                                uint16_t height)
 {
-    if ((width == 0u) || (height == 0u) || (x >= ILI9341_WIDTH) || (y >= ILI9341_HEIGHT) ||
-        ((uint32_t)width > ((uint32_t)ILI9341_WIDTH - x)) ||
-        ((uint32_t)height > ((uint32_t)ILI9341_HEIGHT - y)))
+    if ((display == NULL) || !ili9341_rect_is_valid(display->rotation, x, y, width, height))
     {
         return BSP_STATUS_INVALID_ARG;
     }
@@ -275,18 +277,18 @@ void ili9341_fill_start(ili9341_fill_t *fill,
     fill->active = (fill->remaining_pixels > 0u);
 }
 
-bsp_status_t ili9341_fill_step(ili9341_fill_t *fill, uint16_t max_pixels)
+bsp_status_t ili9341_fill_step(const ili9341_t *display, ili9341_fill_t *fill, uint16_t max_pixels)
 {
     static uint16_t pixels[ILI9341_FILL_CHUNK_PIXELS];
 
-    if ((fill == NULL) || !fill->active)
+    if ((display == NULL) || (fill == NULL) || !fill->active)
     {
         return BSP_STATUS_INVALID_ARG;
     }
 
     if (!fill->window_sent)
     {
-        const bsp_status_t status = ili9341_set_window(fill->x, fill->y, fill->width, fill->height);
+        const bsp_status_t status = ili9341_set_window(display, fill->x, fill->y, fill->width, fill->height);
         if (status != BSP_STATUS_OK)
         {
             return status;

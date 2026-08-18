@@ -10,7 +10,8 @@ enum
     UI_FALLBACK_GLYPH_SPACING = 1u,
 };
 
-bsp_status_t ui_fallback_draw_char(uint16_t x,
+bsp_status_t ui_fallback_draw_char(const ili9341_t *display,
+                                   uint16_t x,
                                    uint16_t y,
                                    char ch,
                                    uint16_t fg_rgb565,
@@ -29,7 +30,8 @@ bsp_status_t ui_fallback_draw_char(uint16_t x,
             pixels[col] = ((rows[row] & mask) != 0u) ? fg_rgb565 : bg_rgb565;
         }
 
-        bsp_status_t status = ili9341_set_window(x, (uint16_t)(y + row), UI_FALLBACK_GLYPH_WIDTH, 1u);
+        bsp_status_t status =
+            ili9341_set_window(display, x, (uint16_t)(y + row), UI_FALLBACK_GLYPH_WIDTH, 1u);
         if (status != BSP_STATUS_OK)
         {
             return status;
@@ -45,7 +47,8 @@ bsp_status_t ui_fallback_draw_char(uint16_t x,
     return BSP_STATUS_OK;
 }
 
-bsp_status_t ui_fallback_draw_text(uint16_t x,
+bsp_status_t ui_fallback_draw_text(const ili9341_t *display,
+                                   uint16_t x,
                                    uint16_t y,
                                    const char *text,
                                    uint16_t fg_rgb565,
@@ -59,7 +62,7 @@ bsp_status_t ui_fallback_draw_text(uint16_t x,
     uint16_t cursor_x = x;
     for (size_t i = 0u; text[i] != '\0'; i++)
     {
-        const bsp_status_t status = ui_fallback_draw_char(cursor_x, y, text[i], fg_rgb565, bg_rgb565);
+        const bsp_status_t status = ui_fallback_draw_char(display, cursor_x, y, text[i], fg_rgb565, bg_rgb565);
         if (status != BSP_STATUS_OK)
         {
             return status;

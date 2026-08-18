@@ -1,0 +1,44 @@
+name: Button diagnostics
+version: 1
+author: WTK.RLCMeter
+steps:
+  - wait-serial: 'boot_state: SAFE_BOOT'
+  - delay: 500ms
+  - set-control:
+      part-id: btn-up
+      control: pressed
+      value: 1
+  - delay: 60ms
+  - wait-serial: 'button: UP PRESS'
+  - set-control:
+      part-id: btn-up
+      control: pressed
+      value: 0
+  - delay: 60ms
+  - wait-serial: 'button: UP RELEASE'
+  - set-control:
+      part-id: btn-down
+      control: pressed
+      value: 1
+  - delay: 60ms
+  - wait-serial: 'button: DOWN PRESS'
+  - set-control:
+      part-id: btn-down
+      control: pressed
+      value: 0
+  - delay: 60ms
+  - wait-serial: 'button: DOWN RELEASE'
+  - set-control:
+      part-id: btn-ok
+      control: pressed
+      value: 1
+  - delay: 60ms
+  - wait-serial: 'button: OK PRESS'
+  - delay: 760ms
+  - wait-serial: 'button: OK LONG_PRESS'
+  - set-control:
+      part-id: btn-ok
+      control: pressed
+      value: 0
+  - delay: 60ms
+  - wait-serial: 'button: OK RELEASE'

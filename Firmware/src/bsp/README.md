@@ -57,7 +57,7 @@ Higher layers continue to avoid STM32 register access directly. Drivers and hard
 
 SPI2 starts in mode 0 at `PCLK1 / 8`. PB13/PB15 are configured as alternate-function push-pull outputs at 10 MHz so the conservative 4.5 MHz baseline clock is not driven through a 2 MHz GPIO mode. The setting deliberately avoids the 50 MHz output mode until the physical bus is qualified.
 
-`bsp_quiet_request()` is a shared peripheral gate for later acquisition-critical windows. New SPI bus acquisitions return `BSP_STATUS_BUSY` while quiet mode is requested, and buzzer playback also refuses to start and mutes the pin.
+`bsp_quiet_request()` is the low-level shared peripheral gate. New SPI bus acquisitions return `BSP_STATUS_BUSY` while quiet mode is requested. Application and acquisition code should normally use the hardware-layer `hw_peripherals_request_quiet()` wrapper so active buzzer tones are stopped at the same time and backlight PWM remains unchanged.
 
 ## Planned files
 

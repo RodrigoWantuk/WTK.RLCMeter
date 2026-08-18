@@ -1,0 +1,16 @@
+name: UART boot diagnostics
+version: 1
+author: WTK.RLCMeter
+steps:
+  - wait-serial: 'WTK.RLCMeter'
+  - wait-serial: 'firmware:'
+  - wait-serial: 'build: Lab'
+  - wait-serial: 'clock_status:'
+  - wait-serial: 'clock_source:'
+  - wait-serial: 'swd: PRESERVED'
+  - wait-serial: 'boot_state: SAFE_BOOT'
+  - wait-serial: 'spi2: OK'
+  - wait-serial: 'backlight: OK'
+  - wait-serial: 'backlight_pwm_hz: 1000'
+  - wait-serial: 'buzzer: OK'
+  - wait-serial: 'w25q:'

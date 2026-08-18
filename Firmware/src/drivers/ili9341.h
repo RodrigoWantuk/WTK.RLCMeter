@@ -6,11 +6,12 @@
 #include <stdint.h>
 
 #include "bsp/bsp_status.h"
+#include "drivers/ili9341_geometry.h"
 
 enum
 {
-    ILI9341_WIDTH = 240u,
-    ILI9341_HEIGHT = 320u,
+    ILI9341_WIDTH = ILI9341_NATIVE_WIDTH,
+    ILI9341_HEIGHT = ILI9341_NATIVE_HEIGHT,
     ILI9341_FILL_CHUNK_PIXELS = 64u,
 };
 
@@ -49,7 +50,11 @@ void ili9341_init_context(ili9341_t *display);
 void ili9341_init_start(ili9341_t *display, uint32_t now_ms);
 bsp_status_t ili9341_init_step(ili9341_t *display, uint32_t now_ms);
 bsp_status_t ili9341_set_rotation(ili9341_t *display, uint8_t rotation);
-bsp_status_t ili9341_set_window(uint16_t x, uint16_t y, uint16_t width, uint16_t height);
+bsp_status_t ili9341_set_window(const ili9341_t *display,
+                                uint16_t x,
+                                uint16_t y,
+                                uint16_t width,
+                                uint16_t height);
 bsp_status_t ili9341_write_pixels_rgb565(const uint16_t *pixels, size_t count);
 void ili9341_fill_start(ili9341_fill_t *fill,
                         uint16_t x,
@@ -57,6 +62,6 @@ void ili9341_fill_start(ili9341_fill_t *fill,
                         uint16_t width,
                         uint16_t height,
                         uint16_t color_rgb565);
-bsp_status_t ili9341_fill_step(ili9341_fill_t *fill, uint16_t max_pixels);
+bsp_status_t ili9341_fill_step(const ili9341_t *display, ili9341_fill_t *fill, uint16_t max_pixels);
 
 #endif

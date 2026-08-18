@@ -70,6 +70,24 @@ endif()
 
 add_test(NAME wtk_ili9341_color_test COMMAND wtk_ili9341_color_test)
 
+add_executable(wtk_ili9341_geometry_test
+    drivers/test_ili9341_geometry.c
+)
+target_link_libraries(wtk_ili9341_geometry_test PRIVATE wtk_firmware_common)
+target_include_directories(wtk_ili9341_geometry_test PRIVATE
+    "${PROJECT_SOURCE_DIR}/src"
+    "${PROJECT_BINARY_DIR}/generated"
+)
+wtk_configure_c_target(wtk_ili9341_geometry_test)
+wtk_apply_project_warnings(wtk_ili9341_geometry_test)
+wtk_apply_common_compile_options(wtk_ili9341_geometry_test)
+
+if(WTK_WARNINGS_AS_ERRORS_HOST)
+    wtk_treat_warnings_as_errors(wtk_ili9341_geometry_test)
+endif()
+
+add_test(NAME wtk_ili9341_geometry_test COMMAND wtk_ili9341_geometry_test)
+
 add_executable(wtk_resource_store_test
     storage/test_resource_store.c
 )
@@ -87,3 +105,21 @@ if(WTK_WARNINGS_AS_ERRORS_HOST)
 endif()
 
 add_test(NAME wtk_resource_store_test COMMAND wtk_resource_store_test)
+
+add_executable(wtk_hw_buzzer_policy_test
+    hardware/test_hw_buzzer_policy.c
+)
+target_link_libraries(wtk_hw_buzzer_policy_test PRIVATE wtk_firmware_common)
+target_include_directories(wtk_hw_buzzer_policy_test PRIVATE
+    "${PROJECT_SOURCE_DIR}/src"
+    "${PROJECT_BINARY_DIR}/generated"
+)
+wtk_configure_c_target(wtk_hw_buzzer_policy_test)
+wtk_apply_project_warnings(wtk_hw_buzzer_policy_test)
+wtk_apply_common_compile_options(wtk_hw_buzzer_policy_test)
+
+if(WTK_WARNINGS_AS_ERRORS_HOST)
+    wtk_treat_warnings_as_errors(wtk_hw_buzzer_policy_test)
+endif()
+
+add_test(NAME wtk_hw_buzzer_policy_test COMMAND wtk_hw_buzzer_policy_test)

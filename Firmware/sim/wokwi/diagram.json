@@ -1,0 +1,120 @@
+{
+  "version": 1,
+  "author": "WTK.RLCMeter",
+  "editor": "wokwi",
+  "parts": [
+    {
+      "type": "board-stm32-bluepill",
+      "id": "mcu",
+      "top": 0,
+      "left": 0,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-ili9341",
+      "id": "tft",
+      "top": -40,
+      "left": 300,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "btn-up",
+      "top": 210,
+      "left": 300,
+      "attrs": { "label": "UP", "key": "ArrowUp", "bounce": "0" }
+    },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "btn-down",
+      "top": 285,
+      "left": 300,
+      "attrs": { "label": "DOWN", "key": "ArrowDown", "bounce": "0" }
+    },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "btn-ok",
+      "top": 360,
+      "left": 300,
+      "attrs": { "label": "OK", "key": "Enter", "bounce": "0" }
+    },
+    {
+      "type": "wokwi-logic-analyzer",
+      "id": "logic-safe",
+      "top": 430,
+      "left": 0,
+      "attrs": {
+        "bufferSize": "200000",
+        "channelNames": "PA8_PWM_EXC,PA11_K2_CMD,PA12_FLASH_CS,PB1_IO_BUZZ,PB8_RANGE_EN,PB9_K1_CMD,PB12_TFT_CS,PB0_TFT_BL"
+      }
+    },
+    {
+      "type": "wokwi-logic-analyzer",
+      "id": "logic-spi",
+      "top": 430,
+      "left": 260,
+      "attrs": {
+        "bufferSize": "300000",
+        "channelNames": "PB10_TFT_RST,PB11_TFT_DC,PB13_TFT_SCK,PB14_TFT_MISO,PB15_TFT_MOSI,PB5_RANGE_A0,PB6_RANGE_A1,PB7_RANGE_A2"
+      }
+    },
+    {
+      "type": "wokwi-logic-analyzer",
+      "id": "logic-io",
+      "top": 430,
+      "left": 520,
+      "attrs": {
+        "bufferSize": "150000",
+        "channelNames": "PA9_DEBUG_TX,PA10_DEBUG_RX,PA15_CHG_DETIO,PB3_SW_UP,PB4_SW_DOWN,PC13_SW_OK,PA13_SWDIO,PA14_SWCLK"
+      }
+    }
+  ],
+  "connections": [
+    [ "mcu:3V3", "tft:VCC", "red", [ "h0" ] ],
+    [ "mcu:GND", "tft:GND", "black", [ "h0" ] ],
+    [ "mcu:PB12", "tft:CS", "green", [ "h0" ] ],
+    [ "mcu:PB11", "tft:D/C", "green", [ "h0" ] ],
+    [ "mcu:PB15", "tft:MOSI", "green", [ "h0" ] ],
+    [ "mcu:PB13", "tft:SCK", "green", [ "h0" ] ],
+    [ "mcu:PB14", "tft:MISO", "green", [ "h0" ] ],
+    [ "mcu:PB10", "tft:RST", "green", [ "h0" ] ],
+    [ "mcu:3V3", "tft:LED", "red", [ "h0" ] ],
+
+    [ "mcu:PB3", "btn-up:1.l", "blue", [ "h0" ] ],
+    [ "mcu:GND", "btn-up:2.l", "black", [ "h0" ] ],
+    [ "mcu:PB4", "btn-down:1.l", "blue", [ "h0" ] ],
+    [ "mcu:GND", "btn-down:2.l", "black", [ "h0" ] ],
+    [ "mcu:PC13", "btn-ok:1.l", "blue", [ "h0" ] ],
+    [ "mcu:GND", "btn-ok:2.l", "black", [ "h0" ] ],
+
+    [ "mcu:PA8", "logic-safe:D0", "gray", [ "h0" ] ],
+    [ "mcu:PA11", "logic-safe:D1", "gray", [ "h0" ] ],
+    [ "mcu:PA12", "logic-safe:D2", "gray", [ "h0" ] ],
+    [ "mcu:PB1", "logic-safe:D3", "gray", [ "h0" ] ],
+    [ "mcu:PB8", "logic-safe:D4", "gray", [ "h0" ] ],
+    [ "mcu:PB9", "logic-safe:D5", "gray", [ "h0" ] ],
+    [ "mcu:PB12", "logic-safe:D6", "gray", [ "h0" ] ],
+    [ "mcu:PB0", "logic-safe:D7", "gray", [ "h0" ] ],
+    [ "mcu:GND", "logic-safe:GND", "black", [ "h0" ] ],
+
+    [ "mcu:PB10", "logic-spi:D0", "gray", [ "h0" ] ],
+    [ "mcu:PB11", "logic-spi:D1", "gray", [ "h0" ] ],
+    [ "mcu:PB13", "logic-spi:D2", "gray", [ "h0" ] ],
+    [ "mcu:PB14", "logic-spi:D3", "gray", [ "h0" ] ],
+    [ "mcu:PB15", "logic-spi:D4", "gray", [ "h0" ] ],
+    [ "mcu:PB5", "logic-spi:D5", "gray", [ "h0" ] ],
+    [ "mcu:PB6", "logic-spi:D6", "gray", [ "h0" ] ],
+    [ "mcu:PB7", "logic-spi:D7", "gray", [ "h0" ] ],
+    [ "mcu:GND", "logic-spi:GND", "black", [ "h0" ] ],
+
+    [ "mcu:PA9", "logic-io:D0", "gray", [ "h0" ] ],
+    [ "mcu:PA10", "logic-io:D1", "gray", [ "h0" ] ],
+    [ "mcu:PA15", "logic-io:D2", "gray", [ "h0" ] ],
+    [ "mcu:PB3", "logic-io:D3", "gray", [ "h0" ] ],
+    [ "mcu:PB4", "logic-io:D4", "gray", [ "h0" ] ],
+    [ "mcu:PC13", "logic-io:D5", "gray", [ "h0" ] ],
+    [ "mcu:PA13", "logic-io:D6", "gray", [ "h0" ] ],
+    [ "mcu:PA14", "logic-io:D7", "gray", [ "h0" ] ],
+    [ "mcu:GND", "logic-io:GND", "black", [ "h0" ] ]
+  ]
+}

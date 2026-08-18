@@ -27,6 +27,8 @@ Firmware/CMakeUserPresets.json
 Thumbs.db
 *.user
 *.suo
+__pycache__/
+*.pyc
 
 # Temporary exports
 *.tmp

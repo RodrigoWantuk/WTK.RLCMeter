@@ -1,0 +1,82 @@
+name: Virtual Hardware
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      suite:
+        description: "Virtual suite to run"
+        type: choice
+        required: true
+        default: smoke
+        options:
+          - smoke
+          - full
+
+jobs:
+  wokwi:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      WOKWI_CLI_TOKEN: ${{ secrets.WOKWI_CLI_TOKEN }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends cmake ninja-build gcc-arm-none-eabi binutils-arm-none-eabi python3 ca-certificates curl
+
+      - name: Configure STM32 Lab firmware
+        working-directory: Firmware
+        run: cmake --preset stm32-lab
+
+      - name: Build STM32 Lab firmware
+        working-directory: Firmware
+        run: cmake --build --preset stm32-lab
+
+      - name: Check Wokwi token
+        id: token
+        shell: bash
+        run: |
+          if [ -z "$WOKWI_CLI_TOKEN" ]; then
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "WOKWI_CLI_TOKEN secret is not configured; virtual scenarios will not be reported as passing."
+          else
+            echo "present=true" >> "$GITHUB_OUTPUT"
+            echo "WOKWI_CLI_TOKEN secret is configured."
+          fi
+
+      - name: Install Wokwi CLI
+        if: steps.token.outputs.present == 'true'
+        run: curl -L https://wokwi.com/ci/install.sh | sh
+
+      - name: Run Wokwi smoke suite
+        if: steps.token.outputs.present == 'true' && (github.event_name != 'workflow_dispatch' || inputs.suite == 'smoke')
+        working-directory: Firmware
+        run: python3 tools/run_virtual_tests.py --smoke
+
+      - name: Run Wokwi full suite
+        if: steps.token.outputs.present == 'true' && github.event_name == 'workflow_dispatch' && inputs.suite == 'full'
+        working-directory: Firmware
+        run: python3 tools/run_virtual_tests.py
+
+      - name: Fail when token is absent
+        if: steps.token.outputs.present != 'true'
+        run: |
+          echo "WOKWI_CLI_TOKEN is required for virtual-hardware evidence."
+          exit 1
+
+      - name: Upload virtual artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: virtual-hardware-artifacts
+          path: Firmware/build/virtual/wokwi/
+          if-no-files-found: ignore

@@ -1,22 +1,13 @@
 #include "hardware/hw_buzzer.h"
 
-#include "bsp/bsp_quiet.h"
 #include "bsp/bsp_timers.h"
+#include "hardware/hw_buzzer_policy.h"
 
-enum
-{
-    BUZZER_MIN_HZ = 100u,
-    BUZZER_MAX_HZ = 4000u,
-};
-
-static bool g_enabled = true;
-static bool g_active = false;
-static uint32_t g_stop_ms = 0u;
+static hw_buzzer_policy_t g_policy;
 
 static void timer_stop(void)
 {
     bsp_timer4_buzzer_stop();
-    g_active = false;
 }
 
 bsp_status_t hw_buzzer_init(void)
@@ -26,6 +17,7 @@ bsp_status_t hw_buzzer_init(void)
     {
         return status;
     }
+    hw_buzzer_policy_init(&g_policy);
     timer_stop();
 
     return BSP_STATUS_OK;
@@ -33,37 +25,32 @@ bsp_status_t hw_buzzer_init(void)
 
 bsp_status_t hw_buzzer_play_tone(uint16_t frequency_hz, uint16_t duration_ms, uint32_t now_ms)
 {
-    if ((frequency_hz < BUZZER_MIN_HZ) || (frequency_hz > BUZZER_MAX_HZ) || (duration_ms == 0u))
+    const bsp_status_t policy_status = hw_buzzer_policy_play(&g_policy, frequency_hz, duration_ms, now_ms);
+    if (policy_status != BSP_STATUS_OK)
     {
-        return BSP_STATUS_INVALID_ARG;
+        timer_stop();
+        return policy_status;
     }
 
-    if (!g_enabled)
+    if (!hw_buzzer_policy_is_active(&g_policy))
     {
         timer_stop();
         return BSP_STATUS_OK;
     }
 
-    if (bsp_quiet_requested())
-    {
-        timer_stop();
-        return BSP_STATUS_BUSY;
-    }
-
     const bsp_status_t status = bsp_timer4_buzzer_start(frequency_hz);
     if (status != BSP_STATUS_OK)
     {
+        hw_buzzer_policy_mute(&g_policy);
         return status;
     }
 
-    g_stop_ms = now_ms + duration_ms;
-    g_active = true;
     return BSP_STATUS_OK;
 }
 
 void hw_buzzer_step(uint32_t now_ms)
 {
-    if (g_active && ((now_ms - g_stop_ms) < 0x80000000u))
+    if (hw_buzzer_policy_step(&g_policy, now_ms))
     {
         timer_stop();
     }
@@ -71,13 +58,22 @@ void hw_buzzer_step(uint32_t now_ms)
 
 void hw_buzzer_mute(void)
 {
+    hw_buzzer_policy_mute(&g_policy);
     timer_stop();
 }
 
 void hw_buzzer_set_enabled(bool enabled)
 {
-    g_enabled = enabled;
-    if (!enabled)
+    hw_buzzer_policy_set_enabled(&g_policy, enabled);
+    if (!hw_buzzer_policy_is_active(&g_policy))
+    {
+        timer_stop();
+    }
+}
+
+void hw_buzzer_on_quiet_changed(bool requested)
+{
+    if (hw_buzzer_policy_set_quiet(&g_policy, requested))
     {
         timer_stop();
     }
@@ -85,5 +81,5 @@ void hw_buzzer_set_enabled(bool enabled)
 
 bool hw_buzzer_is_active(void)
 {
-    return g_active;
+    return hw_buzzer_policy_is_active(&g_policy);
 }

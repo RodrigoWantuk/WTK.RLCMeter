@@ -1,0 +1,7 @@
+name: Shared SPI chip-select invariant
+version: 1
+author: WTK.RLCMeter
+steps:
+  - wait-serial: 'spi2: OK'
+  - wait-serial: 'w25q:'
+  - delay: 1800ms

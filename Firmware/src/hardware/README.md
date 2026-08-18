@@ -14,6 +14,7 @@ hw_battery.c/.h
 hw_temperature.c/.h
 hw_backlight.c/.h
 hw_buzzer.c/.h
+hw_peripherals.c/.h
 ```
 
 This layer turns BSP-level pins/peripherals into semantically safe instrument operations.
@@ -34,6 +35,7 @@ battery_read()
 temperature_read()
 backlight_set()
 buzzer_play()
+peripherals_request_quiet()
 ```
 
 ## Invariants
@@ -46,3 +48,5 @@ buzzer_play()
 - UI never controls relays/ranges directly.
 
 K2 is a low-Z-bank contingency. The physical baseline uses `R0_BANK=0 Ω` and K2 DNP; the service boundary should allow a future populated variant without scattering hardware conditionals through higher layers.
+
+`hw_peripherals_request_quiet(true)` is the semantic quiet-mode entry point for future acquisition windows. It asks the BSP to block new shared-peripheral transactions and immediately stops any active buzzer tone without changing the backlight PWM duty. Clearing quiet mode only reopens peripherals; it does not replay an interrupted tone.

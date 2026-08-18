@@ -1,0 +1,6 @@
+name: Backlight PWM smoke
+version: 1
+author: WTK.RLCMeter
+steps:
+  - wait-serial: 'backlight_pwm_hz: 1000'
+  - delay: 1000ms

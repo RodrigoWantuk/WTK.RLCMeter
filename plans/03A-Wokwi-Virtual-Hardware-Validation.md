@@ -1,6 +1,6 @@
 # 03A — Wokwi Virtual Hardware Validation
 
-STATUS: NOT_STARTED
+STATUS: IN_PROGRESS
 
 ## Goal
 
@@ -497,3 +497,28 @@ Report:
 - virtual evidence added to Phase 02/03/04;
 - remaining bench-only validation;
 - recommendation on whether Wokwi remains sufficient for later phases or Renode should be reconsidered.
+
+## Stage 1 implementation status
+
+Stage 1 foundation is implemented and remains `IN_PROGRESS` until Wokwi CLI credentials are available and the scenarios are executed.
+
+Implemented:
+
+- Wokwi project files under `Firmware/sim/wokwi/`;
+- Rev.1 Blue Pill, ILI9341, button, and logic-analyzer wiring;
+- boot-safe, UART boot, button, backlight PWM, display smoke, and shared SPI CS scenarios;
+- stdlib-only `Firmware/tools/run_virtual_tests.py` wrapper with `--build`, `--smoke`, `--scenario`, `--keep-artifacts`, and `--check-only`;
+- GitHub Actions workflow using `WOKWI_CLI_TOKEN`;
+- host-testable quiet-mode buzzer policy regression;
+- host-testable ILI9341 rotation/dimension geometry regression;
+- Lab-only deterministic button UART diagnostics.
+
+Not yet virtual-hardware-tested:
+
+- local Wokwi execution;
+- deliberate-failure proof;
+- VCD post-processing against actual simulator output.
+
+Reason: current local environment did not provide `wokwi-cli` or `WOKWI_CLI_TOKEN`. No virtual scenario is claimed as passing until those are available.
+
+Phase 04 remains blocked. Phase 02/03 bench validation remains `REQUIRES_BENCH_VALIDATION`.

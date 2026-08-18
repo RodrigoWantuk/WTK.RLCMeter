@@ -15,6 +15,7 @@
 #include "hardware/hw_backlight.h"
 #include "hardware/hw_buzzer.h"
 #include "ui/ui_fallback_renderer.h"
+#include "wtk_build_config.h"
 
 static buttons_t g_buttons;
 static ili9341_t g_display;
@@ -42,6 +43,40 @@ static uint8_t app_read_button_mask(void)
     return mask;
 }
 
+static void app_log_button_event(const button_event_t *event)
+{
+    if (event == NULL)
+    {
+        return;
+    }
+
+#if WTK_ENABLE_LAB_DIAGNOSTICS
+    const char *button_name = "UNKNOWN";
+    switch (event->button)
+    {
+    case BUTTON_ID_UP:
+        button_name = "UP";
+        break;
+    case BUTTON_ID_OK:
+        button_name = "OK";
+        break;
+    case BUTTON_ID_DOWN:
+        button_name = "DOWN";
+        break;
+    default:
+        break;
+    }
+
+    bsp_uart_write_cstr("button: ");
+    bsp_uart_write_cstr(button_name);
+    bsp_uart_write_cstr(" ");
+    bsp_uart_write_cstr(button_event_type_string(event->type));
+    bsp_uart_write_cstr("\r\n");
+#else
+    bsp_diagnostics_write(BSP_LOG_LEVEL_DEBUG, button_event_type_string(event->type));
+#endif
+}
+
 static void app_step(void)
 {
     const uint32_t now_ms = bsp_time_now_ms();
@@ -50,13 +85,13 @@ static void app_step(void)
     button_event_t event;
     while (buttons_pop_event(&g_buttons, &event))
     {
-        bsp_diagnostics_write(BSP_LOG_LEVEL_DEBUG, button_event_type_string(event.type));
+        app_log_button_event(&event);
     }
 
     (void)ili9341_init_step(&g_display, now_ms);
     if (g_display.ready && !g_flash.detected && !g_flash_fallback_drawn)
     {
-        if (ui_fallback_draw_text(8u, 8u, "FLASH ERROR", 0xFFFFu, 0x0000u) == BSP_STATUS_OK)
+        if (ui_fallback_draw_text(&g_display, 8u, 8u, "FLASH ERROR", 0xFFFFu, 0x0000u) == BSP_STATUS_OK)
         {
             g_flash_fallback_drawn = true;
         }
