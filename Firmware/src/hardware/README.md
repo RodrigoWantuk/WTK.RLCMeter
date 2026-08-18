@@ -1,8 +1,8 @@
 # `hardware`
 
-Serviços de hardware específicos do instrumento.
+Instrument-specific hardware services.
 
-## Responsabilidades
+## Planned modules
 
 ```text
 hw_safety.c/.h
@@ -16,9 +16,9 @@ hw_backlight.c/.h
 hw_buzzer.c/.h
 ```
 
-Esta camada transforma GPIO/periféricos do BSP em operações semanticamente seguras.
+This layer turns BSP-level pins/peripherals into semantically safe instrument operations.
 
-## Exemplos de API
+## Representative API
 
 ```text
 safety_force_safe()
@@ -36,13 +36,13 @@ backlight_set()
 buzzer_play()
 ```
 
-## Invariantes
+## Invariants
 
-- K1 desenergizado é SAFE;
-- `RANGE_EN=0` durante troca de endereço;
-- 500 mVrms não é permitido com RREF de 10 Ω;
-- `CHG_VBUS` ativo impede MEASURE;
-- fault crítico para excitação e retorna K1 a SAFE;
-- UI nunca aciona relé/range diretamente.
+- K1 de-energized is SAFE;
+- `RANGE_EN=0` while the range address changes;
+- 500 mVrms is not allowed with the 10 Ω RREF;
+- active `CHG_VBUS` prevents MEASURE;
+- critical faults stop excitation and return K1 to SAFE;
+- UI never controls relays/ranges directly.
 
-K2 é contingência do banco low-Z. O baseline físico usa `R0_BANK=0 Ω` e K2 DNP; o serviço deve permitir futura variante sem espalhar condicionais pelo restante do firmware.
+K2 is a low-Z-bank contingency. The physical baseline uses `R0_BANK=0 Ω` and K2 DNP; the service boundary should allow a future populated variant without scattering hardware conditionals through higher layers.

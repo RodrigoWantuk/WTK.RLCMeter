@@ -1,100 +1,110 @@
 # Roadmap
 
+The roadmap is intentionally ordered so that safety and observability exist before metrology features depend on them. Detailed AI-agent execution plans live under [`../plans`](../plans/).
+
 ## M0 — Hardware Rev.1
 
-- fabricar PCB;
-- montar por blocos;
-- validar shorts/rails;
-- fechar BOM real de montagem;
-- registrar DNP.
+- fabricate PCB;
+- assemble by functional blocks;
+- validate shorts and supply rails;
+- freeze the actual assembled BOM;
+- record DNP population;
+- capture the exact hardware revision used for calibration.
 
 ## M1 — Firmware bootstrap
 
-- toolchain;
+- C17 project foundation;
+- CMake toolchain and presets;
+- VS Code workspace integration;
+- host-test harness;
 - startup/clock;
-- GPIO SAFE;
-- JTAG remap;
+- safe GPIO defaults;
+- JTAG remap while preserving SWD;
 - UART;
 - watchdog;
-- diagnostics base.
+- base diagnostics.
 
-## M2 — UI e storage
+## M2 — UI and storage peripherals
 
-- SPI2;
-- ILI9341;
-- W25Q JEDEC/read/write;
-- asset pack;
-- fonts;
+- SPI2 bus abstraction;
+- W25Q JEDEC/read/write/erase;
+- ILI9341 initialization and incremental rendering primitives;
 - buttons;
 - backlight;
-- buzzer.
+- buzzer;
+- initial asset-pack tooling.
 
-## M3 — Safety e range control
+## M3 — Safety and range control
 
-- ADC residual;
-- battery/NTC;
-- charger detect;
+- residual-voltage ADC channels;
+- battery and NTC sensing;
+- charger detection;
 - K1/K2 services;
-- 74HC238 range selection;
-- state machine SAFE/READY/MEASURE.
+- 74HC238 one-hot range selection;
+- SAFE/READY/MEASURE state-machine enforcement.
 
-## M4 — Excitação e aquisição
+## M4 — Excitation and acquisition
 
 - TIM1 PWM carrier;
-- amplitude generation;
-- ADC1/ADC2;
-- DMA;
-- trigger timer;
-- raw capture/stream via UART;
+- excitation amplitude generation/policy;
+- ADC1/ADC2 configuration;
+- deterministic trigger timer;
+- DMA buffers;
+- raw-capture diagnostics through UART;
 - quiet mode.
 
-## M5 — DSP e impedância
+## M5 — DSP and impedance
 
-- I/Q;
+- synchronous I/Q / single-bin DFT;
 - channel reconstruction;
-- complex Z;
+- complex Z calculation;
 - R/X/phase;
-- L/C series equivalents;
-- clipping/SNR/confidence.
+- series-equivalent L/C;
+- clipping/SNR/confidence metrics;
+- host-side known-vector tests.
 
 ## M6 — Autorange
 
-- range search;
+- range search policy;
 - amplitude policy;
-- 1×/HG selection;
-- settling;
-- retry/fallback.
+- 1×/HG channel selection;
+- settling policy;
+- retry/fallback rules;
+- explicit rejection states.
 
-## M7 — Calibração
+## M7 — Calibration
 
-- OPEN/SHORT/LOAD wizard;
-- persistent records;
+- OPEN/SHORT/LOAD workflow;
+- persistent calibration records;
 - complex correction;
-- calibration migration/versioning.
+- schema/versioning;
+- calibration import/export tooling where useful;
+- qualification-map generation.
 
-## M8 — Produto Rev.1
+## M8 — Rev.1 product experience
 
-- UI completa;
-- gráficos;
+- complete measurement UI;
+- graphs/derived visualizations;
 - battery UX;
-- diagnostics console;
+- diagnostic console;
 - power/idle policy;
-- qualification matrix.
+- asset pack;
+- qualification matrix integrated into confidence behavior.
 
-## M9 — Decisão Rev.2
+## M9 — Rev.1 qualification and Rev.2 decision
 
-A Rev.2 só deve ser desenhada com dados da Rev.1.
+Rev.2 should be driven by measured Rev.1 limitations rather than speculation.
 
-Possíveis itens:
+Possible items:
 
-- melhorar high-Z leakage/Coff;
-- 4-wire/Kelvin;
-- MCU/pinout com USB nativo disponível;
-- power control mais integrado;
-- proteção TVS qualificada;
-- redução de tamanho;
-- frontend separado para medição de tensão.
+- lower high-Z leakage / OFF capacitance;
+- Kelvin/4-wire support;
+- MCU/pinout with native USB available;
+- more integrated power control;
+- qualified TVS protection;
+- smaller PCB;
+- separate voltage-measurement front-end.
 
-### Fora do escopo Rev.1
+## Outside Rev.1
 
-Foi discutida futura medição de sinais pequenos e também tensão AC/DC elevada, incluindo aproximadamente 400 Vrms e 600–800 VDC. Isso exige novo frontend, conectores separados, novos clearances e análise de segurança. Não deve ser implementado por extensão improvisada da entrada RLC atual.
+Potential direct voltage measurement around 400 Vrms AC and 600–800 VDC has been discussed as a future feature. It requires a separate front-end, connectors, clearance/creepage strategy, protection analysis, and safety validation. It must not be implemented as an improvised extension of the current RLC input.

@@ -1,8 +1,8 @@
 # `storage`
 
-Persistência sobre a Flash SPI externa W25Q.
+Persistence layer over external W25Q SPI Flash.
 
-## Responsabilidades
+## Planned modules
 
 ```text
 storage_layout.c/.h
@@ -14,18 +14,15 @@ calibration_store.c/.h
 
 ## Baseline
 
-Sem filesystem na primeira versão. A Flash é dividida em regiões lógicas para assets, settings e calibração.
+No filesystem is planned initially. Flash is divided into logical regions for assets, settings, calibration, and optional diagnostics.
 
-Todo record persistente deve possuir identificação, versão, tamanho e CRC. Settings/calibração devem usar slots redundantes ou journal simples para sobreviver a perda de energia durante escrita.
+Every persistent record must contain identification, version, bounds information, and CRC. Settings/calibration should use redundant slots or a small journal so interrupted writes do not destroy the last valid record.
 
-## Regras
+## Rules
 
-- nunca assumir que conteúdo de Flash é válido sem verificação;
-- schema de calibração precisa carregar `hardware_revision`;
-- versões antigas devem ser rejeitadas ou migradas explicitamente;
-- erase/program não deve ocorrer durante aquisição crítica;
-- endereço/tamanho da W25Q não deve ser hard-coded fora do layout/driver.
-
-## Asset store
-
-Fornece acesso por ID a bitmaps/fontes empacotados, permitindo streaming em blocos para o TFT sem framebuffer completo.
+- never trust Flash contents without validation;
+- calibration schema carries `hardware_revision`;
+- incompatible versions are rejected or migrated explicitly;
+- erase/program does not occur during critical acquisition;
+- Flash size/address assumptions stay inside the driver/layout layers;
+- UI accesses assets by stable IDs, never raw physical offsets.

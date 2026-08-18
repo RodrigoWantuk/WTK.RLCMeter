@@ -1,20 +1,22 @@
-# Detalhamento do firmware
+# Detailed Firmware Design
 
-Este documento define a decomposição planejada do firmware do WTK.RLCMeter, os contratos entre módulos e a ordem de implementação.
+This document defines the planned firmware decomposition, module contracts, data flow, persistence model, and implementation order.
 
-## Objetivo arquitetural
+## Architectural objective
 
-O firmware deve se comportar como firmware de instrumento:
+The firmware should behave like measurement-instrument firmware:
 
-- segurança e estado elétrico têm prioridade sobre UI;
-- aquisição precisa ser determinística;
-- DSP deve ser testável fora do STM32;
-- hardware específico deve ficar confinado ao BSP/drivers;
-- UI e storage nunca podem bloquear o caminho metrológico;
-- falha de software deve tender ao estado SAFE;
-- calibração e configuração precisam ser versionadas.
+- electrical safety takes priority over UI behavior;
+- acquisition timing is deterministic;
+- DSP remains testable outside the STM32 target;
+- device-specific code is confined to BSP/drivers;
+- UI and storage never block the metrology path;
+- software faults tend toward SAFE;
+- calibration/settings formats are explicit and versioned;
+- the canonical implementation language is C17;
+- the canonical build system is CMake.
 
-## Camadas
+## Layers
 
 ```text
 ┌─────────────────────────────────────────┐
@@ -31,9 +33,9 @@ O firmware deve se comportar como firmware de instrumento:
 
 ## `src/app`
 
-Responsável por política global, não por detalhes de GPIO.
+Owns global policy, not GPIO details.
 
-Componentes planejados:
+Planned files:
 
 ```text
 app_state_machine.c/.h
@@ -44,7 +46,7 @@ app_faults.c/.h
 app_version.c/.h
 ```
 
-### Estado principal
+### Main states
 
 ```text
 BOOT
@@ -63,11 +65,9 @@ RESULT
 FAULT
 ```
 
-O estado global é explícito e serializável para diagnóstico.
+### Application events
 
-### Eventos
-
-Exemplos:
+Examples:
 
 ```text
 APP_EVENT_BUTTON_UP
@@ -82,13 +82,13 @@ APP_EVENT_LOW_BATTERY
 APP_EVENT_FAULT
 ```
 
-O loop principal despacha eventos; ISR apenas produz flags/eventos mínimos.
+The main loop dispatches events. ISR code only produces minimal flags/events and moves data.
 
 ## `src/bsp`
 
-Única camada autorizada a depender fortemente do STM32F1.
+The only layer expected to depend strongly on STM32F1 implementation details.
 
-Arquivos planejados:
+Planned files:
 
 ```text
 bsp_clock.c/.h
@@ -103,11 +103,11 @@ bsp_time.c/.h
 bsp_reset.c/.h
 ```
 
-### Responsabilidades
+Responsibilities:
 
 - clock tree;
-- configuração de JTAG/SWD;
-- GPIO safe defaults;
+- JTAG/SWD configuration;
+- safe GPIO defaults;
 - ADC1/ADC2;
 - DMA;
 - TIM1/TIM2/TIM3/TIM4;
@@ -119,26 +119,21 @@ bsp_reset.c/.h
 
 ## `src/drivers`
 
-Drivers de dispositivo reutilizáveis, sem política do instrumento.
+Reusable device drivers without instrument-level policy.
 
-Arquivos planejados:
+Planned files:
 
 ```text
 ili9341.c/.h
 w25q.c/.h
 buttons.c/.h
+spi_bus.c/.h        # if required for shared-bus ownership
+crc32.c/.h          # location may change if a common utility module is added
 ```
 
-Possíveis auxiliares:
+### ILI9341 contract
 
-```text
-spi_bus.c/.h
-crc32.c/.h
-```
-
-### ILI9341
-
-API mínima:
+Representative API:
 
 ```c
 bool ili9341_init(void);
@@ -149,11 +144,11 @@ void ili9341_write_pixels(const uint16_t *pixels, size_t count);
 bool ili9341_read_id(uint32_t *id);
 ```
 
-O driver não conhece telas ou unidades de medição.
+The driver does not know measurement screens, units, or RLC results.
 
-### W25Q
+### W25Q contract
 
-API mínima:
+Representative API:
 
 ```c
 bool w25q_init(void);
@@ -165,13 +160,13 @@ bool w25q_sector_erase(uint32_t address);
 bool w25q_wait_ready(uint32_t timeout_ms);
 ```
 
-O driver deve reconhecer ao menos densidades W25Q16/32/64/128 compatíveis em 3,3 V.
+The driver should support compatible W25Q16/32/64/128 devices rather than expose a W25Q64-specific API.
 
 ## `src/hardware`
 
-Encapsula hardware específico do instrumento e aplica sequências seguras.
+Encapsulates instrument-specific hardware and safe command sequences.
 
-Arquivos planejados:
+Planned files:
 
 ```text
 hw_safety.c/.h
@@ -185,12 +180,11 @@ hw_backlight.c/.h
 hw_buzzer.c/.h
 ```
 
-### Segurança
-
-Contrato sugerido:
+Representative safety contract:
 
 ```c
-typedef struct {
+typedef struct
+{
     bool charger_connected;
     bool residual_present;
     bool supply_ok;
@@ -202,12 +196,13 @@ bool safety_measure_allowed(const safety_status_t *status);
 void safety_force_safe(void);
 ```
 
-Nenhum chamador externo deve energizar K1 diretamente.
+No external caller should energize K1 by directly manipulating a GPIO.
 
-### Range
+### Range contract
 
 ```c
-typedef enum {
+typedef enum
+{
     RREF_10R,
     RREF_100R,
     RREF_1K,
@@ -220,7 +215,7 @@ bool range_select(rref_range_t range);
 void range_disable(void);
 ```
 
-`range_select()` implementa:
+`range_select()` must enforce:
 
 ```text
 RANGE_EN=0
@@ -229,23 +224,24 @@ wait dead-time
 RANGE_EN=1
 ```
 
-### Excitação
+### Excitation contract
 
 ```c
-typedef struct {
+typedef struct
+{
     uint32_t frequency_hz;
     uint32_t carrier_hz;
     uint16_t amplitude_mv_rms;
 } excitation_config_t;
 ```
 
-A API rejeita combinações proibidas, como 500 mVrms com RREF de 10 Ω.
+The API rejects forbidden combinations, including 500 mVrms with the 10 Ω RREF.
 
 ## `src/measurement`
 
-É o núcleo metrológico e deve ser majoritariamente puro/testável no host.
+The metrology core should be predominantly pure/testable C.
 
-Arquivos planejados:
+Planned files:
 
 ```text
 measurement_types.h
@@ -259,21 +255,26 @@ calibration_apply.c/.h
 measurement_engine.c/.h
 ```
 
-### Tipos centrais
+### Core data types
+
+Representative types:
 
 ```c
-typedef struct {
+typedef struct
+{
     float re;
     float im;
 } complexf_t;
 
-typedef struct {
+typedef struct
+{
     complexf_t vexc;
     complexf_t vmid;
     complexf_t ret;
 } phasor_set_t;
 
-typedef struct {
+typedef struct
+{
     complexf_t z;
     float magnitude;
     float phase_rad;
@@ -287,31 +288,29 @@ typedef struct {
 } measurement_result_t;
 ```
 
-Os tipos exatos podem mudar, mas a ideia é impedir que formatos de UI contaminem o cálculo.
+Exact types may evolve, but UI formatting must not leak into metrology types.
 
-### Aquisição
+### Acquisition metadata
 
-`acquisition` controla a sessão de ADC/DMA através de uma abstraction do BSP.
-
-Metadados necessários:
+Acquisition requires explicit metadata:
 
 ```text
 frequency
 sample_rate
-cycles
+cycle_count
 samples_per_cycle
 RREF
 excitation amplitude
-RET channel 1X/HG
-ADC timing/skew metadata
+RET channel (1X/HG)
+ADC timing/skew
 calibration key
 ```
 
-### Fasores
+### Phasor extraction
 
-Baseline: detecção síncrona / DFT de um único bin.
+Baseline approach: synchronous detection / single-bin DFT.
 
-Para cada canal:
+For each channel:
 
 ```text
 I = Σ x[n] cos(ωn)
@@ -319,9 +318,9 @@ Q = Σ x[n] sin(ωn)
 V = scale * (I + jQ)
 ```
 
-Janelas devem conter número inteiro de ciclos sempre que possível.
+Windows should contain an integer number of cycles where practical.
 
-### Impedância
+### Impedance calculation
 
 ```text
 Vs = VEXC - VMID
@@ -329,42 +328,33 @@ Vx = RET  - VMID
 Zx = ZREF * Vx / (Vs - Vx)
 ```
 
-`ZREF` é complexo/calibrado quando necessário.
+`ZREF` may itself be represented as a calibrated complex value/transfer correction.
 
-### Canal high-gain
+### High-gain channel
 
-Hardware atual:
+Current hardware:
 
 ```text
 G_HG_nominal = 1 + 68k / 4.7k ≈ 15.47
 ```
 
-O DSP usa `H_HG(f, range, amplitude)` calibrado, não apenas o ganho DC nominal.
+DSP uses a calibrated response such as `H_HG(f, range, amplitude)` rather than only nominal DC gain.
 
-### Autorange
+### Autorange output
 
-Entrada:
+The decision engine may return:
 
-- estimativa atual de Z;
-- clipping;
-- SNR;
-- current/headroom;
-- frequency/amplitude;
-- qualification map.
-
-Saída:
-
-- aceitar;
-- trocar RREF;
-- trocar 1X/HG;
-- trocar frequência;
-- trocar amplitude;
-- repetir;
-- rejeitar.
+- accept;
+- change RREF;
+- change 1X/HG channel;
+- change frequency;
+- change amplitude;
+- retry;
+- reject.
 
 ## `src/storage`
 
-Arquivos planejados:
+Planned files:
 
 ```text
 storage_layout.c/.h
@@ -374,20 +364,9 @@ calibration_store.c/.h
 record_store.c/.h
 ```
 
-### Layout lógico
+### Logical layout
 
-Exemplo inicial:
-
-```text
-0x000000  superblock / manifest
-0x001000  settings slot A
-0x002000  settings slot B
-0x010000  calibration region
-0x100000  asset pack
-...       reservado
-```
-
-Os endereços reais só devem ser congelados depois de escolher a densidade mínima suportada.
+A conceptual layout may reserve separate sectors for superblock, redundant settings, calibration, and asset pack. Exact addresses must not be frozen until the minimum supported W25Q density is decided.
 
 ### Record format
 
@@ -402,11 +381,11 @@ crc32
 payload
 ```
 
-Leitura sempre valida magic/version/size/CRC.
+Every read validates identifier, version, bounds, and CRC.
 
 ## `src/ui`
 
-Arquivos planejados:
+Planned files:
 
 ```text
 ui_core.c/.h
@@ -423,18 +402,18 @@ screen_calibration.c/.h
 screen_diagnostics.c/.h
 ```
 
-### Regras
+Rules:
 
-- nenhuma tela bloqueia;
-- nenhum `delay()` para animação;
-- render dirty-regions quando possível;
-- grandes bitmaps em streaming da W25Q;
-- unidade e prefixo SI formatados em camada própria;
-- lógica de medição não depende da tela ativa.
+- no blocking screen code;
+- no `delay()`-style animation;
+- render changed regions where practical;
+- stream large bitmaps from W25Q;
+- keep SI-prefix/unit formatting separate from calculation;
+- measurement logic does not depend on the active screen.
 
 ## Asset pack
 
-Formato simples sugerido:
+Suggested simple structure:
 
 ```text
 header
@@ -443,7 +422,7 @@ asset_table[]
 blob data...
 ```
 
-Cada entrada:
+Each entry can contain:
 
 ```text
 id
@@ -456,19 +435,19 @@ flags
 crc32
 ```
 
-Formatos candidatos:
+Candidate formats:
 
-- RGB565 raw;
-- RGB565 + RLE simples;
-- alpha-mask 1/4/8 bit para ícones/fontes.
+- raw RGB565;
+- simple RLE over RGB565;
+- 1/4/8-bit alpha or glyph masks.
 
-Ferramenta host converte PNG/fontes para o formato do firmware.
+Host tooling converts source PNG/font assets to the firmware format.
 
-## Configuração
+## Settings
 
-Defaults compilados devem existir mesmo sem Flash válida.
+Compiled defaults must exist even if external Flash is invalid.
 
-Exemplos:
+Examples:
 
 ```text
 backlight brightness
@@ -479,11 +458,11 @@ measurement auto/manual policy
 log level
 ```
 
-Nenhum setting pode desabilitar intertravamentos de segurança em builds normais.
+No normal user setting may disable mandatory safety interlocks.
 
-## Calibração
+## Calibration key
 
-Chave conceitual:
+Conceptual key:
 
 ```text
 hardware_revision
@@ -491,37 +470,37 @@ frequency
 RREF
 excitation amplitude
 RET channel
-calibration type
+calibration type/model version
 ```
 
-O formato deve permitir evolução sem invalidar toda a Flash por mudança de struct C.
+The persisted format must support schema evolution without directly serializing fragile C struct layouts.
 
-## Testes host-side
+## Host-side tests
 
-Obrigatórios para:
+Required focus areas:
 
 - complex math;
-- DFT/fasores;
-- equação de impedância;
-- OPEN/SHORT/load correction;
+- DFT/phasors;
+- impedance equation;
+- OPEN/SHORT/LOAD correction;
 - autorange;
 - confidence gates;
-- CRC e parsing de records;
+- CRC/record parsing;
 - asset manifest;
-- state machine pura.
+- pure application state machine.
 
-Vetores sintéticos devem cobrir R, C e L ideais e casos com ruído/clipping.
+Synthetic vectors should cover ideal R/C/L components plus noise, clipping, offsets, and timing/phase errors.
 
-## Observabilidade
+## Observability
 
-Cada sessão de medição deve poder produzir diagnóstico compacto:
+A measurement session should be able to produce compact diagnostic metadata:
 
 ```text
 session id
 range
 frequency
 amplitude
-samples
+sample metadata
 VEXC phasor
 RET phasor
 channel used
@@ -533,21 +512,21 @@ confidence
 retry/rerange reason
 ```
 
-Em Release, os dados podem ser reduzidos; em Lab, devem ser acessíveis por UART/TFT.
+Release builds may reduce this data; Lab builds should expose it through UART/TFT.
 
-## Política de faults
+## Fault policy
 
-Faults críticos:
+Critical faults include:
 
 - residual voltage;
-- charger connected durante tentativa de MEASURE;
-- ADC/DMA inconsistente;
+- charger connected during a measurement attempt;
+- inconsistent ADC/DMA state;
 - invalid range state;
 - brownout/supply invalid;
-- watchdog/reset;
+- watchdog/reset recovery;
 - impossible state transition.
 
-Ação baseline:
+Baseline response:
 
 ```text
 stop excitation
@@ -556,64 +535,9 @@ K1_SAFE
 K2 safe/default
 buzzer off
 record fault
-show fault when UI is available
+show/report fault when UI/diagnostics are available
 ```
 
-## Ordem recomendada de implementação
+## Implementation sequence
 
-### Fase 1 — platform
-
-- CMake/toolchain;
-- startup/CMSIS;
-- clock/GPIO;
-- UART;
-- watchdog/time.
-
-### Fase 2 — UI peripherals
-
-- SPI2;
-- W25Q;
-- ILI9341;
-- buttons;
-- backlight;
-- buzzer.
-
-### Fase 3 — safety/hardware
-
-- battery/NTC/CHG_VBUS;
-- residual ADC;
-- K1;
-- K2/R0_BANK policy;
-- RREF switching.
-
-### Fase 4 — metrology path
-
-- PWM_EXC;
-- ADC1/ADC2;
-- timer trigger;
-- DMA;
-- deterministic buffers.
-
-### Fase 5 — DSP
-
-- phasor extraction;
-- calibrated channels;
-- Z calculation;
-- R/C/L derivation;
-- confidence.
-
-### Fase 6 — intelligence
-
-- autorange;
-- retry/rerange;
-- calibration workflow;
-- qualification map.
-
-### Fase 7 — product experience
-
-- final screens;
-- graphs;
-- asset pack;
-- settings;
-- power policy;
-- polished diagnostics.
+The normative implementation sequence is maintained in [`../plans/`](../plans/). Agents must not treat the module list in this document as permission to implement later phases early.
