@@ -64,6 +64,14 @@ cmake --preset stm32-release
 cmake --build --preset stm32-release
 ```
 
+Embedded lab diagnostics build:
+
+```bash
+cd Firmware
+cmake --preset stm32-lab
+cmake --build --preset stm32-lab
+```
+
 The STM32 presets use `cmake/toolchains/arm-none-eabi-gcc.cmake` and target Cortex-M3 Thumb code for the STM32F103C8T6. The linker script is `cmake/stm32/STM32F103C8Tx_FLASH.ld`, with the Blue Pill baseline memory map of 64 KiB Flash and 20 KiB RAM.
 
 Expected STM32 build artifacts are generated under the selected build directory:
@@ -78,6 +86,64 @@ WTK.RLCMeter.map
 Host tests currently use CTest with small C executables. No C++ test framework is required.
 
 Warnings for project-owned C code are centralized in `cmake/modules/CompilerWarnings.cmake`. Host targets treat warnings as errors by default. STM32 warning-as-error is available through `WTK_WARNINGS_AS_ERRORS_STM32` but is off initially so vendor/header boundaries can be validated before enforcing it.
+
+## Phase 02 platform BSP
+
+The STM32 build now boots through a minimal BSP/application shell. The first application action is safe GPIO initialization before clocks, UART diagnostics, or watchdog start.
+
+Safe output intent established by `bsp_gpio_init_safe()`:
+
+```text
+RANGE_EN = 0
+K1_CMD    = 0
+K2_CMD    = 0
+BUZZER    = off
+TFT_CS    = 1
+FLASH_CS  = 1
+PWM_EXC   = low/inactive
+```
+
+JTAG is disabled while SWD remains enabled so PA15/PB3/PB4 can be used later. PA13/PA14 remain reserved for SWD.
+
+Clock baseline:
+
+```text
+Expected source: 8 MHz HSE on Blue Pill
+SYSCLK:          72 MHz via HSE PLL x9
+AHB/HCLK:        72 MHz
+APB1/PCLK1:      36 MHz
+APB2/PCLK2:      72 MHz
+APB1 timers:     72 MHz because APB1 prescaler is not 1
+APB2 timers:     72 MHz
+ADC clock:       12 MHz from PCLK2 / 6
+SysTick:         1 kHz low-resolution timebase
+```
+
+If HSE or PLL startup fails, the BSP leaves the firmware on HSI 8 MHz, keeps the safe GPIO state, and reports the clock failure in diagnostics. The SysTick timebase is for cooperative timeouts and debounce; it is not the metrology sampling clock.
+
+USART1 diagnostics use PA9/PA10 at 115200 baud, 8N1. Boot diagnostics include firmware version, Git identifier, build type, hardware compatibility, reset cause, clock summary, SWD-remap state, and boot state.
+
+The independent watchdog is started only after safe GPIO, clock/timebase setup, USART1 initialization, and the UART boot banner. The cooperative shell services it every loop. No future long operation should require disabling it.
+
+Current BSP-facing APIs include:
+
+```text
+bsp_clock_init()
+bsp_clock_get_summary()
+bsp_gpio_init_safe()
+bsp_reset_capture_reason()
+bsp_reset_get_reason()
+bsp_time_init()
+bsp_time_now_ms()
+bsp_uart_init()
+bsp_uart_write()
+bsp_watchdog_start()
+bsp_watchdog_service()
+bsp_diagnostics_boot_banner()
+bsp_diagnostics_step()
+```
+
+Phase 02 is implemented in firmware but still requires bench validation of UART output, reset-cause reporting, SWD preservation, watchdog behavior, and safe boot pin levels.
 
 ## STM32CubeF1 / CMSIS strategy
 

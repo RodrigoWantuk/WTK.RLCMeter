@@ -1,13 +1,6 @@
-#include <stdbool.h>
-
-#include "app/app_version.h"
+#include "app/app_shell.h"
 
 int main(void)
 {
-    const wtk_app_version_info_t *const version = wtk_app_version_get();
-    (void)version;
-
-    while (true)
-    {
-    }
+    app_shell_run();
 }

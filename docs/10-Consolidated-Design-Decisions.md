@@ -34,6 +34,27 @@ Long operations use states/events/timeouts rather than blocking delays. ISR code
 
 A future RTOS proposal requires explicit evidence that the cooperative architecture is insufficient and must include RAM, timing, complexity, and migration impact.
 
+## Clock and platform baseline
+
+The Phase 02 STM32 platform baseline expects the Blue Pill 8 MHz HSE and configures:
+
+```text
+SYSCLK:      72 MHz via HSE PLL x9
+HCLK/AHB:    72 MHz
+PCLK1/APB1:  36 MHz
+PCLK2/APB2:  72 MHz
+APB1 timers: 72 MHz
+APB2 timers: 72 MHz
+ADC clock:   12 MHz via PCLK2 / 6
+SysTick:     1 kHz low-resolution cooperative timebase
+```
+
+The SysTick timebase is for diagnostics, debounce, watchdog-friendly timeouts, and cooperative state machines. It is not the metrology sample clock.
+
+If HSE/PLL startup fails, firmware remains in the safe GPIO state on HSI and reports the clock fault. Later phases must not assume the 72 MHz clock was achieved without checking the BSP clock status/summary.
+
+The independent watchdog starts after safe GPIO, clock/timebase setup, USART1 initialization, and the boot diagnostics banner. The cooperative shell services it each loop; future long operations must be decomposed so watchdog service remains possible.
+
 ## STM32CubeF1 dependency strategy
 
 Firmware integrates CMSIS and STM32CubeF1 HAL/LL through CMake and official ST component submodules, not through STM32CubeIDE project metadata or developer-local package paths.

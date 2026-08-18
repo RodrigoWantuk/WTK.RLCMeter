@@ -31,6 +31,14 @@ if(NOT WTK_BUILD_TYPE)
     set(WTK_BUILD_TYPE "MultiConfig")
 endif()
 
+if(WTK_BUILD_TYPE STREQUAL "Lab")
+    set(WTK_DIAGNOSTIC_LOG_LEVEL_DEFAULT 5)
+elseif(WTK_BUILD_TYPE STREQUAL "Release")
+    set(WTK_DIAGNOSTIC_LOG_LEVEL_DEFAULT 2)
+else()
+    set(WTK_DIAGNOSTIC_LOG_LEVEL_DEFAULT 4)
+endif()
+
 configure_file(
     "${CMAKE_CURRENT_SOURCE_DIR}/config/wtk_build_config.h.in"
     "${CMAKE_CURRENT_BINARY_DIR}/generated/wtk_build_config.h"
@@ -58,7 +66,16 @@ if(WTK_TARGET_PLATFORM STREQUAL "host")
     add_subdirectory(tests)
 elseif(WTK_TARGET_PLATFORM STREQUAL "stm32")
     add_executable(wtk_rlcmeter
+        src/app/app_shell.c
         src/app/main.c
+        src/bsp/bsp_clock.c
+        src/bsp/bsp_diagnostics.c
+        src/bsp/bsp_gpio.c
+        src/bsp/bsp_reset.c
+        src/bsp/bsp_status.c
+        src/bsp/bsp_time.c
+        src/bsp/bsp_uart.c
+        src/bsp/bsp_watchdog.c
         src/bsp/stm32_dependency_probe.c
         src/bsp/startup_stm32f103c8tx.c
         src/bsp/system_stm32f1xx.c

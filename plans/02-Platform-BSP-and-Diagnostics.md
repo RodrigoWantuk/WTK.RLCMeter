@@ -1,6 +1,6 @@
 # 02 — Platform BSP and Diagnostics Foundation
 
-STATUS: NOT_STARTED
+STATUS: IMPLEMENTED_REQUIRES_BENCH_VALIDATION
 
 ## Goal
 
@@ -213,3 +213,97 @@ Provide:
 - measured safe boot pin states if hardware was available;
 - any pin-polarity discrepancy discovered against documentation;
 - readiness for Phases 03 and 04.
+
+## Phase 02 implementation status
+
+Implemented on 2026-08-18 as a firmware/platform foundation. Bench validation remains required before this phase can be considered complete.
+
+### Clock tree
+
+```text
+Expected source: 8 MHz HSE on Blue Pill
+SYSCLK:          72 MHz via HSE PLL x9
+AHB/HCLK:        72 MHz
+APB1/PCLK1:      36 MHz
+APB2/PCLK2:      72 MHz
+APB1 timers:     72 MHz because APB1 prescaler is not 1
+APB2 timers:     72 MHz
+ADC clock:       12 MHz from PCLK2 / 6
+SysTick:         1 kHz low-resolution timebase
+Fallback:        HSI 8 MHz with safe GPIO retained and clock failure reported
+```
+
+### BSP public APIs
+
+```text
+bsp_clock_init()
+bsp_clock_get_summary()
+bsp_gpio_init_safe()
+bsp_gpio_swd_preserved()
+bsp_reset_capture_reason()
+bsp_reset_get_reason()
+bsp_time_init()
+bsp_time_now_ms()
+bsp_uart_init()
+bsp_uart_write()
+bsp_watchdog_start()
+bsp_watchdog_service()
+bsp_diagnostics_boot_banner()
+bsp_diagnostics_step()
+```
+
+### UART and diagnostics
+
+USART1 uses PA9/PA10 at 115200 baud, 8N1. The boot banner reports firmware version, Git identifier, build type, hardware compatibility, reset cause, clock status/source/frequencies, SWD-remap state, boot state, and watchdog policy.
+
+Diagnostic default log levels:
+
+```text
+Debug:   DEBUG
+Lab:     TRACE
+Release: WARN
+```
+
+### Watchdog policy
+
+The independent watchdog starts after safe GPIO initialization, clock/timebase setup, USART1 initialization, and UART boot banner emission. The cooperative shell services it every loop. Future long operations must be non-blocking or decomposed so watchdog service is not starved.
+
+### Validation
+
+Automated validation passed:
+
+```bash
+cmake --preset host-debug
+cmake --build --preset host-debug
+ctest --preset host-debug
+
+cmake --preset host-release
+cmake --build --preset host-release
+ctest --preset host-release
+
+cmake --preset stm32-debug
+cmake --build --preset stm32-debug
+
+cmake --preset stm32-release
+cmake --build --preset stm32-release
+
+cmake --preset stm32-lab
+cmake --build --preset stm32-lab
+```
+
+Release memory report from the implemented firmware:
+
+```text
+FLASH: 4840 B / 64 KiB, 7.39%
+RAM:   2112 B / 20 KiB, 10.31%
+```
+
+### REQUIRES_BENCH_VALIDATION
+
+- UART banner on PA9/PA10.
+- Power-cycle/software/watchdog reset cause reporting.
+- SWD access after disabling JTAG.
+- Boot pin levels for K1_CMD, K2_CMD, RANGE_EN, buzzer, PWM_EXC, TFT_CS, and FLASH_CS.
+- Watchdog reset detection under controlled test.
+
+No pin-polarity discrepancy was discovered from documentation during implementation. Physical polarity and safe levels still require bench confirmation.

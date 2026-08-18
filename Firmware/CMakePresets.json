@@ -53,6 +53,19 @@
         "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
         "WTK_TARGET_PLATFORM": "stm32"
       }
+    },
+    {
+      "name": "stm32-lab",
+      "displayName": "STM32 Lab",
+      "description": "Configure STM32F103C8T6 firmware with extra lab diagnostics.",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/stm32-lab",
+      "toolchainFile": "${sourceDir}/cmake/toolchains/arm-none-eabi-gcc.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Lab",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+        "WTK_TARGET_PLATFORM": "stm32"
+      }
     }
   ],
   "buildPresets": [
@@ -75,6 +88,11 @@
       "name": "stm32-release",
       "configurePreset": "stm32-release",
       "configuration": "Release"
+    },
+    {
+      "name": "stm32-lab",
+      "configurePreset": "stm32-lab",
+      "configuration": "Lab"
     }
   ],
   "testPresets": [

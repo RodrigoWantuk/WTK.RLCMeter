@@ -16,6 +16,26 @@ Board Support Package for the STM32F103C8T6 target.
 - monotonic time;
 - reset reason.
 
+## Phase 02 baseline
+
+The BSP owns the first hardware-facing boot foundation:
+
+```text
+safe GPIO defaults
+JTAG disabled / SWD preserved
+8 MHz HSE -> 72 MHz SYSCLK clock setup
+1 kHz SysTick timebase
+USART1 diagnostics on PA9/PA10 at 115200 8N1
+independent watchdog service
+reset-cause capture and clearing
+```
+
+If HSE/PLL startup fails, the BSP keeps the instrument in safe GPIO state and reports fallback to HSI rather than silently claiming the 72 MHz baseline.
+
+Public APIs are project-level functions such as `bsp_time_now_ms()`, `bsp_uart_write()`, `bsp_reset_get_reason()`, and `bsp_watchdog_service()`. Higher layers should not reach around these APIs to manipulate RCC/GPIO/USART/IWDG registers directly.
+
+Phase 02 implementation remains `REQUIRES_BENCH_VALIDATION` until real hardware confirms UART output, reset cause reporting, SWD preservation after JTAG remap, watchdog reset behavior, and safe pin levels for K1/K2/RANGE_EN/buzzer/excitation.
+
 ## Planned files
 
 ```text
