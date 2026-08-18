@@ -10,12 +10,15 @@ The plans are **execution documents**, not general architecture notes. Architect
 1. [`01-Toolchain-CMake-and-VSCode.md`](01-Toolchain-CMake-and-VSCode.md) — C17 build foundation, Arm toolchain, presets, workspace integration, host tests, CI-ready commands.
 2. [`02-Platform-BSP-and-Diagnostics.md`](02-Platform-BSP-and-Diagnostics.md) — STM32 startup, clocks, safe GPIO, JTAG/SWD remap, UART, watchdog, reset/time foundation.
 3. [`03-SPI-Display-Flash-and-Input.md`](03-SPI-Display-Flash-and-Input.md) — SPI ownership, W25Q, ILI9341, buttons, backlight, buzzer, asset primitives.
+3A. [`03A-Wokwi-Virtual-Hardware-Validation.md`](03A-Wokwi-Virtual-Hardware-Validation.md) — Wokwi-based virtual Blue Pill regression tests, automated GPIO/UART/SPI/TFT/Flash scenarios, and CI integration between host tests and bench validation.
 4. [`04-Safety-Power-and-Range-Control.md`](04-Safety-Power-and-Range-Control.md) — residual sensing, charger/battery/NTC, K1/K2, range decoder, fail-safe state enforcement.
 5. [`05-Excitation-ADC-and-DMA.md`](05-Excitation-ADC-and-DMA.md) — PWM excitation, deterministic ADC1/ADC2 sampling, timer trigger, DMA buffers, raw-capture diagnostics, quiet mode.
 6. [`06-DSP-and-Impedance-Core.md`](06-DSP-and-Impedance-Core.md) — synchronous phasors, complex channel reconstruction, impedance equation, R/X/phase/RLC derivation, host vectors.
 7. [`07-Autorange-Confidence-and-Calibration.md`](07-Autorange-Confidence-and-Calibration.md) — range policy, 1X/HG selection, confidence gates, OPEN/SHORT/LOAD, persistence, qualification map.
 8. [`08-UI-Storage-and-Product-Integration.md`](08-UI-Storage-and-Product-Integration.md) — full UI, asset pack, settings, diagnostics console, power policy, integration hardening.
 9. [`09-Bringup-Qualification-and-Release.md`](09-Bringup-Qualification-and-Release.md) — board validation, metrology qualification, regression matrix, Rev.1 release evidence, Rev.2 decision inputs.
+
+Phase 03A is an orthogonal validation layer rather than a new firmware-feature phase. It should be established after the Phase 02/03 digital foundations and then reused by later phases. It does not replace any physical bench gate.
 
 ## How agents use these plans
 
@@ -62,6 +65,7 @@ Examples:
 
 - Phase 01 may create a minimal placeholder target needed to prove the toolchain, but it does not implement TFT or measurement logic.
 - Phase 03 may provide basic display test screens, but it does not implement the final product UI.
+- Phase 03A may add simulator-only infrastructure and narrowly scoped Lab diagnostics, but it must not change production behavior to make virtual tests pass.
 - Phase 05 may stream raw ADC samples for validation, but it does not implement final impedance math.
 - Phase 06 may use fixed synthetic measurement conditions in host tests, but it does not silently implement autorange.
 
