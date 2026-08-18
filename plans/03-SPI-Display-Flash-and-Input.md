@@ -4,7 +4,7 @@ STATUS: NOT_STARTED
 
 ## Goal
 
-Implement and validate the non-metrology user-interface peripherals while preserving shared-SPI correctness and future quiet-mode requirements.
+Implement and validate the non-metrology user-interface peripherals while preserving shared-SPI correctness, future quiet-mode requirements, and the fixed button/resource architecture used by later product UI work.
 
 ## Prerequisites
 
@@ -21,12 +21,12 @@ Implement and validate the non-metrology user-interface peripherals while preser
 - button debounce/events;
 - backlight PWM;
 - buzzer tone generation;
-- minimal asset-streaming primitive;
+- minimal external resource/font-streaming primitive;
 - peripheral diagnostics.
 
 ## Out of scope
 
-- final product screens;
+- final product screens/navigation implementation;
 - final asset-pack format if not needed yet;
 - calibration storage;
 - ADC/DMA metrology;
@@ -56,6 +56,17 @@ Create an explicit rule or helper layer so:
 - later quiet mode can prevent new large transfers.
 
 Do not rely on call-site discipline scattered across UI/storage code.
+
+The bus abstraction must support the later resource-rendering sequence:
+
+```text
+select W25Q
+read bounded resource chunk
+release W25Q
+select TFT
+transmit/render chunk
+release TFT
+```
 
 ## Task 3 — W25Q driver
 
@@ -96,6 +107,7 @@ Implement:
 - address window;
 - RGB565 pixel streaming;
 - solid fill;
+- basic procedural drawing primitives required for bring-up;
 - minimal bitmap/glyph primitive;
 - optional ID/status readback where the module exposes usable MISO behavior.
 
@@ -103,7 +115,9 @@ Avoid a full framebuffer.
 
 ## Task 6 — TFT fallback path
 
-Keep a minimal built-in font/diagnostic rendering path in MCU Flash. The instrument should display a basic error even if W25Q assets are unavailable.
+Keep a minimal built-in font/diagnostic rendering path in MCU Flash. The instrument should display a basic error even if W25Q resources are unavailable.
+
+This fallback is intentionally small. Large/custom fonts belong to the W25Q resource architecture and must not be copied wholesale into internal MCU Flash merely for convenience.
 
 ## Task 7 — Buttons
 
@@ -121,7 +135,26 @@ Requirements:
 - no blocking debounce delays;
 - timing based on BSP monotonic time;
 - driver does not own screen navigation;
-- simultaneous-button state should be deterministic enough for future shortcuts.
+- simultaneous-button state is deterministic enough for controlled future service shortcuts;
+- ordinary product operation must not depend on button combinations, double-clicks, or triple-clicks.
+
+Later UI code will consume these events according to the fixed product contract:
+
+```text
+normal/result context:
+  OK short     measure
+  UP/DOWN      browse result pages
+  OK long      open menu
+
+menu context:
+  UP/DOWN      navigate/change
+  OK short     select/confirm
+  OK long      back
+```
+
+Do not hard-code those navigation semantics inside the button driver.
+
+Host tests must cover press, release, long-press threshold boundaries, repeat behavior, bounce patterns, and event ordering.
 
 ## Task 8 — Backlight PWM
 
@@ -137,6 +170,8 @@ Define:
 
 Do not select a PWM frequency without checking timer clock from Phase 02.
 
+Also provide the low-level support needed for Phase 08 to implement inactivity timeout and full-backlight-off behavior. The user-facing rule that the first button press after backlight-off only wakes the display belongs to Phase 08, not the BSP/driver.
+
 ## Task 9 — Buzzer
 
 Use PB1 through the existing transistor/piezo circuit.
@@ -148,26 +183,55 @@ Because PB0 and PB1 are TIM3 channels and would share the timer base, prefer the
 
 Implement a small non-blocking pattern player rather than `delay()`-based beeps.
 
-The buzzer must have an unconditional mute path for quiet mode/safety faults.
+The buzzer must have an unconditional mute path for quiet mode/safety faults and a normal enable/disable control that Phase 08 can bind to the persistent Sound setting.
 
-## Task 10 — Minimal asset streaming
+Do not freeze the policy for safety-critical audible alerts versus user Sound=Off in this phase; that policy must be explicit before release.
 
-Implement enough infrastructure to prove:
+## Task 10 — Minimal external resource/font streaming
+
+Implement enough infrastructure to prove that the W25Q can act as external UI resource ROM rather than only as bitmap storage.
+
+Prove both of these paths:
 
 ```text
-W25Q -> small RAM buffer -> ILI9341
+W25Q -> small fixed RAM buffer -> ILI9341 bitmap/pixel stream
+W25Q -> glyph/resource lookup -> small fixed RAM buffer -> ILI9341 text/glyph rendering
 ```
 
-Test with an intentionally larger bitmap that cannot reasonably be treated as a tiny inline icon. Verify that no full image buffer is allocated in RAM.
+Requirements:
 
-Do not freeze the final compression format prematurely.
+- do not allocate a full image or full font in RAM;
+- total installed resource/font size must not cause proportional SRAM usage;
+- target an initial scratch buffer in the hundreds of bytes where practical;
+- if a larger scratch buffer is selected, document measured reason and RAM impact;
+- support stable resource IDs/offsets rather than embedding pointer-like assumptions;
+- keep the design compatible with offline-generated raster font packs containing metrics and glyph data;
+- the MCU must not parse TTF/OTF or integrate FreeType.
 
-## Task 11 — Peripheral self-test
+For bring-up, use a deliberately non-trivial external resource that demonstrates that the bytes actually come from W25Q. A large numeric/font glyph set is preferred because it validates the intended product use better than a decorative full-screen bitmap.
+
+Do not freeze final compression or localization formats prematurely.
+
+## Task 11 — Quiet-mode hooks
+
+Define a small interface that allows the later acquisition layer to prevent new TFT/W25Q/buzzer activity during a metrology-critical window.
+
+Requirements:
+
+- a transfer already in progress must have bounded completion time;
+- no background UI/resource task starts an unbounded SPI transaction while quiet mode is requested;
+- buzzer output can be stopped/muted deterministically;
+- later Phase 08 can update the UI between acquisition attempts rather than during them.
+
+Do not implement measurement policy here.
+
+## Task 12 — Peripheral self-test
 
 Add self-test results for:
 
 - W25Q presence/capacity;
 - TFT init/status;
+- external resource read/glyph-stream sanity;
 - button sanity;
 - optional backlight/buzzer diagnostic actions.
 
@@ -180,19 +244,24 @@ A W25Q/TFT failure should degrade UI capability but must not bypass safety funct
 - W25Q page/bounds logic has host tests where pure logic can be separated;
 - button debounce/event state machine has host tests;
 - no framebuffer-size static allocation appears;
-- bus arbitration guarantees mutual CS exclusion by construction or centrally enforced API.
+- no large font/asset table is moved into MCU internal Flash as a shortcut;
+- bus arbitration guarantees mutual CS exclusion by construction or centrally enforced API;
+- resource streaming uses bounded fixed RAM;
+- quiet-mode API has deterministic state behavior.
 
 ## Bench acceptance criteria
 
 1. read expected W25Q JEDEC ID;
 2. write/read/erase reserved test sector;
-3. initialize TFT and render solid colors/text;
-4. stream a bitmap from W25Q to TFT in chunks;
-5. verify buttons generate expected events;
-6. verify backlight brightness control;
-7. verify buzzer tones near 500 Hz / 1 kHz / 2 kHz;
-8. verify no reset or obvious rail disturbance;
-9. verify TFT MISO releases the bus with CS inactive.
+3. initialize TFT and render solid colors/basic procedural graphics/text;
+4. stream an external bitmap/resource from W25Q to TFT in chunks;
+5. render at least one externally stored custom/large glyph set from W25Q without loading the complete font into RAM;
+6. verify buttons generate expected press/long/repeat events;
+7. verify backlight brightness control;
+8. verify buzzer tones near 500 Hz / 1 kHz / 2 kHz;
+9. verify quiet-mode request blocks new disruptive peripheral activity;
+10. verify no reset or obvious rail disturbance;
+11. verify TFT MISO releases the bus with CS inactive.
 
 ## Handoff
 
@@ -201,8 +270,10 @@ Report:
 - validated SPI frequencies;
 - detected Flash part/capacity;
 - display module behavior/readback limitations;
-- RAM used by asset streaming;
-- button timing constants;
+- RAM used by resource/font streaming;
+- tested glyph/resource format assumptions that remain provisional;
+- button timing constants/event behavior;
 - backlight PWM frequency;
 - buzzer implementation/timing;
-- any quiet-mode concerns for later acquisition work.
+- quiet-mode behavior/latency;
+- any concerns for later acquisition or final UI work.
