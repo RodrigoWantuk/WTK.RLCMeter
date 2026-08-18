@@ -15,7 +15,8 @@ Deliver Rev.1 firmware that is:
 - testable on the host for pure logic;
 - observable enough for hardware bring-up without breakpoints;
 - calibrated/qualified rather than based only on nominal component values;
-- modular enough for later hardware revisions without rewriting the metrology core.
+- modular enough for later hardware revisions without rewriting the metrology core;
+- simple to operate without forcing the user to select R/L/C before a normal measurement.
 
 ## Global constraints
 
@@ -27,10 +28,75 @@ Compiler: arm-none-eabi-gcc
 MCU libraries: CMSIS + STM32CubeF1 HAL/LL
 Editor: VS Code supported, editor-independent build
 RTOS: none initially
+Runtime model: cooperative event-driven superloop + modular finite-state machines
 Arduino: prohibited in baseline
 C++: prohibited in baseline
 Heap in critical path: prohibited
 ```
+
+## Runtime architecture contract
+
+Rev.1 does not use an RTOS. Runtime orchestration is based on small cooperative state machines by responsibility rather than one monolithic state switch.
+
+Expected domains include:
+
+```text
+application/boot policy
+measurement sequence
+autorange/attempt control
+calibration workflow
+UI/navigation
+button/debounce
+storage operations
+power/safety
+```
+
+Interrupts remain available for deterministic hardware events such as timers and ADC/DMA, but ISR code stays short and publishes bounded state/events. DSP, UI rendering, storage activity, and verbose logging run outside critical ISR paths.
+
+Long waits are represented as states plus monotonic time/event checks. Blocking delay-driven application architecture is prohibited.
+
+## Product UX contract
+
+Normal operation is intentionally menu-light:
+
+```text
+short OK    start measurement
+UP/DOWN     browse pages of the last result
+long OK     open main menu
+```
+
+The normal product does not ask the user to select resistor/capacitor/inductor before measurement. The metrology core calculates complex impedance first; a later classifier interprets the dominant model automatically and may return low-confidence/mixed/unknown rather than forcing an incorrect label.
+
+The main menu baseline is:
+
+```text
+Calibration
+Display
+Sound
+Language
+Debug
+About
+```
+
+The primary result page uses large detected-component/value typography and small footer metadata for the excitation amplitude/frequency most directly associated with the displayed value. Additional pages expose electrical details, measurement metadata, useful graphs, and—when enabled—the on-screen debug console.
+
+During multi-attempt/refined measurement, valid intermediate results may be shown with a clear waiting/progress indication. TFT/Flash updates occur only between critical acquisition windows.
+
+## Calibration product gate
+
+Calibration validity is mandatory product state.
+
+Every boot validates the required persisted calibration set before normal READY operation. Missing, corrupt, incomplete, incompatible, or CRC-invalid calibration forces `CALIBRATION_REQUIRED` and the Calibration wizard. Normal measurement is unavailable until a valid required calibration set exists.
+
+Manual recalibration must preserve the previous valid calibration until the candidate replacement has been fully written, read back, validated, and activated.
+
+Calibration persistence uses the external W25Q storage architecture. The STM32F103C8T6 has no native EEPROM; plans and code must not describe this persistence as MCU internal EEPROM.
+
+## External resource ROM contract
+
+The W25Q is the external resource/data ROM as well as persistent storage. UI resource use includes rasterized fonts, large numeric glyphs, symbols, icons, localization resources, and optional graphics.
+
+Desktop authoring fonts are converted offline; the MCU does not parse TTF/OTF. Runtime resource size must not cause proportional SRAM use: access is chunked through a small fixed scratch buffer, while a minimal emergency font remains in MCU internal Flash.
 
 ## Phase dependency graph
 
@@ -51,10 +117,10 @@ Heap in critical path: prohibited
 05 Excitation/ADC/DMA
                      |
                      v
-06 DSP/Impedance
+06 DSP/Impedance + basic model derivation
                      |
                      v
-07 Autorange/Confidence/Calibration
+07 Autorange/Confidence/Classification/Calibration
                      |
                      v
 08 Product Integration/UI/Storage
@@ -83,11 +149,11 @@ Provides synchronized raw sample blocks plus explicit metadata.
 
 ### Measurement boundary
 
-Consumes calibrated channel data and returns complex measurement results plus quality metadata.
+Consumes calibrated channel data and returns complex measurement results plus quality metadata. Component/model classification consumes measured results; it does not alter the underlying impedance equation.
 
 ### Storage boundary
 
-Provides validated versioned records and assets by logical IDs.
+Provides validated versioned records and external resources by logical IDs.
 
 ### UI boundary
 
@@ -131,7 +197,9 @@ Every phase must preserve:
 - dependency boundaries;
 - English documentation;
 - no accidental dynamic-allocation dependency in critical runtime code;
-- no fake hardware qualification.
+- no fake hardware qualification;
+- no unbounded UI/storage/logging work inside acquisition-critical windows;
+- no hidden user setting capable of bypassing mandatory safety or calibration gates.
 
 ## Automated validation strategy
 
@@ -150,6 +218,8 @@ Exact preset names may differ if Phase 01 documents a better naming convention.
 
 Future CI can run host tests and cross-compile the embedded target even without hardware attached.
 
+Host testing should eventually cover pure state-machine transitions, component/model classification, navigation/button semantics, calibration validity decisions, resource parsing, persistence corruption recovery, and the DSP core.
+
 ## Bench-validation strategy
 
 Hardware validation is staged so a failure cannot masquerade as a DSP bug:
@@ -163,7 +233,8 @@ Hardware validation is staged so a failure cannot masquerade as a DSP bug:
 7. fixed known resistors;
 8. capacitors/inductors;
 9. OPEN/SHORT/LOAD calibration;
-10. autorange and qualification matrix.
+10. autorange/classification and qualification matrix;
+11. integrated UI/result-progress/quiet-mode behavior.
 
 ## Evidence requirements
 
@@ -199,6 +270,7 @@ The following require explicit documentation updates before or with implementati
 
 - changing firmware language;
 - adding RTOS;
+- changing the cooperative state-machine execution model materially;
 - introducing an external ADC;
 - changing MCU;
 - changing pinout;
@@ -206,7 +278,9 @@ The following require explicit documentation updates before or with implementati
 - changing the SAFE/MEASURE concept;
 - enabling native USB through hardware changes;
 - changing the calibration model in a way that invalidates stored records;
-- changing persistent formats incompatibly.
+- changing persistent formats incompatibly;
+- removing automatic component/model classification from normal operation;
+- changing the mandatory calibration boot gate.
 
 ## End-state release artifacts
 
@@ -223,4 +297,4 @@ A Rev.1 firmware release should ultimately produce:
 
 ## Immediate next action
 
-The first implementation task is [`01-Toolchain-CMake-and-VSCode.md`](01-Toolchain-CMake-and-VSCode.md). No hardware feature should be implemented before that phase establishes the canonical project/build/test skeleton.
+Complete the current Phase 01 acceptance criteria before beginning hardware feature implementation. Subsequent agents must follow the phase plans and the contracts above rather than implementing later product/UI behavior opportunistically.
