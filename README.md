@@ -1,52 +1,56 @@
 # WTK.RLCMeter
 
-WTK.RLCMeter é um medidor RLC portátil de dois fios, baseado em STM32, criado para caracterização de componentes passivos com excitação AC controlada, aquisição síncrona, seleção automática de faixa e calibração complexa.
+WTK.RLCMeter é um medidor RLC portátil de dois fios baseado em **STM32F103C8T6**, desenvolvido para caracterização de componentes passivos por excitação AC controlada, aquisição síncrona, seleção automática de faixa e calibração complexa.
 
-O projeto combina uma placa analógica/digital própria com um módulo **STM32F103C8T6 Blue Pill**, display TFT **ILI9341**, memória SPI externa da família **W25Q**, alimentação por bateria Li-ion 1S e firmware dedicado para medição, segurança, interface gráfica e diagnóstico.
+O projeto combina uma PCB analógica/digital própria, módulo **Blue Pill**, display TFT **ILI9341**, Flash SPI externa **W25Q**, alimentação por Li-ion 1S e firmware dedicado para medição, segurança, interface gráfica, armazenamento e diagnóstico.
 
-> **Estado atual:** hardware Rev.1 em fase de protótipo/qualificação. A arquitetura elétrica está fechada o suficiente para fabricação da primeira placa, mas precisão, parasitas, ganho/fase, leakage e limites reais de cada faixa ainda dependem de caracterização e calibração em bancada.
+> **Estado atual — agosto de 2026:** hardware de primeiro protótipo em fase de fabricação/bring-up e qualificação. O circuito e o PCB estão maduros o suficiente para a primeira montagem, mas precisão, limites reais de faixa, parasitas, leakage, resposta de ganho/fase e desempenho em 10 kHz ainda precisam ser medidos em bancada. Valores metrológicos publicados pelo firmware só serão considerados válidos após qualificação.
 
-## Objetivos
+## Objetivos do instrumento
 
 - Medir **resistência, capacitância, indutância e impedância complexa**.
-- Trabalhar inicialmente em frequências de teste de **100 Hz, 1 kHz e 10 kHz**.
-- Usar aquisição síncrona para obter magnitude e fase, em vez de depender apenas de valores RMS.
-- Selecionar automaticamente uma entre seis impedâncias de referência: **10 Ω, 100 Ω, 1 kΩ, 10 kΩ, 100 kΩ e 1 MΩ**.
-- Manter um caminho analógico simples, calibrável e compatível com PCB de duas camadas.
-- Proteger o AFE contra componentes carregados e detectar tensão residual de aproximadamente **±100 V** antes de permitir a medição.
-- Oferecer uma UI agradável em TFT, com gráficos, telas de diagnóstico, backlight controlado por PWM e feedback sonoro por piezo.
-- Manter os componentes e encapsulamentos tão acessíveis quanto possível para compra e montagem manual no Brasil.
+- Extrair `R`, `X`, `|Z|`, fase e, quando a leitura permitir, ESR, Q e D.
+- Frequências baseline de **100 Hz, 1 kHz e 10 kHz**.
+- Excitação nominal planejada em **100 mVrms** e **500 mVrms**, escolhida por faixa; 500 mVrms não deve ser usada com RREF de 10 Ω.
+- Banco de referência automático: **10 Ω, 100 Ω, 1 kΩ, 10 kΩ, 100 kΩ e 1 MΩ**.
+- Faixas-alvo de projeto, ainda não qualificadas: aproximadamente **1 Ω–10 MΩ**, **1 nF–10 mF** e **10 µH–10 H**.
+- Aquisição síncrona com ADCs internos do STM32, sem ADC externo na primeira revisão.
+- Proteção contra componentes carregados e detecção de tensão residual em torno de **±100 V** antes de permitir conexão ao AFE.
+- UI em TFT com leitura principal, gráficos/visualizações, diagnóstico, backlight PWM e feedback sonoro.
+- PCB de duas camadas e componentes escolhidos com forte preferência por disponibilidade e montagem manual.
+
+> As faixas acima são **metas de engenharia**, não uma especificação de precisão garantida. A Rev.1 será usada para definir regiões `NOMINAL`, `EXTENDED` e `LOW CONFIDENCE` por combinação de range, frequência e amplitude.
 
 ## Arquitetura de alto nível
 
 ```text
-                   ┌─────────────────────────────┐
-                   │ STM32F103C8T6 / Blue Pill  │
-                   │                             │
-                   │ PWM excitation             │
-                   │ dual ADC + DMA             │
-                   │ range control               │
-                   │ DSP / calibration           │
-                   │ UI / storage / diagnostics  │
-                   └──────────────┬──────────────┘
-                                  │
-                                  ▼
-PWM_EXC ── 3-stage RC ── buffer ── VEXC
-                                  │
-                                  ▼
-                           selected RREF
-                                  │
-                                  ▼
-                                RET ───── DUT ───── VMID
-                                  │
-                    ┌─────────────┴─────────────┐
-                    ▼                           ▼
-                  RET_1X                    RET_HG
-                    │                           │
-                    └────────── ADC ────────────┘
+                     ┌──────────────────────────────┐
+                     │ STM32F103C8T6 / Blue Pill   │
+                     │                              │
+                     │ PWM excitation              │
+                     │ ADC1 + ADC2 / DMA           │
+                     │ range + relay control       │
+                     │ DSP + calibration           │
+                     │ UI + storage + diagnostics  │
+                     └──────────────┬───────────────┘
+                                    │
+                                    ▼
+PWM_EXC ── filtro RC 3 estágios ── buffer ── VEXC
+                                    │
+                                    ▼
+                              RREF selecionado
+                                    │
+                                    ▼
+                                  RET ───── DUT ───── VMID
+                                    │
+                         ┌──────────┴──────────┐
+                         ▼                     ▼
+                      RET_1X               RET_HG
+                         │                     │
+                         └──────── ADC/DMA ────┘
 ```
 
-O modelo de medição usa as grandezas complexas:
+Durante a medição:
 
 ```text
 Vs = VEXC - VMID
@@ -55,98 +59,135 @@ I  = (Vs - Vx) / ZREF
 Zx = ZREF * Vx / (Vs - Vx)
 ```
 
-A implementação final usa valores **calibrados em magnitude e fase**, não apenas os valores nominais de resistores, ganhos e filtros.
+A implementação usa fasores complexos e valores calibrados em magnitude e fase. O firmware não assume que resistor, op-amp, filtro, switch ou ADC sejam ideais.
 
 ## Hardware atual
 
-Principais blocos da Rev.1:
+| Bloco | Implementação atual |
+|---|---|
+| MCU | STM32F103C8T6 em módulo Blue Pill |
+| ADC | ADC1 + ADC2 internos, 12 bit |
+| AFE | 2 × MCP6002-E/SN |
+| Retorno | `RET_1X` + `RET_HG` |
+| Ganho HG nominal | `1 + 68k/4,7k ≈ 15,47×` |
+| RREF | 10 Ω / 100 Ω / 1 kΩ / 10 kΩ / 100 kΩ / 1 MΩ |
+| Seleção de range | 74HC238 + ULN2003 + BC807 + MOSFETs back-to-back |
+| MOSFETs low-Z | AO3400A |
+| MOSFETs high-Z | 2N7002 individuais em SOT-23 |
+| Relé SAFE/MEASURE | Hongfa HFD27/005-S |
+| K2 low-Z | footprint de contingência, DNP no baseline |
+| Display | ILI9341 SPI |
+| Flash | W25Q64JVSSIQ baseline; driver preparado para família W25Q |
+| Entrada | TEST_HI / TEST_LO, dois fios |
+| Alimentação | +5V_SYS de módulo Li-ion 1S carga/boost externo |
+| Temperatura | NTC MF58-104J3950GB próximo ao banco de referência |
+| Controles | três botões: UP / OK / DOWN |
+| Backlight | PB0 / PWM |
+| Buzzer | PB1, piezo passivo externo via BC817 |
+| Charger detect | PA15 / `CHG_VBUS` |
 
-- **MCU:** STM32F103C8T6 em módulo Blue Pill.
-- **AFE:** 2 × MCP6002-E/SN, quatro canais no total.
-- **Ganho de retorno:** 1× e aproximadamente 15,47×.
-- **Seleção de faixa:** 74HC238 + ULN2003 + BC807 + MOSFETs back-to-back.
-- **Ranges:** 10 Ω / 100 Ω / 1 kΩ / 10 kΩ / 100 kΩ / 1 MΩ.
-- **MOSFETs low-Z:** AO3400A.
-- **MOSFETs high-Z:** 2N7002 individuais em SOT-23.
-- **Relé SAFE/MEASURE:** HFD27/005-S.
-- **Display:** TFT SPI com controlador ILI9341.
-- **Flash:** W25Q64JVSSIQ na BOM atual; firmware será compatível com densidades W25Q menores/maiores adequadas.
-- **SPI TFT/Flash compartilhado**, com chip-selects independentes e resistores série de 33 Ω em SCK e MOSI.
-- **Entrada:** borne TEST_HI / TEST_LO.
-- **Alimentação:** +5V_SYS externo proveniente de módulo 1S Li-ion de carga/boost; a placa monitora bateria e presença do carregador.
-- **Backlight:** PB0 / PWM.
-- **Piezo externo:** PB1 / PWM, com driver BC817 e conector dedicado.
-- **Entrada do usuário:** três botões.
-- **Temperatura:** NTC próximo ao banco de referência para compensação/diagnóstico.
+### Componentes opcionais / DNP
 
-## Segurança e tensão residual
+A primeira montagem privilegia a menor capacitância e leakage possíveis no caminho metrológico:
 
-A placa é projetada para **componentes passivos desenergizados**. Ela não é um multímetro CAT-rated e não deve ser conectada diretamente à rede elétrica ou a circuitos energizados.
+- `K2` e seu driver: DNP enquanto `R0_BANK = 0 Ω` for satisfatório;
+- `D_TVS` + link associado: DNP inicialmente;
+- guard ativo: footprint/caminho previsto, mas desconectado no baseline até caracterização.
 
-Antes de conectar o DUT ao AFE, o firmware mantém o relé K1 no estado fail-safe e lê duas redes de detecção de tensão residual. Cada lado usa três resistores de 560 kΩ em série e referência de 27 kΩ para VMID, permitindo observar aproximadamente ±100 V dentro da faixa do ADC.
+Esses recursos existem para experimentos controlados de robustez ou redução de parasitas, não para serem montados por padrão sem medição A/B.
 
-Há ainda:
+## SAFE / MEASURE
 
-- bleeder de 94 kΩ entre SAFE_HI e SAFE_LO;
-- clamps Schottky nas entradas ADC;
-- intertravamento por hardware quando `CHG_VBUS` está presente;
-- detecção por firmware de carregador conectado;
-- relé K1 desenergizado no estado SAFE;
-- `RANGE_EN` com estado seguro durante reset.
+WTK.RLCMeter foi projetado para **componentes passivos desenergizados**. Ele não é CAT-rated e não deve ser conectado diretamente à rede elétrica ou a circuitos energizados.
 
-O ramo `D_TVS + R_TVS_LINK` é uma contingência experimental e deve permanecer **DNP na primeira montagem**, para não introduzir capacitância/leakage desnecessários no caminho de medição.
+K1 é fail-safe:
 
-Veja [`docs/03-Seguranca-e-Protecao.md`](docs/03-Seguranca-e-Protecao.md).
+```text
+K1 desenergizado: TEST_HI/TEST_LO -> rede SAFE
+K1 energizado:    TEST_HI -> RET, TEST_LO -> VMID
+```
 
-## Interface e experiência de uso
+Antes de permitir MEASURE, o firmware verifica os detectores de tensão residual. Cada lado usa uma cadeia resistiva de alta impedância referenciada a VMID, com envelope aproximado de observação de ±100 V. O limiar real para permitir a medição será muito menor e será definido na qualificação.
 
-O firmware prevê:
+`CHG_VBUS` também cria duas camadas de bloqueio durante carga:
 
-- tela de startup;
+- intertravamento por hardware impedindo K1 de entrar em MEASURE;
+- leitura digital em PA15 para política, UI e diagnóstico.
+
+Mais detalhes: [`docs/03-Seguranca-e-Protecao.md`](docs/03-Seguranca-e-Protecao.md).
+
+## Display, Flash e experiência de uso
+
+O ILI9341 e a W25Q compartilham o barramento SPI, com CS independentes. Como a Blue Pill não possui RAM para framebuffer RGB565 completo de 240×320, a UI é desenhada de forma incremental.
+
+Assets maiores — por exemplo splash screen, ícones, fontes ou gráficos estáticos — ficam na Flash externa e são transmitidos ao TFT em blocos pequenos. Não é necessário carregar uma imagem inteira na RAM.
+
+A experiência planejada inclui:
+
+- splash/startup;
 - leitura principal de R/L/C/Z;
-- magnitude e fase;
-- gráficos e visualizações da resposta do componente;
-- seleção automática de range/frequência;
-- indicação de bateria e carregador conectado;
+- magnitude, fase e modelo equivalente;
+- seleção automática de range/frequência/amplitude;
+- gráficos e visualizações derivadas da medição;
+- status de bateria e carregador;
 - backlight com PWM e auto-dimming;
-- tons distintos para confirmação, resultado, erro, tensão residual e bateria baixa;
-- tela de diagnóstico com ADCs, rails, range, relés, Flash e estado interno;
+- padrões sonoros distintos para confirmação, erro, alerta e bateria baixa;
+- tela de diagnóstico com ADCs, rails, range, K1/K2, Flash, TFT e estado interno;
 - console de eventos no TFT;
-- console UART para desenvolvimento e validação.
+- UART de desenvolvimento e bring-up.
 
-Assets gráficos podem ser armazenados na Flash SPI e enviados ao ILI9341 em blocos, sem framebuffer de tela inteira na RAM do STM32.
+Durante janelas críticas de aquisição, o firmware pode entrar em **quiet mode**, suspendendo atualizações SPI volumosas, buzzer e logging excessivo.
+
+## Pinout e restrição de USB
+
+A alocação atual reserva, entre outros:
+
+- `PB0` — TFT backlight PWM;
+- `PB1` — buzzer/piezo;
+- `PA15` — detecção `CHG_VBUS`;
+- `PA13/PA14` — SWD;
+- `PA11/PA12` — funções da placa atual, portanto indisponíveis como USB D-/D+.
+
+Consequentemente, **USB device nativo da Blue Pill não é uma interface da Rev.1**. Console e bring-up usam UART/SWD. O conector USB do módulo de carga é independente dessa limitação.
+
+Pinout completo: [`docs/05-Pinout-e-Interfaces.md`](docs/05-Pinout-e-Interfaces.md).
 
 ## Firmware
 
-A arquitetura planejada é bare-metal/cooperativa, sem RTOS inicialmente, com timers, DMA e interrupções apenas onde trazem determinismo real.
+Baseline planejado:
+
+- C17;
+- GNU Arm Embedded (`arm-none-eabi-gcc`);
+- CMake;
+- CMSIS + STM32CubeF1 HAL/LL;
+- sem RTOS inicialmente;
+- timer-triggered ADC + DMA;
+- DSP fora de ISR;
+- sem alocação dinâmica no caminho crítico;
+- persistência versionada e protegida por CRC;
+- testes host-side para DSP, calibração, state machines e formatos persistentes.
 
 ```text
 Firmware/
-├── src/
-│   ├── app/          # state machine e orchestration
-│   ├── bsp/          # binding STM32/periféricos
-│   ├── drivers/      # ILI9341, W25Q, botões
-│   ├── hardware/     # relés, ranges, excitation, safety
-│   ├── measurement/  # aquisição, DSP, impedance, autorange
-│   ├── storage/      # assets, settings, calibration
-│   └── ui/           # telas, widgets, fontes, console
+├── README.md
 ├── assets/
+├── config/
+├── src/
+│   ├── app/
+│   ├── bsp/
+│   ├── drivers/
+│   ├── hardware/
+│   ├── measurement/
+│   ├── storage/
+│   └── ui/
 ├── tests/
+├── third_party/
 └── tools/
 ```
 
-Princípios:
+A divisão é intencional: `measurement` não conhece TFT/GPIO; `ui` não controla relés diretamente; `hardware` expõe serviços seguros; `bsp` concentra bindings do STM32.
 
-- nenhum `malloc` no caminho de aquisição;
-- `RANGE_EN=0` durante troca de faixa;
-- K1 sempre retorna a SAFE em falha ou reset;
-- buffers pequenos para streaming Flash → TFT;
-- ADC acionado por timer e transferido por DMA;
-- cálculo complexo por detecção síncrona/DFT de bin único;
-- calibração OPEN/SHORT/LOAD por frequência/range/amplitude;
-- quiet mode durante aquisição, reduzindo atividade de TFT/backlight/buzzer quando necessário.
-
-Veja [`docs/04-Arquitetura-de-Firmware.md`](docs/04-Arquitetura-de-Firmware.md).
+Documentação: [`Firmware/README.md`](Firmware/README.md), [`docs/04-Arquitetura-de-Firmware.md`](docs/04-Arquitetura-de-Firmware.md) e [`docs/13-Detalhamento-do-Firmware.md`](docs/13-Detalhamento-do-Firmware.md).
 
 ## Estrutura do repositório
 
@@ -154,52 +195,67 @@ Veja [`docs/04-Arquitetura-de-Firmware.md`](docs/04-Arquitetura-de-Firmware.md).
 WTK.RLCMeter/
 ├── README.md
 ├── LICENSE.md
+├── CONTRIBUTING.md
 ├── PCB/
 │   ├── source/
 │   ├── fabrication/
 │   ├── renders/
 │   └── revisions/
 ├── Firmware/
-│   ├── src/
 │   ├── assets/
+│   ├── config/
+│   ├── src/
 │   ├── tests/
+│   ├── third_party/
 │   └── tools/
 └── docs/
 ```
 
-- [`PCB/README.md`](PCB/README.md): convenções para arquivos EasyEDA, Gerbers, BOM e revisões.
-- [`Firmware/README.md`](Firmware/README.md): bootstrap e organização do firmware.
-- [`docs/README.md`](docs/README.md): índice da documentação técnica.
+- [`PCB/README.md`](PCB/README.md) — convenções de fonte EDA, fabricação, renders e revisões.
+- [`Firmware/README.md`](Firmware/README.md) — stack, dependências e fluxo de desenvolvimento.
+- [`docs/README.md`](docs/README.md) — índice da especificação técnica viva.
 
-## Limitações conhecidas da Rev.1
+## Documentação técnica
 
-- A precisão final ainda não está qualificada; o primeiro protótipo é parte do processo de validação metrológica.
-- Os ranges de maior impedância são os mais sensíveis a capacitância parasita, leakage e capacitância OFF dos MOSFETs.
-- O MCP6002 tem menor GBW que o TLV9064 originalmente considerado; ganho/fase a 10 kHz devem ser calibrados e validados.
-- A entrada SAFE detecta tensão residual; ela **não transforma o instrumento em medidor de alta tensão**.
-- O USB nativo da Blue Pill usa PA11/PA12. Na alocação atual, esses pinos são usados por `K2_CMD` e `FLASH_CS`; portanto **USB device nativo não é uma interface disponível na Rev.1 sem remapeamento/revisão de hardware**. UART permanece disponível para console e bring-up.
+A documentação detalhada cobre arquitetura de hardware, modelo de medição/DSP, segurança, firmware, pinout, UI/UX, calibração, roadmap, bring-up, decisões consolidadas, BOM e montagem.
+
+Também existem três documentos de visão transversal:
+
+- [`docs/12-Especificacao-Funcional.md`](docs/12-Especificacao-Funcional.md) — features, estados e critérios de aceitação;
+- [`docs/13-Detalhamento-do-Firmware.md`](docs/13-Detalhamento-do-Firmware.md) — módulos, APIs, dados e fluxo do firmware;
+- [`docs/14-Extensoes-Futuras.md`](docs/14-Extensoes-Futuras.md) — 4-wire/Kelvin, alta tensão e outras evoluções fora da Rev.1.
+
+## Limitações conhecidas
+
+- Precisão final ainda não foi qualificada.
+- 1 MΩ e capacitâncias pequenas são particularmente sensíveis a leakage e capacitância parasita.
+- O MCP6002 exige caracterização cuidadosa de ganho/fase, especialmente no caminho `RET_HG` a 10 kHz.
+- A rede SAFE detecta tensão residual; ela não transforma o aparelho em voltímetro de alta tensão.
+- O instrumento é dois fios; Kelvin/4-wire é possibilidade futura.
+- USB device nativo não está disponível com o pinout atual.
 
 ## Roadmap resumido
 
-1. Fabricar e montar a Rev.1.
-2. Validar alimentação, VMID, excitação, ranges e SAFE sem DUT.
-3. Validar ILI9341, W25Q, botões, backlight, buzzer e UART.
-4. Implementar aquisição síncrona e processamento complexo.
-5. Qualificar OPEN/SHORT/LOAD e criar persistência de calibração.
-6. Caracterizar cada range em 100 Hz, 1 kHz e 10 kHz.
-7. Definir ranges NOMINAL/EXTENDED e critérios de confidence.
-8. Refinar UI, gráficos e diagnóstico.
-9. Fechar limites metrológicos reais da Rev.1 e decidir alterações da Rev.2.
+1. Fabricar e montar a primeira placa.
+2. Validar alimentação, +3V3, +5V_A, VMID e estados seguros.
+3. Validar TFT, W25Q, botões, backlight, buzzer e UART.
+4. Validar K1, rede SAFE e intertravamento de `CHG_VBUS`.
+5. Validar banco RREF, dead-time e K2/R0_BANK baseline.
+6. Validar PWM_EXC e ADC/DMA.
+7. Implementar I/Q, fasores e cálculo de impedância.
+8. Implementar autorange, confidence gates e escolha 1X/HG.
+9. Implementar calibração e persistência.
+10. Qualificar a matriz range × frequência × amplitude.
+11. Refinar UI, gráficos e diagnóstico.
+12. Congelar limites metrológicos reais da revisão e decidir alterações seguintes.
 
-Veja [`docs/08-Roadmap.md`](docs/08-Roadmap.md).
+Roadmap detalhado: [`docs/08-Roadmap.md`](docs/08-Roadmap.md).
 
 ## Licença
 
-WTK.RLCMeter é disponibilizado sob a **PolyForm Noncommercial License 1.0.0**, seguindo o modelo dos demais projetos WTK.*.
+WTK.RLCMeter usa a **PolyForm Noncommercial License 1.0.0**, seguindo o padrão adotado nos projetos WTK.*.
 
-Uso pessoal, estudo, pesquisa, avaliação, hobby e demais usos não comerciais são permitidos nos termos da licença. Uso comercial, industrial, integração em produto ou serviço pago, revenda ou qualquer uso com finalidade comercial exige licença comercial separada e autorização escrita do autor.
-
-Para licenciamento comercial: [rodrigowantuk@gmail.com](mailto:rodrigowantuk@gmail.com).
+Uso pessoal, estudo, pesquisa, avaliação, hobby e outros usos não comerciais são permitidos nos termos da licença. Uso comercial, integração em produto/serviço pago, revenda ou exploração comercial requer licença separada do autor.
 
 **Required Notice:** Copyright 2026 Rodrigo Wantuk.
 
