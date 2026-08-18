@@ -6,7 +6,7 @@ STATUS: NOT_STARTED
 
 Implement the host-testable metrology core that converts synchronized ADC blocks into calibrated complex channel phasors and then into complex DUT impedance and derived electrical quantities.
 
-This phase should be mathematically trustworthy before autorange and calibration workflow complexity are added.
+This phase should be mathematically trustworthy before autorange, cross-frequency classification confidence, and calibration workflow complexity are added.
 
 ## Prerequisites
 
@@ -26,6 +26,7 @@ This phase should be mathematically trustworthy before autorange and calibration
 - R/X/|Z|/phase;
 - series-equivalent C/L;
 - ESR/Q/D where valid;
+- single-condition model interpretation primitives;
 - numerical guardrails;
 - synthetic known-vector tests;
 - diagnostic measurement-result structure.
@@ -33,6 +34,7 @@ This phase should be mathematically trustworthy before autorange and calibration
 ## Out of scope
 
 - automatic range search;
+- final multi-frequency component classification/confidence policy;
 - final OPEN/SHORT/LOAD calibration workflow;
 - final qualification map;
 - polished product UI.
@@ -174,7 +176,36 @@ calculate:
 
 Near-zero X must not produce absurd infinite L/C values without an explicit invalid/not-applicable result.
 
-## Task 10 — Numerical precision review
+## Task 10 — Single-condition model interpretation
+
+Provide a pure, UI-independent interpretation primitive for one completed measurement condition.
+
+The normal product does not ask the user to select resistor, capacitor, or inductor before measurement. Therefore the result model must permit automatic interpretation after `Z` is known.
+
+At this phase the primitive may classify tendencies such as:
+
+```text
+RESISTIVE
+CAPACITIVE
+INDUCTIVE
+MIXED_OR_UNKNOWN
+```
+
+and expose reasons/metrics rather than only a label.
+
+Possible evidence includes:
+
+- reactance sign;
+- `|X| / |R|` dominance;
+- phase magnitude/sign;
+- whether derived C/L values are numerically meaningful;
+- quality/status of the source measurement.
+
+This must **not** alter the impedance equation or cause different DSP math depending on a preselected component type.
+
+Do not force a component label for ambiguous/mixed networks. Cross-frequency consistency and final confidence policy belong to Phase 07.
+
+## Task 11 — Numerical precision review
 
 Evaluate `float` performance/precision on Cortex-M3 without FPU versus possible selective `double` use.
 
@@ -182,7 +213,7 @@ Do not assume `double` is free: STM32F103 performs floating point in software.
 
 Use host tests and error budgets to decide. The likely baseline is `float` for embedded DSP with carefully designed scaling, but record the decision and evidence.
 
-## Task 11 — Synthetic vector suite
+## Task 12 — Synthetic vector suite
 
 Create deterministic host vectors covering:
 
@@ -202,6 +233,8 @@ Multiple L values at the three frequencies.
 
 Series R+C and R+L cases with analytically known complex Z.
 
+Verify that model interpretation is allowed to report mixed/unknown where a single R/L/C dominant label is not justified.
+
 ### Error cases
 
 - DC offset;
@@ -213,19 +246,19 @@ Series R+C and R+L cases with analytically known complex Z.
 - very small return signal;
 - synthetic ADC channel skew.
 
-## Task 12 — Reference implementation comparison
+## Task 13 — Reference implementation comparison
 
 Create a small host-side reference calculator/tool, potentially Python in `Firmware/tools`, that generates expected phasors/impedance independently of the embedded implementation.
 
 Use it to generate fixtures or validate C outputs. Keep the production firmware independent of Python.
 
-## Task 13 — Real raw-capture replay
+## Task 14 — Real raw-capture replay
 
 If Phase 05 bench captures exist, add a host tool/test mode that replays captured blocks through the same DSP core.
 
 This is valuable before putting DSP execution on the MCU because PC-side inspection can distinguish math errors from acquisition errors.
 
-## Task 14 — Embedded integration
+## Task 15 — Embedded integration
 
 Integrate DSP after DMA acquisition without moving heavy work into ISR.
 
@@ -237,9 +270,13 @@ K1 -> SAFE when acquisition complete
 measurement processing scheduled
 phasors calculated
 impedance calculated
-result stored in app context
+derived values calculated
+single-condition interpretation produced
+result stored in app/measurement context
 diagnostics/UI notified
 ```
+
+The result API should be suitable for later Phase 07 publication of validated partial results between attempts. No TFT rendering belongs in this phase.
 
 ## Automated acceptance criteria
 
@@ -247,6 +284,8 @@ diagnostics/UI notified
 - synthetic ideal vectors meet tight mathematical tolerances defined by tests;
 - noise/error vectors behave predictably;
 - singular/invalid cases return explicit statuses;
+- single-condition R/C/L tendency interpretation is host-tested and never required as an input to impedance computation;
+- ambiguous mixed impedances can remain unclassified rather than being forced to R/L/C;
 - no HAL/TFT/W25Q dependency appears in pure DSP modules;
 - host reference and C implementation agree within documented tolerances.
 
@@ -258,7 +297,8 @@ Using fixed known DUTs and manually selected RREF:
 2. verify phase sign convention using known C and L;
 3. compare RET_1X and RET_HG reconstructed values in overlap regions;
 4. identify systematic gain/phase error before calibration;
-5. verify results remain stable across repeated acquisitions.
+5. verify results remain stable across repeated acquisitions;
+6. confirm basic single-condition model tendency agrees with known simple R/C/L DUTs where physically unambiguous.
 
 Accuracy at this phase is **raw/unqualified** and should not be represented as final product accuracy.
 
@@ -270,6 +310,7 @@ Report:
 - numeric type decision;
 - synthetic test tolerance/results;
 - result/status API;
+- single-condition interpretation API/reason fields;
 - observed raw hardware systematic errors;
 - known limits near OPEN/SHORT;
 - RET_HG reconstruction behavior;
