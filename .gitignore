@@ -6,6 +6,8 @@ Firmware/.cache/
 **/CMakeCache.txt
 **/cmake_install.cmake
 **/compile_commands.json
+CMakeUserPresets.json
+Firmware/CMakeUserPresets.json
 
 # Embedded output
 *.o

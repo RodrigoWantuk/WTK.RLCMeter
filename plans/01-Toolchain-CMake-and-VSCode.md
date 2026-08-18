@@ -1,6 +1,6 @@
 # 01 — Toolchain, CMake, and Visual Studio Code
 
-STATUS: NOT_STARTED
+STATUS: IN_PROGRESS
 
 ## Goal
 

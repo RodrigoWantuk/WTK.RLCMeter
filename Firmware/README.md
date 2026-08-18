@@ -19,6 +19,71 @@ This directory contains the firmware architecture and, progressively, the implem
 
 STM32CubeIDE may be used as a debugger, peripheral-reference tool, or code-generation aid during bring-up, but its project metadata must not become the canonical build definition.
 
+## Phase 01 build foundation
+
+The canonical CMake source directory is this `Firmware/` directory. Presets are also kept here so command-line and VS Code workflows use the same project root.
+
+Prerequisites:
+
+- CMake 3.25 or newer;
+- a host C compiler for host tests;
+- GNU Arm Embedded toolchain on `PATH` for STM32 builds:
+  - `arm-none-eabi-gcc`;
+  - `arm-none-eabi-objcopy`;
+  - `arm-none-eabi-size`.
+
+Host build and tests:
+
+```bash
+cd Firmware
+cmake --preset host-debug
+cmake --build --preset host-debug
+ctest --preset host-debug
+```
+
+Embedded debug build:
+
+```bash
+cd Firmware
+cmake --preset stm32-debug
+cmake --build --preset stm32-debug
+```
+
+Embedded release build:
+
+```bash
+cd Firmware
+cmake --preset stm32-release
+cmake --build --preset stm32-release
+```
+
+The STM32 presets use `cmake/toolchains/arm-none-eabi-gcc.cmake` and target Cortex-M3 Thumb code for the STM32F103C8T6. The linker script is `cmake/stm32/STM32F103C8Tx_FLASH.ld`, with the Blue Pill baseline memory map of 64 KiB Flash and 20 KiB RAM.
+
+Expected STM32 build artifacts are generated under the selected build directory:
+
+```text
+WTK.RLCMeter.elf
+WTK.RLCMeter.bin
+WTK.RLCMeter.hex
+WTK.RLCMeter.map
+```
+
+Host tests currently use CTest with small C executables. No C++ test framework is required.
+
+Warnings for project-owned C code are centralized in `cmake/modules/CompilerWarnings.cmake`. Host targets treat warnings as errors by default. STM32 warning-as-error is available through `WTK_WARNINGS_AS_ERRORS_STM32` but is off initially so vendor/header boundaries can be validated before enforcing it.
+
+## STM32CubeF1 / CMSIS strategy
+
+The firmware is prepared for STM32CubeF1 CMSIS/HAL/LL integration without depending on STM32CubeIDE-generated project files. Phase 01 records `STM32CubeF1` tag `v1.8.6` as the intended pinned upstream baseline.
+
+When the package is vendored or checked out, configure STM32 builds with:
+
+```bash
+cmake --preset stm32-debug -DWTK_STM32CUBEF1_ROOT=<path-to-STM32CubeF1>
+```
+
+Phase 01's minimal embedded link-smoke target does not initialize peripherals and does not require HAL sources. Phase 02 is responsible for using this integration point when real BSP, safe GPIO, clock, UART, and watchdog code is added.
+
 ## VS Code workflow
 
 Open the repository using:

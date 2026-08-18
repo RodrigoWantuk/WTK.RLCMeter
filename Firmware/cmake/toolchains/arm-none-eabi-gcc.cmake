@@ -1,0 +1,24 @@
+set(CMAKE_SYSTEM_NAME Generic)
+set(CMAKE_SYSTEM_PROCESSOR cortex-m3)
+
+set(CMAKE_C_COMPILER arm-none-eabi-gcc)
+set(CMAKE_ASM_COMPILER arm-none-eabi-gcc)
+set(CMAKE_OBJCOPY arm-none-eabi-objcopy CACHE FILEPATH "Arm objcopy")
+set(CMAKE_SIZE arm-none-eabi-size CACHE FILEPATH "Arm size")
+
+set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
+set(CMAKE_EXECUTABLE_SUFFIX ".elf")
+
+set(WTK_ARM_CPU_FLAGS "-mcpu=cortex-m3 -mthumb")
+
+set(CMAKE_C_FLAGS_INIT "${WTK_ARM_CPU_FLAGS}")
+set(CMAKE_ASM_FLAGS_INIT "${WTK_ARM_CPU_FLAGS}")
+set(CMAKE_EXE_LINKER_FLAGS_INIT "${WTK_ARM_CPU_FLAGS}")
+
+set(CMAKE_C_FLAGS_DEBUG_INIT "-Og -g3")
+set(CMAKE_C_FLAGS_RELEASE_INIT "-Os -g0 -DNDEBUG")
+set(CMAKE_EXE_LINKER_FLAGS_DEBUG_INIT "")
+set(CMAKE_EXE_LINKER_FLAGS_RELEASE_INIT "")
+
+find_program(CMAKE_OBJCOPY arm-none-eabi-objcopy REQUIRED)
+find_program(CMAKE_SIZE arm-none-eabi-size REQUIRED)

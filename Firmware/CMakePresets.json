@@ -1,0 +1,90 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 25,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "host-debug",
+      "displayName": "Host Debug",
+      "description": "Configure host-side C tests with debug flags.",
+      "binaryDir": "${sourceDir}/build/host-debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+        "WTK_TARGET_PLATFORM": "host"
+      }
+    },
+    {
+      "name": "host-release",
+      "displayName": "Host Release",
+      "description": "Configure host-side C tests with release flags.",
+      "binaryDir": "${sourceDir}/build/host-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+        "WTK_TARGET_PLATFORM": "host"
+      }
+    },
+    {
+      "name": "stm32-debug",
+      "displayName": "STM32 Debug",
+      "description": "Configure STM32F103C8T6 firmware with Arm GCC debug flags.",
+      "binaryDir": "${sourceDir}/build/stm32-debug",
+      "toolchainFile": "${sourceDir}/cmake/toolchains/arm-none-eabi-gcc.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+        "WTK_TARGET_PLATFORM": "stm32"
+      }
+    },
+    {
+      "name": "stm32-release",
+      "displayName": "STM32 Release",
+      "description": "Configure STM32F103C8T6 firmware with Arm GCC release flags.",
+      "binaryDir": "${sourceDir}/build/stm32-release",
+      "toolchainFile": "${sourceDir}/cmake/toolchains/arm-none-eabi-gcc.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+        "WTK_TARGET_PLATFORM": "stm32"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "host-debug",
+      "configurePreset": "host-debug"
+    },
+    {
+      "name": "host-release",
+      "configurePreset": "host-release"
+    },
+    {
+      "name": "stm32-debug",
+      "configurePreset": "stm32-debug"
+    },
+    {
+      "name": "stm32-release",
+      "configurePreset": "stm32-release"
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "host-debug",
+      "configurePreset": "host-debug",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "host-release",
+      "configurePreset": "host-release",
+      "output": {
+        "outputOnFailure": true
+      }
+    }
+  ]
+}

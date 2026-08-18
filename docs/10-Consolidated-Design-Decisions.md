@@ -22,6 +22,20 @@ Rationale:
 
 **C++ and Arduino/INO are not part of Rev.1 firmware architecture.** Reopening this decision requires a documented reason and migration impact analysis.
 
+## STM32CubeF1 dependency strategy
+
+Firmware integrates CMSIS and STM32CubeF1 HAL/LL through CMake, not through STM32CubeIDE project metadata.
+
+Phase 01 records `STM32CubeF1` tag `v1.8.6` as the intended pinned upstream baseline. The CMake option `WTK_STM32CUBEF1_ROOT` points to a checked-out or vendored package that preserves upstream license notices and provides:
+
+```text
+Drivers/CMSIS/Include
+Drivers/CMSIS/Device/ST/STM32F1xx/Include
+Drivers/STM32F1xx_HAL_Driver/Inc
+```
+
+The minimal Phase 01 link-smoke target intentionally does not require HAL peripheral sources. Phase 02 owns the first real BSP use of CMSIS/HAL/LL for clocks, safe GPIO, UART, watchdog, and reset/time foundations.
+
 ## Editor workflow
 
 Visual Studio Code is the primary supported editor for firmware development.
