@@ -78,6 +78,18 @@ Sem FAT/LittleFS na primeira versão.
 - comparação entre frequências;
 - gráficos simples de resposta/defasagem.
 
+### Visualizações de componente
+
+O produto pode oferecer uma camada gráfica mais didática sem alterar o núcleo metrológico:
+
+- diagrama vetorial/tensão-corrente mostrando avanço ou atraso de fase;
+- indicação visual de comportamento predominantemente resistivo, capacitivo ou indutivo;
+- comparação de |Z| e fase entre 100 Hz, 1 kHz e 10 kHz;
+- representação gráfica de defasagem em indutores/coils;
+- curva ilustrativa de carga/descarga de capacitor calculada a partir do valor medido e de parâmetros escolhidos pelo usuário.
+
+A curva de carga de capacitor é inicialmente uma **visualização derivada do valor medido**, não uma alegação de captura time-domain direta. Se futuramente houver um modo de aquisição transitória dedicado, ele deve ser documentado como capacidade separada e qualificada.
+
 ### Calibration
 
 Wizard para OPEN/SHORT/LOAD com instruções passo a passo.
