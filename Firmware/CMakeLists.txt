@@ -63,6 +63,7 @@ add_library(wtk_firmware_common STATIC
     src/hardware/hw_charger.c
     src/hardware/hw_k1.c
     src/hardware/hw_k2.c
+    src/hardware/hw_measure_permit.c
     src/hardware/hw_power.c
     src/hardware/hw_range.c
     src/hardware/hw_residual.c

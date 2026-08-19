@@ -11,6 +11,9 @@ typedef struct
     uint16_t lo_raw;
     uint16_t bat_raw;
     uint16_t ntc_raw;
+    uint16_t scripted_raw[8][HW_AUX_SENSOR_AVERAGE_COUNT];
+    uint8_t scripted_count[8];
+    uint8_t scripted_index[8];
     bsp_status_t poll_failure;
     uint8_t fail_poll_index;
     uint8_t poll_count;
@@ -58,10 +61,21 @@ static bsp_status_t fake_poll(uint16_t *raw, uint32_t now_ms, void *user_data)
 {
     (void)now_ms;
     fake_adc_t *fake = (fake_adc_t *)user_data;
+    uint8_t channel_number = 0u;
     fake->poll_count++;
     if ((fake->fail_poll_index != 0u) && (fake->poll_count == fake->fail_poll_index))
     {
         return fake->poll_failure;
+    }
+    if (bsp_adc_channel_number(fake->current_channel, &channel_number) != BSP_STATUS_OK)
+    {
+        return BSP_STATUS_INVALID_ARG;
+    }
+    if (fake->scripted_index[channel_number] < fake->scripted_count[channel_number])
+    {
+        *raw = fake->scripted_raw[channel_number][fake->scripted_index[channel_number]];
+        fake->scripted_index[channel_number]++;
+        return BSP_STATUS_OK;
     }
 
     switch (fake->current_channel)
@@ -86,6 +100,26 @@ static bsp_status_t fake_poll(uint16_t *raw, uint32_t now_ms, void *user_data)
         return BSP_STATUS_INVALID_ARG;
     }
     return BSP_STATUS_OK;
+}
+
+static void script_channel(fake_adc_t *fake,
+                           bsp_adc_channel_t channel,
+                           uint16_t s0,
+                           uint16_t s1,
+                           uint16_t s2,
+                           uint16_t s3)
+{
+    uint8_t channel_number = 0u;
+    if ((fake == NULL) || (bsp_adc_channel_number(channel, &channel_number) != BSP_STATUS_OK))
+    {
+        return;
+    }
+    fake->scripted_raw[channel_number][0] = s0;
+    fake->scripted_raw[channel_number][1] = s1;
+    fake->scripted_raw[channel_number][2] = s2;
+    fake->scripted_raw[channel_number][3] = s3;
+    fake->scripted_count[channel_number] = HW_AUX_SENSOR_AVERAGE_COUNT;
+    fake->scripted_index[channel_number] = 0u;
 }
 
 static void fake_cancel(void *user_data)
@@ -159,6 +193,9 @@ static int test_residual_sequence_and_policy(void)
                             "safe count reaches required count");
     failures += expect_true((snapshot.safe_hi_v > -0.10f) && (snapshot.safe_hi_v < 0.10f),
                             "residual conversion uses transfer ratio");
+    hw_aux_sensors_snapshot(&sensors, 200u, &snapshot);
+    failures += expect_true((snapshot.residual_state == HW_RESIDUAL_UNKNOWN) && (snapshot.residual_safe_count == 0u),
+                            "stale residual snapshot normalizes state and count");
 
     return failures;
 }
@@ -175,6 +212,14 @@ static int test_residual_invalid_and_saturated(void)
     run_conversions(&sensors, 0u, 12u);
     failures += expect_true(hw_aux_sensors_residual_state(&sensors, 0u) == HW_RESIDUAL_SATURATED,
                             "one saturated OV sample marks residual saturated");
+
+    fake = safe_fake_adc();
+    script_channel(&fake, BSP_ADC_CHANNEL_VMID, 0u, 2731u, 2731u, 2731u);
+    io = fake_io(&fake);
+    (void)hw_aux_sensors_init(&sensors, &io, 0u);
+    run_conversions(&sensors, 0u, 12u);
+    failures += expect_true(hw_aux_sensors_residual_state(&sensors, 0u) == HW_RESIDUAL_SATURATED,
+                            "one saturated VMID sample marks residual saturated");
 
     fake = safe_fake_adc();
     fake.vmid_raw = raw_from_voltage(1.20f);
@@ -204,6 +249,10 @@ static int test_battery_and_ntc(void)
                             "battery OK after four samples");
     failures += expect_true(hw_aux_sensors_battery_state(&sensors, 2500u) == HW_BATTERY_UNKNOWN,
                             "stale battery becomes UNKNOWN");
+    hw_aux_sensors_snapshot_t snapshot;
+    hw_aux_sensors_snapshot(&sensors, 2500u, &snapshot);
+    failures += expect_true(snapshot.battery_state == HW_BATTERY_UNKNOWN,
+                            "stale battery snapshot normalizes to UNKNOWN");
 
     sensors.next_battery_due_ms = 500u;
     sensors.next_residual_due_ms = 3000u;
@@ -221,16 +270,48 @@ static int test_battery_and_ntc(void)
     failures += expect_true(hw_aux_sensors_battery_state(&sensors, 1000u) == HW_BATTERY_CRITICAL,
                             "battery critical threshold");
 
+    sensors.next_battery_due_ms = 1500u;
+    sensors.next_residual_due_ms = 3000u;
+    sensors.next_ntc_due_ms = 3000u;
+    fake.bat_raw = raw_from_voltage(2.20f);
+    run_conversions(&sensors, 1500u, 4u);
+    failures += expect_true(hw_aux_sensors_battery_state(&sensors, 1500u) == HW_BATTERY_UNKNOWN,
+                            "battery above 4.35 V is implausible");
+
+    fake = safe_fake_adc();
+    io = fake_io(&fake);
+    (void)hw_aux_sensors_init(&sensors, &io, 0u);
+    sensors.next_residual_due_ms = 3000u;
+    sensors.next_battery_due_ms = 0u;
+    sensors.next_ntc_due_ms = 3000u;
+    script_channel(&fake, BSP_ADC_CHANNEL_BAT, 0u, 2979u, 2979u, 2979u);
+    run_conversions(&sensors, 0u, 4u);
+    failures += expect_true(hw_aux_sensors_battery_state(&sensors, 0u) == HW_BATTERY_UNKNOWN,
+                            "one low-rail battery sample invalidates publication");
+
+    fake = safe_fake_adc();
+    io = fake_io(&fake);
+    (void)hw_aux_sensors_init(&sensors, &io, 0u);
+    sensors.next_residual_due_ms = 3000u;
+    sensors.next_battery_due_ms = 0u;
+    sensors.next_ntc_due_ms = 3000u;
+    script_channel(&fake, BSP_ADC_CHANNEL_BAT, 4095u, 1614u, 1614u, 1614u);
+    run_conversions(&sensors, 0u, 4u);
+    failures += expect_true(hw_aux_sensors_battery_state(&sensors, 0u) == HW_BATTERY_UNKNOWN,
+                            "one high-rail battery sample invalidates publication");
+
     sensors.next_residual_due_ms = 3000u;
     sensors.next_battery_due_ms = 3000u;
     sensors.next_ntc_due_ms = 1000u;
     fake.ntc_raw = raw_from_voltage(1.65f);
     run_conversions(&sensors, 1000u, 4u);
-    hw_aux_sensors_snapshot_t snapshot;
     hw_aux_sensors_snapshot(&sensors, 1000u, &snapshot);
     failures += expect_true(snapshot.ntc_valid && (snapshot.ntc_resistance_ohm > 99000.0f) &&
                                 (snapshot.ntc_resistance_ohm < 101000.0f),
                             "NTC top-resistor equation returns about 100k");
+    failures += expect_true(snapshot.ntc_temperature_valid && (snapshot.ntc_temperature_c > 24.9f) &&
+                                (snapshot.ntc_temperature_c < 25.1f),
+                            "NTC LUT returns about 25 C at 100k");
 
     fake.ntc_raw = 0u;
     sensors.next_ntc_due_ms = 2000u;
@@ -239,6 +320,8 @@ static int test_battery_and_ntc(void)
     failures += expect_true(!snapshot.ntc_valid, "NTC rail/open/short guard invalidates telemetry");
     hw_aux_sensors_snapshot(&sensors, 8000u, &snapshot);
     failures += expect_true(snapshot.ntc_age_ms > HW_AUX_NTC_MAX_AGE_MS, "NTC stale age is exposed");
+    failures += expect_true(!snapshot.ntc_valid && !snapshot.ntc_temperature_valid,
+                            "stale NTC snapshot normalizes validity flags");
 
     return failures;
 }
@@ -261,12 +344,27 @@ static int test_adc_error_and_pause(void)
     fake = safe_fake_adc();
     io = fake_io(&fake);
     (void)hw_aux_sensors_init(&sensors, &io, 0u);
-    (void)hw_aux_sensors_step(&sensors, 0u);
+    for (uint8_t sweep = 0u; sweep < HW_RESIDUAL_REQUIRED_SAFE_COUNT; sweep++)
+    {
+        run_conversions(&sensors, (uint32_t)(sweep * HW_AUX_RESIDUAL_SWEEP_PERIOD_MS), 12u);
+    }
+    failures += expect_true(hw_aux_sensors_residual_state(&sensors, 80u) == HW_RESIDUAL_SAFE,
+                            "residual SAFE is established before pause");
     hw_aux_sensors_pause(&sensors);
-    (void)hw_aux_sensors_step(&sensors, 0u);
+    failures += expect_true(hw_aux_sensors_residual_state(&sensors, 80u) == HW_RESIDUAL_UNKNOWN,
+                            "pause immediately invalidates residual SAFE");
     failures += expect_true(hw_aux_sensors_is_idle(&sensors), "pause reaches idle/paused");
     hw_aux_sensors_resume(&sensors, 100u);
     failures += expect_true(hw_aux_sensors_is_idle(&sensors), "resume restarts from idle");
+    run_conversions(&sensors, 100u, 12u);
+    failures += expect_true(hw_aux_sensors_residual_state(&sensors, 100u) == HW_RESIDUAL_UNKNOWN,
+                            "one post-resume safe sweep is not enough");
+    for (uint8_t sweep = 1u; sweep < HW_RESIDUAL_REQUIRED_SAFE_COUNT; sweep++)
+    {
+        run_conversions(&sensors, (uint32_t)(100u + (sweep * HW_AUX_RESIDUAL_SWEEP_PERIOD_MS)), 12u);
+    }
+    failures += expect_true(hw_aux_sensors_residual_state(&sensors, 180u) == HW_RESIDUAL_SAFE,
+                            "eight fresh post-resume sweeps grant SAFE");
 
     return failures;
 }

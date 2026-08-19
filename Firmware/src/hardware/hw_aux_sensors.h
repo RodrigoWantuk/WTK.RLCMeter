@@ -69,7 +69,9 @@ typedef struct
     uint16_t ntc_raw;
     float ntc_voltage_v;
     float ntc_resistance_ohm;
+    float ntc_temperature_c;
     bool ntc_valid;
+    bool ntc_temperature_valid;
     uint32_t ntc_age_ms;
 } hw_aux_sensors_snapshot_t;
 
@@ -96,7 +98,9 @@ typedef struct
     uint32_t accum_ntc;
     uint8_t sample_index;
     uint8_t channel_phase;
-    bool group_saturated;
+    bool residual_group_saturated;
+    bool battery_group_saturated;
+    bool ntc_group_saturated;
     bool paused;
     bool residual_published;
     bool battery_published;

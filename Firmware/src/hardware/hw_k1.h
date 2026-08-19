@@ -30,6 +30,10 @@ typedef struct
 
 bsp_status_t hw_k1_init(hw_k1_t *k1, const hw_k1_io_t *io);
 bsp_status_t hw_k1_force_safe(hw_k1_t *k1);
+/*
+ * Reserved for the future authorized measurement sequencer. Normal application
+ * code must keep K1 SAFE during Phase 04 and must not call this directly.
+ */
 bsp_status_t hw_k1_request_measure(hw_k1_t *k1, const hw_safety_result_t *permission);
 hw_k1_state_t hw_k1_commanded_state(const hw_k1_t *k1);
 bsp_status_t hw_k1_last_status(const hw_k1_t *k1);

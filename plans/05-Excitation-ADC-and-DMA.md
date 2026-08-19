@@ -2,6 +2,21 @@
 
 STATUS: NOT_STARTED
 
+## Responsibility boundary
+
+Firmware implementation for this phase must not independently choose excitation topology, PWM strategy, ADC1/ADC2 assignment, sample-rate table, DMA layout, channel schedule, or analog timing. Those items require an authoritative electronics/metrology contract before Phase 05 implementation begins.
+
+Task language below that asks the implementation agent to verify, choose, or design consequential metrology parameters is a planning placeholder, not delegated authority. Do not start Phase 05 implementation until the missing contract is provided.
+
+Phase 04 hands off these future K1 guard rules:
+
+```text
+K1_OPERATE_GUARD_MS = 10
+K1_RELEASE_GUARD_MS = 8
+```
+
+Both guard times remain `REQUIRES_BENCH_VALIDATION`. After K1 returns LOW and the 8 ms release guard completes, old residual evidence is invalid; auxiliary ADC must reacquire eight fresh SAFE residual evaluations before any new measurement permit can be issued.
+
 ## Goal
 
 Create and validate the deterministic metrology transport: filtered PWM excitation, timer-driven ADC sampling, DMA buffers, raw-capture observability, and quiet-mode coordination.

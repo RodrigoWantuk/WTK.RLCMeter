@@ -77,6 +77,7 @@ lab charger status
 lab sensors status
 lab adc status
 lab fault status
+lab permit status
 ```
 
 Artifacts are written under `Firmware/build/virtual/wokwi/`.

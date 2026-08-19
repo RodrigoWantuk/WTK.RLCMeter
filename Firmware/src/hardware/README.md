@@ -52,6 +52,20 @@ NTC sweep:      1000 ms period, 5000 ms max age
 
 Residual sweeps collect four VMID, four OV_HI, and four OV_LO conversions before publishing one residual evaluation. Battery and NTC publish only after four conversions. Stale/invalid residual and battery states fail closed through the safety policy. NTC is telemetry-only in Stage 2.
 
+## Phase 04 Stage 3 services
+
+Stage 3 hardens the Stage 2 sensor semantics and closes the Phase 04 software foundation while still keeping K1 physically SAFE in the application:
+
+- individual saturated VMID, OV_HI, OV_LO, and ADC_BAT samples are not hidden by averaging;
+- battery telemetry rejects rail samples and values above the frozen 4.35 V plausibility ceiling;
+- residual SAFE hysteresis is retained after the initial eight safe evaluations until a block, invalid, or saturated sample occurs;
+- stale snapshots normalize residual, battery, and NTC semantic validity at read time;
+- pausing auxiliary ADC immediately invalidates residual evidence so future metrology ownership cannot reuse a stale SAFE result;
+- NTC diagnostics expose a fixed-LUT temperature estimate without target libm;
+- `hw_measure_permit` provides a pure, short-lived, single-use pre-measure permit object for the future Phase 05 measurement sequencer.
+
+Normal application code still does not call `hw_k1_request_measure()`. That API is reserved for the future authorized measurement sequencer after bench-qualified prerequisites exist.
+
 ## Representative API
 
 ```text

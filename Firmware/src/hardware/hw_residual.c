@@ -35,7 +35,7 @@ void hw_residual_policy_init(hw_residual_policy_t *policy)
 hw_residual_state_t hw_residual_policy_evaluate(hw_residual_policy_t *policy,
                                                 const hw_residual_policy_input_t *input)
 {
-    if ((policy == NULL) || (input == NULL) || !input->valid)
+    if ((policy == NULL) || (input == NULL))
     {
         if (policy != NULL)
         {
@@ -52,10 +52,23 @@ hw_residual_state_t hw_residual_policy_evaluate(hw_residual_policy_t *policy,
         return policy->state;
     }
 
+    if (!input->valid)
+    {
+        policy->consecutive_safe_count = 0u;
+        policy->state = HW_RESIDUAL_UNKNOWN;
+        return policy->state;
+    }
+
     if (reaches_block(input))
     {
         policy->consecutive_safe_count = 0u;
         policy->state = HW_RESIDUAL_UNSAFE;
+        return policy->state;
+    }
+
+    if (policy->state == HW_RESIDUAL_SAFE)
+    {
+        policy->consecutive_safe_count = HW_RESIDUAL_REQUIRED_SAFE_COUNT;
         return policy->state;
     }
 

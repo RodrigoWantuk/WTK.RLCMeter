@@ -73,7 +73,9 @@ static void reset_group(hw_aux_sensors_t *sensors)
     sensors->accum_battery = 0u;
     sensors->accum_ntc = 0u;
     sensors->sample_index = 0u;
-    sensors->group_saturated = false;
+    sensors->residual_group_saturated = false;
+    sensors->battery_group_saturated = false;
+    sensors->ntc_group_saturated = false;
 }
 
 static void begin_group(hw_aux_sensors_t *sensors, sensor_group_t group, uint32_t now_ms)
@@ -118,7 +120,7 @@ static void publish_residual(hw_aux_sensors_t *sensors)
     const float vmid_v = bsp_adc_raw_to_voltage(vmid_raw);
     const float hi_v = bsp_adc_raw_to_voltage(hi_raw);
     const float lo_v = bsp_adc_raw_to_voltage(lo_raw);
-    const bool vmid_saturated = hw_residual_raw_is_saturated(vmid_raw);
+    const bool vmid_saturated = sensors->residual_group_saturated || hw_residual_raw_is_saturated(vmid_raw);
     const bool vmid_valid = !vmid_saturated && (vmid_v >= HW_AUX_VMID_MIN_V) && (vmid_v <= HW_AUX_VMID_MAX_V);
 
     sensors->snapshot.vmid_raw = vmid_raw;
@@ -126,14 +128,15 @@ static void publish_residual(hw_aux_sensors_t *sensors)
     sensors->snapshot.vmid_valid = vmid_valid;
     sensors->snapshot.ov_hi_raw = hi_raw;
     sensors->snapshot.ov_lo_raw = lo_raw;
-    sensors->snapshot.safe_hi_v = hw_residual_terminal_voltage(vmid_v, hi_v);
-    sensors->snapshot.safe_lo_v = hw_residual_terminal_voltage(vmid_v, lo_v);
+    sensors->snapshot.safe_hi_v = vmid_valid ? hw_residual_terminal_voltage(vmid_v, hi_v) : 0.0f;
+    sensors->snapshot.safe_lo_v = vmid_valid ? hw_residual_terminal_voltage(vmid_v, lo_v) : 0.0f;
     sensors->snapshot.residual_diff_v =
-        hw_residual_differential_voltage(sensors->snapshot.safe_hi_v, sensors->snapshot.safe_lo_v);
+        vmid_valid ? hw_residual_differential_voltage(sensors->snapshot.safe_hi_v, sensors->snapshot.safe_lo_v)
+                   : 0.0f;
 
     const hw_residual_policy_input_t input = {
         .valid = vmid_valid,
-        .saturated = sensors->group_saturated,
+        .saturated = sensors->residual_group_saturated,
         .safe_hi_v = sensors->snapshot.safe_hi_v,
         .safe_lo_v = sensors->snapshot.safe_lo_v,
         .residual_diff_v = sensors->snapshot.residual_diff_v,
@@ -152,10 +155,11 @@ static void publish_battery(hw_aux_sensors_t *sensors)
     const uint16_t raw = mean4(sensors->accum_battery);
     const float adc_v = bsp_adc_raw_to_voltage(raw);
     const float battery_v = hw_battery_vbat_from_adc_voltage(adc_v);
+    const bool valid = !sensors->battery_group_saturated;
 
     sensors->snapshot.battery_raw = raw;
     sensors->snapshot.battery_v = battery_v;
-    sensors->snapshot.battery_state = hw_battery_state_from_voltage(battery_v, true);
+    sensors->snapshot.battery_state = hw_battery_state_from_voltage(battery_v, valid);
     sensors->snapshot.timestamp_ms = sensors->group_timestamp_ms;
     sensors->battery_timestamp_ms = sensors->group_timestamp_ms;
     sensors->snapshot.battery_age_ms = 0u;
@@ -166,15 +170,23 @@ static void publish_battery(hw_aux_sensors_t *sensors)
 static void publish_ntc(hw_aux_sensors_t *sensors)
 {
     const uint16_t raw = mean4(sensors->accum_ntc);
-    const bool saturated = hw_residual_raw_is_saturated(raw);
+    const bool saturated = sensors->ntc_group_saturated || hw_residual_raw_is_saturated(raw);
     bool valid = false;
+    bool temperature_valid = false;
     const float adc_v = bsp_adc_raw_to_voltage(raw);
+    float temperature_c = 0.0f;
     const float resistance = saturated ? 0.0f : hw_ntc_resistance_from_voltage(adc_v, BSP_ADC_VDDA_NOMINAL_V, &valid);
+    if (valid && !saturated)
+    {
+        temperature_valid = hw_ntc_temperature_from_resistance(resistance, &temperature_c);
+    }
 
     sensors->snapshot.ntc_raw = raw;
     sensors->snapshot.ntc_voltage_v = adc_v;
     sensors->snapshot.ntc_resistance_ohm = resistance;
+    sensors->snapshot.ntc_temperature_c = temperature_c;
     sensors->snapshot.ntc_valid = valid && !saturated;
+    sensors->snapshot.ntc_temperature_valid = temperature_valid;
     sensors->snapshot.timestamp_ms = sensors->group_timestamp_ms;
     sensors->ntc_timestamp_ms = sensors->group_timestamp_ms;
     sensors->snapshot.ntc_age_ms = 0u;
@@ -188,20 +200,27 @@ static void complete_sample(hw_aux_sensors_t *sensors, uint16_t raw)
     {
     case 0u:
         sensors->accum_vmid += raw;
+        sensors->residual_group_saturated =
+            sensors->residual_group_saturated || hw_residual_raw_is_saturated(raw);
         break;
     case 1u:
         sensors->accum_hi += raw;
-        sensors->group_saturated = sensors->group_saturated || hw_residual_raw_is_saturated(raw);
+        sensors->residual_group_saturated =
+            sensors->residual_group_saturated || hw_residual_raw_is_saturated(raw);
         break;
     case 2u:
         sensors->accum_lo += raw;
-        sensors->group_saturated = sensors->group_saturated || hw_residual_raw_is_saturated(raw);
+        sensors->residual_group_saturated =
+            sensors->residual_group_saturated || hw_residual_raw_is_saturated(raw);
         break;
     case 3u:
         sensors->accum_battery += raw;
+        sensors->battery_group_saturated =
+            sensors->battery_group_saturated || hw_residual_raw_is_saturated(raw);
         break;
     case 4u:
         sensors->accum_ntc += raw;
+        sensors->ntc_group_saturated = sensors->ntc_group_saturated || hw_residual_raw_is_saturated(raw);
         break;
     default:
         break;
@@ -256,15 +275,21 @@ static sensor_group_t next_due_group(const hw_aux_sensors_t *sensors, uint32_t n
     return SENSOR_GROUP_NONE;
 }
 
+static void invalidate_residual_evidence(hw_aux_sensors_t *sensors)
+{
+    sensors->residual_published = false;
+    sensors->snapshot.residual_state = HW_RESIDUAL_UNKNOWN;
+    sensors->snapshot.residual_safe_count = 0u;
+    sensors->snapshot.residual_age_ms = HW_AUX_RESIDUAL_MAX_AGE_MS + 1u;
+    hw_residual_policy_init(&sensors->residual_policy);
+}
+
 static void invalidate_stale_publications(hw_aux_sensors_t *sensors, uint32_t now_ms)
 {
     if (sensors->residual_published &&
         ((now_ms - sensors->residual_timestamp_ms) > HW_AUX_RESIDUAL_MAX_AGE_MS))
     {
-        sensors->residual_published = false;
-        sensors->snapshot.residual_state = HW_RESIDUAL_UNKNOWN;
-        sensors->snapshot.residual_safe_count = 0u;
-        hw_residual_policy_init(&sensors->residual_policy);
+        invalidate_residual_evidence(sensors);
     }
     if (sensors->battery_published &&
         ((now_ms - sensors->battery_timestamp_ms) > HW_AUX_BATTERY_MAX_AGE_MS))
@@ -277,6 +302,7 @@ static void invalidate_stale_publications(hw_aux_sensors_t *sensors, uint32_t no
     {
         sensors->ntc_published = false;
         sensors->snapshot.ntc_valid = false;
+        sensors->snapshot.ntc_temperature_valid = false;
     }
 }
 
@@ -392,6 +418,15 @@ void hw_aux_sensors_pause(hw_aux_sensors_t *sensors)
     }
 
     sensors->paused = true;
+    if (sensors->state == HW_AUX_SENSORS_POLL)
+    {
+        sensors->io.cancel(sensors->io.user_data);
+    }
+    sensors->state = HW_AUX_SENSORS_PAUSED;
+    sensors->current_channel = BSP_ADC_CHANNEL_INVALID;
+    sensors->channel_phase = 255u;
+    invalidate_residual_evidence(sensors);
+    reset_group(sensors);
 }
 
 void hw_aux_sensors_resume(hw_aux_sensors_t *sensors, uint32_t now_ms)
@@ -432,6 +467,20 @@ void hw_aux_sensors_snapshot(const hw_aux_sensors_t *sensors,
                                                           : HW_AUX_BATTERY_MAX_AGE_MS + 1u;
     snapshot->ntc_age_ms = sensors->ntc_published ? (now_ms - sensors->ntc_timestamp_ms)
                                                   : HW_AUX_NTC_MAX_AGE_MS + 1u;
+    if (snapshot->residual_age_ms > HW_AUX_RESIDUAL_MAX_AGE_MS)
+    {
+        snapshot->residual_state = HW_RESIDUAL_UNKNOWN;
+        snapshot->residual_safe_count = 0u;
+    }
+    if (snapshot->battery_age_ms > HW_AUX_BATTERY_MAX_AGE_MS)
+    {
+        snapshot->battery_state = HW_BATTERY_UNKNOWN;
+    }
+    if (snapshot->ntc_age_ms > HW_AUX_NTC_MAX_AGE_MS)
+    {
+        snapshot->ntc_valid = false;
+        snapshot->ntc_temperature_valid = false;
+    }
 }
 
 hw_residual_state_t hw_aux_sensors_residual_state(const hw_aux_sensors_t *sensors, uint32_t now_ms)

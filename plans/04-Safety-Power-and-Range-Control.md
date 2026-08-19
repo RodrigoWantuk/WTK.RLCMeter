@@ -1,6 +1,6 @@
 # 04 — Safety, Power, and Range Control
 
-STATUS: IN_PROGRESS
+STATUS: IMPLEMENTED_REQUIRES_BENCH_VALIDATION
 
 ## Authoritative Rev.1 Firmware/Hardware Contract
 
@@ -81,6 +81,15 @@ emitter -> GND
 ```
 
 When charger power is present this hardware path physically prevents K1 energization. Firmware must still block MEASURE on charger detection and must never attempt to override the hardware inhibit.
+
+Future K1 measurement sequencing must use these firmware guard times after commanding the relay:
+
+```text
+K1_OPERATE_GUARD_MS = 10
+K1_RELEASE_GUARD_MS = 8
+```
+
+Both guard times are conservative firmware margins and remain `REQUIRES_BENCH_VALIDATION`.
 
 ### CHG_DETIO
 
@@ -669,6 +678,77 @@ Evidence classification:
 - battery conversion: `HOST_TESTED`, `REQUIRES_BENCH_VALIDATION` against DMM;
 - NTC resistance conversion: `HOST_TESTED`, `REQUIRES_BENCH_VALIDATION` against known resistance/temperature;
 - range/K1/K2/charger digital service behavior: `HOST_TESTED`, `REQUIRES_BENCH_VALIDATION` physically.
+
+## Stage 3 implementation status
+
+Stage 3: `IMPLEMENTED_REQUIRES_BENCH_VALIDATION`.
+
+Implemented on 2026-08-19:
+
+- Residual acquisition now treats any individual VMID/OV_HI/OV_LO sample at raw <= 16 or raw >= 4079 as a saturated residual group. Saturation is not hidden by four-sample averaging.
+- Battery acquisition now treats any individual ADC_BAT rail sample as `HW_BATTERY_UNKNOWN`, and applies the frozen Rev.1 plausibility ceiling `HW_BATTERY_MAX_PLAUSIBLE_V = 4.35 V`.
+- The residual hysteresis FSM now retains `SAFE` after the initial eight-sweep qualification while all valid nonsaturated magnitudes remain below the 1.00 V block threshold. Returning from the hysteresis band to the release band does not require another eight samples unless SAFE was lost.
+- Sensor snapshots normalize stale semantics at read time:
+  - residual age > 50 ms returns `HW_RESIDUAL_UNKNOWN` and safe-count 0;
+  - battery age > 2000 ms returns `HW_BATTERY_UNKNOWN`;
+  - NTC age > 5000 ms returns invalid resistance/temperature flags.
+- `hw_aux_sensors_pause()` immediately invalidates published residual evidence and reinitializes the residual policy. Battery and NTC continue to age under their normal freshness rules. After resume, eight fresh safe residual sweeps are required before `SAFE` can be published again.
+- `bsp_adc` now applies `BSP_ADC_POWER_STABILIZATION_US = 2` after ADC1 is powered with ADON during initialization and cancel/recovery. This bounded microsecond-level hardware stabilization wait is isolated in the BSP; normal auxiliary acquisition remains cooperative and non-blocking.
+- `bsp_adc_cancel()` now power-cycles/re-enables ADC1 deterministically, clears stale conversion status/data, and returns the ADC core to IDLE with `BSP_ADC_CHANNEL_INVALID`.
+- NTC diagnostics now include a provisional fixed-LUT temperature estimate from the frozen MF58-104J3950GB nominal model, without target libm. Temperature is valid only from -20 C through +80 C; resistance telemetry may remain valid outside that range, but temperature is not extrapolated.
+- Added pure `hw_measure_permit` for future Phase 05 entry:
+  - permit TTL is 5 ms;
+  - issue requires charger absent, residual SAFE age <= 20 ms, battery OK/LOW age <= 1000 ms, range READY with a valid Rev.1 range ID, K1 commanded SAFE, no latched safety fault, and `hw_safety_evaluate()` allowing MEASURE;
+  - validation after auxiliary ADC pause requires the permit to be valid/unconsumed, age <= 5 ms, charger still absent, range still READY with the same range ID, K1 still SAFE, and fault mask still zero;
+  - every validation attempt consumes the permit, whether validation succeeds or fails.
+- Added `lab permit status`, which reports current eligibility/reason without issuing or consuming a real permit.
+- `hw_k1_request_measure()` remains uncalled by production application code and is documented as reserved for the future authorized measurement sequencer.
+
+Future Phase 05 post-measure residual rule:
+
+After K1 has been returned LOW and the 8 ms release guard has completed, old residual evidence is invalid. Auxiliary ADC must resume and the normal eight-evaluation SAFE qualification must complete again before any new permit can be issued. No immediate retry shortcut may bypass this rule.
+
+Stage 3 host-tested:
+
+- VMID individual rail saturation;
+- battery individual rail saturation and >4.35 V plausibility;
+- corrected residual SAFE hysteresis retention and loss transitions;
+- stale snapshot normalization;
+- residual invalidation across pause/resume;
+- NTC LUT exact points/interpolation/out-of-range behavior;
+- measurement permit issue denial matrix, validation expiry, dynamic blockers, and single-use consumption;
+- ADC recovery/stabilization constants and cancel core state.
+
+Validation run on 2026-08-19:
+
+- host Debug CTest: 14/14 passed;
+- host Release CTest: 14/14 passed;
+- Python tooling unittest: 13 passed;
+- STM32 Debug build: passed, Flash 15344 B, RAM 2688 B;
+- STM32 Release build: passed, Flash 18292 B, RAM 2696 B;
+- STM32 Lab build: passed, Flash 23012 B, RAM 2880 B;
+- Wokwi `--lint-only`: passed with Wokwi CLI `0.26.1 (9d71b975b7eb)`;
+- Wokwi smoke/full scenarios were not executed because `WOKWI_CLI_TOKEN` is not set.
+
+Release growth relative to the Stage 2 baseline:
+
+```text
+Stage 2 Release: Flash 17456 B, RAM 2688 B
+Stage 3 Release: Flash 18292 B, RAM 2696 B
+Growth:          Flash +836 B, RAM +8 B
+```
+
+Lab growth relative to the Stage 2 baseline:
+
+```text
+Stage 2 Lab: Flash 21204 B, RAM 2872 B
+Stage 3 Lab: Flash 23012 B, RAM 2880 B
+Growth:      Flash +1808 B, RAM +8 B
+```
+
+The Release growth is expected from the NTC fixed lookup table, sensor hardening paths, and pure permit helpers retained where referenced. `logf()`/libm is not linked, and Lab diagnostic strings remain dead-stripped from Release.
+
+Phase 04 software implementation is closed at `IMPLEMENTED_REQUIRES_BENCH_VALIDATION`. Physical bench validation remains open and no Phase 05 implementation has started.
 
 Bench plan prepared for future hardware validation:
 

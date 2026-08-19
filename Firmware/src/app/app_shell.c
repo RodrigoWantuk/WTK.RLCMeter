@@ -290,6 +290,7 @@ static void app_step(void)
                          &g_range,
                          &g_charger,
                          &g_aux_sensors,
+                         &g_k1,
                          &g_safety_result,
                          &g_safety_faults,
                          now_ms);

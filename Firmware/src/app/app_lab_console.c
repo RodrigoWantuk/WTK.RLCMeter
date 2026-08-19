@@ -13,6 +13,8 @@
 #include "hardware/hw_aux_sensors.h"
 #include "hardware/hw_charger.h"
 #include "hardware/hw_buzzer.h"
+#include "hardware/hw_k1.h"
+#include "hardware/hw_measure_permit.h"
 #include "hardware/hw_peripherals.h"
 #include "hardware/hw_range.h"
 #include "hardware/hw_safety.h"
@@ -290,8 +292,46 @@ static void write_sensors_status(const hw_aux_sensors_t *sensors, uint32_t now_m
     write_u32((uint32_t)((snapshot.ntc_resistance_ohm >= 0.0f) ? snapshot.ntc_resistance_ohm : 0.0f));
     write_text(" valid=");
     write_text(snapshot.ntc_valid ? "1" : "0");
+    write_text(" ntc_temperature_mC=");
+    write_i32(milli_from_float(snapshot.ntc_temperature_c));
+    write_text(" ntc_temperature_valid=");
+    write_text(snapshot.ntc_temperature_valid ? "1" : "0");
     write_text(" age_ms=");
     write_u32(snapshot.ntc_age_ms);
+    write_text("\r\n");
+}
+
+static void write_permit_status(const hw_range_t *range,
+                                hw_charger_t *charger,
+                                const hw_aux_sensors_t *sensors,
+                                const hw_k1_t *k1,
+                                const app_safety_fault_latch_t *faults,
+                                uint32_t now_ms)
+{
+    hw_aux_sensors_snapshot_t snapshot;
+    if ((range == NULL) || (charger == NULL) || (sensors == NULL) || (k1 == NULL))
+    {
+        write_text("lab permit: eligible=0 reason=INVALID\r\n");
+        return;
+    }
+
+    hw_aux_sensors_snapshot(sensors, now_ms, &snapshot);
+    const hw_measure_permit_issue_input_t input = {
+        .charger = hw_charger_get_state(charger),
+        .residual = snapshot.residual_state,
+        .residual_age_ms = snapshot.residual_age_ms,
+        .battery = snapshot.battery_state,
+        .battery_age_ms = snapshot.battery_age_ms,
+        .range = hw_range_safety_state(range),
+        .range_id = hw_range_get_current(range),
+        .k1_state = hw_k1_commanded_state(k1),
+        .safety_fault_mask = app_safety_fault_mask(faults),
+    };
+    const hw_measure_permit_issue_result_t result = hw_measure_permit_check_issue(&input);
+    write_text("lab permit: eligible=");
+    write_text(result.issued ? "1" : "0");
+    write_text(" reason=");
+    write_text(hw_measure_permit_rejection_string(result.reason));
     write_text("\r\n");
 }
 
@@ -482,6 +522,7 @@ static void run_command(app_lab_console_t *console,
                         hw_range_t *range,
                         hw_charger_t *charger,
                         hw_aux_sensors_t *sensors,
+                        const hw_k1_t *k1,
                         const hw_safety_result_t *safety,
                         app_safety_fault_latch_t *faults,
                         const char *line,
@@ -612,6 +653,10 @@ static void run_command(app_lab_console_t *console,
         write_hex8(app_safety_fault_mask(faults));
         write_text("\r\n");
     }
+    else if (text_equals(line, "lab permit status"))
+    {
+        write_permit_status(range, charger, sensors, k1, faults, now_ms);
+    }
     else if (line[0] != '\0')
     {
         write_text("lab: UNKNOWN_COMMAND\r\n");
@@ -647,6 +692,7 @@ void app_lab_console_step(app_lab_console_t *console,
                           hw_range_t *range,
                           hw_charger_t *charger,
                           hw_aux_sensors_t *sensors,
+                          const hw_k1_t *k1,
                           const hw_safety_result_t *safety,
                           app_safety_fault_latch_t *faults,
                           uint32_t now_ms)
@@ -665,7 +711,7 @@ void app_lab_console_step(app_lab_console_t *console,
         if ((byte == '\r') || (byte == '\n'))
         {
             console->line[console->line_length] = '\0';
-            run_command(console, flash, display, range, charger, sensors, safety, faults, console->line, now_ms);
+            run_command(console, flash, display, range, charger, sensors, k1, safety, faults, console->line, now_ms);
             console->line_length = 0u;
         }
         else if (console->line_length < (APP_LAB_CONSOLE_LINE_CAPACITY - 1u))
@@ -686,6 +732,7 @@ void app_lab_console_step(app_lab_console_t *console,
     (void)range;
     (void)charger;
     (void)sensors;
+    (void)k1;
     (void)safety;
     (void)faults;
     (void)now_ms;

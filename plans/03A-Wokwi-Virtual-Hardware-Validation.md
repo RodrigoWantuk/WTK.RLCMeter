@@ -519,9 +519,9 @@ Not yet virtual-hardware-tested:
 - deliberate-failure proof;
 - VCD post-processing against actual simulator output.
 
-Reason: current local environment did not provide `wokwi-cli` or `WOKWI_CLI_TOKEN`. No virtual scenario is claimed as passing until those are available.
+Reason: current local environment now provides `wokwi-cli`, but does not provide `WOKWI_CLI_TOKEN`. No virtual scenario is claimed as passing until token-backed smoke/full simulations run.
 
-Phase 04 remains blocked. Phase 02/03 bench validation remains `REQUIRES_BENCH_VALIDATION`.
+Phase 04 firmware work may proceed under its own host/build criteria. Phase 02/03 bench validation remains `REQUIRES_BENCH_VALIDATION`.
 
 ## Stage 2 implementation status
 

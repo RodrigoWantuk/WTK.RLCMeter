@@ -12,6 +12,36 @@ static bool deadline_reached(uint32_t now_ms, uint32_t deadline_ms)
     return (now_ms - deadline_ms) < 0x80000000u;
 }
 
+static void delay_adc_stabilization(void)
+{
+    uint32_t cycles_per_us = SystemCoreClock / 1000000u;
+    if (cycles_per_us == 0u)
+    {
+        cycles_per_us = 1u;
+    }
+
+    for (uint32_t us = 0u; us < BSP_ADC_POWER_STABILIZATION_US; us++)
+    {
+        for (uint32_t cycle = 0u; cycle < cycles_per_us; cycle++)
+        {
+            __NOP();
+        }
+    }
+}
+
+static void clear_stale_conversion(void)
+{
+    (void)ADC1->DR;
+    ADC1->SR = 0u;
+}
+
+static void enable_adc_ready(void)
+{
+    ADC1->CR2 |= ADC_CR2_ADON;
+    delay_adc_stabilization();
+    clear_stale_conversion();
+}
+
 static void gpio_config_analog(GPIO_TypeDef *const port, uint32_t pin)
 {
     volatile uint32_t *reg = &port->CRL;
@@ -61,13 +91,15 @@ bsp_status_t bsp_adc_init(uint32_t now_ms)
                    ADC_SMPR2_SMP5 |
                    ADC_SMPR2_SMP6 |
                    ADC_SMPR2_SMP7);
-    ADC1->CR2 = ADC_CR2_ADON;
+    enable_adc_ready();
 
     ADC1->CR2 |= ADC_CR2_RSTCAL;
     bsp_status_t status = wait_for_clear(&ADC1->CR2, ADC_CR2_RSTCAL, now_ms, BSP_ADC_CALIBRATION_TIMEOUT_MS);
     if (status != BSP_STATUS_OK)
     {
         g_adc_core.last_status = status;
+        ADC1->CR2 = 0u;
+        bsp_adc_core_cancel(&g_adc_core);
         return status;
     }
 
@@ -76,10 +108,13 @@ bsp_status_t bsp_adc_init(uint32_t now_ms)
     if (status != BSP_STATUS_OK)
     {
         g_adc_core.last_status = status;
+        ADC1->CR2 = 0u;
+        bsp_adc_core_cancel(&g_adc_core);
         return status;
     }
 
     ADC1->CR2 = ADC_CR2_ADON | ADC_CR2_EXTTRIG | ADC_CR2_EXTSEL;
+    clear_stale_conversion();
     g_adc_initialized = true;
     g_adc_core.last_status = BSP_STATUS_OK;
     return BSP_STATUS_OK;
@@ -129,9 +164,11 @@ bsp_status_t bsp_adc_poll(uint16_t *raw, uint32_t now_ms)
 void bsp_adc_cancel(void)
 {
     ADC1->CR2 &= ~ADC_CR2_ADON;
+    ADC1->SR = 0u;
     if (g_adc_initialized)
     {
-        ADC1->CR2 |= ADC_CR2_ADON | ADC_CR2_EXTTRIG | ADC_CR2_EXTSEL;
+        ADC1->CR2 = ADC_CR2_EXTTRIG | ADC_CR2_EXTSEL;
+        enable_adc_ready();
     }
     bsp_adc_core_cancel(&g_adc_core);
 }

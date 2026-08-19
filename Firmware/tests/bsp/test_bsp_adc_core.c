@@ -23,6 +23,7 @@ int main(void)
 
     bsp_adc_core_init(&core);
     failures += expect_true(core.state == BSP_ADC_STATE_IDLE, "ADC core starts idle");
+    failures += expect_true(BSP_ADC_POWER_STABILIZATION_US == 2u, "ADC stabilization delay is fixed at 2 us");
     failures += expect_true(bsp_adc_channel_number(BSP_ADC_CHANNEL_VMID, &channel_number) == BSP_STATUS_OK &&
                                 channel_number == 1u,
                             "VMID channel maps to ADC1 channel 1");
@@ -64,6 +65,8 @@ int main(void)
                             "start before cancel succeeds");
     bsp_adc_core_cancel(&core);
     failures += expect_true(core.state == BSP_ADC_STATE_IDLE, "cancel returns idle");
+    failures += expect_true(core.channel == BSP_ADC_CHANNEL_INVALID, "cancel clears current channel");
+    failures += expect_true(core.last_status == BSP_STATUS_OK, "cancel clears stale status");
     failures += expect_true(bsp_adc_raw_to_voltage(4095u) > 3.299f, "raw full-scale uses denominator 4095");
 
     return (failures == 0) ? 0 : 1;
