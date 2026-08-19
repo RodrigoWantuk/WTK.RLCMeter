@@ -33,6 +33,8 @@ Prerequisites:
   - `arm-none-eabi-objcopy`;
   - `arm-none-eabi-size`.
 
+On Ubuntu, `gcc-arm-none-eabi` plus `binutils-arm-none-eabi` is not enough when apt is run with `--no-install-recommends`. Also install `libnewlib-arm-none-eabi` so `--specs=nano.specs` and `--specs=nosys.specs` resolve. The official Arm GNU Toolchain already ships those spec files.
+
 After cloning, initialize the official ST component submodules:
 
 ```bash

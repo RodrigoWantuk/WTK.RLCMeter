@@ -31,7 +31,26 @@ jobs:
       - name: Install build tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends cmake ninja-build gcc-arm-none-eabi binutils-arm-none-eabi python3 ca-certificates curl
+          sudo apt-get install -y --no-install-recommends \
+            cmake \
+            ninja-build \
+            gcc-arm-none-eabi \
+            binutils-arm-none-eabi \
+            libnewlib-arm-none-eabi \
+            python3 \
+            ca-certificates \
+            curl
+          nano_specs="$(arm-none-eabi-gcc -print-file-name=nano.specs)"
+          nosys_specs="$(arm-none-eabi-gcc -print-file-name=nosys.specs)"
+          if [ ! -f "$nano_specs" ] || [ ! -f "$nosys_specs" ]; then
+            echo "Arm GCC is missing newlib spec files."
+            echo "nano.specs=$nano_specs"
+            echo "nosys.specs=$nosys_specs"
+            echo "Install libnewlib-arm-none-eabi (Ubuntu apt does not pull it with --no-install-recommends)."
+            exit 1
+          fi
+          echo "nano.specs=$nano_specs"
+          echo "nosys.specs=$nosys_specs"
 
       - name: Run Python tooling tests
         run: python3 -m unittest Firmware.tests.tools.test_run_virtual_tests
