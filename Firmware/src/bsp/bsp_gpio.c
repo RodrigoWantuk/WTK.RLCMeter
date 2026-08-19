@@ -131,6 +131,30 @@ bsp_status_t bsp_gpio_write_output(bsp_gpio_output_t output, bool high)
         port = GPIOB;
         pin = 1u;
         break;
+    case BSP_GPIO_OUTPUT_K1_CMD:
+        port = GPIOB;
+        pin = 9u;
+        break;
+    case BSP_GPIO_OUTPUT_K2_CMD:
+        port = GPIOA;
+        pin = 11u;
+        break;
+    case BSP_GPIO_OUTPUT_RANGE_A0:
+        port = GPIOB;
+        pin = 5u;
+        break;
+    case BSP_GPIO_OUTPUT_RANGE_A1:
+        port = GPIOB;
+        pin = 6u;
+        break;
+    case BSP_GPIO_OUTPUT_RANGE_A2:
+        port = GPIOB;
+        pin = 7u;
+        break;
+    case BSP_GPIO_OUTPUT_RANGE_EN:
+        port = GPIOB;
+        pin = 8u;
+        break;
     default:
         return BSP_STATUS_INVALID_ARG;
     }

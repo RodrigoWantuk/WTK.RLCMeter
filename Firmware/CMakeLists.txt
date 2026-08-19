@@ -50,11 +50,19 @@ configure_file(
 
 add_library(wtk_firmware_common STATIC
     src/app/app_version.c
+    src/bsp/bsp_status.c
     src/drivers/buttons.c
     src/drivers/ili9341_color.c
     src/drivers/ili9341_geometry.c
     src/drivers/w25q_core.c
     src/hardware/hw_buzzer_policy.c
+    src/hardware/hw_charger.c
+    src/hardware/hw_k1.c
+    src/hardware/hw_k2.c
+    src/hardware/hw_power.c
+    src/hardware/hw_range.c
+    src/hardware/hw_residual.c
+    src/hardware/hw_safety.c
     src/storage/resource_store.c
     src/ui/ui_fallback_font.c
     src/ui/ui_resources.c
@@ -85,7 +93,6 @@ elseif(WTK_TARGET_PLATFORM STREQUAL "stm32")
         src/bsp/bsp_gpio.c
         src/bsp/bsp_quiet.c
         src/bsp/bsp_reset.c
-        src/bsp/bsp_status.c
         src/bsp/bsp_spi.c
         src/bsp/bsp_timers.c
         src/bsp/bsp_time.c

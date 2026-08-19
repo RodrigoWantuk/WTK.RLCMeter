@@ -1,6 +1,6 @@
 # 04 — Safety, Power, and Range Control
 
-STATUS: NOT_STARTED
+STATUS: IN_PROGRESS
 
 ## Goal
 
@@ -263,3 +263,99 @@ Report:
 - safety policy test matrix;
 - hardware anomalies;
 - readiness for Phase 05.
+
+## Stage 1 implementation status
+
+Stage 1 is implemented in firmware and host tests. Phase 04 remains `IN_PROGRESS` because ADC transport, physical bench validation, and later safety integration stages are still pending.
+
+Implemented on 2026-08-19:
+
+- Pure fail-closed safety policy module with charger, residual, battery, range, and application-fault inputs.
+- Deterministic blocker precedence:
+  1. `BLOCKED_FAULT`
+  2. `BLOCKED_CHARGER`
+  3. `BLOCKED_SENSOR_INVALID`
+  4. `BLOCKED_RESIDUAL`
+  5. `BLOCKED_SUPPLY`
+  6. `BLOCKED_RANGE`
+  7. `MEASURE_ALLOWED`
+- K1 semantic service:
+  - PB9 LOW = SAFE;
+  - PB9 HIGH = MEASURE;
+  - `hw_k1_request_measure()` requires a fully allowed `hw_safety_result_t`;
+  - application runtime does not call the MEASURE request path in Stage 1.
+- K2 Rev.1 topology service:
+  - K2 populated = false;
+  - low-Z bank mode = fixed 0 ohm link;
+  - physical switch request returns `BSP_STATUS_NOT_SUPPORTED`;
+  - PA11 remains LOW.
+- Charger semantic service:
+  - PA15 LOW = `ABSENT`;
+  - PA15 HIGH = `PRESENT`;
+  - GPIO read failure = `UNKNOWN`.
+- Range FSM service:
+  - PB5/PB6/PB7 map A0/A1/A2;
+  - PB8 `RANGE_EN` is active HIGH;
+  - exact address map 0..5 for 10 ohm through 1 Mohm;
+  - addresses 6 and 7 rejected;
+  - `RANGE_DEAD_TIME_MS = 2`;
+  - `RANGE_SETTLE_TIME_MS = 5`;
+  - new requests during transition restart safely from disabled state;
+  - address writes are rejected while the service believes `RANGE_EN` is HIGH.
+- Provisional residual policy:
+  - `RESIDUAL_RELEASE_V = 0.75 V`;
+  - `RESIDUAL_BLOCK_V = 1.00 V`;
+  - eight consecutive release evaluations are required before SAFE;
+  - saturated/invalid samples fail closed.
+- Pure helper constants:
+  - residual transfer ratio uses 1.68 Mohm / 27 kohm, `K ~= 63.2222222`;
+  - battery divider ratio is 2x, with 3.50 V LOW and 3.25 V CRITICAL thresholds;
+  - NTC helper uses fixed 100 kohm top resistor and NTC bottom leg.
+- Minimal application safety foundation:
+  - conceptual `SAFE_CHECK`, `WAIT_SAFE`, `READY` states;
+  - runtime remains `WAIT_SAFE` because residual and battery sensor transport are not qualified in Stage 1;
+  - K1 is forced SAFE whenever policy blocks;
+  - no fake sensor data can grant READY/MEASURE.
+- Lab-only diagnostics:
+  - `lab range 10r|100r|1k|10k|100k|1m`;
+  - `lab range off`;
+  - `lab range status`;
+  - `lab safety status`;
+  - `lab charger status`.
+
+Host-tested:
+
+- safety policy nominal and blocker matrix;
+- blocker flags and precedence;
+- recovery after blockers clear;
+- K1 SAFE/MEASURE command polarity through service-level callbacks;
+- denied/NULL K1 permissions force or leave SAFE;
+- K2 Rev.1 DNP/fixed-link behavior;
+- charger GPIO semantic mapping;
+- all six range mappings and invalid 6/7 rejection;
+- range transition dead/settle timing;
+- no address change while enabled;
+- force-disable from every FSM state;
+- replacement request during transition;
+- residual release/block/hysteresis/saturation policy;
+- residual transfer and battery/NTC helper math.
+
+Validation run on 2026-08-19:
+
+- host Debug CTest: 10/10 passed;
+- host Release CTest: 10/10 passed;
+- Python tooling unittest: 13 passed;
+- STM32 Debug build: passed;
+- STM32 Release build: passed, Flash 12900 B, RAM 2496 B;
+- STM32 Lab build: passed, Flash 14484 B, RAM 2680 B;
+- Wokwi `--lint-only`: passed with Wokwi CLI `0.26.1 (9d71b975b7eb)`;
+- Wokwi smoke scenarios were not executed because `WOKWI_CLI_TOKEN` is not set.
+
+REQUIRES_BENCH_VALIDATION:
+
+- actual PB9/PB8/PB5/PB6/PB7/PA11 electrical levels and external circuit response;
+- hardware charger inhibit through QUSB_INH;
+- PA15 threshold behavior on the real divider;
+- residual ADC transport, polarity, saturation behavior, and provisional safety thresholds;
+- battery and NTC ADC readings against DMM/temperature evidence;
+- relay, range decoder, ULN/PNP/MOSFET one-hot behavior and timing.

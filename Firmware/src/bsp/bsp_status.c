@@ -14,6 +14,8 @@ const char *bsp_status_string(bsp_status_t status)
         return "INVALID_ARG";
     case BSP_STATUS_BUSY:
         return "BUSY";
+    case BSP_STATUS_NOT_SUPPORTED:
+        return "NOT_SUPPORTED";
     default:
         return "UNKNOWN";
     }

@@ -8,8 +8,11 @@
 #include "bsp/bsp_uart.h"
 #include "drivers/ili9341.h"
 #include "drivers/w25q.h"
+#include "hardware/hw_charger.h"
 #include "hardware/hw_buzzer.h"
 #include "hardware/hw_peripherals.h"
+#include "hardware/hw_range.h"
+#include "hardware/hw_safety.h"
 #include "wtk_build_config.h"
 
 #if WTK_ENABLE_LAB_DIAGNOSTICS
@@ -131,6 +134,79 @@ static void write_flash_info(const w25q_device_t *flash)
                (uint32_t)flash->part.jedec.capacity_code);
     write_text(" ");
     write_u32(flash->part.capacity_bytes);
+    write_text("\r\n");
+}
+
+static bool parse_range_id(const char *line, hw_range_id_t *id)
+{
+    if ((line == NULL) || (id == NULL))
+    {
+        return false;
+    }
+    if (text_equals(line, "lab range 10r"))
+    {
+        *id = HW_RANGE_ID_10R;
+        return true;
+    }
+    if (text_equals(line, "lab range 100r"))
+    {
+        *id = HW_RANGE_ID_100R;
+        return true;
+    }
+    if (text_equals(line, "lab range 1k"))
+    {
+        *id = HW_RANGE_ID_1K;
+        return true;
+    }
+    if (text_equals(line, "lab range 10k"))
+    {
+        *id = HW_RANGE_ID_10K;
+        return true;
+    }
+    if (text_equals(line, "lab range 100k"))
+    {
+        *id = HW_RANGE_ID_100K;
+        return true;
+    }
+    if (text_equals(line, "lab range 1m"))
+    {
+        *id = HW_RANGE_ID_1M;
+        return true;
+    }
+    return false;
+}
+
+static void write_range_status(const hw_range_t *range)
+{
+    if (range == NULL)
+    {
+        write_text("lab range: INVALID\r\n");
+        return;
+    }
+
+    write_text("lab range: ");
+    write_text(hw_range_fsm_state_string(hw_range_get_state(range)));
+    write_text(" requested=");
+    write_text(hw_range_id_string(hw_range_get_requested(range)));
+    write_text(" current=");
+    write_text(hw_range_id_string(hw_range_get_current(range)));
+    write_text("\r\n");
+}
+
+static void write_safety_status(const hw_safety_result_t *safety)
+{
+    if (safety == NULL)
+    {
+        write_text("lab safety: UNKNOWN\r\n");
+        return;
+    }
+
+    write_text("lab safety: ");
+    write_text(hw_safety_primary_blocker_string(safety->primary_blocker));
+    write_text(" flags=");
+    write_u32(safety->blocker_flags);
+    write_text(" allowed=");
+    write_text(safety->measure_allowed ? "1" : "0");
     write_text("\r\n");
 }
 
@@ -302,10 +378,14 @@ static void step_flash_selftest(app_lab_console_t *console, w25q_device_t *flash
 static void run_command(app_lab_console_t *console,
                         w25q_device_t *flash,
                         ili9341_t *display,
+                        hw_range_t *range,
+                        hw_charger_t *charger,
+                        const hw_safety_result_t *safety,
                         const char *line,
                         uint32_t now_ms)
 {
     (void)display;
+    hw_range_id_t requested_range = HW_RANGE_ID_INVALID;
 
     if (text_equals(line, "lab quiet on"))
     {
@@ -368,6 +448,41 @@ static void run_command(app_lab_console_t *console,
     {
         start_flash_selftest(console, flash);
     }
+    else if (parse_range_id(line, &requested_range))
+    {
+        if (range == NULL)
+        {
+            write_text("lab range: ERROR\r\n");
+            return;
+        }
+        const bsp_status_t status = hw_range_request(range, requested_range, now_ms);
+        write_text("lab range: ");
+        write_text(status == BSP_STATUS_BUSY ? "START" : bsp_status_string(status));
+        write_text("\r\n");
+    }
+    else if (text_equals(line, "lab range off"))
+    {
+        if (range != NULL)
+        {
+            hw_range_force_disabled(range);
+        }
+        write_text("lab range: OFF\r\n");
+    }
+    else if (text_equals(line, "lab range status"))
+    {
+        write_range_status(range);
+    }
+    else if (text_equals(line, "lab safety status"))
+    {
+        write_safety_status(safety);
+    }
+    else if (text_equals(line, "lab charger status"))
+    {
+        const hw_charger_state_t state = hw_charger_get_state(charger);
+        write_text("charger: ");
+        write_text(hw_charger_state_string(state));
+        write_text("\r\n");
+    }
     else if (line[0] != '\0')
     {
         write_text("lab: UNKNOWN_COMMAND\r\n");
@@ -397,7 +512,13 @@ void app_lab_console_init(app_lab_console_t *console)
 #endif
 }
 
-void app_lab_console_step(app_lab_console_t *console, w25q_device_t *flash, ili9341_t *display, uint32_t now_ms)
+void app_lab_console_step(app_lab_console_t *console,
+                          w25q_device_t *flash,
+                          ili9341_t *display,
+                          hw_range_t *range,
+                          hw_charger_t *charger,
+                          const hw_safety_result_t *safety,
+                          uint32_t now_ms)
 {
 #if WTK_ENABLE_LAB_DIAGNOSTICS
     if (console == NULL)
@@ -413,7 +534,7 @@ void app_lab_console_step(app_lab_console_t *console, w25q_device_t *flash, ili9
         if ((byte == '\r') || (byte == '\n'))
         {
             console->line[console->line_length] = '\0';
-            run_command(console, flash, display, console->line, now_ms);
+            run_command(console, flash, display, range, charger, safety, console->line, now_ms);
             console->line_length = 0u;
         }
         else if (console->line_length < (APP_LAB_CONSOLE_LINE_CAPACITY - 1u))
@@ -431,6 +552,9 @@ void app_lab_console_step(app_lab_console_t *console, w25q_device_t *flash, ili9
     (void)console;
     (void)flash;
     (void)display;
+    (void)range;
+    (void)charger;
+    (void)safety;
     (void)now_ms;
 #endif
 }

@@ -64,6 +64,16 @@ lab quiet off
 lab buzzer <frequency_hz> <duration_ms>
 lab flash info
 lab flash selftest
+lab range 10r
+lab range 100r
+lab range 1k
+lab range 10k
+lab range 100k
+lab range 1m
+lab range off
+lab range status
+lab safety status
+lab charger status
 ```
 
 Artifacts are written under `Firmware/build/virtual/wokwi/`.

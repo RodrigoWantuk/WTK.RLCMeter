@@ -6,6 +6,9 @@
 
 #include "drivers/ili9341.h"
 #include "drivers/w25q.h"
+#include "hardware/hw_charger.h"
+#include "hardware/hw_range.h"
+#include "hardware/hw_safety.h"
 #include "wtk_build_config.h"
 
 enum
@@ -46,7 +49,13 @@ typedef struct
 } app_lab_console_t;
 
 void app_lab_console_init(app_lab_console_t *console);
-void app_lab_console_step(app_lab_console_t *console, w25q_device_t *flash, ili9341_t *display, uint32_t now_ms);
+void app_lab_console_step(app_lab_console_t *console,
+                          w25q_device_t *flash,
+                          ili9341_t *display,
+                          hw_range_t *range,
+                          hw_charger_t *charger,
+                          const hw_safety_result_t *safety,
+                          uint32_t now_ms);
 bool app_lab_console_flash_busy(const app_lab_console_t *console);
 
 #endif
