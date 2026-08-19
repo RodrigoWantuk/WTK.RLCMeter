@@ -68,6 +68,7 @@ add_library(wtk_firmware_common STATIC
     src/hardware/hw_excitation.c
     src/hardware/hw_metrology_raw.c
     src/hardware/hw_metrology_session.c
+    src/hardware/hw_metrology_measure.c
     src/hardware/hw_power.c
     src/hardware/hw_range.c
     src/hardware/hw_residual.c

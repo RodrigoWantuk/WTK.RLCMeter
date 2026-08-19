@@ -11,6 +11,41 @@ STATUS: IMPLEMENTED_REQUIRES_BENCH_VALIDATION
 
 Stage 1 delivers host-tested policy/contract modules, STM32 BSP for TIM1 excitation and dual-ADC DMA capture, Lab-only `lab metrology capture`, and fail-safe abort behavior. It does **not** energize K1, implement DSP, or connect production MEASURE.
 
+## Stage 2 status
+
+```text
+Stage 2 — Lab DUT measurement with K1 ownership and permit-gated energize
+STATUS: IMPLEMENTED_REQUIRES_BENCH_VALIDATION
+```
+
+Stage 2 adds `hw_metrology_measure` (host-testable FSM), Lab-only `lab metrology measure`, K1 ownership during the authorized measure window, single-use measurement permit issue/validate (5 ms TTL), and Stage 1 session closure fixes (cleanup fault latching, transient ADC restore handling). It does **not** implement DSP, autorange, product short-OK, or K2 changes.
+
+### Stage 2 DUT measure contract
+
+```text
+Mode: DUT_MEASURE only (raw capture remains hw_metrology_session / lab metrology capture)
+K1_OPERATE_GUARD_MS = 10
+K1_RELEASE_GUARD_MS = 8
+Permit: hw_measure_permit_issue/validate, single-use, TTL 5 ms, issued after neutral settle
+K1 request: hw_k1_request_measure only after successful permit validate in same attempt
+Shell K1 policy: hw_k1_force_safe skipped while hw_metrology_measure_k1_owned()
+Success tail: DMA stop → excitation NEUTRAL → 1 ms → K1 SAFE → 8 ms release guard → excitation OFF
+Emergency abort during K1 MEASURE: stop ADC/TIM2, excitation OFF immediately, K1 SAFE, range disable,
+  8 ms release guard if K1 reached MEASURE before aux resume, quiet off after hazardous cleanup
+Dynamic blockers during K1 MEASURE: fault mask, charger != ABSENT, range not READY/wrong id, exc/ADC DMA error
+No abort for residual UNKNOWN/stale while aux is paused
+Cleanup faults: K1_IO, RANGE_IO, ADC_RUNTIME, METROLOGY_RUNTIME latched per return status; primary session error preserved
+Transient ADC restore: first failure latches ADC_RUNTIME permanently; later success may resume aux but block.valid=false
+```
+
+Lab command:
+
+```text
+lab metrology measure <100|1k|10k> <100m|500m> <10r|100r|1k|10k|100k|1m>
+```
+
+Capture and measure are mutually exclusive. Raw dump header includes `mode=DUT_MEASURE` and permit/guard metadata when applicable.
+
 ## Authoritative Rev.1 Stage 1 Metrology Contract
 
 The following values are frozen for Rev.1 Stage 1. Future stages must not silently change them.

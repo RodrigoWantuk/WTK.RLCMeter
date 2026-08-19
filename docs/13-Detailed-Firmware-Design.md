@@ -344,6 +344,30 @@ lab metrology capture <100|1k|10k> <100m|500m> <10r|100r|1k|10k|100k|1m>
 
 Non-blocking session FSM; K1 forced SAFE throughout; UART raw dump after excitation OFF and quiet released. Never consumes measurement permit.
 
+Lab build only (Stage 2):
+
+```text
+lab metrology measure <100|1k|10k> <100m|500m> <10r|100r|1k|10k|100k|1m>
+```
+
+Stage 2 module: `hw_metrology_measure`. DUT measure FSM reuses the Stage 1 raw buffer and transport contract but energizes K1 only after single-use permit validate. `app_shell` skips global `hw_k1_force_safe()` while `hw_metrology_measure_k1_owned()`; dynamic blockers inside the measure FSM handle emergency abort during K1 MEASURE. Capture (`hw_metrology_session`) and measure are mutually exclusive in the lab console.
+
+### K1 ownership and permit lifecycle (Stage 2)
+
+```text
+Global shell: hw_k1_force_safe() each safety tick unless measure module owns K1
+Ownership window: from K1 request through operate guard, MEASURE, neutral post-capture, K1 SAFE, release guard
+Permit issue: after range READY, excitation NEUTRAL, 1 ms settle, quiet ON — uses pre-permit sensor evidence
+Permit validate: immediately before aux pause / K1 request; consumed single-use; TTL 5 ms
+hw_k1_request_measure(): builds hw_safety_input_t from pre-permit issue evidence
+Success shutdown: neutral excitation before K1 SAFE (not immediate OFF)
+Abort during MEASURE: excitation OFF immediately; 8 ms release guard before aux resume if K1 reached MEASURE
+```
+
+### Session closure fixes (Stage 1, Stage 2)
+
+Cleanup return statuses latch `APP_SAFETY_FAULT_K1_IO`, `RANGE_IO`, `ADC_RUNTIME`, or `METROLOGY_RUNTIME` as appropriate. Primary session/measure error is preserved during cleanup except when aux-restore is the secondary failure. First ADC restore failure sets `adc_restore_failed` and prevents dumpable results even if DMA succeeded or a later restore succeeds.
+
 ## `src/measurement`
 
 The metrology core should be predominantly pure/testable C.

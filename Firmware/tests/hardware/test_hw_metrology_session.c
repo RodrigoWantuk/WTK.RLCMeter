@@ -22,8 +22,15 @@ typedef struct
     bool exc_dma_error;
     uint32_t k1_measure_calls;
     uint32_t runtime_faults;
+    uint32_t k1_faults;
+    uint32_t range_faults;
+    uint32_t metrology_faults;
     uint32_t restore_calls;
     uint32_t resume_calls;
+    bool restore_transient;
+    bool exc_off_fail;
+    bool k1_safe_fail;
+    bool range_disable_fail;
     hw_metrology_session_state_t seen[64];
     uint32_t seen_count;
     bool k1_unsafe_during_run;
@@ -68,6 +75,10 @@ static void record_state(fake_io_t *fake, hw_metrology_session_state_t state)
 static bsp_status_t fake_k1_safe(void *user)
 {
     fake_io_t *fake = (fake_io_t *)user;
+    if (fake->k1_safe_fail)
+    {
+        return BSP_STATUS_ERROR;
+    }
     fake->k1 = HW_K1_STATE_SAFE;
     return BSP_STATUS_OK;
 }
@@ -110,7 +121,12 @@ static bool fake_range_ready(void *user)
 
 static bsp_status_t fake_range_disable(void *user)
 {
-    ((fake_io_t *)user)->range_ready = false;
+    fake_io_t *fake = (fake_io_t *)user;
+    if (fake->range_disable_fail)
+    {
+        return BSP_STATUS_ERROR;
+    }
+    fake->range_ready = false;
     return BSP_STATUS_OK;
 }
 
@@ -168,7 +184,15 @@ static bsp_status_t fake_adc_restore(uint32_t now_ms, void *user)
     (void)now_ms;
     fake_io_t *fake = (fake_io_t *)user;
     fake->restore_calls++;
-    return fake->restore_fail ? BSP_STATUS_ERROR : BSP_STATUS_OK;
+    if (fake->restore_fail)
+    {
+        return BSP_STATUS_ERROR;
+    }
+    if (fake->restore_transient && (fake->restore_calls == 1u))
+    {
+        return BSP_STATUS_ERROR;
+    }
+    return BSP_STATUS_OK;
 }
 
 static bool fake_dma_complete(void *user)
@@ -183,7 +207,12 @@ static bool fake_dma_error(void *user)
 
 static bsp_status_t fake_exc_off(void *user)
 {
-    ((fake_io_t *)user)->exc = HW_EXCITATION_MODE_OFF;
+    fake_io_t *fake = (fake_io_t *)user;
+    if (fake->exc_off_fail)
+    {
+        return BSP_STATUS_ERROR;
+    }
+    fake->exc = HW_EXCITATION_MODE_OFF;
     return BSP_STATUS_OK;
 }
 
@@ -227,9 +256,24 @@ static hw_charger_state_t fake_charger(void *user)
     return HW_CHARGER_ABSENT;
 }
 
-static void fake_latch(void *user)
+static void fake_latch_adc(void *user)
 {
     ((fake_io_t *)user)->runtime_faults++;
+}
+
+static void fake_latch_k1(void *user)
+{
+    ((fake_io_t *)user)->k1_faults++;
+}
+
+static void fake_latch_range(void *user)
+{
+    ((fake_io_t *)user)->range_faults++;
+}
+
+static void fake_latch_metrology(void *user)
+{
+    ((fake_io_t *)user)->metrology_faults++;
 }
 
 static void bind_io(hw_metrology_session_io_t *io, fake_io_t *fake)
@@ -255,7 +299,10 @@ static void bind_io(hw_metrology_session_io_t *io, fake_io_t *fake)
     io->excitation_mode = fake_exc_mode;
     io->excitation_dma_error = fake_exc_dma_error;
     io->charger_state = fake_charger;
-    io->latch_adc_runtime_fault = fake_latch;
+    io->latch_k1_io_fault = fake_latch_k1;
+    io->latch_range_io_fault = fake_latch_range;
+    io->latch_adc_runtime_fault = fake_latch_adc;
+    io->latch_metrology_runtime_fault = fake_latch_metrology;
     io->user = fake;
 }
 
@@ -462,6 +509,55 @@ int main(void)
     failures += expect_true(fake.runtime_faults > 0u, "restore latches ADC runtime");
     failures += expect_true(fake.resume_calls == 0u, "restore fail does not resume");
     failures += expect_true(fake.k1 == HW_K1_STATE_SAFE && fake.exc == HW_EXCITATION_MODE_OFF, "restore fail safe");
+
+    fake = (fake_io_t){0};
+    fake.k1 = HW_K1_STATE_SAFE;
+    fake.exc = HW_EXCITATION_MODE_OFF;
+    fake.restore_transient = true;
+    bind_io(&io, &fake);
+    (void)hw_metrology_session_init(&session, &io, raw, HW_METROLOGY_RAW_WORD_COUNT);
+    now = 0u;
+    (void)hw_metrology_session_start(&session, &request, now);
+    (void)run_until_idle(&session, &fake, &now);
+    failures += expect_true(hw_metrology_session_error(&session) == HW_METROLOGY_SESSION_ERR_AUX_RESTORE,
+                            "transient restore error");
+    failures += expect_true(fake.runtime_faults > 0u, "transient restore latches ADC");
+    failures += expect_true(fake.restore_calls >= 2u, "transient restore retried in cleanup");
+    failures += expect_true(fake.resume_calls > 0u, "transient restore cleanup resumes aux");
+    failures += expect_true(!hw_metrology_session_dumpable(&session), "transient restore not dumpable");
+
+    fake = (fake_io_t){0};
+    fake.k1 = HW_K1_STATE_SAFE;
+    fake.exc = HW_EXCITATION_MODE_OFF;
+    fake.exc_off_fail = true;
+    bind_io(&io, &fake);
+    (void)hw_metrology_session_init(&session, &io, raw, HW_METROLOGY_RAW_WORD_COUNT);
+    now = 0u;
+    (void)hw_metrology_session_start(&session, &request, now);
+    (void)run_until_idle(&session, &fake, &now);
+    failures += expect_true(fake.metrology_faults > 0u, "exc off fail latches metrology runtime");
+
+    fake = (fake_io_t){0};
+    fake.k1 = HW_K1_STATE_SAFE;
+    fake.exc = HW_EXCITATION_MODE_OFF;
+    fake.range_disable_fail = true;
+    bind_io(&io, &fake);
+    (void)hw_metrology_session_init(&session, &io, raw, HW_METROLOGY_RAW_WORD_COUNT);
+    now = 0u;
+    (void)hw_metrology_session_start(&session, &request, now);
+    (void)run_until_idle(&session, &fake, &now);
+    failures += expect_true(fake.range_faults > 0u, "range disable fail latches range IO");
+
+    fake = (fake_io_t){0};
+    fake.k1 = HW_K1_STATE_SAFE;
+    fake.exc = HW_EXCITATION_MODE_OFF;
+    fake.k1_safe_fail = true;
+    bind_io(&io, &fake);
+    (void)hw_metrology_session_init(&session, &io, raw, HW_METROLOGY_RAW_WORD_COUNT);
+    now = 0u;
+    (void)hw_metrology_session_start(&session, &request, now);
+    (void)run_until_idle(&session, &fake, &now);
+    failures += expect_true(fake.k1_faults > 0u, "k1 safe fail latches K1 IO");
 
     return (failures == 0) ? 0 : 1;
 }

@@ -21,7 +21,7 @@
 #include "hardware/hw_aux_sensors.h"
 #include "hardware/hw_buzzer.h"
 #include "hardware/hw_charger.h"
-#include "hardware/hw_k1.h"
+#include "hardware/hw_metrology_measure.h"
 #include "hardware/hw_k2.h"
 #include "hardware/hw_metrology_clock.h"
 #include "hardware/hw_range.h"
@@ -223,8 +223,11 @@ static void app_update_safety_state(void)
         g_safety_state = APP_SAFETY_WAIT_SAFE;
     }
 
-    const bsp_status_t k1_safe_status = hw_k1_force_safe(&g_k1);
-    app_record_status_fault(k1_safe_status, APP_SAFETY_FAULT_K1_IO);
+    if (!hw_metrology_measure_k1_owned())
+    {
+        const bsp_status_t k1_safe_status = hw_k1_force_safe(&g_k1);
+        app_record_status_fault(k1_safe_status, APP_SAFETY_FAULT_K1_IO);
+    }
 
     const uint32_t range_kill_faults =
         app_safety_fault_mask(&g_safety_faults) & ~(uint32_t)APP_SAFETY_FAULT_CLOCK;

@@ -89,7 +89,10 @@ typedef struct
     hw_excitation_mode_t (*excitation_mode)(void *user);
     bool (*excitation_dma_error)(void *user);
     hw_charger_state_t (*charger_state)(void *user);
+    void (*latch_k1_io_fault)(void *user);
+    void (*latch_range_io_fault)(void *user);
     void (*latch_adc_runtime_fault)(void *user);
+    void (*latch_metrology_runtime_fault)(void *user);
     void *user;
 } hw_metrology_session_io_t;
 
@@ -120,6 +123,7 @@ typedef struct
     bool adc_owned;
     bool k1_left_safe;
     bool dumpable;
+    bool adc_restore_failed;
 } hw_metrology_session_t;
 
 bsp_status_t hw_metrology_session_init(hw_metrology_session_t *session,

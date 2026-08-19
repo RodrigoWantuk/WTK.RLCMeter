@@ -269,6 +269,18 @@ K1 is fail-safe and the residual-voltage detector sits in front of the measureme
 
 The current goal is to detect/tolerate residual voltage in the approximate ±100 V observation envelope, not to measure energized high voltage.
 
+### Rev.1 Stage 2 K1 guards and permit (Phase 05)
+
+```text
+K1_OPERATE_GUARD_MS = 10   (REQUIRES_BENCH_VALIDATION)
+K1_RELEASE_GUARD_MS = 8    (REQUIRES_BENCH_VALIDATION)
+HW_MEASURE_PERMIT_TTL_MS = 5
+```
+
+Lab DUT measure (`hw_metrology_measure`) issues the measurement permit after excitation NEUTRAL settle and quiet entry; validate is consumed immediately before `hw_k1_request_measure()`. The application shell continues global safety evaluation but skips `hw_k1_force_safe()` while the measure module owns K1. Successful measure shutdown returns excitation to NEUTRAL for 1 ms before commanding K1 SAFE; emergency abort during K1 MEASURE commands excitation OFF immediately. After K1 returns SAFE, the 8 ms release guard must complete before auxiliary ADC resume when K1 had reached MEASURE.
+
+Raw capture (`hw_metrology_session`, `lab metrology capture`) keeps K1 SAFE and does not consume a permit.
+
 ## High voltage as a future feature
 
 Direct AC measurement around 400 Vrms and DC measurement around 600–800 V have been discussed as future capabilities, but they are **not part of Rev.1**. A future implementation requires a dedicated front-end, connectors, protection, clearance/creepage analysis, and a new safety review.

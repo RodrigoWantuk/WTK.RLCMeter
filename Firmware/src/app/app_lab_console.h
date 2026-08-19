@@ -10,6 +10,7 @@
 #include "hardware/hw_aux_sensors.h"
 #include "hardware/hw_charger.h"
 #include "hardware/hw_k1.h"
+#include "hardware/hw_metrology_measure.h"
 #include "hardware/hw_metrology_session.h"
 #include "hardware/hw_range.h"
 #include "hardware/hw_safety.h"
@@ -37,6 +38,13 @@ typedef enum
     APP_LAB_FLASH_TEST_ERROR,
 } app_lab_flash_test_state_t;
 
+typedef enum
+{
+    APP_LAB_METROLOGY_DUMP_NONE = 0,
+    APP_LAB_METROLOGY_DUMP_CAPTURE,
+    APP_LAB_METROLOGY_DUMP_MEASURE,
+} app_lab_metrology_dump_source_t;
+
 typedef struct
 {
 #if WTK_ENABLE_LAB_DIAGNOSTICS
@@ -48,6 +56,8 @@ typedef struct
     uint8_t readback[APP_LAB_FLASH_TEST_SIZE];
     bool busy_observed;
     hw_metrology_session_t session;
+    hw_metrology_measure_t measure;
+    app_lab_metrology_dump_source_t dump_source;
     uint16_t dump_row;
     bool dump_active;
     uint16_t ccr_table[HW_EXCITATION_LUT_POINTS];

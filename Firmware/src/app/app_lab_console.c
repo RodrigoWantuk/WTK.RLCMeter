@@ -22,6 +22,7 @@
 #include "hardware/hw_metrology_raw.h"
 #include "hardware/hw_safety.h"
 #include "bsp/bsp_clock.h"
+#include "bsp/bsp_time.h"
 #include "bsp/bsp_excitation.h"
 #include "bsp/bsp_metrology_adc.h"
 #include "wtk_build_config.h"
@@ -719,6 +720,114 @@ static void lab_latch_adc_runtime_fault(void *user)
     }
 }
 
+static void lab_latch_k1_io_fault(void *user)
+{
+    app_lab_console_t *console = (app_lab_console_t *)user;
+    if (console->faults_ref != NULL)
+    {
+        app_safety_fault_latch(console->faults_ref, APP_SAFETY_FAULT_K1_IO);
+    }
+}
+
+static void lab_latch_range_io_fault(void *user)
+{
+    app_lab_console_t *console = (app_lab_console_t *)user;
+    if (console->faults_ref != NULL)
+    {
+        app_safety_fault_latch(console->faults_ref, APP_SAFETY_FAULT_RANGE_IO);
+    }
+}
+
+static void lab_latch_metrology_runtime_fault(void *user)
+{
+    app_lab_console_t *console = (app_lab_console_t *)user;
+    if (console->faults_ref != NULL)
+    {
+        app_safety_fault_latch(console->faults_ref, APP_SAFETY_FAULT_METROLOGY_RUNTIME);
+    }
+}
+
+static bsp_status_t lab_k1_request_measure(const hw_safety_result_t *permission, void *user)
+{
+    app_lab_console_t *console = (app_lab_console_t *)user;
+    if ((console == NULL) || (console->k1_ref == NULL))
+    {
+        return BSP_STATUS_INVALID_ARG;
+    }
+    return hw_k1_request_measure(console->k1_ref, permission);
+}
+
+static hw_range_id_t lab_range_current_id(void *user)
+{
+    app_lab_console_t *console = (app_lab_console_t *)user;
+    if ((console == NULL) || (console->range_ref == NULL))
+    {
+        return HW_RANGE_ID_INVALID;
+    }
+    return hw_range_get_current(console->range_ref);
+}
+
+static hw_safety_range_state_t lab_range_safety_state(void *user)
+{
+    app_lab_console_t *console = (app_lab_console_t *)user;
+    if ((console == NULL) || (console->range_ref == NULL))
+    {
+        return HW_RANGE_INVALID;
+    }
+    return hw_range_safety_state(console->range_ref);
+}
+
+static uint32_t lab_safety_fault_mask(void *user)
+{
+    app_lab_console_t *console = (app_lab_console_t *)user;
+    if ((console == NULL) || (console->faults_ref == NULL))
+    {
+        return 0u;
+    }
+    return app_safety_fault_mask(console->faults_ref);
+}
+
+static bsp_status_t lab_permit_issue_input(hw_measure_permit_issue_input_t *input, void *user)
+{
+    app_lab_console_t *console = (app_lab_console_t *)user;
+    if ((console == NULL) || (input == NULL) || (console->range_ref == NULL) ||
+        (console->charger_ref == NULL) || (console->sensors_ref == NULL) || (console->k1_ref == NULL))
+    {
+        return BSP_STATUS_INVALID_ARG;
+    }
+
+    hw_aux_sensors_snapshot_t snapshot;
+    const uint32_t now_ms = bsp_time_now_ms();
+    hw_aux_sensors_snapshot(console->sensors_ref, now_ms, &snapshot);
+    input->charger = hw_charger_get_state(console->charger_ref);
+    input->residual = snapshot.residual_state;
+    input->residual_age_ms = snapshot.residual_age_ms;
+    input->battery = snapshot.battery_state;
+    input->battery_age_ms = snapshot.battery_age_ms;
+    input->range = hw_range_safety_state(console->range_ref);
+    input->range_id = hw_range_get_current(console->range_ref);
+    input->k1_state = hw_k1_commanded_state(console->k1_ref);
+    input->safety_fault_mask = lab_safety_fault_mask(user);
+    return BSP_STATUS_OK;
+}
+
+static bsp_status_t lab_permit_validate_input(hw_measure_permit_validate_input_t *input, void *user)
+{
+    app_lab_console_t *console = (app_lab_console_t *)user;
+    if ((console == NULL) || (input == NULL) || (console->range_ref == NULL) ||
+        (console->charger_ref == NULL) || (console->k1_ref == NULL))
+    {
+        return BSP_STATUS_INVALID_ARG;
+    }
+
+    input->charger = hw_charger_get_state(console->charger_ref);
+    input->range = hw_range_safety_state(console->range_ref);
+    input->range_id = hw_range_get_current(console->range_ref);
+    input->k1_state = hw_k1_commanded_state(console->k1_ref);
+    input->safety_fault_mask = lab_safety_fault_mask(user);
+    return BSP_STATUS_OK;
+}
+
 static void lab_bind_refs(app_lab_console_t *console,
                           hw_range_t *range,
                           hw_charger_t *charger,
@@ -757,10 +866,55 @@ static bsp_status_t lab_init_metrology_session(app_lab_console_t *console)
         .excitation_mode = lab_excitation_mode,
         .excitation_dma_error = lab_excitation_dma_error,
         .charger_state = lab_charger_state,
+        .latch_k1_io_fault = lab_latch_k1_io_fault,
+        .latch_range_io_fault = lab_latch_range_io_fault,
         .latch_adc_runtime_fault = lab_latch_adc_runtime_fault,
+        .latch_metrology_runtime_fault = lab_latch_metrology_runtime_fault,
         .user = console,
     };
     return hw_metrology_session_init(&console->session,
+                                     &io,
+                                     bsp_metrology_adc_raw_words(),
+                                     HW_METROLOGY_RAW_WORD_COUNT);
+}
+
+static bsp_status_t lab_init_metrology_measure(app_lab_console_t *console)
+{
+    const hw_metrology_measure_io_t io = {
+        .k1_force_safe = lab_k1_force_safe,
+        .k1_request_measure = lab_k1_request_measure,
+        .k1_commanded_state = lab_k1_commanded_state,
+        .range_request = lab_range_request,
+        .range_step = lab_range_step,
+        .range_is_ready = lab_range_is_ready,
+        .range_current_id = lab_range_current_id,
+        .range_safety_state = lab_range_safety_state,
+        .range_force_disabled = lab_range_force_disabled,
+        .quiet_request = lab_quiet_request,
+        .aux_pause = lab_aux_pause,
+        .aux_resume = lab_aux_resume,
+        .adc_acquire = lab_adc_acquire,
+        .adc_start_capture = lab_adc_start_capture,
+        .adc_stop = lab_adc_stop,
+        .adc_restore = lab_adc_restore,
+        .adc_dma_complete = lab_adc_dma_complete,
+        .adc_dma_error = lab_adc_dma_error,
+        .excitation_off = lab_excitation_off,
+        .excitation_neutral = lab_excitation_neutral,
+        .excitation_sine = lab_excitation_sine,
+        .excitation_mode = lab_excitation_mode,
+        .excitation_dma_error = lab_excitation_dma_error,
+        .charger_state = lab_charger_state,
+        .safety_fault_mask = lab_safety_fault_mask,
+        .permit_issue_input = lab_permit_issue_input,
+        .permit_validate_input = lab_permit_validate_input,
+        .latch_k1_io_fault = lab_latch_k1_io_fault,
+        .latch_range_io_fault = lab_latch_range_io_fault,
+        .latch_adc_runtime_fault = lab_latch_adc_runtime_fault,
+        .latch_metrology_runtime_fault = lab_latch_metrology_runtime_fault,
+        .user = console,
+    };
+    return hw_metrology_measure_init(&console->measure,
                                      &io,
                                      bsp_metrology_adc_raw_words(),
                                      HW_METROLOGY_RAW_WORD_COUNT);
@@ -838,13 +992,72 @@ static bool parse_capture_tokens(const char *line,
            hw_excitation_parse_range_token(range_token, range_id);
 }
 
+static bool parse_measure_tokens(const char *line,
+                                 hw_excitation_freq_t *frequency,
+                                 hw_excitation_amp_t *amplitude,
+                                 hw_range_id_t *range_id)
+{
+    if (!text_starts_with(line, "lab metrology measure "))
+    {
+        return false;
+    }
+
+    const char *cursor = line + 22;
+    char freq_token[8] = {0};
+    char amp_token[8] = {0};
+    char range_token[8] = {0};
+    size_t index = 0u;
+
+    while ((*cursor != '\0') && (*cursor != ' ') && (index < (sizeof(freq_token) - 1u)))
+    {
+        freq_token[index++] = *cursor++;
+    }
+    if (*cursor != ' ')
+    {
+        return false;
+    }
+    cursor++;
+    index = 0u;
+    while ((*cursor != '\0') && (*cursor != ' ') && (index < (sizeof(amp_token) - 1u)))
+    {
+        amp_token[index++] = *cursor++;
+    }
+    if (*cursor != ' ')
+    {
+        return false;
+    }
+    cursor++;
+    index = 0u;
+    while ((*cursor != '\0') && (*cursor != ' ') && (index < (sizeof(range_token) - 1u)))
+    {
+        range_token[index++] = *cursor++;
+    }
+    if (*cursor != '\0')
+    {
+        return false;
+    }
+
+    return hw_excitation_parse_freq_token(freq_token, frequency) &&
+           hw_excitation_parse_amp_token(amp_token, amplitude) &&
+           hw_excitation_parse_range_token(range_token, range_id);
+}
+
+static bool lab_metrology_busy(const app_lab_console_t *console)
+{
+    return hw_metrology_session_active(&console->session) ||
+           hw_metrology_measure_active(&console->measure) ||
+           console->dump_active ||
+           (hw_metrology_session_state(&console->session) == HW_METROLOGY_SESSION_DONE) ||
+           (hw_metrology_measure_state(&console->measure) == HW_METROLOGY_MEASURE_DONE);
+}
+
 static void lab_start_metrology_capture(app_lab_console_t *console,
                                         hw_excitation_freq_t frequency,
                                         hw_excitation_amp_t amplitude,
                                         hw_range_id_t range_id,
                                         uint32_t now_ms)
 {
-    if (hw_metrology_session_active(&console->session) || console->dump_active)
+    if (lab_metrology_busy(console))
     {
         write_text("lab metrology: BUSY\r\n");
         return;
@@ -880,6 +1093,91 @@ static void lab_start_metrology_capture(app_lab_console_t *console,
     write_text("lab metrology: INVALID_ARG\r\n");
 }
 
+static void lab_start_metrology_measure(app_lab_console_t *console,
+                                        hw_excitation_freq_t frequency,
+                                        hw_excitation_amp_t amplitude,
+                                        hw_range_id_t range_id,
+                                        uint32_t now_ms)
+{
+    if (lab_metrology_busy(console))
+    {
+        write_text("lab metrology: BUSY\r\n");
+        return;
+    }
+
+    const bsp_clock_summary_t *clock = bsp_clock_get_summary();
+    const bsp_status_t clock_status =
+        hw_metrology_clock_ready(clock, BSP_STATUS_OK) ? BSP_STATUS_OK : BSP_STATUS_ERROR;
+    const hw_metrology_measure_request_t request = {
+        .clock_summary = clock,
+        .clock_init_status = clock_status,
+        .frequency = frequency,
+        .amplitude = amplitude,
+        .range_id = range_id,
+    };
+
+    const bsp_status_t status = hw_metrology_measure_start(&console->measure, &request, now_ms);
+    if (status == BSP_STATUS_BUSY)
+    {
+        write_text("lab metrology: START\r\n");
+        return;
+    }
+    if (status == BSP_STATUS_NOT_SUPPORTED)
+    {
+        write_text("lab metrology: FORBIDDEN_AMPLITUDE\r\n");
+        return;
+    }
+    if (status == BSP_STATUS_ERROR)
+    {
+        write_text("lab metrology: CLOCK_NOT_READY\r\n");
+        return;
+    }
+    write_text("lab metrology: INVALID_ARG\r\n");
+}
+
+static const char *lab_metrology_mode_string(hw_metrology_mode_t mode)
+{
+    switch (mode)
+    {
+    case HW_METROLOGY_MODE_DUT_MEASURE:
+        return "DUT_MEASURE";
+    case HW_METROLOGY_MODE_CAPTURE:
+    default:
+        return "CAPTURE";
+    }
+}
+
+static void lab_dump_metrology_header(const hw_metrology_block_t *block)
+{
+    write_text("METROLOGY_RAW_BEGIN v=1\r\n");
+    write_text("mode=");
+    write_text(lab_metrology_mode_string(block->mode));
+    write_text("\r\nfrequency_hz=");
+    write_u32(block->excitation_frequency_hz);
+    write_text("\r\namplitude_mvrms=");
+    write_u32(block->requested_amplitude_mvrms);
+    write_text("\r\nrange=");
+    write_text(lab_range_dump_token(block->range_id));
+    write_text("\r\nsample_rate_hz=");
+    write_u32(block->sample_rate_hz);
+    write_text("\r\nsamples=");
+    write_u32(block->sample_count);
+    write_text("\r\nwords_per_sample=");
+    write_u32(block->words_per_sample);
+    if (block->dut_measure)
+    {
+        write_text("\r\npermit_issue_ms=");
+        write_u32(block->permit_issue_ms);
+        write_text("\r\npermit_validate_ms=");
+        write_u32(block->permit_validate_ms);
+        write_text("\r\nk1_operate_guard_ms=");
+        write_u32(block->k1_operate_guard_ms);
+        write_text("\r\nk1_release_guard_ms=");
+        write_u32(block->k1_release_guard_ms);
+    }
+    write_text("\r\nindex,vexc1,ret1x,vexc2,rethg,vmid_adc1,vmid_adc2\r\n");
+}
+
 static void lab_dump_raw_row(const hw_metrology_block_t *block, uint16_t row)
 {
     hw_metrology_sample_t sample;
@@ -904,33 +1202,62 @@ static void lab_dump_raw_row(const hw_metrology_block_t *block, uint16_t row)
     write_text("\r\n");
 }
 
-static void lab_step_metrology_capture(app_lab_console_t *console, uint32_t now_ms)
+static const hw_metrology_block_t *lab_active_dump_block(const app_lab_console_t *console)
 {
-    if (console->dump_active)
+    if (console->dump_source == APP_LAB_METROLOGY_DUMP_MEASURE)
     {
-        const hw_metrology_block_t *block = hw_metrology_session_block(&console->session);
-        if (block == NULL)
-        {
-            console->dump_active = false;
-            hw_metrology_session_acknowledge(&console->session);
-            return;
-        }
+        return hw_metrology_measure_block(&console->measure);
+    }
+    if (console->dump_source == APP_LAB_METROLOGY_DUMP_CAPTURE)
+    {
+        return hw_metrology_session_block(&console->session);
+    }
+    return NULL;
+}
 
-        for (uint8_t burst = 0u; burst < 16u; burst++)
-        {
-            if (console->dump_row >= block->sample_count)
-            {
-                write_text("METROLOGY_RAW_END status=OK\r\n");
-                console->dump_active = false;
-                hw_metrology_session_acknowledge(&console->session);
-                return;
-            }
-            lab_dump_raw_row(block, console->dump_row);
-            console->dump_row++;
-        }
+static void lab_metrology_dump_acknowledge(app_lab_console_t *console)
+{
+    if (console->dump_source == APP_LAB_METROLOGY_DUMP_MEASURE)
+    {
+        hw_metrology_measure_acknowledge(&console->measure);
+    }
+    else if (console->dump_source == APP_LAB_METROLOGY_DUMP_CAPTURE)
+    {
+        hw_metrology_session_acknowledge(&console->session);
+    }
+    console->dump_source = APP_LAB_METROLOGY_DUMP_NONE;
+    console->dump_active = false;
+}
+
+static void lab_step_metrology_dump(app_lab_console_t *console)
+{
+    if (!console->dump_active)
+    {
         return;
     }
 
+    const hw_metrology_block_t *block = lab_active_dump_block(console);
+    if (block == NULL)
+    {
+        lab_metrology_dump_acknowledge(console);
+        return;
+    }
+
+    for (uint8_t burst = 0u; burst < 16u; burst++)
+    {
+        if (console->dump_row >= block->sample_count)
+        {
+            write_text("METROLOGY_RAW_END status=OK\r\n");
+            lab_metrology_dump_acknowledge(console);
+            return;
+        }
+        lab_dump_raw_row(block, console->dump_row);
+        console->dump_row++;
+    }
+}
+
+static void lab_step_metrology_capture(app_lab_console_t *console, uint32_t now_ms)
+{
     if (!hw_metrology_session_active(&console->session) &&
         (hw_metrology_session_state(&console->session) != HW_METROLOGY_SESSION_DONE))
     {
@@ -943,21 +1270,9 @@ static void lab_step_metrology_capture(app_lab_console_t *console, uint32_t now_
         if (hw_metrology_session_dumpable(&console->session))
         {
             const hw_metrology_block_t *block = hw_metrology_session_block(&console->session);
-            write_text("METROLOGY_RAW_BEGIN v=1\r\n");
-            write_text("frequency_hz=");
-            write_u32(block->excitation_frequency_hz);
-            write_text("\r\namplitude_mvrms=");
-            write_u32(block->requested_amplitude_mvrms);
-            write_text("\r\nrange=");
-            write_text(lab_range_dump_token(block->range_id));
-            write_text("\r\nsample_rate_hz=");
-            write_u32(block->sample_rate_hz);
-            write_text("\r\nsamples=");
-            write_u32(block->sample_count);
-            write_text("\r\nwords_per_sample=");
-            write_u32(block->words_per_sample);
-            write_text("\r\nindex,vexc1,ret1x,vexc2,rethg,vmid_adc1,vmid_adc2\r\n");
+            lab_dump_metrology_header(block);
             console->dump_row = 0u;
+            console->dump_source = APP_LAB_METROLOGY_DUMP_CAPTURE;
             console->dump_active = true;
         }
         else
@@ -979,6 +1294,56 @@ static void lab_step_metrology_capture(app_lab_console_t *console, uint32_t now_
     }
 }
 
+static void lab_step_metrology_measure(app_lab_console_t *console, uint32_t now_ms)
+{
+    if (!hw_metrology_measure_active(&console->measure) &&
+        (hw_metrology_measure_state(&console->measure) != HW_METROLOGY_MEASURE_DONE))
+    {
+        return;
+    }
+
+    const bsp_status_t status = hw_metrology_measure_step(&console->measure, now_ms);
+    if (hw_metrology_measure_state(&console->measure) == HW_METROLOGY_MEASURE_DONE)
+    {
+        if (hw_metrology_measure_dumpable(&console->measure))
+        {
+            const hw_metrology_block_t *block = hw_metrology_measure_block(&console->measure);
+            lab_dump_metrology_header(block);
+            console->dump_row = 0u;
+            console->dump_source = APP_LAB_METROLOGY_DUMP_MEASURE;
+            console->dump_active = true;
+        }
+        else
+        {
+            write_text("lab metrology: ERROR ");
+            write_text(hw_metrology_measure_error_string(hw_metrology_measure_error(&console->measure)));
+            write_text("\r\n");
+            hw_metrology_measure_acknowledge(&console->measure);
+        }
+        (void)status;
+        return;
+    }
+
+    if ((status == BSP_STATUS_ERROR) && !hw_metrology_measure_active(&console->measure))
+    {
+        write_text("lab metrology: ERROR ");
+        write_text(hw_metrology_measure_error_string(hw_metrology_measure_error(&console->measure)));
+        write_text("\r\n");
+    }
+}
+
+static void lab_step_metrology(app_lab_console_t *console, uint32_t now_ms)
+{
+    if (console->dump_active)
+    {
+        lab_step_metrology_dump(console);
+        return;
+    }
+
+    lab_step_metrology_capture(console, now_ms);
+    lab_step_metrology_measure(console, now_ms);
+}
+
 static void run_command(app_lab_console_t *console,
                         w25q_device_t *flash,
                         ili9341_t *display,
@@ -996,6 +1361,9 @@ static void run_command(app_lab_console_t *console,
     hw_excitation_freq_t capture_freq = HW_EXCITATION_FREQ_INVALID;
     hw_excitation_amp_t capture_amp = HW_EXCITATION_AMP_INVALID;
     hw_range_id_t capture_range = HW_RANGE_ID_INVALID;
+    hw_excitation_freq_t measure_freq = HW_EXCITATION_FREQ_INVALID;
+    hw_excitation_amp_t measure_amp = HW_EXCITATION_AMP_INVALID;
+    hw_range_id_t measure_range = HW_RANGE_ID_INVALID;
 
     lab_bind_refs(console, range, charger, sensors, k1, faults);
 
@@ -1127,12 +1495,21 @@ static void run_command(app_lab_console_t *console,
     }
     else if (parse_capture_tokens(line, &capture_freq, &capture_amp, &capture_range))
     {
-        if (app_lab_console_flash_busy(console) || app_lab_console_capture_busy(console))
+        if (app_lab_console_flash_busy(console) || lab_metrology_busy(console))
         {
             write_text("lab metrology: BUSY\r\n");
             return;
         }
         lab_start_metrology_capture(console, capture_freq, capture_amp, capture_range, now_ms);
+    }
+    else if (parse_measure_tokens(line, &measure_freq, &measure_amp, &measure_range))
+    {
+        if (app_lab_console_flash_busy(console) || lab_metrology_busy(console))
+        {
+            write_text("lab metrology: BUSY\r\n");
+            return;
+        }
+        lab_start_metrology_measure(console, measure_freq, measure_amp, measure_range, now_ms);
     }
     else if (line[0] != '\0')
     {
@@ -1156,6 +1533,7 @@ void app_lab_console_init(app_lab_console_t *console)
     console->busy_observed = false;
     console->dump_active = false;
     console->dump_row = 0u;
+    console->dump_source = APP_LAB_METROLOGY_DUMP_NONE;
     console->range_ref = NULL;
     console->k1_ref = NULL;
     console->sensors_ref = NULL;
@@ -1166,6 +1544,7 @@ void app_lab_console_init(app_lab_console_t *console)
         console->line[i] = '\0';
     }
     (void)lab_init_metrology_session(console);
+    (void)lab_init_metrology_measure(console);
 #else
     console->unused = 0u;
 #endif
@@ -1189,7 +1568,7 @@ void app_lab_console_step(app_lab_console_t *console,
     }
 
     lab_bind_refs(console, range, charger, sensors, k1, faults);
-    lab_step_metrology_capture(console, now_ms);
+    lab_step_metrology(console, now_ms);
     step_flash_selftest(console, flash, now_ms);
 
     uint8_t byte = 0u;
@@ -1251,8 +1630,7 @@ bool app_lab_console_capture_busy(const app_lab_console_t *console)
         return false;
     }
 
-    return console->dump_active || hw_metrology_session_active(&console->session) ||
-           (hw_metrology_session_state(&console->session) == HW_METROLOGY_SESSION_DONE);
+    return lab_metrology_busy(console);
 #else
     (void)console;
     return false;

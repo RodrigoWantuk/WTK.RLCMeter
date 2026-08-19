@@ -27,12 +27,46 @@ static bsp_status_t call_status(bsp_status_t (*fn)(void *user), void *user)
     return (fn == NULL) ? BSP_STATUS_INVALID_ARG : fn(user);
 }
 
+static void latch_adc_restore_fault(hw_metrology_session_t *session)
+{
+    if (!session->adc_restore_failed)
+    {
+        session->adc_restore_failed = true;
+        if (session->io.latch_adc_runtime_fault != NULL)
+        {
+            session->io.latch_adc_runtime_fault(session->io.user);
+        }
+    }
+}
+
+static void note_adc_restore_result(hw_metrology_session_t *session, bsp_status_t restore_status)
+{
+    if (restore_status != BSP_STATUS_OK)
+    {
+        latch_adc_restore_fault(session);
+        if (session->error == HW_METROLOGY_SESSION_OK)
+        {
+            session->error = HW_METROLOGY_SESSION_ERR_AUX_RESTORE;
+        }
+    }
+}
+
 static void enter_abort(hw_metrology_session_t *session, hw_metrology_session_error_t error)
 {
-    session->error = error;
+    if (session->error == HW_METROLOGY_SESSION_OK)
+    {
+        session->error = error;
+    }
     session->state = HW_METROLOGY_SESSION_ABORT;
     session->dumpable = false;
     session->block.valid = false;
+}
+
+static void finalize_block_validity(hw_metrology_session_t *session)
+{
+    session->block.valid = session->block.dma_complete && !session->block.dma_error &&
+                           !session->block.timeout && !session->adc_restore_failed;
+    session->dumpable = session->block.valid;
 }
 
 static void fail_safe_shutdown(hw_metrology_session_t *session, uint32_t now_ms)
@@ -41,10 +75,34 @@ static void fail_safe_shutdown(hw_metrology_session_t *session, uint32_t now_ms)
     {
         session->io.adc_stop(session->io.user);
     }
-    (void)call_status(session->io.excitation_off, session->io.user);
-    (void)call_status(session->io.k1_force_safe, session->io.user);
+
+    const bsp_status_t exc_status = call_status(session->io.excitation_off, session->io.user);
+    if (exc_status != BSP_STATUS_OK)
+    {
+        if (session->io.latch_metrology_runtime_fault != NULL)
+        {
+            session->io.latch_metrology_runtime_fault(session->io.user);
+        }
+    }
+
+    const bsp_status_t k1_status = call_status(session->io.k1_force_safe, session->io.user);
+    if (k1_status != BSP_STATUS_OK)
+    {
+        if (session->io.latch_k1_io_fault != NULL)
+        {
+            session->io.latch_k1_io_fault(session->io.user);
+        }
+    }
     note_k1(session);
-    (void)call_status(session->io.range_force_disabled, session->io.user);
+
+    const bsp_status_t range_status = call_status(session->io.range_force_disabled, session->io.user);
+    if (range_status != BSP_STATUS_OK)
+    {
+        if (session->io.latch_range_io_fault != NULL)
+        {
+            session->io.latch_range_io_fault(session->io.user);
+        }
+    }
 
     if (session->adc_owned || session->aux_paused)
     {
@@ -53,23 +111,11 @@ static void fail_safe_shutdown(hw_metrology_session_t *session, uint32_t now_ms)
         {
             restore = session->io.adc_restore(now_ms, session->io.user);
         }
-        if (restore != BSP_STATUS_OK)
+        note_adc_restore_result(session, restore);
+        session->adc_owned = false;
+        if ((restore == BSP_STATUS_OK) && session->aux_paused && (session->io.aux_resume != NULL))
         {
-            session->error = HW_METROLOGY_SESSION_ERR_AUX_RESTORE;
-            if (session->io.latch_adc_runtime_fault != NULL)
-            {
-                session->io.latch_adc_runtime_fault(session->io.user);
-            }
-            session->adc_owned = false;
-            /* Leave auxiliary paused; residual remains UNKNOWN. */
-        }
-        else
-        {
-            session->adc_owned = false;
-            if (session->aux_paused && (session->io.aux_resume != NULL))
-            {
-                session->io.aux_resume(now_ms, session->io.user);
-            }
+            session->io.aux_resume(now_ms, session->io.user);
             session->aux_paused = false;
         }
     }
@@ -81,13 +127,21 @@ static void fail_safe_shutdown(hw_metrology_session_t *session, uint32_t now_ms)
     }
 
     note_k1(session);
+    session->dumpable = false;
+    session->block.valid = false;
 }
 
 static void prepare_block_metadata(hw_metrology_session_t *session)
 {
     hw_metrology_block_t *block = &session->block;
     block->valid = false;
+    block->mode = HW_METROLOGY_MODE_CAPTURE;
+    block->dut_measure = false;
     block->sequence = session->sequence;
+    block->permit_issue_ms = 0u;
+    block->permit_validate_ms = 0u;
+    block->k1_operate_guard_ms = 0u;
+    block->k1_release_guard_ms = 0u;
     block->excitation_frequency_hz = session->exc_profile.frequency_hz;
     block->requested_amplitude_mvrms = hw_excitation_amplitude_mvrms(session->request.amplitude);
     block->range_id = session->request.range_id;
@@ -158,6 +212,7 @@ bsp_status_t hw_metrology_session_init(hw_metrology_session_t *session,
     session->adc_owned = false;
     session->k1_left_safe = false;
     session->dumpable = false;
+    session->adc_restore_failed = false;
     session->block.valid = false;
     return BSP_STATUS_OK;
 }
@@ -178,6 +233,7 @@ bsp_status_t hw_metrology_session_start(hw_metrology_session_t *session,
 
     session->k1_left_safe = false;
     session->dumpable = false;
+    session->adc_restore_failed = false;
     session->error = HW_METROLOGY_SESSION_OK;
     session->block.valid = false;
 
@@ -223,6 +279,10 @@ static bsp_status_t step_success_path(hw_metrology_session_t *session, uint32_t 
     case HW_METROLOGY_SESSION_FORCE_K1_SAFE:
         if (call_status(session->io.k1_force_safe, session->io.user) != BSP_STATUS_OK)
         {
+            if (session->io.latch_k1_io_fault != NULL)
+            {
+                session->io.latch_k1_io_fault(session->io.user);
+            }
             enter_abort(session, HW_METROLOGY_SESSION_ERR_INVALID);
             break;
         }
@@ -374,6 +434,10 @@ static bsp_status_t step_success_path(hw_metrology_session_t *session, uint32_t 
     case HW_METROLOGY_SESSION_EXC_OFF:
         if (session->io.excitation_off(session->io.user) != BSP_STATUS_OK)
         {
+            if (session->io.latch_metrology_runtime_fault != NULL)
+            {
+                session->io.latch_metrology_runtime_fault(session->io.user);
+            }
             enter_abort(session, HW_METROLOGY_SESSION_ERR_EXCITATION);
             break;
         }
@@ -386,14 +450,18 @@ static bsp_status_t step_success_path(hw_metrology_session_t *session, uint32_t 
         break;
 
     case HW_METROLOGY_SESSION_AUX_RESTORE:
-        if (session->io.adc_restore(now_ms, session->io.user) != BSP_STATUS_OK)
+    {
+        const bsp_status_t restore = session->io.adc_restore(now_ms, session->io.user);
+        if (restore != BSP_STATUS_OK)
         {
+            note_adc_restore_result(session, restore);
             enter_abort(session, HW_METROLOGY_SESSION_ERR_AUX_RESTORE);
             break;
         }
         session->adc_owned = false;
         session->state = HW_METROLOGY_SESSION_AUX_RESUME;
         break;
+    }
 
     case HW_METROLOGY_SESSION_AUX_RESUME:
         session->io.aux_resume(now_ms, session->io.user);
@@ -404,6 +472,10 @@ static bsp_status_t step_success_path(hw_metrology_session_t *session, uint32_t 
     case HW_METROLOGY_SESSION_RANGE_DISABLE:
         if (session->io.range_force_disabled(session->io.user) != BSP_STATUS_OK)
         {
+            if (session->io.latch_range_io_fault != NULL)
+            {
+                session->io.latch_range_io_fault(session->io.user);
+            }
             enter_abort(session, HW_METROLOGY_SESSION_ERR_RANGE);
             break;
         }
@@ -418,9 +490,7 @@ static bsp_status_t step_success_path(hw_metrology_session_t *session, uint32_t 
 
     case HW_METROLOGY_SESSION_ANALYZE:
         hw_metrology_analyze_block(session->raw_words, HW_METROLOGY_SAMPLES_PER_BLOCK, &session->block);
-        session->block.valid = session->block.dma_complete && !session->block.dma_error &&
-                               !session->block.timeout;
-        session->dumpable = session->block.valid;
+        finalize_block_validity(session);
         session->state = HW_METROLOGY_SESSION_DONE;
         break;
 

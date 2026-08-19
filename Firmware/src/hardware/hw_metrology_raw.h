@@ -35,6 +35,12 @@ _Static_assert(HW_METROLOGY_CLIP_HIGH_MIN == 4079u, "frozen high rail");
 
 typedef enum
 {
+    HW_METROLOGY_MODE_CAPTURE = 0,
+    HW_METROLOGY_MODE_DUT_MEASURE,
+} hw_metrology_mode_t;
+
+typedef enum
+{
     HW_METROLOGY_STREAM_VEXC_1 = 0,
     HW_METROLOGY_STREAM_RET_1X,
     HW_METROLOGY_STREAM_VEXC_2,
@@ -74,11 +80,17 @@ typedef struct
 typedef struct
 {
     bool valid;
+    hw_metrology_mode_t mode;
+    bool dut_measure;
     uint32_t sequence;
     uint32_t excitation_frequency_hz;
     uint16_t requested_amplitude_mvrms;
     hw_range_id_t range_id;
     hw_charger_state_t charger;
+    uint32_t permit_issue_ms;
+    uint32_t permit_validate_ms;
+    uint32_t k1_operate_guard_ms;
+    uint32_t k1_release_guard_ms;
     uint32_t adc_clock_hz;
     uint32_t sample_time_cycles_x2;
     uint32_t sample_rate_hz;
