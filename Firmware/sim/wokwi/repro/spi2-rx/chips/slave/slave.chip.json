@@ -1,0 +1,5 @@
+{
+  "name": "Fixed SPI2 RX slave",
+  "author": "WTK.RLCMeter",
+  "pins": [ "VCC", "GND", "CS", "SCK", "MOSI", "MISO" ]
+}

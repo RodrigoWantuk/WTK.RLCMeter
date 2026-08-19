@@ -1,0 +1,7 @@
+name: SPI2 MISO JEDEC probe
+version: 1
+author: WTK.RLCMeter
+steps:
+  - wait-serial: 'spi2: OK'
+  - wait-serial: 'w25q:'
+  - delay: 400ms

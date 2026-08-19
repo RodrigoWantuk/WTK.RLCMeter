@@ -1,0 +1,8 @@
+[wokwi]
+version = 1
+firmware = "../../../../build/virtual/wokwi/repro/spi2-rx/spi2-rx-repro.hex"
+elf = "../../../../build/virtual/wokwi/repro/spi2-rx/spi2-rx-repro.elf"
+
+[[chip]]
+name = "slave"
+binary = "chips/slave/slave.chip.wasm"

@@ -14,6 +14,7 @@ python tools/run_virtual_tests.py --smoke
 Use `python tools/run_virtual_tests.py --build --smoke` to configure/build the Lab ELF before running the short suite.
 Use `python tools/run_virtual_tests.py --lint-only` to compile custom chips and run `wokwi-cli lint` without consuming simulation time.
 Use `python tools/run_virtual_tests.py --uart-probe` to record PA9 VCD activity and Serial Monitor capture without adding that probe to the acceptance suite.
+Use `python tools/run_virtual_tests.py --miso-probe` to promote `logic-spi` first and capture SPI2 SCK/MISO/MOSI/FLASH_CS for JEDEC line-level diagnosis.
 
 USART1 must stay wired to the Wokwi Serial Monitor as well as to `logic-io`:
 
@@ -99,4 +100,4 @@ Wokwi is virtual regression evidence only. It does not replace bench validation 
 
 Current Wokwi STM32F103 support includes GPIO, USART, SPI transmit, TIM1-4, RCC, and AFIO. ADC2, DMA, and IWDG are not implemented.
 
-Proven additional limitation for this project: STM32 SPI2 master **receive** does not sample MISO into `SPI_DR` (custom-chip JEDEC `0x9F` is seen on MOSI, MCU reads `0x00000000`). W25Q content scenarios therefore cannot be classified `VIRTUAL_HARDWARE_TESTED` until that simulator path works. HSE/PLL is not ready in the model; production firmware fail-closes to HSI 8 MHz and reports `clock_status: TIMEOUT`. IWDG is unimplemented but does not block the boot banner (watchdog starts after UART). `wokwi-cli --vcd-file` records only the first logic analyzer.
+`EXTERNAL_SIMULATOR_BLOCKER` for this project: STM32 SPI **master receive into `SPI_DR`** does not sample MISO under Wokwi CLI 0.26.1 / API `1.0.0-20260803-gf69c6c93`. PB14 can still show JEDEC bits in VCD; the MCU reads zeros. SPI1 in the standalone reproducer also returns zeros. See `repro/spi2-rx/`. W25Q content scenarios therefore cannot be classified `VIRTUAL_HARDWARE_TESTED`. HSE/PLL is not ready in the model; production firmware fail-closes to HSI 8 MHz and reports `clock_status: TIMEOUT`. IWDG is unimplemented but does not block the boot banner (watchdog starts after UART). `wokwi-cli --vcd-file` records only the first logic analyzer.

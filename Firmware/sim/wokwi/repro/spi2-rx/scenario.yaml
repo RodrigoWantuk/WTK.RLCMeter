@@ -1,0 +1,8 @@
+name: SPI2 RX standalone repro
+version: 1
+author: WTK.RLCMeter
+steps:
+  - wait-serial: 'spi2-rx-repro'
+  - wait-serial: 'SPI2 TX:'
+  - wait-serial: 'SPI2 RX8:'
+  - wait-serial: 'done'

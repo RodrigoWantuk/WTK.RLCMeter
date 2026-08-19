@@ -21,6 +21,7 @@ Firmware/CMakeUserPresets.json
 *.d
 *.chip.wasm
 Firmware/sim/wokwi/chips/*/wokwi-api.h
+Firmware/sim/wokwi/repro/**/wokwi-api.h
 
 # IDE / OS
 .vs/

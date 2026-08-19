@@ -176,6 +176,54 @@ class UartTxActivityTest(unittest.TestCase):
         self.assertFalse(runner.uart_tx_activity_present(path))
 
 
+class MisoProbeDiagnosticsTest(unittest.TestCase):
+    def test_pb14_does_not_use_generic_d3(self):
+        signals = {
+            "logic-safe.D3": "!",
+            "D3": "?",
+        }
+        with self.assertRaisesRegex(RuntimeError, "VCD signal not found: PB14_SPI2_MISO"):
+            runner.unique_signal_code(signals, "PB14_SPI2_MISO")
+
+    def test_pb14_resolves_logic_spi_d3(self):
+        signals = {
+            "logic-spi.D3": "!",
+            "logic-safe.D3": "?",
+        }
+        self.assertEqual(runner.unique_signal_code(signals, "PB14_SPI2_MISO"), "!")
+
+    def test_miso_probe_diagram_promotes_logic_spi_and_remaps_channels(self):
+        project_dir = Path(__file__).resolve().parents[2] / "sim" / "wokwi"
+        with tempfile.TemporaryDirectory() as tmp:
+            artifact_dir = Path(tmp)
+            path = runner.diagram_for_mode(project_dir, artifact_dir, "miso-probe")
+            diagram = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual(diagram["parts"][0]["id"], "logic-spi")
+        self.assertTrue(runner.has_directed_connection(diagram, "mcu:B13", "logic-spi:D0"))
+        self.assertTrue(runner.has_directed_connection(diagram, "mcu:B14", "logic-spi:D1"))
+        self.assertTrue(runner.has_directed_connection(diagram, "mcu:B15", "logic-spi:D2"))
+        self.assertTrue(runner.has_directed_connection(diagram, "mcu:A12", "logic-spi:D3"))
+        self.assertFalse(runner.has_directed_connection(diagram, "mcu:B14", "logic-spi:D3"))
+
+    def test_spi_mode0_decoder_reads_ef_40_17(self):
+        # 4 bytes, MSB first, sampled on rising SCK. MOSI=9F FF FF FF, MISO=FF EF 40 17.
+        mosi_bytes = [0x9F, 0xFF, 0xFF, 0xFF]
+        miso_bytes = [0xFF, 0xEF, 0x40, 0x17]
+        sck: list[tuple[float, str]] = [(0.0, "0")]
+        mosi: list[tuple[float, str]] = [(0.0, "0")]
+        miso: list[tuple[float, str]] = [(0.0, "0")]
+        time_s = 1.0
+        for mosi_byte, miso_byte in zip(mosi_bytes, miso_bytes):
+            for bit in range(8):
+                mosi.append((time_s, "1" if ((mosi_byte >> (7 - bit)) & 1) else "0"))
+                miso.append((time_s, "1" if ((miso_byte >> (7 - bit)) & 1) else "0"))
+                sck.append((time_s + 0.1, "1"))
+                sck.append((time_s + 0.2, "0"))
+                time_s += 1.0
+        decoded = runner.decode_spi_mode0_bytes(sck, mosi, miso)
+        self.assertEqual(decoded, list(zip(mosi_bytes, miso_bytes)))
+
+
 class VcdSignalResolverTest(unittest.TestCase):
     def test_exact_canonical_match(self):
         path = simple_vcd("$var wire 1 ! PA12_FLASH_CS $end\n", "#0\n1!\n")

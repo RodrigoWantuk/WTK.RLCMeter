@@ -28,6 +28,19 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Check Wokwi token
+        id: token
+        shell: bash
+        run: |
+          if [ -z "$WOKWI_CLI_TOKEN" ]; then
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "WOKWI_CLI_TOKEN secret is not configured; virtual scenarios will not be reported as passing."
+            echo "WOKWI_CLI_TOKEN is required for virtual-hardware evidence."
+            exit 1
+          fi
+          echo "present=true" >> "$GITHUB_OUTPUT"
+          echo "WOKWI_CLI_TOKEN secret is configured."
+
       - name: Install build tools
         run: |
           sudo apt-get update
@@ -63,37 +76,18 @@ jobs:
         working-directory: Firmware
         run: cmake --build --preset stm32-lab
 
-      - name: Check Wokwi token
-        id: token
-        shell: bash
-        run: |
-          if [ -z "$WOKWI_CLI_TOKEN" ]; then
-            echo "present=false" >> "$GITHUB_OUTPUT"
-            echo "WOKWI_CLI_TOKEN secret is not configured; virtual scenarios will not be reported as passing."
-          else
-            echo "present=true" >> "$GITHUB_OUTPUT"
-            echo "WOKWI_CLI_TOKEN secret is configured."
-          fi
-
       - name: Install Wokwi CLI
-        if: steps.token.outputs.present == 'true'
         run: curl -L https://wokwi.com/ci/install.sh | sh
 
       - name: Run Wokwi smoke suite
-        if: steps.token.outputs.present == 'true' && (github.event_name != 'workflow_dispatch' || inputs.suite == 'smoke')
+        if: github.event_name != 'workflow_dispatch' || inputs.suite == 'smoke'
         working-directory: Firmware
         run: python3 tools/run_virtual_tests.py --smoke
 
       - name: Run Wokwi full suite
-        if: steps.token.outputs.present == 'true' && github.event_name == 'workflow_dispatch' && inputs.suite == 'full'
+        if: github.event_name == 'workflow_dispatch' && inputs.suite == 'full'
         working-directory: Firmware
         run: python3 tools/run_virtual_tests.py
-
-      - name: Fail when token is absent
-        if: steps.token.outputs.present != 'true'
-        run: |
-          echo "WOKWI_CLI_TOKEN is required for virtual-hardware evidence."
-          exit 1
 
       - name: Upload virtual artifacts
         if: always()

@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "author": "WTK.RLCMeter",
+  "editor": "wokwi",
+  "parts": [
+    { "type": "board-stm32-bluepill", "id": "mcu", "top": 0, "left": 0, "attrs": {} },
+    { "type": "chip-slave", "id": "slave2", "top": 140, "left": 280, "attrs": {} },
+    { "type": "chip-slave", "id": "slave1", "top": 260, "left": 280, "attrs": {} },
+    { "type": "wokwi-logic-analyzer", "id": "logic-spi", "top": 380, "left": 0, "attrs": { "bufferSize": "200000" } }
+  ],
+  "connections": [
+    [ "mcu:3V3.1", "slave2:VCC", "red", [ "h0" ] ],
+    [ "mcu:GND.1", "slave2:GND", "black", [ "h0" ] ],
+    [ "mcu:A12", "slave2:CS", "purple", [ "h0" ] ],
+    [ "mcu:B13", "slave2:SCK", "purple", [ "h0" ] ],
+    [ "mcu:B15", "slave2:MOSI", "purple", [ "h0" ] ],
+    [ "mcu:B14", "slave2:MISO", "purple", [ "h0" ] ],
+
+    [ "mcu:3V3.2", "slave1:VCC", "red", [ "h0" ] ],
+    [ "mcu:GND.2", "slave1:GND", "black", [ "h0" ] ],
+    [ "mcu:A4", "slave1:CS", "orange", [ "h0" ] ],
+    [ "mcu:A5", "slave1:SCK", "orange", [ "h0" ] ],
+    [ "mcu:A7", "slave1:MOSI", "orange", [ "h0" ] ],
+    [ "mcu:A6", "slave1:MISO", "orange", [ "h0" ] ],
+
+    [ "mcu:A9", "$serialMonitor:RX", "", [] ],
+    [ "$serialMonitor:TX", "mcu:A10", "", [] ],
+
+    [ "mcu:B13", "logic-spi:D0", "gray", [ "h0" ] ],
+    [ "mcu:B14", "logic-spi:D1", "gray", [ "h0" ] ],
+    [ "mcu:B15", "logic-spi:D2", "gray", [ "h0" ] ],
+    [ "mcu:A12", "logic-spi:D3", "gray", [ "h0" ] ],
+    [ "mcu:A5", "logic-spi:D4", "gray", [ "h0" ] ],
+    [ "mcu:A6", "logic-spi:D5", "gray", [ "h0" ] ],
+    [ "mcu:A7", "logic-spi:D6", "gray", [ "h0" ] ],
+    [ "mcu:A4", "logic-spi:D7", "gray", [ "h0" ] ],
+    [ "mcu:GND.3", "logic-spi:GND", "black", [ "h0" ] ]
+  ]
+}

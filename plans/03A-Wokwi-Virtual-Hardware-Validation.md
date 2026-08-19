@@ -650,14 +650,47 @@ Chronological diagnosis:
    - `expect-pin` requires `value:`, not `expected:` (0.26.1 treats missing `value` as `undefined`).
    - `wait-serial` matches only text that appears after the step starts; tokens already printed are missed.
    - `wokwi-cli --vcd-file` records the first logic analyzer as scope `logic` (not the part id).
-7. **Subsequent simulator incompatibility (proven, blocks 11/11):**
-   - Custom W25Q chip loads (`chip_init` ran; `jedecMode=0`, `noResponse=0`).
-   - Chip sees CS and MOSI (`0x9F` JEDEC command, four SPI bytes).
-   - MCU `w25q_device_probe()` returns `UNSUPPORTED_DEVICE` with raw JEDEC `0x00000000`.
-   - Forcing the chip MISO pin HIGH during CS-low still yielded `0x00000000`.
-   - Conclusion: Wokwi STM32F103 SPI2 master transmit/SCK/CS reach the custom chip, but SPI receive into `SPI_DR` does not sample MISO. This is a simulator limitation, not a production Flash bug.
-   - Therefore `w25q-detect`, `w25q-selftest`, and `quiet-mode` cannot pass honestly (`w25q: OK` never appears).
-   - `w25q-bad-jedec` / `w25q-absent` can match `UNSUPPORTED_DEVICE` because RX is stuck at 0, which does **not** prove those chip modes. They are not `VIRTUAL_HARDWARE_TESTED` for Flash identity.
+7. **Subsequent SPI2/W25Q RX blocker (OBSERVED in Stage 4, isolated in Stage 5):**
+   Stage 4 recorded `w25q: UNSUPPORTED_DEVICE` / JEDEC `0x00000000` while the custom chip received `0x9F`. That was **OBSERVED**, not a final simulator-limitation proof. Stage 5 isolates it.
+
+## Stage 5 — SPI2 RX isolation
+
+Decision tree (Wokwi CLI 0.26.1 / API `1.0.0-20260803-gf69c6c93`):
+
+1. **Stage 4 observation (OBSERVED):** production Lab ELF, full W25Q model, MCU JEDEC `00 00 00`.
+2. **Official SPI Device API MISO correction (FIXED_MODEL_BUG for pin mode, not sufficient):**
+   - Before: `pin_init("MISO", OUTPUT)` plus `pin_mode` OUTPUT/INPUT on CS.
+   - After: `pin_init("MISO", INPUT)`; SPI Device API owns MISO; no `pin_mode` / `pin_write`.
+   - CS still uses `pin_watch` + `spi_start` / `spi_stop`.
+3. **Full-model result after API correction (OBSERVED):** `w25q-detect` still FAIL; `w25q: UNSUPPORTED_DEVICE`.
+4. **Custom-chip byte trace (first JEDEC only, PROVEN chip-side schedule):**
+   ```text
+   CS LOW
+   RX[0] = 9F  TX_NEXT = EF
+   RX[1] = FF  TX_NEXT = 40
+   RX[2] = FF  TX_NEXT = 17
+   RX[3] = FF  TX_NEXT = EF
+   CS HIGH
+   ```
+5. **PB14 VCD (`--miso-probe`, logic-spi first, remapped D0=SCK D1=MISO D2=MOSI D3=FLASH_CS) (PROVEN line-level):**
+   - PB14 toggled: yes
+   - PB14 ever HIGH: yes
+   - SPI mode-0: `MOSI=9F/MISO=7F MOSI=FF/MISO=EF MOSI=FF/MISO=40 MOSI=FF/MISO=17`
+   - Bytes after the command match `EF 40 17`.
+6. **Minimal JEDEC-only chip vs production `w25q_device_probe()` (OBSERVED):** chip scheduled `EF 40 17`; firmware still `UNSUPPORTED_DEVICE`. Not a full W25Q state-machine bug.
+7. **Standalone repro `Firmware/sim/wokwi/repro/spi2-rx/` (PROVEN MCU SPI_DR):**
+   - Expected MISO: `A5 5A C3 3C`
+   - Observed SPI2 RX8: `00 00 00 00` and DR16 `0000 0000 0000 0000`
+   - SPI1 comparison also RX8 `00 00 00 00` / DR16 `0000`
+   - Classification is not "Wokwi has no SPI RX": MOSI/SCK/CS and custom-chip MOSI capture work; PB14 can carry JEDEC bits.
+
+**Final root cause:** `EXTERNAL_SIMULATOR_BLOCKER`
+
+Wokwi STM32F103 **SPI master receive into `SPI_DR` does not sample MISO** under CLI 0.26.1 / Simulation API `1.0.0-20260803-gf69c6c93`, demonstrated on **SPI2** with production firmware (VCD `EF 40 17` vs MCU zeros) and reproduced on **SPI1 and SPI2** in the standalone CMSIS reproducer. Production `bsp_spi.c` / `spi_bus.c` / `w25q_device.c` were not changed.
+
+Phase 03A remains `IN_PROGRESS`. Do not treat stuck-at-zero `UNSUPPORTED_DEVICE` as genuine `w25q-bad-jedec` / `w25q-absent` identity evidence.
+
+GitHub Actions: Stage 4 commit `f8662ea` smoke workflow **succeeded** (run `32278194174`, ~16 min). Stage 5 moves the token presence check before Arm package install so a missing secret fails before `apt-get`. The newlib `nano.specs` / `nosys.specs` check is unchanged. Job timeout remains 20 minutes (the successful run did not exceed it).
 
 Smoke after Stage 4 wiring + scenario/YAML fixes: **4/4 PASS** (`boot-safe`, `uart-boot`, `buttons`, `spi-cs`).
 
@@ -691,4 +724,9 @@ reason: Timeout: simulation did not finish in 1500ms (wait-serial THIS_TOKEN_DOE
 
 The temporary YAML was deleted afterwards.
 
-GitHub Actions on current `main` (`92a82ec`, newlib spec install) did **not** produce a smoke result: run `32264206413` was cancelled at the job timeout (~20 min) during `Install build tools` (`apt-get`). Wokwi steps were skipped. Live CI smoke remains **EXTERNAL CI CONFIGURATION / EXECUTION NOT VERIFIED** for this Stage 4 working tree. The workflow still installs `libnewlib-arm-none-eabi` and validates `nano.specs` / `nosys.specs`.
+GitHub Actions:
+
+- `92a82ec` (newlib spec install) run `32264206413` cancelled at ~20 min during `apt-get`; Wokwi skipped.
+- `f8662ea` (Stage 4 Serial Monitor) run `32278194174` **succeeded**, including **Run Wokwi smoke suite**, in ~16 min. Token was present. Job timeout of 20 minutes was enough for that smoke run.
+
+The workflow still installs `libnewlib-arm-none-eabi` and validates `nano.specs` / `nosys.specs`. Stage 5 moves the token check before package install.

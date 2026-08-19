@@ -100,6 +100,21 @@ UART_PROBE = {
     "diagram_mode": "uart-probe",
 }
 
+MISO_PROBE = {
+    "file": "spi-miso-probe.yaml",
+    "timeout_ms": 8000,
+    "vcd": True,
+    "checks": (),
+    "diagram_mode": "miso-probe",
+}
+
+MISO_PROBE_CHANNELS = {
+    "PB13_SPI2_SCK": "D0",
+    "PB14_SPI2_MISO": "D1",
+    "PB15_SPI2_MOSI": "D2",
+    "PA12_FLASH_CS": "D3",
+}
+
 VCD_SIGNAL_SPECS = {
     "PA12_FLASH_CS": {
         "aliases": ("PA12_FLASH_CS", "FLASH_CS", "logic-safe.PA12_FLASH_CS"),
@@ -134,6 +149,21 @@ VCD_SIGNAL_SPECS = {
     "PA9_USART1_TX": {
         "aliases": ("PA9_USART1_TX", "USART1_TX", "logic-io.PA9_USART1_TX"),
         "qualified": ("logic-io.D0", "logic.D0"),
+        "generic": (),
+    },
+    "PB13_SPI2_SCK": {
+        "aliases": ("PB13_SPI2_SCK", "SPI2_SCK", "logic-spi.PB13_SPI2_SCK"),
+        "qualified": ("logic-spi.D2",),
+        "generic": (),
+    },
+    "PB14_SPI2_MISO": {
+        "aliases": ("PB14_SPI2_MISO", "SPI2_MISO", "logic-spi.PB14_SPI2_MISO"),
+        "qualified": ("logic-spi.D3",),
+        "generic": (),
+    },
+    "PB15_SPI2_MOSI": {
+        "aliases": ("PB15_SPI2_MOSI", "SPI2_MOSI", "logic-spi.PB15_SPI2_MOSI"),
+        "qualified": ("logic-spi.D4",),
         "generic": (),
     },
 }
@@ -256,6 +286,10 @@ def verify_static_files(fw_root: Path, project_dir: Path) -> bool:
     probe_scenario = project_dir / "scenarios" / str(UART_PROBE["file"])
     if not probe_scenario.exists():
         print(f"missing: {probe_scenario}")
+        ok = False
+    miso_probe_scenario = project_dir / "scenarios" / str(MISO_PROBE["file"])
+    if not miso_probe_scenario.exists():
+        print(f"missing: {miso_probe_scenario}")
         ok = False
 
     elf = fw_root / "build" / "stm32-lab" / "WTK.RLCMeter.elf"
@@ -527,6 +561,84 @@ def uart_tx_activity_present(path: Path, min_edges: int = 16) -> bool:
     return transition_count(tx_events) >= min_edges
 
 
+def first_analyzer_channel_code(signals: dict[str, str], channel: str) -> str:
+    wanted = {
+        normalized_name(channel),
+        normalized_name(f"logic.{channel}"),
+    }
+    matches = [
+        (reference, code)
+        for reference, code in signals.items()
+        if normalized_name(reference) in wanted
+    ]
+    unique_codes = {code for _, code in matches}
+    if len(unique_codes) == 1:
+        return next(iter(unique_codes))
+    if not matches:
+        raise RuntimeError(f"VCD signal not found: logic.{channel}")
+    names = ", ".join(reference for reference, _ in matches)
+    raise RuntimeError(f"ambiguous first-analyzer VCD signal {channel}: {names}")
+
+
+def decode_spi_mode0_bytes(
+    sck_events: list[tuple[float, str]],
+    mosi_events: list[tuple[float, str]],
+    miso_events: list[tuple[float, str]],
+) -> list[tuple[int, int]]:
+    rising_edges: list[float] = []
+    previous: str | None = None
+    for timestamp, value in sck_events:
+        if previous == "0" and value == "1":
+            rising_edges.append(timestamp)
+        previous = value
+
+    decoded: list[tuple[int, int]] = []
+    mosi_acc = 0
+    miso_acc = 0
+    bit_count = 0
+    for timestamp in rising_edges:
+        mosi_acc = (mosi_acc << 1) | (1 if value_at(mosi_events, timestamp, "0") == "1" else 0)
+        miso_acc = (miso_acc << 1) | (1 if value_at(miso_events, timestamp, "0") == "1" else 0)
+        bit_count += 1
+        if bit_count == 8:
+            decoded.append((mosi_acc, miso_acc))
+            mosi_acc = 0
+            miso_acc = 0
+            bit_count = 0
+    return decoded
+
+
+def report_miso_probe(path: Path) -> dict[str, object]:
+    signals, events = parse_vcd(path)
+    channel_events = {
+        name: events.get(first_analyzer_channel_code(signals, channel), [])
+        for name, channel in MISO_PROBE_CHANNELS.items()
+    }
+    sck = [(t, v) for t, v in channel_events["PB13_SPI2_SCK"] if v in ("0", "1")]
+    miso = [(t, v) for t, v in channel_events["PB14_SPI2_MISO"] if v in ("0", "1")]
+    mosi = [(t, v) for t, v in channel_events["PB15_SPI2_MOSI"] if v in ("0", "1")]
+    decoded = decode_spi_mode0_bytes(sck, mosi, miso)
+    miso_values = {value for _, value in miso}
+    report = {
+        "pb14_transitions": transition_count(miso),
+        "pb14_ever_high": "1" in miso_values,
+        "decoded": decoded,
+        "jedec_miso": [miso_byte for _, miso_byte in decoded[1:4]] if len(decoded) >= 4 else [],
+        "matches_ef4017": [miso_byte for _, miso_byte in decoded[1:4]] == [0xEF, 0x40, 0x17]
+        if len(decoded) >= 4
+        else False,
+    }
+    print(f"PB14 toggled: {'yes' if report['pb14_transitions'] > 0 else 'no'}")
+    print(f"PB14 ever HIGH: {'yes' if report['pb14_ever_high'] else 'no'}")
+    if decoded:
+        preview = " ".join(f"MOSI={mosi_byte:02X}/MISO={miso_byte:02X}" for mosi_byte, miso_byte in decoded[:8])
+        print(f"SPI mode-0 bytes: {preview}")
+    else:
+        print("SPI mode-0 bytes: none")
+    print(f"PB14 matches EF 40 17 after command: {'yes' if report['matches_ef4017'] else 'no'}")
+    return report
+
+
 def serial_capture_contains(path: Path, token: str) -> bool:
     if not path.exists():
         return False
@@ -717,6 +829,30 @@ def diagram_for_mode(project_dir: Path, artifact_dir: Path, mode: str | None) ->
         diagram["parts"] = [part for part in parts if part.get("id") == "logic-io"] + [
             part for part in parts if part.get("id") != "logic-io"
         ]
+    elif mode == "miso-probe":
+        parts = list(diagram.get("parts", []))
+        diagram["parts"] = [part for part in parts if part.get("id") == "logic-spi"] + [
+            part for part in parts if part.get("id") != "logic-spi"
+        ]
+        kept: list[object] = []
+        for connection in diagram.get("connections", []):
+            pair = connection_pair(connection)
+            if pair is None:
+                kept.append(connection)
+                continue
+            if pair[0].startswith("logic-spi:") or pair[1].startswith("logic-spi:"):
+                continue
+            kept.append(connection)
+        kept.extend(
+            [
+                ["mcu:B13", "logic-spi:D0", "gray", ["h0"]],
+                ["mcu:B14", "logic-spi:D1", "gray", ["h0"]],
+                ["mcu:B15", "logic-spi:D2", "gray", ["h0"]],
+                ["mcu:A12", "logic-spi:D3", "gray", ["h0"]],
+                ["mcu:GND.2", "logic-spi:GND", "black", ["h0"]],
+            ]
+        )
+        diagram["connections"] = kept
     else:
         raise RuntimeError(f"unknown diagram mode: {mode}")
 
@@ -810,6 +946,7 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--check-only", action="store_true", help="validate local files without invoking Wokwi")
     parser.add_argument("--lint-only", action="store_true", help="build custom chips and run wokwi-cli lint without simulation")
     parser.add_argument("--uart-probe", action="store_true", help="record PA9 VCD activity and Serial Monitor capture without changing the acceptance suite")
+    parser.add_argument("--miso-probe", action="store_true", help="record SPI2 SCK/MISO/MOSI/FLASH_CS VCD without changing the acceptance suite")
     args = parser.parse_args(argv)
 
     fw_root = firmware_root()
@@ -876,6 +1013,20 @@ def main(argv: list[str]) -> int:
         if not scenario_ok and not serial_captured:
             return 1
         return 0 if serial_captured else 1
+
+    if args.miso_probe:
+        scenario_ok = run_scenario("spi-miso-probe", MISO_PROBE, project_dir, artifact_dir, elf, wokwi_cli)
+        vcd_file = artifact_dir / "spi-miso-probe.vcd"
+        if vcd_file.exists():
+            try:
+                report_miso_probe(vcd_file)
+            except RuntimeError as exc:
+                print(f"MISO VCD parse: {exc}")
+                return 1
+        else:
+            print("MISO VCD was not captured")
+            return 1
+        return 0 if scenario_ok else 1
 
     scenario_names = selected_scenarios(args)
     failures = 0

@@ -2,6 +2,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <string.h>
 
 enum
@@ -38,7 +39,6 @@ typedef enum
 typedef struct
 {
     pin_t cs;
-    pin_t miso;
     spi_dev_t spi;
     timer_t busy_timer;
     uint32_t jedec_mode_attr;
@@ -52,6 +52,9 @@ typedef struct
     uint16_t program_count;
     uint32_t address;
     command_phase_t phase;
+    bool jedec_trace_active;
+    bool jedec_trace_complete;
+    uint8_t jedec_trace_index;
     uint8_t sector[W25Q64_SECTOR_SIZE];
     uint8_t program_data[W25Q64_PAGE_SIZE];
 } chip_state_t;
@@ -257,6 +260,18 @@ static void reset_transaction(chip_state_t *chip)
     chip->phase = PHASE_COMMAND;
 }
 
+static void trace_jedec_byte(chip_state_t *chip, uint8_t rx, uint8_t tx_next)
+{
+    if (!chip->jedec_trace_active || (chip->jedec_trace_index >= 4u))
+    {
+        return;
+    }
+
+    printf("RX[%u] = %02X\n", (unsigned)chip->jedec_trace_index, (unsigned)rx);
+    printf("TX_NEXT = %02X\n", (unsigned)tx_next);
+    chip->jedec_trace_index++;
+}
+
 static void spi_done(void *user_data, uint8_t *buffer, uint32_t count)
 {
     chip_state_t *chip = (chip_state_t *)user_data;
@@ -267,7 +282,10 @@ static void spi_done(void *user_data, uint8_t *buffer, uint32_t count)
 
     for (uint32_t i = 0; i < count; i++)
     {
-        buffer[i] = process_byte(chip, buffer[i]);
+        const uint8_t rx = buffer[i];
+        const uint8_t tx_next = process_byte(chip, rx);
+        buffer[i] = tx_next;
+        trace_jedec_byte(chip, rx, tx_next);
     }
 
     chip->transfer_byte = (count > 0u) ? buffer[count - 1u] : 0xffu;
@@ -280,15 +298,25 @@ static void cs_changed(void *user_data, pin_t pin, uint32_t value)
     chip_state_t *chip = (chip_state_t *)user_data;
     if (value == LOW)
     {
-        pin_mode(chip->miso, OUTPUT);
         reset_transaction(chip);
+        if (!chip->jedec_trace_complete)
+        {
+            chip->jedec_trace_active = true;
+            chip->jedec_trace_index = 0u;
+            printf("CS LOW\n");
+        }
         chip->transfer_byte = 0xffu;
         spi_start(chip->spi, &chip->transfer_byte, 1u);
     }
     else
     {
         spi_stop(chip->spi);
-        pin_mode(chip->miso, INPUT);
+        if (chip->jedec_trace_active)
+        {
+            printf("CS HIGH\n");
+            chip->jedec_trace_active = false;
+            chip->jedec_trace_complete = true;
+        }
         if ((chip->command == W25Q64_CMD_PAGE_PROGRAM) && (chip->address_bytes >= 3u))
         {
             execute_program(chip);
@@ -308,7 +336,6 @@ void chip_init(void)
     memset(chip->sector, 0xff, sizeof(chip->sector));
 
     chip->cs = pin_init("CS", INPUT_PULLUP);
-    chip->miso = pin_init("MISO", OUTPUT);
     chip->jedec_mode_attr = attr_init("jedecMode", 0u);
     chip->no_response_attr = attr_init("noResponse", 0u);
     reset_transaction(chip);
@@ -316,7 +343,7 @@ void chip_init(void)
     spi_config_t spi_config = {
         .sck = pin_init("SCK", INPUT),
         .mosi = pin_init("MOSI", INPUT),
-        .miso = chip->miso,
+        .miso = pin_init("MISO", INPUT),
         .mode = 0,
         .done = spi_done,
         .user_data = chip,

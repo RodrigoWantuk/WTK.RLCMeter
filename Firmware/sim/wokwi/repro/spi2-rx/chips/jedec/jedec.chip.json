@@ -1,0 +1,5 @@
+{
+  "name": "JEDEC-only SPI slave",
+  "author": "WTK.RLCMeter",
+  "pins": [ "VCC", "GND", "CS", "SCK", "MOSI", "MISO" ]
+}
