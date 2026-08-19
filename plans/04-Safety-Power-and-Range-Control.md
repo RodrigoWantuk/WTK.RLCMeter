@@ -729,7 +729,9 @@ Validation run on 2026-08-19:
 - STM32 Release build: passed, Flash 18292 B, RAM 2696 B;
 - STM32 Lab build: passed, Flash 23012 B, RAM 2880 B;
 - Wokwi `--lint-only`: passed with Wokwi CLI `0.26.1 (9d71b975b7eb)`;
-- Wokwi smoke/full scenarios were not executed because `WOKWI_CLI_TOKEN` is not set.
+- Wokwi smoke: executed with a live token on 2026-08-19; 0/4 scenarios passed (all timed out with empty USART logs);
+- Wokwi full suite: not run after smoke failure;
+- no `VIRTUAL_HARDWARE_TESTED` claim. See `plans/03A-Wokwi-Virtual-Hardware-Validation.md`.
 
 Release growth relative to the Stage 2 baseline:
 

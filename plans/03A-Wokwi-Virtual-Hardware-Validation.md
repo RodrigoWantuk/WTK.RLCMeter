@@ -599,11 +599,37 @@ Validated locally on 2026-08-19:
 - deliberate synthetic VCD failure proof returns exit code 1 with `FLASH_CS and TFT_CS were low at the same time`;
 - Release build remains free of Lab-only strings such as `display: READY`, `fallback_ui`, and `lab flash selftest`.
 
-Not yet completed:
+Not yet completed after the first token-backed run on 2026-08-19:
 
-- real virtual scenario execution;
-- VCD post-processing against real Wokwi output;
-- scenario-level deliberate-failure proof with the real Wokwi runner;
+- passing smoke/full scenario execution;
+- VCD post-processing against successful Wokwi output;
+- scenario-level deliberate-failure proof with a passing runner;
 - CI run with `WOKWI_CLI_TOKEN`.
 
-Reason: current local environment does not provide `WOKWI_CLI_TOKEN`. No Stage 2 scenario is claimed as `VIRTUAL_HARDWARE_TESTED` until smoke/full simulations actually run.
+## Stage 3 token-backed simulation evidence
+
+A live `WOKWI_CLI_TOKEN` was provided and used on 2026-08-19. The token is not stored in the repository.
+
+Observed:
+
+- Wokwi CLI: `0.26.1 (9d71b975b7eb)`
+- Simulation API: `1.0.0-20260803-gf69c6c93`
+- custom W25Q64 chip compile: passed (66.0 KB WASM)
+- `wokwi-cli lint`: `No issues found`
+- `python tools/run_virtual_tests.py --smoke`: 0/4 passed, all four scenarios exited 124 (simulation timeout)
+- smoke serial logs (`boot-safe`, `uart-boot`, `buttons`, `spi-cs`) were empty
+- MCU-only diagram (Blue Pill, no TFT/Flash/analyzers) with `--expect-text WTK.RLCMeter` also timed out at 20 s and 30 s
+- HEX-only load (no `--elf` override) also produced no USART text
+
+Therefore:
+
+- the token/API path works;
+- lint/static Wokwi infrastructure works;
+- the Lab ELF currently emits no USART1 text in Wokwi before scenario timeout;
+- no scenario is `VIRTUAL_HARDWARE_TESTED`.
+
+Most likely class of failure: the firmware never reaches the UART boot banner in the simulator (HardFault/`Default_Handler` spin, or an unbounded wait before `bsp_uart_init()`), rather than a missing token or a diagram wiring mistake. Clock init writes `FLASH->ACR` before UART is up; the current Wokwi STM32F103 table does not list a Flash controller. That is a hypothesis, not a root-cause proof.
+
+Do not change production safety/clock behavior merely to make Wokwi pass. A future Lab-only diagnostic may print an HSI-baud character before PLL/FLASH ACR if a later assignment authorizes that hook.
+
+Phase 03A remains `IN_PROGRESS`.
