@@ -4,10 +4,13 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "app/app_safety_fault.h"
+#include "bsp/bsp_adc.h"
 #include "bsp/bsp_status.h"
 #include "bsp/bsp_uart.h"
 #include "drivers/ili9341.h"
 #include "drivers/w25q.h"
+#include "hardware/hw_aux_sensors.h"
 #include "hardware/hw_charger.h"
 #include "hardware/hw_buzzer.h"
 #include "hardware/hw_peripherals.h"
@@ -45,6 +48,25 @@ static void write_u32(uint32_t value)
         index--;
         (void)bsp_uart_write(&buffer[index], 1u);
     }
+}
+
+static void write_i32(int32_t value)
+{
+    if (value < 0)
+    {
+        write_text("-");
+        write_u32((uint32_t)(-value));
+    }
+    else
+    {
+        write_u32((uint32_t)value);
+    }
+}
+
+static int32_t milli_from_float(float value)
+{
+    const float scaled = value * 1000.0f;
+    return (int32_t)((scaled >= 0.0f) ? (scaled + 0.5f) : (scaled - 0.5f));
 }
 
 static void write_hex8(uint32_t value)
@@ -207,6 +229,85 @@ static void write_safety_status(const hw_safety_result_t *safety)
     write_u32(safety->blocker_flags);
     write_text(" allowed=");
     write_text(safety->measure_allowed ? "1" : "0");
+    write_text("\r\n");
+}
+
+static void write_sensor_mv(const char *name, float value)
+{
+    write_text(name);
+    write_i32(milli_from_float(value));
+    write_text("mV\r\n");
+}
+
+static void write_sensors_status(const hw_aux_sensors_t *sensors, uint32_t now_ms)
+{
+    if (sensors == NULL)
+    {
+        write_text("lab sensors: INVALID\r\n");
+        return;
+    }
+
+    hw_aux_sensors_snapshot_t snapshot;
+    hw_aux_sensors_snapshot(sensors, now_ms, &snapshot);
+
+    write_text("lab sensors vmid_raw: ");
+    write_u32(snapshot.vmid_raw);
+    write_text(" valid=");
+    write_text(snapshot.vmid_valid ? "1" : "0");
+    write_text("\r\n");
+    write_sensor_mv("lab sensors vmid: ", snapshot.vmid_v);
+
+    write_text("lab sensors ov_raw: hi=");
+    write_u32(snapshot.ov_hi_raw);
+    write_text(" lo=");
+    write_u32(snapshot.ov_lo_raw);
+    write_text("\r\n");
+    write_sensor_mv("lab sensors safe_hi: ", snapshot.safe_hi_v);
+    write_sensor_mv("lab sensors safe_lo: ", snapshot.safe_lo_v);
+    write_sensor_mv("lab sensors residual_diff: ", snapshot.residual_diff_v);
+    write_text("lab sensors residual_state: ");
+    write_text(hw_residual_state_string(snapshot.residual_state));
+    write_text(" safe_count=");
+    write_u32(snapshot.residual_safe_count);
+    write_text(" age_ms=");
+    write_u32(snapshot.residual_age_ms);
+    write_text("\r\n");
+
+    write_sensor_mv("lab sensors battery: ", snapshot.battery_v);
+    write_text("lab sensors battery_state: ");
+    write_text(hw_battery_state_string(snapshot.battery_state));
+    write_text(" raw=");
+    write_u32(snapshot.battery_raw);
+    write_text(" age_ms=");
+    write_u32(snapshot.battery_age_ms);
+    write_text("\r\n");
+
+    write_text("lab sensors ntc: raw=");
+    write_u32(snapshot.ntc_raw);
+    write_text(" mv=");
+    write_i32(milli_from_float(snapshot.ntc_voltage_v));
+    write_text(" resistance_ohm=");
+    write_u32((uint32_t)((snapshot.ntc_resistance_ohm >= 0.0f) ? snapshot.ntc_resistance_ohm : 0.0f));
+    write_text(" valid=");
+    write_text(snapshot.ntc_valid ? "1" : "0");
+    write_text(" age_ms=");
+    write_u32(snapshot.ntc_age_ms);
+    write_text("\r\n");
+}
+
+static void write_adc_status(const hw_aux_sensors_t *sensors)
+{
+    write_text("lab adc: ");
+    if (sensors == NULL)
+    {
+        write_text("INVALID\r\n");
+        return;
+    }
+    write_text(bsp_adc_state_string(bsp_adc_is_busy() ? BSP_ADC_STATE_BUSY : BSP_ADC_STATE_IDLE));
+    write_text(" channel=");
+    write_text(bsp_adc_channel_string(hw_aux_sensors_current_channel(sensors)));
+    write_text(" last=");
+    write_text(bsp_status_string(hw_aux_sensors_last_adc_status(sensors)));
     write_text("\r\n");
 }
 
@@ -380,7 +481,9 @@ static void run_command(app_lab_console_t *console,
                         ili9341_t *display,
                         hw_range_t *range,
                         hw_charger_t *charger,
+                        hw_aux_sensors_t *sensors,
                         const hw_safety_result_t *safety,
+                        app_safety_fault_latch_t *faults,
                         const char *line,
                         uint32_t now_ms)
 {
@@ -456,6 +559,10 @@ static void run_command(app_lab_console_t *console,
             return;
         }
         const bsp_status_t status = hw_range_request(range, requested_range, now_ms);
+        if ((status != BSP_STATUS_OK) && (status != BSP_STATUS_BUSY))
+        {
+            app_safety_fault_latch(faults, APP_SAFETY_FAULT_RANGE_IO);
+        }
         write_text("lab range: ");
         write_text(status == BSP_STATUS_BUSY ? "START" : bsp_status_string(status));
         write_text("\r\n");
@@ -464,7 +571,15 @@ static void run_command(app_lab_console_t *console,
     {
         if (range != NULL)
         {
-            hw_range_force_disabled(range);
+            const bsp_status_t status = hw_range_force_disabled(range);
+            if (status != BSP_STATUS_OK)
+            {
+                app_safety_fault_latch(faults, APP_SAFETY_FAULT_RANGE_IO);
+            }
+            write_text("lab range: ");
+            write_text(bsp_status_string(status));
+            write_text("\r\n");
+            return;
         }
         write_text("lab range: OFF\r\n");
     }
@@ -481,6 +596,20 @@ static void run_command(app_lab_console_t *console,
         const hw_charger_state_t state = hw_charger_get_state(charger);
         write_text("charger: ");
         write_text(hw_charger_state_string(state));
+        write_text("\r\n");
+    }
+    else if (text_equals(line, "lab sensors status"))
+    {
+        write_sensors_status(sensors, now_ms);
+    }
+    else if (text_equals(line, "lab adc status"))
+    {
+        write_adc_status(sensors);
+    }
+    else if (text_equals(line, "lab fault status"))
+    {
+        write_text("lab fault: ");
+        write_hex8(app_safety_fault_mask(faults));
         write_text("\r\n");
     }
     else if (line[0] != '\0')
@@ -517,7 +646,9 @@ void app_lab_console_step(app_lab_console_t *console,
                           ili9341_t *display,
                           hw_range_t *range,
                           hw_charger_t *charger,
+                          hw_aux_sensors_t *sensors,
                           const hw_safety_result_t *safety,
+                          app_safety_fault_latch_t *faults,
                           uint32_t now_ms)
 {
 #if WTK_ENABLE_LAB_DIAGNOSTICS
@@ -534,7 +665,7 @@ void app_lab_console_step(app_lab_console_t *console,
         if ((byte == '\r') || (byte == '\n'))
         {
             console->line[console->line_length] = '\0';
-            run_command(console, flash, display, range, charger, safety, console->line, now_ms);
+            run_command(console, flash, display, range, charger, sensors, safety, faults, console->line, now_ms);
             console->line_length = 0u;
         }
         else if (console->line_length < (APP_LAB_CONSOLE_LINE_CAPACITY - 1u))
@@ -554,7 +685,9 @@ void app_lab_console_step(app_lab_console_t *console,
     (void)display;
     (void)range;
     (void)charger;
+    (void)sensors;
     (void)safety;
+    (void)faults;
     (void)now_ms;
 #endif
 }

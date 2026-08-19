@@ -4,8 +4,10 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "app/app_safety_fault.h"
 #include "drivers/ili9341.h"
 #include "drivers/w25q.h"
+#include "hardware/hw_aux_sensors.h"
 #include "hardware/hw_charger.h"
 #include "hardware/hw_range.h"
 #include "hardware/hw_safety.h"
@@ -54,7 +56,9 @@ void app_lab_console_step(app_lab_console_t *console,
                           ili9341_t *display,
                           hw_range_t *range,
                           hw_charger_t *charger,
+                          hw_aux_sensors_t *sensors,
                           const hw_safety_result_t *safety,
+                          app_safety_fault_latch_t *faults,
                           uint32_t now_ms);
 bool app_lab_console_flash_busy(const app_lab_console_t *console);
 

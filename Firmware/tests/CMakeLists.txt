@@ -177,3 +177,57 @@ if(WTK_WARNINGS_AS_ERRORS_HOST)
 endif()
 
 add_test(NAME wtk_hw_range_test COMMAND wtk_hw_range_test)
+
+add_executable(wtk_app_safety_fault_test
+    app/test_app_safety_fault.c
+)
+target_link_libraries(wtk_app_safety_fault_test PRIVATE wtk_firmware_common)
+target_include_directories(wtk_app_safety_fault_test PRIVATE
+    "${PROJECT_SOURCE_DIR}/src"
+    "${PROJECT_BINARY_DIR}/generated"
+)
+wtk_configure_c_target(wtk_app_safety_fault_test)
+wtk_apply_project_warnings(wtk_app_safety_fault_test)
+wtk_apply_common_compile_options(wtk_app_safety_fault_test)
+
+if(WTK_WARNINGS_AS_ERRORS_HOST)
+    wtk_treat_warnings_as_errors(wtk_app_safety_fault_test)
+endif()
+
+add_test(NAME wtk_app_safety_fault_test COMMAND wtk_app_safety_fault_test)
+
+add_executable(wtk_bsp_adc_core_test
+    bsp/test_bsp_adc_core.c
+)
+target_link_libraries(wtk_bsp_adc_core_test PRIVATE wtk_firmware_common)
+target_include_directories(wtk_bsp_adc_core_test PRIVATE
+    "${PROJECT_SOURCE_DIR}/src"
+    "${PROJECT_BINARY_DIR}/generated"
+)
+wtk_configure_c_target(wtk_bsp_adc_core_test)
+wtk_apply_project_warnings(wtk_bsp_adc_core_test)
+wtk_apply_common_compile_options(wtk_bsp_adc_core_test)
+
+if(WTK_WARNINGS_AS_ERRORS_HOST)
+    wtk_treat_warnings_as_errors(wtk_bsp_adc_core_test)
+endif()
+
+add_test(NAME wtk_bsp_adc_core_test COMMAND wtk_bsp_adc_core_test)
+
+add_executable(wtk_hw_aux_sensors_test
+    hardware/test_hw_aux_sensors.c
+)
+target_link_libraries(wtk_hw_aux_sensors_test PRIVATE wtk_firmware_common)
+target_include_directories(wtk_hw_aux_sensors_test PRIVATE
+    "${PROJECT_SOURCE_DIR}/src"
+    "${PROJECT_BINARY_DIR}/generated"
+)
+wtk_configure_c_target(wtk_hw_aux_sensors_test)
+wtk_apply_project_warnings(wtk_hw_aux_sensors_test)
+wtk_apply_common_compile_options(wtk_hw_aux_sensors_test)
+
+if(WTK_WARNINGS_AS_ERRORS_HOST)
+    wtk_treat_warnings_as_errors(wtk_hw_aux_sensors_test)
+endif()
+
+add_test(NAME wtk_hw_aux_sensors_test COMMAND wtk_hw_aux_sensors_test)

@@ -74,6 +74,9 @@ lab range off
 lab range status
 lab safety status
 lab charger status
+lab sensors status
+lab adc status
+lab fault status
 ```
 
 Artifacts are written under `Firmware/build/virtual/wokwi/`.

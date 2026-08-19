@@ -15,6 +15,7 @@ static bsp_status_t write_enable(hw_range_t *range, bool high)
     }
 
     const bsp_status_t status = range->io.write_enable(high, range->io.user_data);
+    range->last_status = status;
     if (status == BSP_STATUS_OK)
     {
         range->enabled = high;
@@ -30,6 +31,7 @@ static bsp_status_t write_address(hw_range_t *range, uint8_t address)
     }
 
     const bsp_status_t status = range->io.write_address(address, range->io.user_data);
+    range->last_status = status;
     if (status == BSP_STATUS_OK)
     {
         range->address = address;
@@ -83,16 +85,19 @@ bsp_status_t hw_range_init(hw_range_t *range, const hw_range_io_t *io)
     range->requested = HW_RANGE_ID_INVALID;
     range->address = 0u;
     range->deadline_ms = 0u;
+    range->last_status = BSP_STATUS_OK;
     range->enabled = false;
 
     bsp_status_t status = write_enable(range, false);
     if (status != BSP_STATUS_OK)
     {
+        range->state = HW_RANGE_FSM_INVALID;
         return status;
     }
     status = write_address(range, 0u);
     if (status != BSP_STATUS_OK)
     {
+        range->state = HW_RANGE_FSM_INVALID;
         return status;
     }
     return BSP_STATUS_OK;
@@ -105,10 +110,14 @@ bsp_status_t hw_range_request(hw_range_t *range, hw_range_id_t id, uint32_t now_
     {
         if (range != NULL)
         {
-            (void)write_enable(range, false);
+            const bsp_status_t disable_status = write_enable(range, false);
             range->state = HW_RANGE_FSM_INVALID;
             range->current = HW_RANGE_ID_INVALID;
             range->requested = HW_RANGE_ID_INVALID;
+            if (disable_status != BSP_STATUS_OK)
+            {
+                return disable_status;
+            }
         }
         return BSP_STATUS_INVALID_ARG;
     }
@@ -116,12 +125,17 @@ bsp_status_t hw_range_request(hw_range_t *range, hw_range_id_t id, uint32_t now_
     bsp_status_t status = write_enable(range, false);
     if (status != BSP_STATUS_OK)
     {
+        range->state = HW_RANGE_FSM_INVALID;
+        range->current = HW_RANGE_ID_INVALID;
+        range->requested = HW_RANGE_ID_INVALID;
         return status;
     }
     status = write_address(range, address);
     if (status != BSP_STATUS_OK)
     {
         range->state = HW_RANGE_FSM_INVALID;
+        range->current = HW_RANGE_ID_INVALID;
+        range->requested = HW_RANGE_ID_INVALID;
         return status;
     }
 
@@ -131,47 +145,63 @@ bsp_status_t hw_range_request(hw_range_t *range, hw_range_id_t id, uint32_t now_
     return BSP_STATUS_BUSY;
 }
 
-void hw_range_step(hw_range_t *range, uint32_t now_ms)
+bsp_status_t hw_range_step(hw_range_t *range, uint32_t now_ms)
 {
     if (range == NULL)
     {
-        return;
+        return BSP_STATUS_INVALID_ARG;
     }
 
     switch (range->state)
     {
     case HW_RANGE_FSM_DEAD_TIME:
-        if (deadline_reached(now_ms, range->deadline_ms) && (write_enable(range, true) == BSP_STATUS_OK))
+        if (deadline_reached(now_ms, range->deadline_ms))
         {
+            const bsp_status_t status = write_enable(range, true);
+            if (status != BSP_STATUS_OK)
+            {
+                range->state = HW_RANGE_FSM_INVALID;
+                range->current = HW_RANGE_ID_INVALID;
+                return status;
+            }
             range->state = HW_RANGE_FSM_SETTLING;
             range->deadline_ms = now_ms + HW_RANGE_SETTLE_TIME_MS;
         }
-        break;
+        return BSP_STATUS_BUSY;
     case HW_RANGE_FSM_SETTLING:
         if (deadline_reached(now_ms, range->deadline_ms))
         {
             range->current = range->requested;
             range->state = HW_RANGE_FSM_READY;
+            return BSP_STATUS_OK;
         }
-        break;
+        return BSP_STATUS_BUSY;
     case HW_RANGE_FSM_DISABLED:
     case HW_RANGE_FSM_READY:
+        return BSP_STATUS_OK;
     case HW_RANGE_FSM_INVALID:
     default:
-        break;
+        return (range->last_status == BSP_STATUS_OK) ? BSP_STATUS_ERROR : range->last_status;
     }
 }
 
-void hw_range_force_disabled(hw_range_t *range)
+bsp_status_t hw_range_force_disabled(hw_range_t *range)
 {
     if (range == NULL)
     {
-        return;
+        return BSP_STATUS_INVALID_ARG;
     }
 
-    (void)write_enable(range, false);
+    const bsp_status_t status = write_enable(range, false);
+    if (status != BSP_STATUS_OK)
+    {
+        range->state = HW_RANGE_FSM_INVALID;
+        range->current = HW_RANGE_ID_INVALID;
+        return status;
+    }
     range->state = HW_RANGE_FSM_DISABLED;
     range->current = HW_RANGE_ID_INVALID;
+    return BSP_STATUS_OK;
 }
 
 bool hw_range_is_ready(const hw_range_t *range)
@@ -214,6 +244,11 @@ hw_safety_range_state_t hw_range_safety_state(const hw_range_t *range)
     default:
         return HW_RANGE_INVALID;
     }
+}
+
+bsp_status_t hw_range_last_status(const hw_range_t *range)
+{
+    return (range == NULL) ? BSP_STATUS_INVALID_ARG : range->last_status;
 }
 
 const char *hw_range_id_string(hw_range_id_t id)

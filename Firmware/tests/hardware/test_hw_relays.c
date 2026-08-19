@@ -9,6 +9,7 @@ typedef struct
 {
     bool level;
     unsigned int writes;
+    unsigned int fail_write;
 } fake_output_t;
 
 static int expect_true(bool condition, const char *message)
@@ -24,8 +25,12 @@ static int expect_true(bool condition, const char *message)
 static bsp_status_t fake_write(bool high, void *user_data)
 {
     fake_output_t *output = (fake_output_t *)user_data;
-    output->level = high;
     output->writes++;
+    if ((output->fail_write != 0u) && (output->writes == output->fail_write))
+    {
+        return BSP_STATUS_ERROR;
+    }
+    output->level = high;
     return BSP_STATUS_OK;
 }
 
@@ -55,6 +60,7 @@ static int test_k1_service(void)
     fake_output_t output = {
         .level = true,
         .writes = 0u,
+        .fail_write = 0u,
     };
     hw_k1_t k1;
     const hw_k1_io_t io = {
@@ -83,12 +89,54 @@ static int test_k1_service(void)
     return failures;
 }
 
+static int test_k1_io_failures(void)
+{
+    int failures = 0;
+    fake_output_t output = {
+        .level = false,
+        .writes = 0u,
+        .fail_write = 0u,
+    };
+    hw_k1_t k1;
+    const hw_k1_io_t io = {
+        .write_cmd = fake_write,
+        .user_data = &output,
+    };
+    hw_safety_result_t permission = allowed_permission();
+
+    (void)hw_k1_init(&k1, &io);
+    (void)hw_k1_request_measure(&k1, &permission);
+    failures += expect_true(hw_k1_commanded_state(&k1) == HW_K1_STATE_MEASURE, "test setup reaches MEASURE");
+    output.fail_write = output.writes + 1u;
+    failures += expect_true(hw_k1_force_safe(&k1) == BSP_STATUS_ERROR, "failed LOW write is returned");
+    failures += expect_true(hw_k1_commanded_state(&k1) == HW_K1_STATE_MEASURE,
+                            "failed LOW write does not claim SAFE");
+
+    output.fail_write = 0u;
+    (void)hw_k1_force_safe(&k1);
+    (void)hw_k1_request_measure(&k1, &permission);
+    permission = denied_permission();
+    output.fail_write = output.writes + 1u;
+    failures += expect_true(hw_k1_request_measure(&k1, &permission) == BSP_STATUS_ERROR,
+                            "denied permission returns LOW-write failure when SAFE command fails");
+    failures += expect_true(hw_k1_commanded_state(&k1) == HW_K1_STATE_MEASURE,
+                            "denied permission failed LOW write does not claim SAFE");
+
+    output.fail_write = 0u;
+    (void)hw_k1_force_safe(&k1);
+    output.fail_write = output.writes + 1u;
+    failures += expect_true(hw_k1_request_measure(&k1, &permission) == BSP_STATUS_ERROR,
+                            "failed LOW remains visible before generic permission denial");
+    return failures;
+}
+
 static int test_k2_service(void)
 {
     int failures = 0;
     fake_output_t output = {
         .level = true,
         .writes = 0u,
+        .fail_write = 0u,
     };
     hw_k2_t k2;
     const hw_k2_io_t io = {
@@ -113,6 +161,7 @@ int main(void)
 {
     int failures = 0;
     failures += test_k1_service();
+    failures += test_k1_io_failures();
     failures += test_k2_service();
     return (failures == 0) ? 0 : 1;
 }

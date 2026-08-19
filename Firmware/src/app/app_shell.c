@@ -1,6 +1,8 @@
 #include "app/app_shell.h"
 
 #include "app/app_lab_console.h"
+#include "app/app_safety_fault.h"
+#include "bsp/bsp_adc.h"
 #include "bsp/bsp_clock.h"
 #include "bsp/bsp_diagnostics.h"
 #include "bsp/bsp_gpio.h"
@@ -14,6 +16,7 @@
 #include "drivers/spi_bus.h"
 #include "drivers/w25q.h"
 #include "hardware/hw_backlight.h"
+#include "hardware/hw_aux_sensors.h"
 #include "hardware/hw_buzzer.h"
 #include "hardware/hw_charger.h"
 #include "hardware/hw_k1.h"
@@ -23,6 +26,13 @@
 #include "ui/ui_fallback_renderer.h"
 #include "wtk_build_config.h"
 
+typedef enum
+{
+    APP_SAFETY_SAFE_CHECK = 0,
+    APP_SAFETY_WAIT_SAFE,
+    APP_SAFETY_READY,
+} app_safety_state_t;
+
 static buttons_t g_buttons;
 static ili9341_t g_display;
 static w25q_device_t g_flash;
@@ -30,20 +40,17 @@ static hw_k1_t g_k1;
 static hw_k2_t g_k2;
 static hw_range_t g_range;
 static hw_charger_t g_charger;
+static hw_aux_sensors_t g_aux_sensors;
+static app_safety_fault_latch_t g_safety_faults;
 static hw_safety_result_t g_safety_result;
 #if WTK_ENABLE_LAB_DIAGNOSTICS
 static app_lab_console_t g_lab_console;
 static bool g_display_ready_reported = false;
 #endif
 static bool g_flash_fallback_drawn = false;
-static bool g_safety_state_reported = false;
-
-typedef enum
-{
-    APP_SAFETY_SAFE_CHECK = 0,
-    APP_SAFETY_WAIT_SAFE,
-    APP_SAFETY_READY,
-} app_safety_state_t;
+static bool g_safety_transition_reported = false;
+static app_safety_state_t g_reported_safety_state = APP_SAFETY_SAFE_CHECK;
+static hw_safety_primary_blocker_t g_reported_primary_blocker = HW_SAFETY_BLOCKED_SENSOR_INVALID;
 
 static app_safety_state_t g_safety_state = APP_SAFETY_SAFE_CHECK;
 
@@ -85,6 +92,37 @@ static bsp_status_t app_read_charger_gpio(bool *high, void *user_data)
 {
     (void)user_data;
     return bsp_gpio_read_input(BSP_GPIO_INPUT_CHARGER_DETECT, high);
+}
+
+static bsp_status_t app_adc_start(bsp_adc_channel_t channel, uint32_t now_ms, void *user_data)
+{
+    (void)user_data;
+    return bsp_adc_start(channel, now_ms);
+}
+
+static bsp_status_t app_adc_poll(uint16_t *raw, uint32_t now_ms, void *user_data)
+{
+    (void)user_data;
+    return bsp_adc_poll(raw, now_ms);
+}
+
+static void app_adc_cancel(void *user_data)
+{
+    (void)user_data;
+    bsp_adc_cancel();
+}
+
+static void app_latch_fault(uint32_t fault_mask)
+{
+    app_safety_fault_latch(&g_safety_faults, fault_mask);
+}
+
+static void app_record_status_fault(bsp_status_t status, uint32_t fault_mask)
+{
+    if (status != BSP_STATUS_OK)
+    {
+        app_latch_fault(fault_mask);
+    }
 }
 
 static uint8_t app_read_button_mask(void)
@@ -158,12 +196,13 @@ static const char *app_safety_state_string(app_safety_state_t state)
 
 static void app_update_safety_state(void)
 {
+    const uint32_t now_ms = bsp_time_now_ms();
     const hw_safety_input_t safety_input = {
         .charger = hw_charger_get_state(&g_charger),
-        .residual = HW_RESIDUAL_UNKNOWN,
-        .battery = HW_BATTERY_UNKNOWN,
+        .residual = hw_aux_sensors_residual_state(&g_aux_sensors, now_ms),
+        .battery = hw_aux_sensors_battery_state(&g_aux_sensors, now_ms),
         .range = hw_range_safety_state(&g_range),
-        .application_fault = false,
+        .application_fault = app_safety_fault_any(&g_safety_faults),
     };
 
     g_safety_result = hw_safety_evaluate(&safety_input);
@@ -174,22 +213,47 @@ static void app_update_safety_state(void)
     else
     {
         g_safety_state = APP_SAFETY_WAIT_SAFE;
-        (void)hw_k1_force_safe(&g_k1);
     }
 
-    if (!g_safety_state_reported)
+    const bsp_status_t k1_safe_status = hw_k1_force_safe(&g_k1);
+    app_record_status_fault(k1_safe_status, APP_SAFETY_FAULT_K1_IO);
+
+    if (app_safety_fault_any(&g_safety_faults))
+    {
+        const bsp_status_t range_status = hw_range_force_disabled(&g_range);
+        app_record_status_fault(range_status, APP_SAFETY_FAULT_RANGE_IO);
+    }
+
+    if (!g_safety_transition_reported ||
+        (g_safety_state != g_reported_safety_state) ||
+        (g_safety_result.primary_blocker != g_reported_primary_blocker))
     {
         bsp_diagnostics_write_key_value_text("safety_state", app_safety_state_string(g_safety_state));
         bsp_diagnostics_write_key_value_text("safety_block",
                                              hw_safety_primary_blocker_string(g_safety_result.primary_blocker));
-        g_safety_state_reported = true;
+        g_reported_safety_state = g_safety_state;
+        g_reported_primary_blocker = g_safety_result.primary_blocker;
+        g_safety_transition_reported = true;
     }
 }
 
 static void app_step(void)
 {
     const uint32_t now_ms = bsp_time_now_ms();
-    hw_range_step(&g_range, now_ms);
+    const bsp_status_t range_step_status = hw_range_step(&g_range, now_ms);
+    if ((range_step_status != BSP_STATUS_OK) && (range_step_status != BSP_STATUS_BUSY))
+    {
+        app_latch_fault(APP_SAFETY_FAULT_RANGE_IO);
+    }
+    const bsp_status_t sensor_status = hw_aux_sensors_step(&g_aux_sensors, now_ms);
+    if ((sensor_status != BSP_STATUS_OK) && (sensor_status != BSP_STATUS_BUSY))
+    {
+        app_latch_fault(APP_SAFETY_FAULT_ADC_RUNTIME);
+    }
+    if (hw_aux_sensors_fault_mask(&g_aux_sensors) != 0u)
+    {
+        app_latch_fault(APP_SAFETY_FAULT_ADC_RUNTIME);
+    }
     app_update_safety_state();
 
     buttons_update(&g_buttons, app_read_button_mask(), now_ms);
@@ -220,7 +284,15 @@ static void app_step(void)
     }
 
 #if WTK_ENABLE_LAB_DIAGNOSTICS
-    app_lab_console_step(&g_lab_console, &g_flash, &g_display, &g_range, &g_charger, &g_safety_result, now_ms);
+    app_lab_console_step(&g_lab_console,
+                         &g_flash,
+                         &g_display,
+                         &g_range,
+                         &g_charger,
+                         &g_aux_sensors,
+                         &g_safety_result,
+                         &g_safety_faults,
+                         now_ms);
     if (!app_lab_console_flash_busy(&g_lab_console))
     {
         (void)w25q_device_poll(&g_flash, now_ms);
@@ -235,7 +307,9 @@ void app_shell_run(void)
 {
     const bsp_reset_reason_t reset_reason = bsp_reset_capture_reason();
 
-    (void)bsp_gpio_init_safe();
+    app_safety_fault_init(&g_safety_faults);
+    const bsp_status_t gpio_status = bsp_gpio_init_safe();
+    app_record_status_fault(gpio_status, APP_SAFETY_FAULT_GPIO_INIT);
     const bsp_status_t clock_status = bsp_clock_init();
     (void)bsp_time_init();
     (void)bsp_uart_init(115200u);
@@ -262,18 +336,36 @@ void app_shell_run(void)
         .user_data = NULL,
     };
     const bsp_status_t k1_status = hw_k1_init(&g_k1, &k1_io);
+    app_record_status_fault(k1_status, APP_SAFETY_FAULT_K1_IO);
     bsp_diagnostics_write_key_value_text("k1", bsp_status_string(k1_status));
     const bsp_status_t k2_status = hw_k2_init(&g_k2, &k2_io);
+    app_record_status_fault(k2_status, APP_SAFETY_FAULT_K2_IO);
     bsp_diagnostics_write_key_value_text("k2", bsp_status_string(k2_status));
     const bsp_status_t range_status = hw_range_init(&g_range, &range_io);
+    app_record_status_fault(range_status, APP_SAFETY_FAULT_RANGE_IO);
     bsp_diagnostics_write_key_value_text("range", bsp_status_string(range_status));
     const bsp_status_t charger_init_status = hw_charger_init(&g_charger, &charger_io);
     bsp_diagnostics_write_key_value_text("charger_init", bsp_status_string(charger_init_status));
+    const bsp_status_t adc_status = bsp_adc_init(bsp_time_now_ms());
+    app_record_status_fault(adc_status, APP_SAFETY_FAULT_ADC_INIT);
+    bsp_diagnostics_write_key_value_text("adc", bsp_status_string(adc_status));
+    const hw_aux_adc_io_t aux_adc_io = {
+        .start = app_adc_start,
+        .poll = app_adc_poll,
+        .cancel = app_adc_cancel,
+        .user_data = NULL,
+    };
+    const bsp_status_t aux_status = hw_aux_sensors_init(&g_aux_sensors, &aux_adc_io, bsp_time_now_ms());
+    app_record_status_fault(aux_status, APP_SAFETY_FAULT_ADC_INIT);
+    bsp_diagnostics_write_key_value_text("aux_sensors", bsp_status_string(aux_status));
     bsp_diagnostics_write_key_value_text("charger", hw_charger_state_string(hw_charger_get_state(&g_charger)));
     bsp_diagnostics_write_key_value_text("k2_topology", hw_lowz_bank_mode_string(hw_k2_topology(&g_k2).lowz_bank_mode));
+    bsp_diagnostics_write_key_value_hex8("safety_faults", app_safety_fault_mask(&g_safety_faults));
     g_safety_result = hw_safety_evaluate(NULL);
     g_safety_state = APP_SAFETY_SAFE_CHECK;
-    g_safety_state_reported = false;
+    g_safety_transition_reported = false;
+    g_reported_safety_state = APP_SAFETY_SAFE_CHECK;
+    g_reported_primary_blocker = HW_SAFETY_BLOCKED_SENSOR_INVALID;
 #if WTK_ENABLE_LAB_DIAGNOSTICS
     app_lab_console_init(&g_lab_console);
     g_display_ready_reported = false;

@@ -33,6 +33,25 @@ The current Stage 1 implementation adds host-testable safety and control foundat
 
 The live application initializes K1/K2/range/charger services and remains fail-closed because residual ADC transport is not yet qualified. Lab range commands may exercise the range bank, but no Lab command can force K1 into MEASURE.
 
+## Phase 04 Stage 2 services
+
+Stage 2 adds the auxiliary ADC and runtime sensor path while keeping K1 physically SAFE in the application:
+
+- `bsp_adc`: ADC1 one-shot start/poll/cancel API, ADC1 channels 1/4/5/6/7, 239.5-cycle sample time, bounded calibration timeout, and 2 ms conversion timeout;
+- `bsp_adc_core`: host-testable ADC busy/complete/timeout/cancel state logic;
+- `app_safety_fault`: reset-only latched internal fault bitmask for safety-critical GPIO/K1/K2/range/ADC failures;
+- `hw_aux_sensors`: cooperative four-sample averaging FSM for residual, battery, and NTC telemetry.
+
+The sensor manager uses these fixed Stage 2 cadences:
+
+```text
+Residual sweep: 10 ms period, 50 ms max age
+Battery sweep:  500 ms period, 2000 ms max age
+NTC sweep:      1000 ms period, 5000 ms max age
+```
+
+Residual sweeps collect four VMID, four OV_HI, and four OV_LO conversions before publishing one residual evaluation. Battery and NTC publish only after four conversions. Stale/invalid residual and battery states fail closed through the safety policy. NTC is telemetry-only in Stage 2.
+
 ## Representative API
 
 ```text

@@ -51,18 +51,20 @@ typedef struct
     hw_range_id_t requested;
     uint8_t address;
     uint32_t deadline_ms;
+    bsp_status_t last_status;
     bool enabled;
 } hw_range_t;
 
 bsp_status_t hw_range_init(hw_range_t *range, const hw_range_io_t *io);
 bsp_status_t hw_range_request(hw_range_t *range, hw_range_id_t id, uint32_t now_ms);
-void hw_range_step(hw_range_t *range, uint32_t now_ms);
-void hw_range_force_disabled(hw_range_t *range);
+bsp_status_t hw_range_step(hw_range_t *range, uint32_t now_ms);
+bsp_status_t hw_range_force_disabled(hw_range_t *range);
 bool hw_range_is_ready(const hw_range_t *range);
 hw_range_id_t hw_range_get_current(const hw_range_t *range);
 hw_range_id_t hw_range_get_requested(const hw_range_t *range);
 hw_range_fsm_state_t hw_range_get_state(const hw_range_t *range);
 hw_safety_range_state_t hw_range_safety_state(const hw_range_t *range);
+bsp_status_t hw_range_last_status(const hw_range_t *range);
 bsp_status_t hw_range_id_to_address(hw_range_id_t id, uint8_t *address);
 const char *hw_range_id_string(hw_range_id_t id);
 const char *hw_range_fsm_state_string(hw_range_fsm_state_t state);
