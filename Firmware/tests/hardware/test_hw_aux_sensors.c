@@ -207,19 +207,24 @@ static int test_residual_invalid_and_saturated(void)
     hw_aux_sensors_t sensors;
     hw_aux_adc_io_t io = fake_io(&fake);
 
-    fake.hi_raw = 4079u;
+    script_channel(&fake, BSP_ADC_CHANNEL_OV_HI, 4079u, fake.hi_raw, fake.hi_raw, fake.hi_raw);
     (void)hw_aux_sensors_init(&sensors, &io, 0u);
     run_conversions(&sensors, 0u, 12u);
+    hw_aux_sensors_snapshot_t snapshot;
+    hw_aux_sensors_snapshot(&sensors, 0u, &snapshot);
     failures += expect_true(hw_aux_sensors_residual_state(&sensors, 0u) == HW_RESIDUAL_SATURATED,
                             "one saturated OV sample marks residual saturated");
+    failures += expect_true(snapshot.vmid_valid, "saturated OV_HI does not invalidate a valid VMID");
 
     fake = safe_fake_adc();
     script_channel(&fake, BSP_ADC_CHANNEL_VMID, 0u, 2731u, 2731u, 2731u);
     io = fake_io(&fake);
     (void)hw_aux_sensors_init(&sensors, &io, 0u);
     run_conversions(&sensors, 0u, 12u);
+    hw_aux_sensors_snapshot(&sensors, 0u, &snapshot);
     failures += expect_true(hw_aux_sensors_residual_state(&sensors, 0u) == HW_RESIDUAL_SATURATED,
                             "one saturated VMID sample marks residual saturated");
+    failures += expect_true(!snapshot.vmid_valid, "one saturated VMID sample invalidates VMID telemetry");
 
     fake = safe_fake_adc();
     fake.vmid_raw = raw_from_voltage(1.20f);

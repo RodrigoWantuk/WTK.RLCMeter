@@ -98,6 +98,7 @@ typedef struct
     uint32_t accum_ntc;
     uint8_t sample_index;
     uint8_t channel_phase;
+    bool vmid_group_saturated;
     bool residual_group_saturated;
     bool battery_group_saturated;
     bool ntc_group_saturated;

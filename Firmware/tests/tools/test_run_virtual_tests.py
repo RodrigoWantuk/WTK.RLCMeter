@@ -1,4 +1,5 @@
 import importlib.util
+import json
 from pathlib import Path
 import tempfile
 import unittest
@@ -79,6 +80,100 @@ def quiet_mode_vcd(
         "$var wire 1 % PB12_TFT_CS $end\n",
         changes,
     )
+
+
+class SerialMonitorWiringTest(unittest.TestCase):
+    @staticmethod
+    def _diagram(connections):
+        return {"connections": connections}
+
+    def test_correct_wiring_passes(self):
+        diagram = self._diagram(
+            [
+                ["mcu:A9", "$serialMonitor:RX", "", []],
+                ["$serialMonitor:TX", "mcu:A10", "", []],
+            ]
+        )
+        self.assertEqual(runner.serial_monitor_wiring_errors(diagram), [])
+
+    def test_missing_tx_connection_fails(self):
+        diagram = self._diagram(
+            [
+                ["$serialMonitor:TX", "mcu:A10", "", []],
+            ]
+        )
+        errors = runner.serial_monitor_wiring_errors(diagram)
+        self.assertTrue(any("PA9 TX" in error for error in errors))
+        self.assertFalse(any("PA10 RX" in error for error in errors))
+
+    def test_missing_rx_connection_fails(self):
+        diagram = self._diagram(
+            [
+                ["mcu:A9", "$serialMonitor:RX", "", []],
+            ]
+        )
+        errors = runner.serial_monitor_wiring_errors(diagram)
+        self.assertTrue(any("PA10 RX" in error for error in errors))
+        self.assertFalse(any("PA9 TX" in error for error in errors))
+
+    def test_swapped_monitor_direction_fails(self):
+        diagram = self._diagram(
+            [
+                ["$serialMonitor:RX", "mcu:A9", "", []],
+                ["mcu:A10", "$serialMonitor:TX", "", []],
+            ]
+        )
+        errors = runner.serial_monitor_wiring_errors(diagram)
+        self.assertEqual(len(errors), 2)
+        self.assertTrue(any("PA9 TX" in error for error in errors))
+        self.assertTrue(any("PA10 RX" in error for error in errors))
+
+    def test_pa9_connected_to_monitor_tx_fails(self):
+        diagram = self._diagram(
+            [
+                ["mcu:A9", "$serialMonitor:TX", "", []],
+                ["$serialMonitor:TX", "mcu:A10", "", []],
+            ]
+        )
+        errors = runner.serial_monitor_wiring_errors(diagram)
+        self.assertTrue(any("PA9 TX" in error for error in errors))
+
+    def test_pa10_connected_to_monitor_rx_fails(self):
+        diagram = self._diagram(
+            [
+                ["mcu:A9", "$serialMonitor:RX", "", []],
+                ["$serialMonitor:RX", "mcu:A10", "", []],
+            ]
+        )
+        errors = runner.serial_monitor_wiring_errors(diagram)
+        self.assertTrue(any("PA10 RX" in error for error in errors))
+
+    def test_committed_diagram_has_correct_wiring(self):
+        diagram_path = Path(__file__).resolve().parents[2] / "sim" / "wokwi" / "diagram.json"
+        diagram = json.loads(diagram_path.read_text(encoding="utf-8"))
+        self.assertEqual(runner.serial_monitor_wiring_errors(diagram), [])
+        self.assertTrue(runner.has_directed_connection(diagram, "mcu:A9", "logic-io:D0"))
+        self.assertTrue(runner.has_directed_connection(diagram, "mcu:B14", "flash:MISO"))
+        self.assertFalse(runner.has_directed_connection(diagram, "mcu:B14", "tft:MISO"))
+
+
+class UartTxActivityTest(unittest.TestCase):
+    def test_pa9_edges_are_detected(self):
+        changes = ["#0\n1!\n"]
+        for index in range(1, 20):
+            changes.append(f"#{index}\n{'0' if index % 2 else '1'}!\n")
+        path = simple_vcd(
+            "$scope module logic $end\n$var wire 1 ! D0 $end\n$upscope $end\n",
+            "".join(changes),
+        )
+        self.assertTrue(runner.uart_tx_activity_present(path))
+
+    def test_idle_pa9_is_not_activity(self):
+        path = simple_vcd(
+            "$scope module logic $end\n$var wire 1 ! D0 $end\n$upscope $end\n",
+            "#0\n1!\n",
+        )
+        self.assertFalse(runner.uart_tx_activity_present(path))
 
 
 class VcdSignalResolverTest(unittest.TestCase):
@@ -186,6 +281,19 @@ class VcdPostChecksTest(unittest.TestCase):
         path = quiet_mode_vcd(tft_cs_during_quiet=True)
         with self.assertRaisesRegex(RuntimeError, "TFT_CS asserted"):
             runner.check_quiet_mode(path)
+
+
+    def test_display_activity_accepts_tft_cs_on_first_analyzer(self):
+        path = simple_vcd(
+            "$var wire 1 ! PB12_TFT_CS $end\n",
+            "#0\n1!\n#10\n0!\n#20\n1!\n",
+        )
+        runner.check_display_activity(path)
+
+    def test_display_activity_without_tft_cs_toggle_fails(self):
+        path = simple_vcd("$var wire 1 ! PB12_TFT_CS $end\n", "#0\n1!\n")
+        with self.assertRaisesRegex(RuntimeError, "PB12_TFT_CS"):
+            runner.check_display_activity(path)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,6 @@
+name: USART1 TX pin activity probe
+version: 1
+author: WTK.RLCMeter
+steps:
+  - wait-serial: 'WTK.RLCMeter'
+  - delay: 300ms

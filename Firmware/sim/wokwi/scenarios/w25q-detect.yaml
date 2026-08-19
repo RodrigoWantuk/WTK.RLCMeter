@@ -11,4 +11,4 @@ steps:
   - expect-pin:
       part-id: mcu
       pin: A12
-      expected: 1
+      value: 1

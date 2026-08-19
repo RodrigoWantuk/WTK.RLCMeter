@@ -5,4 +5,4 @@ elf = "../../build/stm32-lab/WTK.RLCMeter.elf"
 
 [[chip]]
 name = "w25q64"
-binary = "../../build/virtual/wokwi/chips/w25q64/w25q64.chip.wasm"
+binary = "chips/w25q64/w25q64.chip.wasm"

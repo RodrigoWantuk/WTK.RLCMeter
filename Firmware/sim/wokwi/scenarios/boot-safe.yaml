@@ -3,34 +3,34 @@ version: 1
 author: WTK.RLCMeter
 steps:
   - wait-serial: 'WTK.RLCMeter'
-  - wait-serial: 'boot_state: SAFE_BOOT'
   - wait-serial: 'swd: PRESERVED'
+  - wait-serial: 'boot_state: SAFE_BOOT'
   - delay: 1800ms
   - expect-pin:
       part-id: mcu
       pin: A8
-      expected: 0
+      value: 0
   - expect-pin:
       part-id: mcu
       pin: A11
-      expected: 0
+      value: 0
   - expect-pin:
       part-id: mcu
       pin: B8
-      expected: 0
+      value: 0
   - expect-pin:
       part-id: mcu
       pin: B9
-      expected: 0
+      value: 0
   - expect-pin:
       part-id: mcu
       pin: B1
-      expected: 0
+      value: 0
   - expect-pin:
       part-id: mcu
       pin: A12
-      expected: 1
+      value: 1
   - expect-pin:
       part-id: mcu
       pin: B12
-      expected: 1
+      value: 1

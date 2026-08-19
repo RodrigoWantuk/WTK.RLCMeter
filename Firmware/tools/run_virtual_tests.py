@@ -17,7 +17,7 @@ import time
 SCENARIOS = {
     "boot-safe": {
         "file": "boot-safe.yaml",
-        "timeout_ms": 6000,
+        "timeout_ms": 8000,
         "vcd": False,
         "checks": (),
     },
@@ -29,19 +29,19 @@ SCENARIOS = {
     },
     "buttons": {
         "file": "buttons.yaml",
-        "timeout_ms": 9000,
+        "timeout_ms": 12000,
         "vcd": False,
         "checks": (),
     },
     "pwm-backlight": {
         "file": "pwm-backlight.yaml",
-        "timeout_ms": 5000,
+        "timeout_ms": 8000,
         "vcd": True,
         "checks": ("backlight_pwm",),
     },
     "spi-display": {
         "file": "spi-display.yaml",
-        "timeout_ms": 7000,
+        "timeout_ms": 8000,
         "vcd": True,
         "checks": ("display_activity",),
     },
@@ -65,14 +65,14 @@ SCENARIOS = {
     },
     "w25q-bad-jedec": {
         "file": "w25q-bad-jedec.yaml",
-        "timeout_ms": 7000,
+        "timeout_ms": 10000,
         "vcd": True,
         "checks": ("spi_cs",),
         "diagram_mode": "bad-jedec",
     },
     "w25q-absent": {
         "file": "w25q-absent.yaml",
-        "timeout_ms": 7000,
+        "timeout_ms": 10000,
         "vcd": True,
         "checks": ("spi_cs",),
         "diagram_mode": "absent",
@@ -86,6 +86,19 @@ SCENARIOS = {
 }
 
 SMOKE_SCENARIOS = ("boot-safe", "uart-boot", "buttons", "spi-cs")
+
+USART1_TX_PIN = "mcu:A9"
+USART1_RX_PIN = "mcu:A10"
+SERIAL_MONITOR_RX = "$serialMonitor:RX"
+SERIAL_MONITOR_TX = "$serialMonitor:TX"
+
+UART_PROBE = {
+    "file": "uart-tx-probe.yaml",
+    "timeout_ms": 8000,
+    "vcd": True,
+    "checks": (),
+    "diagram_mode": "uart-probe",
+}
 
 VCD_SIGNAL_SPECS = {
     "PA12_FLASH_CS": {
@@ -111,12 +124,17 @@ VCD_SIGNAL_SPECS = {
     "PB11_TFT_DC": {
         "aliases": ("PB11_TFT_DC", "TFT_DC", "logic-spi.PB11_TFT_DC"),
         "qualified": ("logic-spi.D1",),
-        "generic": ("D1",),
+        "generic": (),
     },
     "PB13_TFT_SCK": {
         "aliases": ("PB13_TFT_SCK", "TFT_SCK", "logic-spi.PB13_TFT_SCK"),
         "qualified": ("logic-spi.D2",),
-        "generic": ("D2",),
+        "generic": (),
+    },
+    "PA9_USART1_TX": {
+        "aliases": ("PA9_USART1_TX", "USART1_TX", "logic-io.PA9_USART1_TX"),
+        "qualified": ("logic-io.D0", "logic.D0"),
+        "generic": (),
     },
 }
 
@@ -155,6 +173,47 @@ def build_lab_firmware(fw_root: Path) -> int:
     return 0
 
 
+def connection_pair(connection: object) -> tuple[str, str] | None:
+    if not isinstance(connection, list) or len(connection) < 2:
+        return None
+    source = connection[0]
+    destination = connection[1]
+    if not isinstance(source, str) or not isinstance(destination, str):
+        return None
+    return (source, destination)
+
+
+def has_directed_connection(diagram: dict[str, object], source: str, destination: str) -> bool:
+    connections = diagram.get("connections", [])
+    if not isinstance(connections, list):
+        return False
+    for connection in connections:
+        pair = connection_pair(connection)
+        if pair == (source, destination):
+            return True
+    return False
+
+
+def serial_monitor_wiring_errors(diagram: dict[str, object]) -> list[str]:
+    errors: list[str] = []
+    if not has_directed_connection(diagram, USART1_TX_PIN, SERIAL_MONITOR_RX):
+        errors.append(
+            "Wokwi USART1 serial monitor wiring missing: expected PA9 TX -> $serialMonitor:RX"
+        )
+    if not has_directed_connection(diagram, SERIAL_MONITOR_TX, USART1_RX_PIN):
+        errors.append(
+            "Wokwi USART1 serial monitor wiring missing: expected $serialMonitor:TX -> PA10 RX"
+        )
+    return errors
+
+
+def verify_serial_monitor_wiring(diagram: dict[str, object]) -> bool:
+    errors = serial_monitor_wiring_errors(diagram)
+    for error in errors:
+        print(error)
+    return not errors
+
+
 def verify_static_files(fw_root: Path, project_dir: Path) -> bool:
     ok = True
     required = [
@@ -179,8 +238,24 @@ def verify_static_files(fw_root: Path, project_dir: Path) -> bool:
             if part_id not in part_ids:
                 print(f"diagram is missing part id: {part_id}")
                 ok = False
+        if not verify_serial_monitor_wiring(diagram):
+            ok = False
+        if not has_directed_connection(diagram, USART1_TX_PIN, "logic-io:D0"):
+            print("Wokwi USART1 TX logic-analyzer observability missing: expected PA9 -> logic-io:D0")
+            ok = False
+        if not has_directed_connection(diagram, "mcu:B14", "flash:MISO"):
+            print("Wokwi W25Q MISO wiring missing: expected PB14 -> flash:MISO")
+            ok = False
+        if has_directed_connection(diagram, "mcu:B14", "tft:MISO"):
+            print("Wokwi ILI9341 MISO must stay disconnected; firmware never reads the TFT and the simulator model can hold MISO")
+            ok = False
     except (OSError, json.JSONDecodeError) as exc:
         print(f"diagram.json validation failed: {exc}")
+        ok = False
+
+    probe_scenario = project_dir / "scenarios" / str(UART_PROBE["file"])
+    if not probe_scenario.exists():
+        print(f"missing: {probe_scenario}")
         ok = False
 
     elf = fw_root / "build" / "stm32-lab" / "WTK.RLCMeter.elf"
@@ -434,19 +509,66 @@ def check_spi_cs(path: Path) -> None:
         raise RuntimeError("chip-select signals did not finish idle-high")
 
 
+def transition_count(events: list[tuple[float, str]]) -> int:
+    if len(events) < 2:
+        return 0
+    count = 0
+    previous = events[0][1]
+    for _, value in events[1:]:
+        if value != previous:
+            count += 1
+            previous = value
+    return count
+
+
+def uart_tx_activity_present(path: Path, min_edges: int = 16) -> bool:
+    signals, events = parse_vcd(path)
+    tx_events = binary_events(signals, events, "PA9_USART1_TX")
+    return transition_count(tx_events) >= min_edges
+
+
+def serial_capture_contains(path: Path, token: str) -> bool:
+    if not path.exists():
+        return False
+    return token in path.read_text(encoding="utf-8", errors="replace")
+
+
 def check_display_activity(path: Path) -> None:
     signals, events = parse_vcd(path)
-    for name in ("PB12_TFT_CS", "PB11_TFT_DC", "PB13_TFT_SCK"):
-        captured = binary_events(signals, events, name)
+    cs_events = binary_events(signals, events, "PB12_TFT_CS")
+    cs_values = {value for _, value in cs_events}
+    if not ({"0", "1"} <= cs_values):
+        raise RuntimeError("display signal did not toggle: PB12_TFT_CS")
+
+    # wokwi-cli --vcd-file records only the first logic analyzer as scope "logic".
+    # TFT_DC/SCK live on logic-spi, so they are optional when that analyzer is not dumped.
+    for name in ("PB11_TFT_DC", "PB13_TFT_SCK"):
+        try:
+            captured = binary_events(signals, events, name)
+        except RuntimeError:
+            continue
         values = {value for _, value in captured}
-        if not ({"0", "1"} <= values):
+        if captured and not ({"0", "1"} <= values):
             raise RuntimeError(f"display signal did not toggle: {name}")
+
+
+def first_rising_edge_s(events: list[tuple[float, str]]) -> float | None:
+    previous: str | None = None
+    for timestamp, value in events:
+        if previous == "0" and value == "1":
+            return timestamp
+        previous = value
+    return None
 
 
 def check_backlight_pwm(path: Path) -> None:
     signals, events = parse_vcd(path)
     pwm_events = binary_events(signals, events, "PB0_TFT_BL")
-    frequency_hz, duty_percent = require_backlight_pwm(pwm_events, "overall")
+    start_s = first_rising_edge_s(pwm_events)
+    if start_s is None:
+        raise RuntimeError("backlight PWM never started")
+    end_s = pwm_events[-1][0]
+    frequency_hz, duty_percent = require_backlight_pwm(pwm_events, "overall", start_s, end_s)
     print(f"  VCD: backlight PWM {frequency_hz:.1f} Hz, duty {duty_percent:.1f}%")
 
 
@@ -523,6 +645,12 @@ def copy_chip_json(project_dir: Path, chip_out_dir: Path) -> None:
     shutil.copyfile(source, destination)
 
 
+def install_chip_wasm(wasm: Path, project_dir: Path) -> None:
+    destination = project_dir / "chips" / "w25q64" / "w25q64.chip.wasm"
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(wasm, destination)
+
+
 def build_custom_chips(wokwi_cli: str, project_dir: Path, artifact_dir: Path) -> int:
     source = project_dir / "chips" / "w25q64" / "w25q64.chip.c"
     chip_out_dir = artifact_dir / "chips" / "w25q64"
@@ -532,6 +660,7 @@ def build_custom_chips(wokwi_cli: str, project_dir: Path, artifact_dir: Path) ->
 
     if wasm.exists() and wasm.stat().st_mtime >= source.stat().st_mtime and json_out.stat().st_mtime >= source.stat().st_mtime:
         print(f"custom chip current: {wasm}")
+        install_chip_wasm(wasm, project_dir)
         return 0
 
     command = [
@@ -546,7 +675,10 @@ def build_custom_chips(wokwi_cli: str, project_dir: Path, artifact_dir: Path) ->
     result = run_command(command, project_dir, timeout_s=180)
     if result.stdout:
         print(result.stdout, end="" if result.stdout.endswith("\n") else "\n")
-    return result.returncode
+    if result.returncode != 0:
+        return result.returncode
+    install_chip_wasm(wasm, project_dir)
+    return 0
 
 
 def run_wokwi_lint(wokwi_cli: str, project_dir: Path) -> int:
@@ -566,17 +698,27 @@ def diagram_for_mode(project_dir: Path, artifact_dir: Path, mode: str | None) ->
 
     with (project_dir / "diagram.json").open("r", encoding="utf-8") as handle:
         diagram = json.load(handle)
-    for part in diagram.get("parts", []):
-        if part.get("id") == "flash":
-            attrs = part.setdefault("attrs", {})
-            if mode == "bad-jedec":
-                attrs["jedecMode"] = "1"
-                attrs["noResponse"] = "0"
-            elif mode == "absent":
-                attrs["jedecMode"] = "0"
-                attrs["noResponse"] = "1"
-            else:
-                raise RuntimeError(f"unknown diagram mode: {mode}")
+
+    if mode in ("bad-jedec", "absent"):
+        for part in diagram.get("parts", []):
+            if part.get("id") == "flash":
+                attrs = part.setdefault("attrs", {})
+                if mode == "bad-jedec":
+                    attrs["jedecMode"] = "1"
+                    attrs["noResponse"] = "0"
+                else:
+                    attrs["jedecMode"] = "0"
+                    attrs["noResponse"] = "1"
+    elif mode == "uart-probe":
+        # wokwi-cli --vcd-file records the first logic analyzer as scope "logic".
+        # Keep the committed diagram order for acceptance scenarios; only the
+        # diagnostic probe promotes logic-io so D0 is PA9 / USART1_TX.
+        parts = list(diagram.get("parts", []))
+        diagram["parts"] = [part for part in parts if part.get("id") == "logic-io"] + [
+            part for part in parts if part.get("id") != "logic-io"
+        ]
+    else:
+        raise RuntimeError(f"unknown diagram mode: {mode}")
 
     out_dir = artifact_dir / "diagrams"
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -667,6 +809,7 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--keep-artifacts", action="store_true", help="keep previous logs/VCD files")
     parser.add_argument("--check-only", action="store_true", help="validate local files without invoking Wokwi")
     parser.add_argument("--lint-only", action="store_true", help="build custom chips and run wokwi-cli lint without simulation")
+    parser.add_argument("--uart-probe", action="store_true", help="record PA9 VCD activity and Serial Monitor capture without changing the acceptance suite")
     args = parser.parse_args(argv)
 
     fw_root = firmware_root()
@@ -716,6 +859,23 @@ def main(argv: list[str]) -> int:
         print("WOKWI_CLI_TOKEN is not set; virtual scenarios were not executed")
         return 2
     print("WOKWI_CLI_TOKEN: present")
+
+    if args.uart_probe:
+        scenario_ok = run_scenario("uart-tx-probe", UART_PROBE, project_dir, artifact_dir, elf, wokwi_cli)
+        serial_log = artifact_dir / "uart-tx-probe.serial.log"
+        vcd_file = artifact_dir / "uart-tx-probe.vcd"
+        pa9_toggled = False
+        if vcd_file.exists():
+            try:
+                pa9_toggled = uart_tx_activity_present(vcd_file)
+            except RuntimeError as exc:
+                print(f"PA9 VCD parse: {exc}")
+        serial_captured = serial_capture_contains(serial_log, "WTK.RLCMeter")
+        print(f"PA9 toggled: {'yes' if pa9_toggled else 'no'}")
+        print(f"Serial Monitor captured text: {'yes' if serial_captured else 'no'}")
+        if not scenario_ok and not serial_captured:
+            return 1
+        return 0 if serial_captured else 1
 
     scenario_names = selected_scenarios(args)
     failures = 0

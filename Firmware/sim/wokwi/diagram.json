@@ -80,7 +80,6 @@
     [ "mcu:B11", "tft:D/C", "green", [ "h0" ] ],
     [ "mcu:B15", "tft:MOSI", "green", [ "h0" ] ],
     [ "mcu:B13", "tft:SCK", "green", [ "h0" ] ],
-    [ "mcu:B14", "tft:MISO", "green", [ "h0" ] ],
     [ "mcu:B10", "tft:RST", "green", [ "h0" ] ],
     [ "mcu:3V3.1", "tft:LED", "red", [ "h0" ] ],
 
@@ -117,6 +116,9 @@
     [ "mcu:B6", "logic-spi:D6", "gray", [ "h0" ] ],
     [ "mcu:B7", "logic-spi:D7", "gray", [ "h0" ] ],
     [ "mcu:GND.2", "logic-spi:GND", "black", [ "h0" ] ],
+
+    [ "mcu:A9", "$serialMonitor:RX", "", [] ],
+    [ "$serialMonitor:TX", "mcu:A10", "", [] ],
 
     [ "mcu:A9", "logic-io:D0", "gray", [ "h0" ] ],
     [ "mcu:A10", "logic-io:D1", "gray", [ "h0" ] ],

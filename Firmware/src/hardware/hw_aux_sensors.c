@@ -73,6 +73,7 @@ static void reset_group(hw_aux_sensors_t *sensors)
     sensors->accum_battery = 0u;
     sensors->accum_ntc = 0u;
     sensors->sample_index = 0u;
+    sensors->vmid_group_saturated = false;
     sensors->residual_group_saturated = false;
     sensors->battery_group_saturated = false;
     sensors->ntc_group_saturated = false;
@@ -120,7 +121,7 @@ static void publish_residual(hw_aux_sensors_t *sensors)
     const float vmid_v = bsp_adc_raw_to_voltage(vmid_raw);
     const float hi_v = bsp_adc_raw_to_voltage(hi_raw);
     const float lo_v = bsp_adc_raw_to_voltage(lo_raw);
-    const bool vmid_saturated = sensors->residual_group_saturated || hw_residual_raw_is_saturated(vmid_raw);
+    const bool vmid_saturated = sensors->vmid_group_saturated || hw_residual_raw_is_saturated(vmid_raw);
     const bool vmid_valid = !vmid_saturated && (vmid_v >= HW_AUX_VMID_MIN_V) && (vmid_v <= HW_AUX_VMID_MAX_V);
 
     sensors->snapshot.vmid_raw = vmid_raw;
@@ -200,8 +201,10 @@ static void complete_sample(hw_aux_sensors_t *sensors, uint16_t raw)
     {
     case 0u:
         sensors->accum_vmid += raw;
+        sensors->vmid_group_saturated =
+            sensors->vmid_group_saturated || hw_residual_raw_is_saturated(raw);
         sensors->residual_group_saturated =
-            sensors->residual_group_saturated || hw_residual_raw_is_saturated(raw);
+            sensors->residual_group_saturated || sensors->vmid_group_saturated;
         break;
     case 1u:
         sensors->accum_hi += raw;

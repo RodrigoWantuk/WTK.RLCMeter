@@ -621,15 +621,74 @@ Observed:
 - MCU-only diagram (Blue Pill, no TFT/Flash/analyzers) with `--expect-text WTK.RLCMeter` also timed out at 20 s and 30 s
 - HEX-only load (no `--elf` override) also produced no USART text
 
-Therefore:
+Therefore, as recorded at the time of Stage 3:
 
 - the token/API path works;
 - lint/static Wokwi infrastructure works;
-- the Lab ELF currently emits no USART1 text in Wokwi before scenario timeout;
-- no scenario is `VIRTUAL_HARDWARE_TESTED`.
+- all four smoke scenarios timed out with empty serial logs;
+- no scenario was `VIRTUAL_HARDWARE_TESTED`.
 
-Most likely class of failure: the firmware never reaches the UART boot banner in the simulator (HardFault/`Default_Handler` spin, or an unbounded wait before `bsp_uart_init()`), rather than a missing token or a diagram wiring mistake. Clock init writes `FLASH->ACR` before UART is up; the current Wokwi STM32F103 table does not list a Flash controller. That is a hypothesis, not a root-cause proof.
+The Stage 3 hypothesis that the firmware never reached UART (HardFault/`Default_Handler`, or `FLASH->ACR`) is **disproven** by Stage 4. It is retained above only as historical context.
 
-Do not change production safety/clock behavior merely to make Wokwi pass. A future Lab-only diagnostic may print an HSI-baud character before PLL/FLASH ACR if a later assignment authorizes that hook.
+## Stage 4 — Serial Monitor wiring, UART bring-up, and remaining SPI-RX blocker
 
-Phase 03A remains `IN_PROGRESS`.
+Chronological diagnosis:
+
+1. **Initial symptom (Stage 3):** smoke 0/4, all scenarios timed out, serial logs empty.
+2. **First token-backed evidence:** Wokwi CLI 0.26.1, API `1.0.0-20260803-gf69c6c93`, W25Q chip compile PASS, lint PASS, no USART text.
+3. **Missing Serial Monitor wiring (proven):** `diagram.json` had PA9/PA10 on `logic-io` only. Smoke uses `wait-serial`. Added:
+   - `["mcu:A9", "$serialMonitor:RX", "", []]`
+   - `["$serialMonitor:TX", "mcu:A10", "", []]`
+   Logic-analyzer PA9/PA10 connections were kept. Static JSON validation in `run_virtual_tests.py` requires that directed pair. Unit tests cover: correct wiring; missing PA9 TX; missing PA10 RX; both directions swapped; PA9 connected to `$serialMonitor:TX`; PA10 connected to `$serialMonitor:RX`.
+4. **Result after wiring, before any production clock/UART/watchdog change:**
+   - Lab image emitted `WTK.RLCMeter` on USART1.
+   - `uart-boot` PASS.
+   - PA9 VCD probe: `PA9 toggled: yes`, `Serial Monitor captured text: yes`.
+   - Boot continued past `watchdog_policy: IWDG_START_AFTER_UART_BANNER`. IWDG was **not** proven to block simulation. No `stm32-wokwi` profile was added.
+5. **Clock behavior in Wokwi (proven, fail-closed):** `clock_status: TIMEOUT`, `clock_source: HSI`, SYSCLK 8 MHz. Production HSE/PLL 72 MHz was **not** changed. Firmware reports the timeout and continues. HSE ready-wait delays the banner by a few simulated seconds; scenario budgets were increased where that delay plus YAML `wait-serial`/`expect-pin` issues caused false failures.
+6. **Wokwi CLI/scenario facts proven while bringing smoke to 4/4:**
+   - `expect-pin` requires `value:`, not `expected:` (0.26.1 treats missing `value` as `undefined`).
+   - `wait-serial` matches only text that appears after the step starts; tokens already printed are missed.
+   - `wokwi-cli --vcd-file` records the first logic analyzer as scope `logic` (not the part id).
+7. **Subsequent simulator incompatibility (proven, blocks 11/11):**
+   - Custom W25Q chip loads (`chip_init` ran; `jedecMode=0`, `noResponse=0`).
+   - Chip sees CS and MOSI (`0x9F` JEDEC command, four SPI bytes).
+   - MCU `w25q_device_probe()` returns `UNSUPPORTED_DEVICE` with raw JEDEC `0x00000000`.
+   - Forcing the chip MISO pin HIGH during CS-low still yielded `0x00000000`.
+   - Conclusion: Wokwi STM32F103 SPI2 master transmit/SCK/CS reach the custom chip, but SPI receive into `SPI_DR` does not sample MISO. This is a simulator limitation, not a production Flash bug.
+   - Therefore `w25q-detect`, `w25q-selftest`, and `quiet-mode` cannot pass honestly (`w25q: OK` never appears).
+   - `w25q-bad-jedec` / `w25q-absent` can match `UNSUPPORTED_DEVICE` because RX is stuck at 0, which does **not** prove those chip modes. They are not `VIRTUAL_HARDWARE_TESTED` for Flash identity.
+
+Smoke after Stage 4 wiring + scenario/YAML fixes: **4/4 PASS** (`boot-safe`, `uart-boot`, `buttons`, `spi-cs`).
+
+Full suite: **8/11** scenarios execute successfully against Wokwi for their digital checks:
+
+| Scenario | Result | Evidence class |
+| --- | --- | --- |
+| boot-safe | PASS | VIRTUAL_HARDWARE_TESTED (digital pins + UART) |
+| uart-boot | PASS | VIRTUAL_HARDWARE_TESTED |
+| buttons | PASS | VIRTUAL_HARDWARE_TESTED |
+| pwm-backlight | PASS | VIRTUAL_HARDWARE_TESTED (1 kHz, ~25% duty on real VCD) |
+| spi-display | PASS | VIRTUAL_HARDWARE_TESTED (TFT_CS activity on recorded analyzer) |
+| spi-cs | PASS | VIRTUAL_HARDWARE_TESTED (real Wokwi VCD: CS never both LOW) |
+| w25q-detect | FAIL | not claimed; SPI RX limitation |
+| w25q-selftest | FAIL | not claimed; SPI RX limitation |
+| w25q-bad-jedec | mechanical PASS | GPIO checks only; Flash identity not VIRTUAL_HARDWARE_TESTED |
+| w25q-absent | mechanical PASS | GPIO checks only; Flash identity not VIRTUAL_HARDWARE_TESTED |
+| quiet-mode | FAIL | not claimed; needs `w25q: OK` |
+
+Phase 03A remains `IN_PROGRESS` because the required 11/11 virtual suite is not met.
+
+No production clock, IWDG, K1 polarity, range map, or measurement-permit change was made. The only production firmware edit in this stage is the Phase 04 VMID telemetry split (`vmid_group_saturated` vs `residual_group_saturated`).
+
+Deliberate-failure proof (temporary scenario, not committed):
+
+```text
+wokwi-cli . --scenario ../../build/virtual/wokwi/deliberate-fail.yaml --elf <lab-elf> --timeout 1500 --timeout-exit-code 124
+exit 124
+reason: Timeout: simulation did not finish in 1500ms (wait-serial THIS_TOKEN_DOES_NOT_EXIST)
+```
+
+The temporary YAML was deleted afterwards.
+
+GitHub Actions on current `main` (`92a82ec`, newlib spec install) did **not** produce a smoke result: run `32264206413` was cancelled at the job timeout (~20 min) during `Install build tools` (`apt-get`). Wokwi steps were skipped. Live CI smoke remains **EXTERNAL CI CONFIGURATION / EXECUTION NOT VERIFIED** for this Stage 4 working tree. The workflow still installs `libnewlib-arm-none-eabi` and validates `nano.specs` / `nosys.specs`.

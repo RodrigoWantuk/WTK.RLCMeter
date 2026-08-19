@@ -13,6 +13,17 @@ python tools/run_virtual_tests.py --smoke
 
 Use `python tools/run_virtual_tests.py --build --smoke` to configure/build the Lab ELF before running the short suite.
 Use `python tools/run_virtual_tests.py --lint-only` to compile custom chips and run `wokwi-cli lint` without consuming simulation time.
+Use `python tools/run_virtual_tests.py --uart-probe` to record PA9 VCD activity and Serial Monitor capture without adding that probe to the acceptance suite.
+
+USART1 must stay wired to the Wokwi Serial Monitor as well as to `logic-io`:
+
+```text
+mcu:A9  -> $serialMonitor:RX
+$serialMonitor:TX -> mcu:A10
+mcu:A9  -> logic-io:D0
+```
+
+`run_virtual_tests.py` fails the static check if either monitor connection is missing. `wokwi-cli` 0.26.1 scenario `expect-pin` steps must use `value:`, not `expected:`.
 
 ## Prerequisites
 
@@ -20,7 +31,7 @@ Use `python tools/run_virtual_tests.py --lint-only` to compile custom chips and 
 - `WOKWI_CLI_TOKEN` set in the environment;
 - `Firmware/build/stm32-lab/WTK.RLCMeter.elf` built from the repository CMake flow.
 
-The runner checks that the token is present without printing it. It does not download or execute installer scripts. It compiles the W25Q64 custom chip into `Firmware/build/virtual/wokwi/chips/w25q64/` before lint/simulation when `wokwi-cli` is available. Official installation options are documented by Wokwi:
+The runner compiles the W25Q64 custom chip into `Firmware/build/virtual/wokwi/chips/w25q64/` and copies the WASM next to `Firmware/sim/wokwi/chips/w25q64/` (`*.chip.wasm` is gitignored) so `wokwi.toml` can load `chips/w25q64/w25q64.chip.wasm`. The runner checks that `WOKWI_CLI_TOKEN` is present without printing it. Official installation options are documented by Wokwi:
 
 - <https://docs.wokwi.com/wokwi-ci/cli-installation>
 - <https://docs.wokwi.com/wokwi-ci/cli-usage>
@@ -31,8 +42,8 @@ The runner checks that the token is present without printing it. It does not dow
 
 The Wokwi model uses `board-stm32-bluepill` plus:
 
-- ILI9341 on the Rev.1 SPI2/control pins;
-- a minimal custom W25Q64 model sharing SPI2 with the TFT and using PA12 as `FLASH_CS`;
+- ILI9341 on the Rev.1 SPI2/control pins. Firmware never reads the TFT, so `tft:MISO` is left disconnected in the virtual diagram (the Wokwi ILI9341 model can hold MISO);
+- a minimal custom W25Q64 model sharing SPI2 MOSI/SCK with the TFT and using PA12 as `FLASH_CS` and PB14 as Flash MISO;
 - three active-low pushbuttons on PB3, PB4, and PC13;
 - three 8-channel logic analyzers for safe outputs, SPI/display/range pins, and UART/button observation.
 
@@ -86,4 +97,6 @@ Artifacts are written under `Firmware/build/virtual/wokwi/`.
 
 Wokwi is virtual regression evidence only. It does not replace bench validation for electrical behavior, relay safety, analog residual-voltage thresholds, ADC/DMA metrology, signal integrity, watchdog reset behavior, or final display quality.
 
-Current Wokwi STM32F103 support includes GPIO, USART, SPI, TIM1-4, RCC, and AFIO. ADC2, DMA, and IWDG are not available for the current Phase 03A evidence set.
+Current Wokwi STM32F103 support includes GPIO, USART, SPI transmit, TIM1-4, RCC, and AFIO. ADC2, DMA, and IWDG are not implemented.
+
+Proven additional limitation for this project: STM32 SPI2 master **receive** does not sample MISO into `SPI_DR` (custom-chip JEDEC `0x9F` is seen on MOSI, MCU reads `0x00000000`). W25Q content scenarios therefore cannot be classified `VIRTUAL_HARDWARE_TESTED` until that simulator path works. HSE/PLL is not ready in the model; production firmware fail-closes to HSI 8 MHz and reports `clock_status: TIMEOUT`. IWDG is unimplemented but does not block the boot banner (watchdog starts after UART). `wokwi-cli --vcd-file` records only the first logic analyzer.
