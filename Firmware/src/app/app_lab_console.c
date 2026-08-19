@@ -309,6 +309,11 @@ static void run_command(app_lab_console_t *console,
 
     if (text_equals(line, "lab quiet on"))
     {
+        if (app_lab_console_flash_busy(console))
+        {
+            write_text("lab quiet: BUSY\r\n");
+            return;
+        }
         hw_peripherals_request_quiet(true);
         write_text("lab quiet: ON\r\n");
     }

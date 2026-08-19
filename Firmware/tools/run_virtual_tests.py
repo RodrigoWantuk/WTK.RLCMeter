@@ -307,10 +307,108 @@ def value_events(signals: dict[str, str], events: dict[str, list[tuple[float, st
     return events.get(code, [])
 
 
+def binary_events(signals: dict[str, str], events: dict[str, list[tuple[float, str]]], name: str) -> list[tuple[float, str]]:
+    return [(timestamp, value) for timestamp, value in value_events(signals, events, name) if value in ("0", "1")]
+
+
+def value_at(events: list[tuple[float, str]], timestamp_s: float, default: str = "1") -> str:
+    value = default
+    for event_time_s, event_value in events:
+        if event_time_s > timestamp_s:
+            break
+        value = event_value
+    return value
+
+
+def windowed_events(events: list[tuple[float, str]], start_s: float, end_s: float, default: str = "0") -> list[tuple[float, str]]:
+    if end_s <= start_s:
+        return []
+
+    result = [(start_s, value_at(events, start_s, default))]
+    result.extend((timestamp, value) for timestamp, value in events if start_s < timestamp < end_s)
+    result.append((end_s, value_at(events, end_s, default)))
+    return result
+
+
+def signal_has_low_assertion(events: list[tuple[float, str]], start_s: float, end_s: float) -> bool:
+    if value_at(events, start_s, "1") == "0":
+        return True
+    return any((start_s < timestamp < end_s) and (value == "0") for timestamp, value in events)
+
+
+def signal_bursts(events: list[tuple[float, str]], gap_s: float) -> list[tuple[float, float, int]]:
+    if not events:
+        return []
+
+    bursts: list[tuple[float, float, int]] = []
+    burst_start = events[0][0]
+    burst_end = events[0][0]
+    edge_count = 1
+    for timestamp, _ in events[1:]:
+        if timestamp - burst_end > gap_s:
+            if edge_count >= 2:
+                bursts.append((burst_start, burst_end, edge_count))
+            burst_start = timestamp
+            edge_count = 1
+        else:
+            edge_count += 1
+        burst_end = timestamp
+
+    if edge_count >= 2:
+        bursts.append((burst_start, burst_end, edge_count))
+    return bursts
+
+
+def backlight_pwm_metrics(events: list[tuple[float, str]], start_s: float | None = None, end_s: float | None = None) -> tuple[float, float]:
+    pwm_events = events
+    if start_s is not None and end_s is not None:
+        pwm_events = windowed_events(events, start_s, end_s, "0")
+    if len(pwm_events) < 8:
+        raise RuntimeError("not enough backlight PWM edges captured")
+
+    rising_edges: list[float] = []
+    high_time = 0.0
+    total_time = 0.0
+    last_time = pwm_events[0][0]
+    last_value = pwm_events[0][1]
+    for timestamp, value in pwm_events[1:]:
+        duration = timestamp - last_time
+        if duration > 0.0:
+            total_time += duration
+            if last_value == "1":
+                high_time += duration
+        if last_value == "0" and value == "1":
+            rising_edges.append(timestamp)
+        last_time = timestamp
+        last_value = value
+
+    if len(rising_edges) < 3 or total_time <= 0.0:
+        raise RuntimeError("not enough backlight PWM cycles captured")
+
+    periods = [rising_edges[i + 1] - rising_edges[i] for i in range(len(rising_edges) - 1)]
+    average_period_s = sum(periods) / len(periods)
+    frequency_hz = 1.0 / average_period_s if average_period_s > 0.0 else 0.0
+    duty_percent = (high_time / total_time) * 100.0
+    return frequency_hz, duty_percent
+
+
+def require_backlight_pwm(events: list[tuple[float, str]], label: str, start_s: float | None = None, end_s: float | None = None) -> tuple[float, float]:
+    try:
+        frequency_hz, duty_percent = backlight_pwm_metrics(events, start_s, end_s)
+    except RuntimeError as exc:
+        raise RuntimeError(f"{label}: {exc}") from exc
+
+    if not (900.0 <= frequency_hz <= 1100.0):
+        raise RuntimeError(f"{label}: backlight PWM frequency out of range: {frequency_hz:.1f} Hz")
+    if not (15.0 <= duty_percent <= 35.0):
+        raise RuntimeError(f"{label}: backlight PWM duty out of range: {duty_percent:.1f}%")
+    return frequency_hz, duty_percent
+
+
 def check_spi_cs(path: Path) -> None:
     signals, events = parse_vcd(path)
-    flash_events = value_events(signals, events, "PA12_FLASH_CS")
-    tft_events = value_events(signals, events, "PB12_TFT_CS")
+    flash_events = binary_events(signals, events, "PA12_FLASH_CS")
+    tft_events = binary_events(signals, events, "PB12_TFT_CS")
     combined = [(t, "flash", v) for t, v in flash_events] + [(t, "tft", v) for t, v in tft_events]
     combined.sort(key=lambda item: item[0])
 
@@ -339,7 +437,7 @@ def check_spi_cs(path: Path) -> None:
 def check_display_activity(path: Path) -> None:
     signals, events = parse_vcd(path)
     for name in ("PB12_TFT_CS", "PB11_TFT_DC", "PB13_TFT_SCK"):
-        captured = value_events(signals, events, name)
+        captured = binary_events(signals, events, name)
         values = {value for _, value in captured}
         if not ({"0", "1"} <= values):
             raise RuntimeError(f"display signal did not toggle: {name}")
@@ -347,51 +445,59 @@ def check_display_activity(path: Path) -> None:
 
 def check_backlight_pwm(path: Path) -> None:
     signals, events = parse_vcd(path)
-    pwm_events = [(t, v) for t, v in value_events(signals, events, "PB0_TFT_BL") if v in ("0", "1")]
-    if len(pwm_events) < 8:
-        raise RuntimeError("not enough backlight PWM edges captured")
-
-    rising_edges: list[float] = []
-    high_time = 0.0
-    total_time = 0.0
-    last_time = pwm_events[0][0]
-    last_value = pwm_events[0][1]
-    for timestamp, value in pwm_events[1:]:
-        duration = timestamp - last_time
-        if duration > 0.0:
-            total_time += duration
-            if last_value == "1":
-                high_time += duration
-        if last_value == "0" and value == "1":
-            rising_edges.append(timestamp)
-        last_time = timestamp
-        last_value = value
-
-    if len(rising_edges) < 3 or total_time <= 0.0:
-        raise RuntimeError("not enough backlight PWM cycles captured")
-
-    periods = [rising_edges[i + 1] - rising_edges[i] for i in range(len(rising_edges) - 1)]
-    average_period_s = sum(periods) / len(periods)
-    frequency_hz = 1.0 / average_period_s if average_period_s > 0.0 else 0.0
-    duty_percent = (high_time / total_time) * 100.0
-
-    if not (900.0 <= frequency_hz <= 1100.0):
-        raise RuntimeError(f"backlight PWM frequency out of range: {frequency_hz:.1f} Hz")
-    if not (15.0 <= duty_percent <= 35.0):
-        raise RuntimeError(f"backlight PWM duty out of range: {duty_percent:.1f}%")
-
+    pwm_events = binary_events(signals, events, "PB0_TFT_BL")
+    frequency_hz, duty_percent = require_backlight_pwm(pwm_events, "overall")
     print(f"  VCD: backlight PWM {frequency_hz:.1f} Hz, duty {duty_percent:.1f}%")
 
 
 def check_quiet_mode(path: Path) -> None:
     signals, events = parse_vcd(path)
-    buzzer_events = [(t, v) for t, v in value_events(signals, events, "PB1_IO_BUZZ") if v in ("0", "1")]
-    backlight_events = [(t, v) for t, v in value_events(signals, events, "PB0_TFT_BL") if v in ("0", "1")]
-    if len(buzzer_events) < 4:
+    buzzer_events = binary_events(signals, events, "PB1_IO_BUZZ")
+    backlight_events = binary_events(signals, events, "PB0_TFT_BL")
+    flash_cs_events = binary_events(signals, events, "PA12_FLASH_CS")
+    tft_cs_events = binary_events(signals, events, "PB12_TFT_CS")
+    if len(buzzer_events) < 8:
         raise RuntimeError("buzzer did not toggle before quiet-mode request")
     if len(backlight_events) < 8:
         raise RuntimeError("backlight PWM was not captured during quiet-mode scenario")
-    print("  VCD: quiet-mode buzzer/backlight capture present")
+
+    buzzer_bursts = signal_bursts(buzzer_events, 0.050)
+    if len(buzzer_bursts) < 2:
+        raise RuntimeError("quiet-mode did not create separated buzzer bursts")
+
+    pre_quiet_burst = buzzer_bursts[0]
+    post_quiet_burst = buzzer_bursts[-1]
+    pre_duration_s = pre_quiet_burst[1] - pre_quiet_burst[0]
+    quiet_start_s = pre_quiet_burst[1]
+    quiet_end_s = post_quiet_burst[0]
+    quiet_duration_s = quiet_end_s - quiet_start_s
+
+    if pre_duration_s >= 1.5:
+        raise RuntimeError("pre-quiet buzzer tone was not stopped early")
+    if quiet_duration_s < 0.2:
+        raise RuntimeError("quiet interval was too short to prove inactivity")
+    if any(quiet_start_s < timestamp < quiet_end_s for timestamp, _ in buzzer_events):
+        raise RuntimeError("buzzer toggled during quiet interval")
+    if signal_has_low_assertion(flash_cs_events, quiet_start_s, quiet_end_s):
+        raise RuntimeError("FLASH_CS asserted during quiet interval")
+    if signal_has_low_assertion(tft_cs_events, quiet_start_s, quiet_end_s):
+        raise RuntimeError("TFT_CS asserted during quiet interval")
+
+    before_frequency_hz, before_duty_percent = require_backlight_pwm(
+        backlight_events, "before quiet", pre_quiet_burst[0], pre_quiet_burst[1]
+    )
+    during_frequency_hz, during_duty_percent = require_backlight_pwm(
+        backlight_events, "during quiet", quiet_start_s, quiet_end_s
+    )
+    after_frequency_hz, after_duty_percent = require_backlight_pwm(
+        backlight_events, "after quiet", post_quiet_burst[0], post_quiet_burst[1]
+    )
+
+    print(
+        "  VCD: quiet-mode buzzer stopped, SPI idle; "
+        f"backlight {before_frequency_hz:.1f}/{during_frequency_hz:.1f}/{after_frequency_hz:.1f} Hz, "
+        f"duty {before_duty_percent:.1f}/{during_duty_percent:.1f}/{after_duty_percent:.1f}%"
+    )
 
 
 def run_post_checks(checks: tuple[str, ...], vcd_file: Path) -> None:

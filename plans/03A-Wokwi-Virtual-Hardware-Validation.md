@@ -525,7 +525,7 @@ Phase 04 remains blocked. Phase 02/03 bench validation remains `REQUIRES_BENCH_V
 
 ## Stage 2 implementation status
 
-Stage 2 implementation is present but Phase 03A remains `IN_PROGRESS` until real Wokwi CLI execution evidence is collected.
+Stage 2 implementation is present but Phase 03A remains `IN_PROGRESS` until real Wokwi simulation evidence is collected.
 
 Implemented:
 
@@ -541,7 +541,10 @@ Implemented:
   - ambiguous generic `D2` rejection;
   - missing-signal rejection;
   - SPI chip-select non-overlap/overlap;
-  - 1 kHz PWM pass and out-of-tolerance PWM fail.
+  - 1 kHz PWM pass and out-of-tolerance PWM fail;
+  - quiet-mode temporal pass/fail behavior;
+  - backlight PWM continuity through quiet-mode;
+  - Flash/TFT CS assertion rejection during quiet-mode.
 - Minimal W25Q64 custom chip source under `Firmware/sim/wokwi/chips/w25q64/`:
   - JEDEC `EF 40 17`;
   - alternate bad-JEDEC and no-response modes;
@@ -552,6 +555,12 @@ Implemented:
   - sector erase;
   - deterministic non-instant BUSY timing;
   - sparse storage with a functional final reserved 4 KiB test sector.
+- W25Q64 custom-chip closure fixes:
+  - `chip_init()` now matches the current Wokwi Custom Chips API `void chip_init(void)` entry point;
+  - allocation is checked before use and the chip object is deterministically initialized;
+  - MISO follows the official SPI-device example and is initialized as `INPUT`, avoiding a permanently driven-high shared MISO line when W25Q `CS` is inactive;
+  - mutating commands are ignored while BUSY is set, while `0x05` status reads remain available;
+  - program/erase acceptance requires `WEL`, complete addressing, valid transaction boundaries, and starts BUSY only after accepted mutations.
 - Rev.1 shared-SPI W25Q wiring in the Wokwi diagram.
 - New virtual scenarios:
   - `w25q-detect`;
@@ -567,22 +576,34 @@ Implemented:
   - `lab flash selftest`.
 - Lab-only non-blocking W25Q reserved-sector self-test using erase-start/poll, page-program-start/poll, readback, verification, and cleanup erase.
 - Quiet-mode API ambiguity reduction: `spi_bus_request_quiet()` was removed from the public SPI bus API. Future acquisition code should use `hw_peripherals_request_quiet()`.
+- Lab-only display diagnostics:
+  - one-shot `display: READY` after ILI9341 initialization reaches ready state;
+  - one-shot `fallback_ui: FLASH_ERROR_DRAWN` only after the emergency fallback renderer succeeds.
+- Wokwi CLI 0.26.1 compatibility fixes:
+  - Blue Pill diagram/scenario pins use Wokwi connector names such as `A8`, `B12`, and `C13`;
+  - unsupported logic-analyzer `channelNames` attributes were removed;
+  - PA13/PA14 SWD pins remain firmware-reserved but are not logic-analyzer-connected because the current Wokwi Blue Pill part does not expose them as connectable pins.
 
-Validated locally without Wokwi credentials:
+Validated locally on 2026-08-19:
 
 - host Debug and Release CTest targets remain passing;
 - Python tooling tests pass;
 - STM32 Debug/Release/Lab builds pass;
 - runner `--check-only` passes;
-- runner `--lint-only` and `--smoke` correctly return exit code 2 when `wokwi-cli` is unavailable.
+- Wokwi CLI installed via the official Windows PowerShell installer;
+- exact Wokwi CLI version: `0.26.1 (9d71b975b7eb)`;
+- `wokwi-cli chip compile chips/w25q64/w25q64.chip.c -o C:\Users\rodri\source\repos\WTK.RLCMeter\Firmware\build\virtual\wokwi\chips\w25q64\w25q64.chip.wasm` passes and produces a 66.0 KB WASM artifact;
+- `python tools/run_virtual_tests.py --lint-only` passes, including custom-chip compilation and `wokwi-cli lint`;
+- `wokwi-cli lint` reports `No issues found`;
+- `python tools/run_virtual_tests.py --smoke` compiles/lints successfully and returns exit code 2 because `WOKWI_CLI_TOKEN` is not set;
+- deliberate synthetic VCD failure proof returns exit code 1 with `FLASH_CS and TFT_CS were low at the same time`;
+- Release build remains free of Lab-only strings such as `display: READY`, `fallback_ui`, and `lab flash selftest`.
 
 Not yet completed:
 
-- `wokwi-cli lint`;
-- custom-chip WASM compilation by Wokwi CLI;
 - real virtual scenario execution;
 - VCD post-processing against real Wokwi output;
-- deliberate-failure proof;
+- scenario-level deliberate-failure proof with the real Wokwi runner;
 - CI run with `WOKWI_CLI_TOKEN`.
 
-Reason: current local environment did not provide `wokwi-cli` or `WOKWI_CLI_TOKEN`. No Stage 2 scenario is claimed as `VIRTUAL_HARDWARE_TESTED` until lint/simulation actually run.
+Reason: current local environment does not provide `WOKWI_CLI_TOKEN`. No Stage 2 scenario is claimed as `VIRTUAL_HARDWARE_TESTED` until smoke/full simulations actually run.

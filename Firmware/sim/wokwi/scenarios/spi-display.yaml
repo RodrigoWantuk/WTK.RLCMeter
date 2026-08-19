@@ -4,4 +4,5 @@ author: WTK.RLCMeter
 steps:
   - wait-serial: 'spi2: OK'
   - wait-serial: 'w25q:'
+  - wait-serial: 'display: READY'
   - delay: 1500ms

@@ -33,6 +33,54 @@ def simple_vcd(definitions: str, changes: str) -> Path:
     )
 
 
+def quiet_mode_vcd(
+    *,
+    buzzer_during_quiet: bool = False,
+    backlight_during_quiet: bool = True,
+    flash_cs_during_quiet: bool = False,
+    tft_cs_during_quiet: bool = False,
+) -> Path:
+    events: list[tuple[int, str]] = [
+        (0, "0!"),
+        (0, "0?"),
+        (0, "1#"),
+        (0, "1%"),
+    ]
+
+    for timestamp in range(90000, 870000, 1000):
+        if not backlight_during_quiet and 260000 <= timestamp <= 690000:
+            continue
+        events.append((timestamp, "1?"))
+        events.append((timestamp + 250, "0?"))
+
+    for timestamp in range(100000, 250000, 500):
+        events.append((timestamp, "1!" if ((timestamp // 500) % 2) == 0 else "0!"))
+
+    if buzzer_during_quiet:
+        for timestamp in range(350000, 450000, 500):
+            events.append((timestamp, "1!" if ((timestamp // 500) % 2) == 0 else "0!"))
+
+    for timestamp in range(700000, 850000, 500):
+        events.append((timestamp, "1!" if ((timestamp // 500) % 2) == 0 else "0!"))
+
+    if flash_cs_during_quiet:
+        events.append((400000, "0#"))
+        events.append((405000, "1#"))
+
+    if tft_cs_during_quiet:
+        events.append((420000, "0%"))
+        events.append((425000, "1%"))
+
+    changes = "".join(f"#{timestamp}\n{value}\n" for timestamp, value in sorted(events, key=lambda item: item[0]))
+    return simple_vcd(
+        "$var wire 1 ! PB1_IO_BUZZ $end\n"
+        "$var wire 1 ? PB0_TFT_BL $end\n"
+        "$var wire 1 # PA12_FLASH_CS $end\n"
+        "$var wire 1 % PB12_TFT_CS $end\n",
+        changes,
+    )
+
+
 class VcdSignalResolverTest(unittest.TestCase):
     def test_exact_canonical_match(self):
         path = simple_vcd("$var wire 1 ! PA12_FLASH_CS $end\n", "#0\n1!\n")
@@ -114,6 +162,30 @@ class VcdPostChecksTest(unittest.TestCase):
         path = simple_vcd("$var wire 1 ! PB0_TFT_BL $end\n", "".join(changes))
         with self.assertRaisesRegex(RuntimeError, "frequency out of range"):
             runner.check_backlight_pwm(path)
+
+    def test_quiet_mode_temporal_and_spi_checks_pass(self):
+        path = quiet_mode_vcd()
+        runner.check_quiet_mode(path)
+
+    def test_quiet_mode_buzzer_activity_during_quiet_fails(self):
+        path = quiet_mode_vcd(buzzer_during_quiet=True)
+        with self.assertRaisesRegex(RuntimeError, "buzzer toggled during quiet"):
+            runner.check_quiet_mode(path)
+
+    def test_quiet_mode_backlight_disappears_during_quiet_fails(self):
+        path = quiet_mode_vcd(backlight_during_quiet=False)
+        with self.assertRaisesRegex(RuntimeError, "during quiet"):
+            runner.check_quiet_mode(path)
+
+    def test_quiet_mode_flash_cs_assertion_during_quiet_fails(self):
+        path = quiet_mode_vcd(flash_cs_during_quiet=True)
+        with self.assertRaisesRegex(RuntimeError, "FLASH_CS asserted"):
+            runner.check_quiet_mode(path)
+
+    def test_quiet_mode_tft_cs_assertion_during_quiet_fails(self):
+        path = quiet_mode_vcd(tft_cs_during_quiet=True)
+        with self.assertRaisesRegex(RuntimeError, "TFT_CS asserted"):
+            runner.check_quiet_mode(path)
 
 
 if __name__ == "__main__":

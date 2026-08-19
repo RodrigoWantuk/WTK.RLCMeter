@@ -10,5 +10,5 @@ steps:
   - delay: 1500ms
   - expect-pin:
       part-id: mcu
-      pin: PA12
+      pin: A12
       expected: 1

@@ -33,6 +33,7 @@ typedef enum
     PHASE_FAST_DUMMY,
     PHASE_READ,
     PHASE_PROGRAM,
+    PHASE_IGNORE,
 } command_phase_t;
 
 typedef struct
@@ -89,7 +90,8 @@ static void start_busy(chip_state_t *chip, uint32_t micros)
 
 static void execute_erase(chip_state_t *chip)
 {
-    if ((chip->status & W25Q64_STATUS_WEL) == 0u)
+    if (((chip->status & W25Q64_STATUS_WEL) == 0u) || ((chip->status & W25Q64_STATUS_BUSY) != 0u) ||
+        (chip->address_bytes < 3u))
     {
         return;
     }
@@ -105,7 +107,8 @@ static void execute_erase(chip_state_t *chip)
 
 static void execute_program(chip_state_t *chip)
 {
-    if (((chip->status & W25Q64_STATUS_WEL) == 0u) || (chip->program_count == 0u))
+    if (((chip->status & W25Q64_STATUS_WEL) == 0u) || ((chip->status & W25Q64_STATUS_BUSY) != 0u) ||
+        (chip->address_bytes < 3u) || (chip->program_count == 0u))
     {
         return;
     }
@@ -146,6 +149,17 @@ static uint8_t process_byte(chip_state_t *chip, uint8_t value)
         chip->address_bytes = 0u;
         chip->jedec_index = 0u;
         chip->program_count = 0u;
+        if ((chip->status & W25Q64_STATUS_BUSY) != 0u)
+        {
+            if (value == W25Q64_CMD_READ_STATUS1)
+            {
+                chip->phase = PHASE_STATUS;
+                return chip->status;
+            }
+            chip->command = 0u;
+            chip->phase = PHASE_IGNORE;
+            return 0xffu;
+        }
         if (value == W25Q64_CMD_READ_JEDEC_ID)
         {
             chip->phase = PHASE_JEDEC;
@@ -222,6 +236,8 @@ static uint8_t process_byte(chip_state_t *chip, uint8_t value)
             chip->program_count++;
         }
         return 0xffu;
+    case PHASE_IGNORE:
+        return 0xffu;
     default:
         return 0xffu;
     }
@@ -263,11 +279,11 @@ static void cs_changed(void *user_data, pin_t pin, uint32_t value)
     else
     {
         spi_stop(chip->spi);
-        if (chip->command == W25Q64_CMD_PAGE_PROGRAM)
+        if ((chip->command == W25Q64_CMD_PAGE_PROGRAM) && (chip->address_bytes >= 3u))
         {
             execute_program(chip);
         }
-        else if (chip->command == W25Q64_CMD_SECTOR_ERASE)
+        else if ((chip->command == W25Q64_CMD_SECTOR_ERASE) && (chip->address_bytes >= 3u))
         {
             execute_erase(chip);
         }
@@ -275,9 +291,14 @@ static void cs_changed(void *user_data, pin_t pin, uint32_t value)
     }
 }
 
-void *chip_init(void)
+void chip_init(void)
 {
-    chip_state_t *chip = malloc(sizeof(chip_state_t));
+    chip_state_t *chip = malloc(sizeof(*chip));
+    if (chip == NULL)
+    {
+        return;
+    }
+
     memset(chip, 0, sizeof(*chip));
     memset(chip->sector, 0xff, sizeof(chip->sector));
 
@@ -289,7 +310,7 @@ void *chip_init(void)
     spi_config_t spi_config = {
         .sck = pin_init("SCK", INPUT),
         .mosi = pin_init("MOSI", INPUT),
-        .miso = pin_init("MISO", OUTPUT_HIGH),
+        .miso = pin_init("MISO", INPUT),
         .mode = 0,
         .done = spi_done,
         .user_data = chip,
@@ -308,6 +329,4 @@ void *chip_init(void)
         .user_data = chip,
     };
     chip->busy_timer = timer_init(&timer_config);
-
-    return chip;
 }

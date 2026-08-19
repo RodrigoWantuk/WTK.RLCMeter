@@ -23,6 +23,7 @@ static ili9341_t g_display;
 static w25q_device_t g_flash;
 #if WTK_ENABLE_LAB_DIAGNOSTICS
 static app_lab_console_t g_lab_console;
+static bool g_display_ready_reported = false;
 #endif
 static bool g_flash_fallback_drawn = false;
 
@@ -93,11 +94,21 @@ static void app_step(void)
     }
 
     (void)ili9341_init_step(&g_display, now_ms);
+#if WTK_ENABLE_LAB_DIAGNOSTICS
+    if (g_display.ready && !g_display_ready_reported)
+    {
+        bsp_uart_write_cstr("display: READY\r\n");
+        g_display_ready_reported = true;
+    }
+#endif
     if (g_display.ready && !g_flash.detected && !g_flash_fallback_drawn)
     {
         if (ui_fallback_draw_text(&g_display, 8u, 8u, "FLASH ERROR", 0xFFFFu, 0x0000u) == BSP_STATUS_OK)
         {
             g_flash_fallback_drawn = true;
+#if WTK_ENABLE_LAB_DIAGNOSTICS
+            bsp_uart_write_cstr("fallback_ui: FLASH_ERROR_DRAWN\r\n");
+#endif
         }
     }
 
@@ -128,6 +139,7 @@ void app_shell_run(void)
     buttons_init(&g_buttons, NULL);
 #if WTK_ENABLE_LAB_DIAGNOSTICS
     app_lab_console_init(&g_lab_console);
+    g_display_ready_reported = false;
 #endif
     w25q_device_init(&g_flash);
     ili9341_init_context(&g_display);

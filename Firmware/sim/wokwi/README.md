@@ -34,11 +34,13 @@ The Wokwi model uses `board-stm32-bluepill` plus:
 - ILI9341 on the Rev.1 SPI2/control pins;
 - a minimal custom W25Q64 model sharing SPI2 with the TFT and using PA12 as `FLASH_CS`;
 - three active-low pushbuttons on PB3, PB4, and PC13;
-- three 8-channel logic analyzers for safe outputs, SPI/display/range pins, and UART/button/SWD observation.
+- three 8-channel logic analyzers for safe outputs, SPI/display/range pins, and UART/button observation.
+
+`wokwi-cli` 0.26.1 validates the Blue Pill virtual board pins as `A8`, `B12`, `C13`, etc. rather than the STM32 package-style `PA8`, `PB12`, `PC13` names used in the hardware documentation. The diagram and scenario `expect-pin` entries therefore use Wokwi's connector names while comments, diagnostics, and repository documentation keep the Rev.1 net names. The current logic analyzer part also rejects the old `channelNames` attribute, so VCD post-processing maps analyzer `D0..D7` channels back to canonical firmware net names in `tools/run_virtual_tests.py`.
 
 The W25Q64 model implements only the command subset used by the firmware and a writable final reserved 4 KiB test sector. It is not a complete Winbond datasheet model.
 
-PA13/PA14 remain SWD pins. Native USB is not modeled as a product interface because Rev.1 assigns PA11/PA12 to board functions.
+PA13/PA14 remain SWD pins in firmware. The current Wokwi Blue Pill part does not expose PA13/PA14 as connectable pins, so SWD preservation is checked through the boot diagnostic rather than a logic-analyzer channel. Native USB is not modeled as a product interface because Rev.1 assigns PA11/PA12 to board functions.
 
 ## Scenarios
 

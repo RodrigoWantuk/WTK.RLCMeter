@@ -5,8 +5,34 @@ steps:
   - wait-serial: 'spi2: OK'
   - wait-serial: 'w25q: UNSUPPORTED_DEVICE'
   - wait-serial: 'boot_state: SAFE_BOOT'
+  - wait-serial: 'display: READY'
+  - wait-serial: 'fallback_ui: FLASH_ERROR_DRAWN'
   - delay: 1500ms
   - expect-pin:
       part-id: mcu
-      pin: PA12
+      pin: A8
+      expected: 0
+  - expect-pin:
+      part-id: mcu
+      pin: A11
+      expected: 0
+  - expect-pin:
+      part-id: mcu
+      pin: B8
+      expected: 0
+  - expect-pin:
+      part-id: mcu
+      pin: B9
+      expected: 0
+  - expect-pin:
+      part-id: mcu
+      pin: B1
+      expected: 0
+  - expect-pin:
+      part-id: mcu
+      pin: A12
+      expected: 1
+  - expect-pin:
+      part-id: mcu
+      pin: B12
       expected: 1

@@ -8,29 +8,29 @@ steps:
   - delay: 1800ms
   - expect-pin:
       part-id: mcu
-      pin: PA8
+      pin: A8
       expected: 0
   - expect-pin:
       part-id: mcu
-      pin: PA11
+      pin: A11
       expected: 0
   - expect-pin:
       part-id: mcu
-      pin: PB8
+      pin: B8
       expected: 0
   - expect-pin:
       part-id: mcu
-      pin: PB9
+      pin: B9
       expected: 0
   - expect-pin:
       part-id: mcu
-      pin: PB1
+      pin: B1
       expected: 0
   - expect-pin:
       part-id: mcu
-      pin: PA12
+      pin: A12
       expected: 1
   - expect-pin:
       part-id: mcu
-      pin: PB12
+      pin: B12
       expected: 1
