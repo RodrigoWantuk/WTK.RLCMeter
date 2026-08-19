@@ -10,13 +10,14 @@
 #include "hardware/hw_aux_sensors.h"
 #include "hardware/hw_charger.h"
 #include "hardware/hw_k1.h"
+#include "hardware/hw_metrology_session.h"
 #include "hardware/hw_range.h"
 #include "hardware/hw_safety.h"
 #include "wtk_build_config.h"
 
 enum
 {
-    APP_LAB_CONSOLE_LINE_CAPACITY = 48u,
+    APP_LAB_CONSOLE_LINE_CAPACITY = 64u,
     APP_LAB_FLASH_TEST_SIZE = 64u,
 };
 
@@ -46,6 +47,15 @@ typedef struct
     uint8_t pattern[APP_LAB_FLASH_TEST_SIZE];
     uint8_t readback[APP_LAB_FLASH_TEST_SIZE];
     bool busy_observed;
+    hw_metrology_session_t session;
+    uint16_t dump_row;
+    bool dump_active;
+    uint16_t ccr_table[HW_EXCITATION_LUT_POINTS];
+    hw_range_t *range_ref;
+    hw_k1_t *k1_ref;
+    hw_aux_sensors_t *sensors_ref;
+    hw_charger_t *charger_ref;
+    app_safety_fault_latch_t *faults_ref;
 #else
     uint8_t unused;
 #endif
@@ -58,10 +68,11 @@ void app_lab_console_step(app_lab_console_t *console,
                           hw_range_t *range,
                           hw_charger_t *charger,
                           hw_aux_sensors_t *sensors,
-                          const hw_k1_t *k1,
+                          hw_k1_t *k1,
                           const hw_safety_result_t *safety,
                           app_safety_fault_latch_t *faults,
                           uint32_t now_ms);
 bool app_lab_console_flash_busy(const app_lab_console_t *console);
+bool app_lab_console_capture_busy(const app_lab_console_t *console);
 
 #endif

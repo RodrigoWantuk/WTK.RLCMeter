@@ -66,6 +66,20 @@ Stage 3 hardens the Stage 2 sensor semantics and closes the Phase 04 software fo
 
 Normal application code still does not call `hw_k1_request_measure()`. That API is reserved for the future authorized measurement sequencer after bench-qualified prerequisites exist.
 
+## Phase 05 Stage 1 services
+
+Stage 1 adds the deterministic metrology transport foundation while K1 remains physically SAFE:
+
+- `hw_metrology_clock`: pure HSE/PLL 72 MHz contract gate;
+- `APP_SAFETY_FAULT_CLOCK`: latched at boot when metrology clock contract fails;
+- `hw_excitation` + `bsp_excitation`: TIM1 450 kHz carrier, 45-point LUT, OFF/NEUTRAL/SINE, DMA1 Ch5;
+- `hw_metrology_raw`: packed dual-ADC layout, unpack, hard-clip scan;
+- `bsp_metrology_adc`: dual ADC1/ADC2, TIM2 internal trigger, DMA1 Ch1, static 768-word buffer;
+- `hw_metrology_session`: host-tested non-blocking Lab capture FSM;
+- Lab command `lab metrology capture` (Lab build only).
+
+No DSP, no production MEASURE, no K1 energization in Stage 1.
+
 ## Representative API
 
 ```text

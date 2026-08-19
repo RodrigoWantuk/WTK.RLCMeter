@@ -293,18 +293,56 @@ wait dead-time
 RANGE_EN=1
 ```
 
-### Excitation contract
+### Excitation contract (Stage 1 implemented)
 
-```c
-typedef struct
-{
-    uint32_t frequency_hz;
-    uint32_t carrier_hz;
-    uint16_t amplitude_mv_rms;
-} excitation_config_t;
+Stage 1 modules: `hw_excitation`, `bsp_excitation`, `hw_metrology_session`, `bsp_metrology_adc`, `hw_metrology_raw`.
+
+States:
+
+```text
+OFF     TIM1 stopped, DMA off, PA8 GPIO LOW (boot/fault)
+NEUTRAL TIM1 50% duty (CCR1=80), DMA off
+SINE    TIM1 + circular DMA1 Ch5 feeding 45-entry CCR table
 ```
 
-The API rejects forbidden combinations, including 500 mVrms with the 10 Ω RREF.
+Configuration changes occur only while SINE is stopped. Sequence: OFF → configure → fill CCR → NEUTRAL → 1 ms settle → reset phase → enable DMA → SINE → sine settle → ADC capture → OFF.
+
+Amplitude policy rejects 500 mVrms on 10 Ω RREF with explicit `BSP_STATUS_NOT_SUPPORTED`.
+
+### ADC ownership (Stage 1)
+
+Before metrology capture: `hw_aux_sensors_pause()` (residual evidence invalidated). After capture: stop metrology, restore ADC1 aux configuration via `bsp_adc_init()`, `hw_aux_sensors_resume()` — eight fresh SAFE residual evaluations required. Restore failure latches `APP_SAFETY_FAULT_ADC_RUNTIME`.
+
+### DMA buffer format
+
+One canonical `uint32_t raw_words[768]` (3072 B). Per sample index `n`:
+
+```text
+word[3n+0]: ADC1 VEXC rank1 | ADC2 RET_1X rank1
+word[3n+1]: ADC1 VEXC rank2 | ADC2 RET_HG rank2
+word[3n+2]: ADC1 VMID rank3 | ADC2 VMID rank3
+```
+
+Mask each channel to 12 bits (`0x0FFF`). Clipping scan uses residual rails (≤16, ≥4079).
+
+### ISR ownership
+
+```text
+DMA1_Channel1_IRQHandler  ADC capture TC/TE only
+DMA1_Channel5_IRQHandler  excitation DMA TE only
+```
+
+No TIM2 per-sample IRQ, no ADC EOC per-rank IRQ, no DSP/UART/TFT in ISRs.
+
+### Lab diagnostic (not product measurement)
+
+Lab build only:
+
+```text
+lab metrology capture <100|1k|10k> <100m|500m> <10r|100r|1k|10k|100k|1m>
+```
+
+Non-blocking session FSM; K1 forced SAFE throughout; UART raw dump after excitation OFF and quiet released. Never consumes measurement permit.
 
 ## `src/measurement`
 

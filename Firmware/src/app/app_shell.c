@@ -5,7 +5,9 @@
 #include "bsp/bsp_adc.h"
 #include "bsp/bsp_clock.h"
 #include "bsp/bsp_diagnostics.h"
+#include "bsp/bsp_excitation.h"
 #include "bsp/bsp_gpio.h"
+#include "bsp/bsp_quiet.h"
 #include "bsp/bsp_reset.h"
 #include "bsp/bsp_status.h"
 #include "bsp/bsp_time.h"
@@ -21,6 +23,7 @@
 #include "hardware/hw_charger.h"
 #include "hardware/hw_k1.h"
 #include "hardware/hw_k2.h"
+#include "hardware/hw_metrology_clock.h"
 #include "hardware/hw_range.h"
 #include "hardware/hw_safety.h"
 #include "ui/ui_fallback_renderer.h"
@@ -153,6 +156,11 @@ static void app_log_button_event(const button_event_t *event)
         return;
     }
 
+    if (bsp_quiet_requested())
+    {
+        return;
+    }
+
 #if WTK_ENABLE_LAB_DIAGNOSTICS
     const char *button_name = "UNKNOWN";
     switch (event->button)
@@ -218,7 +226,9 @@ static void app_update_safety_state(void)
     const bsp_status_t k1_safe_status = hw_k1_force_safe(&g_k1);
     app_record_status_fault(k1_safe_status, APP_SAFETY_FAULT_K1_IO);
 
-    if (app_safety_fault_any(&g_safety_faults))
+    const uint32_t range_kill_faults =
+        app_safety_fault_mask(&g_safety_faults) & ~(uint32_t)APP_SAFETY_FAULT_CLOCK;
+    if (range_kill_faults != 0u)
     {
         const bsp_status_t range_status = hw_range_force_disabled(&g_range);
         app_record_status_fault(range_status, APP_SAFETY_FAULT_RANGE_IO);
@@ -294,7 +304,7 @@ static void app_step(void)
                          &g_safety_result,
                          &g_safety_faults,
                          now_ms);
-    if (!app_lab_console_flash_busy(&g_lab_console))
+    if (!app_lab_console_flash_busy(&g_lab_console) && !app_lab_console_capture_busy(&g_lab_console))
     {
         (void)w25q_device_poll(&g_flash, now_ms);
     }
@@ -316,6 +326,10 @@ void app_shell_run(void)
     (void)bsp_uart_init(115200u);
 
     bsp_diagnostics_boot_banner(reset_reason, clock_status);
+    if (!hw_metrology_clock_ready(bsp_clock_get_summary(), clock_status))
+    {
+        app_latch_fault(APP_SAFETY_FAULT_CLOCK);
+    }
     (void)bsp_watchdog_start();
 
     buttons_init(&g_buttons, NULL);
@@ -339,6 +353,7 @@ void app_shell_run(void)
     const bsp_status_t k1_status = hw_k1_init(&g_k1, &k1_io);
     app_record_status_fault(k1_status, APP_SAFETY_FAULT_K1_IO);
     bsp_diagnostics_write_key_value_text("k1", bsp_status_string(k1_status));
+    (void)bsp_excitation_init();
     const bsp_status_t k2_status = hw_k2_init(&g_k2, &k2_io);
     app_record_status_fault(k2_status, APP_SAFETY_FAULT_K2_IO);
     bsp_diagnostics_write_key_value_text("k2", bsp_status_string(k2_status));

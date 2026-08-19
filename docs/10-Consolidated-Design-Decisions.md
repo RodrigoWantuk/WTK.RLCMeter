@@ -93,6 +93,31 @@ No external ADC in Rev.1.
 
 The two internal STM32 ADCs are used for acquisition. Final quality should first be pursued through deterministic timing, DSP, calibration, and range selection rather than introducing an expensive external converter before the prototype is characterized.
 
+### Rev.1 Stage 1 metrology ADC (frozen)
+
+```text
+PA0 ADC_VEXC, PA1 ADC_VMID, PA2 ADC_RET_1X, PA3 ADC_RET_HG
+ADC clock 12 MHz (HSE/PLL only); metrology blocked on HSI fallback
+Dual regular simultaneous ADC1+ADC2, 7.5-cycle sample time on ranks
+3-rank sequence per TIM2 trigger:
+  ADC1: VEXC, VEXC, VMID
+  ADC2: RET_1X, RET_HG, VMID
+TIM2_CC2 internal compare trigger; PA1 never configured as TIM2 GPIO output
+DMA1 Channel 1, packed ADC1/ADC2 32-bit words, 768-word static buffer (3072 B)
+Sample rates: 6400 / 64000 / 160000 SPS at 100 Hz / 1 kHz / 10 kHz excitation
+256 sample instants per block (64 spc x4 or 16 spc x16)
+```
+
+### Rev.1 Stage 1 excitation (frozen)
+
+```text
+PA8 TIM1_CH1 PWM carrier 450 kHz (PSC=0, ARR=159)
+45-point Q15 sine LUT via DMA1 Channel 5 -> TIM1_CCR1
+RCR 99/9/0 for 100 Hz / 1 kHz / 10 kHz
+100 mVrms and 500 mVrms nominal classes; 500 mVrms forbidden on 10 Ω RREF
+OFF / NEUTRAL(50%) / SINE states; boot/fault = OFF
+```
+
 ## Analog front-end
 
 TLV9064 was considered originally, but sourcing constraints led to **2 × MCP6002-E/SN**.

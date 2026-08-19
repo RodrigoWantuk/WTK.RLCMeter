@@ -64,6 +64,10 @@ add_library(wtk_firmware_common STATIC
     src/hardware/hw_k1.c
     src/hardware/hw_k2.c
     src/hardware/hw_measure_permit.c
+    src/hardware/hw_metrology_clock.c
+    src/hardware/hw_excitation.c
+    src/hardware/hw_metrology_raw.c
+    src/hardware/hw_metrology_session.c
     src/hardware/hw_power.c
     src/hardware/hw_range.c
     src/hardware/hw_residual.c
@@ -95,6 +99,8 @@ elseif(WTK_TARGET_PLATFORM STREQUAL "stm32")
         src/app/main.c
         src/bsp/bsp_clock.c
         src/bsp/bsp_adc.c
+        src/bsp/bsp_excitation.c
+        src/bsp/bsp_metrology_adc.c
         src/bsp/bsp_diagnostics.c
         src/bsp/bsp_gpio.c
         src/bsp/bsp_quiet.c

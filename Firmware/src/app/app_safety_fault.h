@@ -13,6 +13,7 @@ typedef enum
     APP_SAFETY_FAULT_RANGE_IO = 1u << 3u,
     APP_SAFETY_FAULT_ADC_INIT = 1u << 4u,
     APP_SAFETY_FAULT_ADC_RUNTIME = 1u << 5u,
+    APP_SAFETY_FAULT_CLOCK = 1u << 6u,
 } app_safety_fault_t;
 
 typedef struct

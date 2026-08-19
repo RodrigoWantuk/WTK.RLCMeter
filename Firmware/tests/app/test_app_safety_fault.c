@@ -36,6 +36,10 @@ int main(void)
     failures += expect_true((app_safety_fault_mask(&faults) & APP_SAFETY_FAULT_RANGE_IO) != 0u,
                             "range fault accumulates");
 
+    app_safety_fault_latch(&faults, APP_SAFETY_FAULT_CLOCK);
+    failures += expect_true((app_safety_fault_mask(&faults) & APP_SAFETY_FAULT_CLOCK) != 0u,
+                            "clock fault latches");
+
     const hw_safety_input_t input = {
         .charger = HW_CHARGER_ABSENT,
         .residual = HW_RESIDUAL_SAFE,

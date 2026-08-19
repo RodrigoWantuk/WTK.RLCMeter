@@ -1,6 +1,76 @@
 # 05 — Excitation, ADC, and DMA
 
-STATUS: NOT_STARTED
+STATUS: IN_PROGRESS
+
+## Stage 1 status
+
+```text
+Stage 1 — Deterministic excitation + dual-ADC/DMA raw-capture foundation
+STATUS: IMPLEMENTED_REQUIRES_BENCH_VALIDATION
+```
+
+Stage 1 delivers host-tested policy/contract modules, STM32 BSP for TIM1 excitation and dual-ADC DMA capture, Lab-only `lab metrology capture`, and fail-safe abort behavior. It does **not** energize K1, implement DSP, or connect production MEASURE.
+
+## Authoritative Rev.1 Stage 1 Metrology Contract
+
+The following values are frozen for Rev.1 Stage 1. Future stages must not silently change them.
+
+### Metrology clock prerequisite
+
+```text
+source          = HSE_PLL
+hse_ready       = true
+SYSCLK/HCLK     = 72 MHz
+PCLK1           = 36 MHz
+PCLK2           = 72 MHz
+TIM APB1/APB2   = 72 MHz
+ADC clock       = 12 MHz
+```
+
+Anything else: metrology not ready. Boot latches `APP_SAFETY_FAULT_CLOCK` when the contract fails.
+
+### Excitation (TIM1 / PA8)
+
+```text
+PSC=0, ARR=159  => carrier 450 kHz exact
+LUT             = 45-point signed Q15 sine (const Flash, no libm)
+states          = OFF | NEUTRAL (CCR1=80) | SINE (DMA circular CCR table)
+RCR             = 99 @100 Hz, 9 @1 kHz, 0 @10 kHz
+amplitudes      = 100 mVrms (PEAK_Q8=1755), 500 mVrms (PEAK_Q8=8777)
+forbidden       = 500 mVrms on 10 Ω RREF
+neutral settle  = 1 ms   (REQUIRES_BENCH_VALIDATION)
+sine settle     = max(8 cycles, 5 ms) => 80/8/5 ms @100/1k/10k (REQUIRES_BENCH_VALIDATION)
+DMA             = DMA1 Channel 5, mem->TIM1_CCR1, 16-bit circular x45, priority HIGH, TE IRQ only
+```
+
+### Dual ADC capture
+
+```text
+ADC1+ADC2       = dual regular simultaneous, 12-bit, scan, 7.5-cycle sample time
+ADC1 sequence   = VEXC, VEXC, VMID
+ADC2 sequence   = RET_1X, RET_HG, VMID
+trigger         = TIM2_CC2 internal only; PA1 remains ADC_VMID (never TIM2 GPIO out)
+DMA             = DMA1 Channel 1, ADC1->DR packed 32-bit, VERY HIGH, non-circular
+buffer          = uint32_t raw_words[768] (256 instants x 3 words = 3072 B SRAM)
+clip rails      = raw <= 16 or >= 4079 invalid (reuse residual policy)
+```
+
+### Sample-rate table
+
+| Excitation | SPS    | TIM2 ARR | TIM2 CCR2 | spc | cycles | block samples |
+|------------|--------|----------|-----------|-----|--------|---------------|
+| 100 Hz     | 6400   | 11249    | 5625      | 64  | 4      | 256           |
+| 1 kHz      | 64000  | 1124     | 562       | 64  | 4      | 256           |
+| 10 kHz     | 160000 | 449      | 225       | 16  | 16     | 256           |
+
+### Stage 1 scope limits
+
+- K1 remains SAFE; no production `hw_k1_request_measure()` call sites.
+- Lab command: `lab metrology capture <100|1k|10k> <100m|500m> <10r|100r|1k|10k|100k|1m>`
+- No DSP (Vs/Vx/Z/DFT/R/L/C) in Stage 1.
+- Aux ADC1 ownership: pause before metrology, restore after capture; eight fresh SAFE residuals required after resume.
+
+Tasks 1–5 below that ask agents to *choose* carrier, sample rates, ADC schedule, or buffer topology are **superseded** by this contract.
 
 ## Responsibility boundary
 

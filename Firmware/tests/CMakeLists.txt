@@ -249,3 +249,75 @@ if(WTK_WARNINGS_AS_ERRORS_HOST)
 endif()
 
 add_test(NAME wtk_hw_aux_sensors_test COMMAND wtk_hw_aux_sensors_test)
+
+add_executable(wtk_hw_metrology_clock_test
+    hardware/test_hw_metrology_clock.c
+)
+target_link_libraries(wtk_hw_metrology_clock_test PRIVATE wtk_firmware_common)
+target_include_directories(wtk_hw_metrology_clock_test PRIVATE
+    "${PROJECT_SOURCE_DIR}/src"
+    "${PROJECT_BINARY_DIR}/generated"
+)
+wtk_configure_c_target(wtk_hw_metrology_clock_test)
+wtk_apply_project_warnings(wtk_hw_metrology_clock_test)
+wtk_apply_common_compile_options(wtk_hw_metrology_clock_test)
+
+if(WTK_WARNINGS_AS_ERRORS_HOST)
+    wtk_treat_warnings_as_errors(wtk_hw_metrology_clock_test)
+endif()
+
+add_test(NAME wtk_hw_metrology_clock_test COMMAND wtk_hw_metrology_clock_test)
+
+add_executable(wtk_hw_excitation_test
+    hardware/test_hw_excitation.c
+)
+target_link_libraries(wtk_hw_excitation_test PRIVATE wtk_firmware_common)
+target_include_directories(wtk_hw_excitation_test PRIVATE
+    "${PROJECT_SOURCE_DIR}/src"
+    "${PROJECT_BINARY_DIR}/generated"
+)
+wtk_configure_c_target(wtk_hw_excitation_test)
+wtk_apply_project_warnings(wtk_hw_excitation_test)
+wtk_apply_common_compile_options(wtk_hw_excitation_test)
+
+if(WTK_WARNINGS_AS_ERRORS_HOST)
+    wtk_treat_warnings_as_errors(wtk_hw_excitation_test)
+endif()
+
+add_test(NAME wtk_hw_excitation_test COMMAND wtk_hw_excitation_test)
+
+add_executable(wtk_hw_metrology_raw_test
+    hardware/test_hw_metrology_raw.c
+)
+target_link_libraries(wtk_hw_metrology_raw_test PRIVATE wtk_firmware_common)
+target_include_directories(wtk_hw_metrology_raw_test PRIVATE
+    "${PROJECT_SOURCE_DIR}/src"
+    "${PROJECT_BINARY_DIR}/generated"
+)
+wtk_configure_c_target(wtk_hw_metrology_raw_test)
+wtk_apply_project_warnings(wtk_hw_metrology_raw_test)
+wtk_apply_common_compile_options(wtk_hw_metrology_raw_test)
+
+if(WTK_WARNINGS_AS_ERRORS_HOST)
+    wtk_treat_warnings_as_errors(wtk_hw_metrology_raw_test)
+endif()
+
+add_test(NAME wtk_hw_metrology_raw_test COMMAND wtk_hw_metrology_raw_test)
+
+add_executable(wtk_hw_metrology_session_test
+    hardware/test_hw_metrology_session.c
+)
+target_link_libraries(wtk_hw_metrology_session_test PRIVATE wtk_firmware_common)
+target_include_directories(wtk_hw_metrology_session_test PRIVATE
+    "${PROJECT_SOURCE_DIR}/src"
+    "${PROJECT_BINARY_DIR}/generated"
+)
+wtk_configure_c_target(wtk_hw_metrology_session_test)
+wtk_apply_project_warnings(wtk_hw_metrology_session_test)
+wtk_apply_common_compile_options(wtk_hw_metrology_session_test)
+
+if(WTK_WARNINGS_AS_ERRORS_HOST)
+    wtk_treat_warnings_as_errors(wtk_hw_metrology_session_test)
+endif()
+
+add_test(NAME wtk_hw_metrology_session_test COMMAND wtk_hw_metrology_session_test)
