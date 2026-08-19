@@ -12,6 +12,13 @@ static bool deadline_reached(uint32_t now_ms, uint32_t deadline_ms)
     return (now_ms - deadline_ms) < 0x80000000u;
 }
 
+/*
+ * STM32F1 requires a short tSTAB interval after ADON 0->1 before the ADC is
+ * ready. BSP_ADC_POWER_STABILIZATION_US is a frozen firmware input (2 us).
+ * This wait is intentionally a bounded, cycle-counted NOP loop derived from
+ * SystemCoreClock: it is a low-level hardware stabilization delay, not an
+ * application-level HAL_Delay()/sleep, and it cannot run unbounded.
+ */
 static void delay_adc_stabilization(void)
 {
     uint32_t cycles_per_us = SystemCoreClock / 1000000u;
@@ -97,6 +104,7 @@ bsp_status_t bsp_adc_init(uint32_t now_ms)
     bsp_status_t status = wait_for_clear(&ADC1->CR2, ADC_CR2_RSTCAL, now_ms, BSP_ADC_CALIBRATION_TIMEOUT_MS);
     if (status != BSP_STATUS_OK)
     {
+        /* Leave g_adc_initialized false so later bsp_adc_start() fails closed. */
         g_adc_core.last_status = status;
         ADC1->CR2 = 0u;
         bsp_adc_core_cancel(&g_adc_core);
@@ -107,6 +115,7 @@ bsp_status_t bsp_adc_init(uint32_t now_ms)
     status = wait_for_clear(&ADC1->CR2, ADC_CR2_CAL, now_ms, BSP_ADC_CALIBRATION_TIMEOUT_MS);
     if (status != BSP_STATUS_OK)
     {
+        /* Leave g_adc_initialized false so later bsp_adc_start() fails closed. */
         g_adc_core.last_status = status;
         ADC1->CR2 = 0u;
         bsp_adc_core_cancel(&g_adc_core);

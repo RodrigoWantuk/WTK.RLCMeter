@@ -356,6 +356,8 @@ static int test_adc_error_and_pause(void)
     failures += expect_true(hw_aux_sensors_is_idle(&sensors), "pause reaches idle/paused");
     hw_aux_sensors_resume(&sensors, 100u);
     failures += expect_true(hw_aux_sensors_is_idle(&sensors), "resume restarts from idle");
+    failures += expect_true(hw_aux_sensors_residual_state(&sensors, 100u) == HW_RESIDUAL_UNKNOWN,
+                            "resume does not restore pre-pause residual SAFE");
     run_conversions(&sensors, 100u, 12u);
     failures += expect_true(hw_aux_sensors_residual_state(&sensors, 100u) == HW_RESIDUAL_UNKNOWN,
                             "one post-resume safe sweep is not enough");

@@ -712,12 +712,13 @@ Stage 3 host-tested:
 
 - VMID individual rail saturation;
 - battery individual rail saturation and >4.35 V plausibility;
-- corrected residual SAFE hysteresis retention and loss transitions;
-- stale snapshot normalization;
-- residual invalidation across pause/resume;
+- corrected residual SAFE hysteresis retention, including 0.70 V / 0.80 V / 0.99 V stay-SAFE, 1.00 V UNSAFE, and SAFE -> invalid -> UNKNOWN requalification;
+- stale snapshot normalization without requiring `hw_aux_sensors_step()`;
+- residual invalidation across pause/resume, including UNKNOWN immediately after resume before the first new sweep;
 - NTC LUT exact points/interpolation/out-of-range behavior;
-- measurement permit issue denial matrix, validation expiry, dynamic blockers, and single-use consumption;
-- ADC recovery/stabilization constants and cancel core state.
+- measurement permit issue denial matrix, including range INVALID and unused addresses 6/7;
+- permit validation at age 0 ms and 5 ms, expiry at 6 ms, dynamic blockers, disabled-range invalidation, and single-use consumption on both success and failure;
+- ADC recovery/stabilization constants, cancel-to-IDLE core state, and start-after-cancel acceptance.
 
 Validation run on 2026-08-19:
 

@@ -138,6 +138,16 @@ static int test_residual_policy(void)
     };
     failures += expect_true(hw_residual_policy_evaluate(&policy, &hysteresis_080) == HW_RESIDUAL_SAFE,
                             "SAFE remains SAFE at 0.80 V hysteresis");
+
+    const hw_residual_policy_input_t hysteresis_070 = {
+        .valid = true,
+        .saturated = false,
+        .safe_hi_v = 0.70f,
+        .safe_lo_v = 0.0f,
+        .residual_diff_v = 0.70f,
+    };
+    failures += expect_true(hw_residual_policy_evaluate(&policy, &hysteresis_070) == HW_RESIDUAL_SAFE,
+                            "SAFE remains SAFE at 0.70 V");
     failures += expect_true(hw_residual_policy_evaluate(&policy, &safe) == HW_RESIDUAL_SAFE,
                             "SAFE returning to release region does not requalify");
 
@@ -160,6 +170,24 @@ static int test_residual_policy(void)
     };
     failures += expect_true(hw_residual_policy_evaluate(&policy, &unsafe) == HW_RESIDUAL_UNSAFE,
                             "block threshold is immediate UNSAFE");
+
+    hw_residual_policy_init(&policy);
+    for (uint8_t i = 0u; i < HW_RESIDUAL_REQUIRED_SAFE_COUNT; i++)
+    {
+        (void)hw_residual_policy_evaluate(&policy, &safe);
+    }
+    failures += expect_true(policy.state == HW_RESIDUAL_SAFE, "requalify to SAFE before invalid-sample test");
+    const hw_residual_policy_input_t invalid_from_safe = {
+        .valid = false,
+        .saturated = false,
+        .safe_hi_v = 0.0f,
+        .safe_lo_v = 0.0f,
+        .residual_diff_v = 0.0f,
+    };
+    failures += expect_true(hw_residual_policy_evaluate(&policy, &invalid_from_safe) == HW_RESIDUAL_UNKNOWN,
+                            "SAFE becomes UNKNOWN on invalid sample");
+    failures += expect_true(hw_residual_policy_evaluate(&policy, &safe) == HW_RESIDUAL_UNKNOWN,
+                            "one safe sample after SAFE->UNKNOWN is not enough");
 
     const hw_residual_policy_input_t hysteresis = {
         .valid = true,

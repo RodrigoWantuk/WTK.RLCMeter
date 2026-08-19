@@ -67,6 +67,8 @@ int main(void)
     failures += expect_true(core.state == BSP_ADC_STATE_IDLE, "cancel returns idle");
     failures += expect_true(core.channel == BSP_ADC_CHANNEL_INVALID, "cancel clears current channel");
     failures += expect_true(core.last_status == BSP_STATUS_OK, "cancel clears stale status");
+    failures += expect_true(bsp_adc_core_start(&core, BSP_ADC_CHANNEL_VMID, 40u) == BSP_STATUS_OK,
+                            "start after cancel is accepted from IDLE");
     failures += expect_true(bsp_adc_raw_to_voltage(4095u) > 3.299f, "raw full-scale uses denominator 4095");
 
     return (failures == 0) ? 0 : 1;

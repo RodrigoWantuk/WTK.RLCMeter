@@ -92,9 +92,15 @@ static int test_issue_matrix(void)
     failures += expect_issue_denied(input, HW_MEASURE_PERMIT_REJECT_RANGE, "range disabled denies issue");
     input.range = HW_RANGE_TRANSITIONING;
     failures += expect_issue_denied(input, HW_MEASURE_PERMIT_REJECT_RANGE, "range transitioning denies issue");
+    input.range = HW_RANGE_INVALID;
+    failures += expect_issue_denied(input, HW_MEASURE_PERMIT_REJECT_RANGE, "range invalid denies issue");
     input = valid_issue_input();
     input.range_id = HW_RANGE_ID_INVALID;
     failures += expect_issue_denied(input, HW_MEASURE_PERMIT_REJECT_RANGE_ID, "invalid range ID denies issue");
+    input.range_id = (hw_range_id_t)6;
+    failures += expect_issue_denied(input, HW_MEASURE_PERMIT_REJECT_RANGE_ID, "range address 6 denies issue");
+    input.range_id = (hw_range_id_t)7;
+    failures += expect_issue_denied(input, HW_MEASURE_PERMIT_REJECT_RANGE_ID, "range address 7 denies issue");
 
     input = valid_issue_input();
     input.k1_state = HW_K1_STATE_UNKNOWN;
@@ -121,6 +127,15 @@ static int test_validation_matrix(void)
     hw_measure_permit_init(&permit);
     issued = hw_measure_permit_issue(&permit, &issue, 100u);
     failures += expect_true(issued.issued && permit.valid && !permit.consumed, "permit is issued and unconsumed");
+    validated = hw_measure_permit_validate(&permit, &validate, 100u);
+    failures += expect_true(validated.allowed && (validated.reason == HW_MEASURE_PERMIT_OK),
+                            "age 0 ms permit validates");
+    validated = hw_measure_permit_validate(&permit, &validate, 100u);
+    failures += expect_true(!validated.allowed && (validated.reason == HW_MEASURE_PERMIT_REJECT_CONSUMED),
+                            "successful validation consumes the permit");
+
+    issued = hw_measure_permit_issue(&permit, &issue, 100u);
+    failures += expect_true(issued.issued, "permit reissued for age 5 ms test");
     validated = hw_measure_permit_validate(&permit, &validate, 105u);
     failures += expect_true(validated.allowed && (validated.reason == HW_MEASURE_PERMIT_OK),
                             "age 5 ms permit validates");
@@ -172,6 +187,15 @@ static int test_validation_matrix(void)
     validated = hw_measure_permit_validate(&permit, &validate, 600u);
     failures += expect_true(!validated.allowed && (validated.reason == HW_MEASURE_PERMIT_REJECT_K1),
                             "K1 no longer SAFE denies validation");
+
+    issue = valid_issue_input();
+    issued = hw_measure_permit_issue(&permit, &issue, 700u);
+    failures += expect_true(issued.issued, "permit reissued for disabled range");
+    validate = valid_validate_input();
+    validate.range = HW_RANGE_DISABLED;
+    validated = hw_measure_permit_validate(&permit, &validate, 700u);
+    failures += expect_true(!validated.allowed && (validated.reason == HW_MEASURE_PERMIT_REJECT_RANGE),
+                            "range becoming disabled denies validation");
 
     return failures;
 }
