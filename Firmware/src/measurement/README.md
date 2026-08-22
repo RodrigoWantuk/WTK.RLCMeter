@@ -6,19 +6,14 @@ Metrology core of WTK.RLCMeter.
 
 Keep acquisition, DSP, impedance calculation, autorange, confidence, and calibration application independent from UI and graphics/storage device details.
 
-## Planned files
+## Implemented Phase 06 files
 
 ```text
-measurement_types.h
-acquisition.c/.h
-phasor.c/.h
-complex_math.c/.h
-impedance.c/.h
-autorange.c/.h
-confidence.c/.h
-calibration_apply.c/.h
-measurement_engine.c/.h
+measurement_dsp.c/.h
 ```
+
+The current implementation deliberately keeps autorange, final confidence, persistent
+calibration, and product UI outside this directory until later phases.
 
 ## Flow
 
@@ -44,6 +39,33 @@ Zx = ZREF * Vx / (Vs - Vx)
 ## High-gain channel
 
 The current hardware has nominal gain around 15.47× on `RET_HG`, but code must use a calibrated complex response by frequency/range/amplitude where required.
+
+Phase 06 represents this as:
+
+```text
+RET = VMID + (RET_HG - VMID) / H_HG
+```
+
+where `H_HG` is a complex transfer. The ideal synthetic default is
+`15.468085 + j0`.
+
+## Phasor convention
+
+The implemented synchronous detector returns peak-voltage phasors:
+
+```text
+x[n] = dc + Re{Vpeak * exp(j * theta[n])}
+Vpeak = (2 / N) * sum(x[n] * (cos(theta[n]) - j*sin(theta[n])))
+```
+
+Positive phase means the waveform leads the cosine reference. Integer-cycle windows make
+the large VMID/DC offset reject naturally in the single-bin extraction.
+
+## Numeric strategy
+
+The STM32 path uses `float` and project-owned complex helpers. It does not call runtime
+`sin()`/`cos()` in the sample loop and currently links without `libm`; host Python tools
+provide independent double-precision reference calculations.
 
 ## Testability
 

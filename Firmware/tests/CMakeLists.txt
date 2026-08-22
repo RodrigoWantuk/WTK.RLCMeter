@@ -339,3 +339,21 @@ if(WTK_WARNINGS_AS_ERRORS_HOST)
 endif()
 
 add_test(NAME wtk_hw_metrology_measure_test COMMAND wtk_hw_metrology_measure_test)
+
+add_executable(wtk_measurement_dsp_test
+    measurement/test_measurement_dsp.c
+)
+target_link_libraries(wtk_measurement_dsp_test PRIVATE wtk_firmware_common)
+target_include_directories(wtk_measurement_dsp_test PRIVATE
+    "${PROJECT_SOURCE_DIR}/src"
+    "${PROJECT_BINARY_DIR}/generated"
+)
+wtk_configure_c_target(wtk_measurement_dsp_test)
+wtk_apply_project_warnings(wtk_measurement_dsp_test)
+wtk_apply_common_compile_options(wtk_measurement_dsp_test)
+
+if(WTK_WARNINGS_AS_ERRORS_HOST)
+    wtk_treat_warnings_as_errors(wtk_measurement_dsp_test)
+endif()
+
+add_test(NAME wtk_measurement_dsp_test COMMAND wtk_measurement_dsp_test)

@@ -308,6 +308,60 @@ K2      = DNP
 
 This should change only if measured leakage/parasitic evidence justifies it.
 
+## Phase 06 DSP conventions
+
+The first DSP/impedance core consumes the current Phase 05 raw acquisition block:
+
+```text
+256 sample instants
+3 packed 32-bit ADC words per instant
+VEXC_1/RET_1X, VEXC_2/RET_HG, VMID/VMID streams
+```
+
+The phasor convention is:
+
+```text
+x[n] = dc + Re{Vpeak * exp(j * theta[n])}
+Vpeak = (2 / N) * sum(x[n] * (cos(theta[n]) - j*sin(theta[n])))
+```
+
+Positive phase therefore means the waveform leads the cosine reference. Phasor amplitudes
+are peak volts. Derived phase is reported in radians.
+
+The STM32 implementation uses `float` and project-owned complex helpers. It avoids
+target-side runtime trigonometric calls inside the sample loop by using fixed recurrence
+coefficients for the current coherent sample profiles:
+
+```text
+100 Hz  / 1 kHz: 64 samples per cycle
+10 kHz:          16 samples per cycle
+```
+
+The target build currently links without `libm`; narrow local approximations cover
+`sqrt`/`atan2` needs for diagnostic magnitude/phase. Python host tooling uses independent
+double-precision complex math for reference comparisons.
+
+Raw ADC conversion is explicit per channel:
+
+```text
+volts = raw * code_to_volts + offset_volts
+```
+
+The nominal Phase 06 default is `3.3 / 4095`, but the API is designed for later
+per-channel calibration.
+
+RET_HG is reconstructed through a complex transfer:
+
+```text
+RET = VMID + (RET_HG - VMID) / H_HG
+```
+
+The synthetic default is nominally `15.468085 + j0`. This is not a final calibrated gain.
+
+`ZREF` is represented as a complex value so Phase 07 can provide
+frequency/range-dependent calibrated reference impedances. The Phase 06 ideal defaults
+are only nominal real resistor values.
+
 ## Decision-change rule
 
 Any agent or contributor proposing to reverse a consolidated decision must document:

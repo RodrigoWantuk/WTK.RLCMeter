@@ -4,6 +4,27 @@ STATUS: IN_PROGRESS
 
 This document defines the complete implementation program and the contract between phases. Detailed tasks live in the individual phase plans.
 
+## Current program state
+
+```text
+Phase 03A:
+    implementation ready; real Wokwi execution remains pending external simulator/token constraints
+
+Phase 04:
+    IMPLEMENTED_REQUIRES_BENCH_VALIDATION
+
+Phase 05:
+    Stage 1 and Stage 2 implemented; excitation, ADC/DMA transport, and K1 measurement
+    sequencing remain REQUIRES_BENCH_VALIDATION
+
+Phase 06:
+    software DSP/impedance core implemented with synthetic host validation;
+    physical measurement comparison remains REQUIRES_BENCH_VALIDATION
+
+Immediate next software phase after physical/software handoff:
+    Phase 07 — Autorange, Confidence, and Calibration
+```
+
 ## Program objectives
 
 Deliver Rev.1 firmware that is:

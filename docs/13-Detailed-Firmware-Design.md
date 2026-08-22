@@ -370,54 +370,53 @@ Cleanup return statuses latch `APP_SAFETY_FAULT_K1_IO`, `RANGE_IO`, `ADC_RUNTIME
 
 ## `src/measurement`
 
-The metrology core should be predominantly pure/testable C.
-
-Planned files:
+The metrology core is predominantly pure/testable C. Phase 06 currently implements:
 
 ```text
-measurement_types.h
-acquisition.c/.h
-phasor.c/.h
-complex_math.c/.h
-impedance.c/.h
-autorange.c/.h
-classification.c/.h
-confidence.c/.h
-calibration_apply.c/.h
-measurement_engine.c/.h
+measurement_dsp.c/.h
+```
+
+This module owns project complex helpers, raw ADC scaling, synchronous phasor
+extraction, RET_HG reconstruction, guarded impedance calculation, derived quantities,
+and a preliminary single-condition interpretation primitive.
+
+Still deferred to later phases:
+
+```text
+autorange
+final confidence scoring
+persistent calibration application/storage
+multi-frequency final classification
+product UI publication
 ```
 
 ### Core data types
 
-Representative types:
+Representative implemented types:
 
 ```c
 typedef struct
 {
     float re;
     float im;
-} complexf_t;
+} measurement_complex_t;
 
 typedef struct
 {
-    complexf_t vexc;
-    complexf_t vmid;
-    complexf_t ret;
-} phasor_set_t;
+    measurement_complex_t vexc_1;
+    measurement_complex_t ret_1x;
+    measurement_complex_t vexc_2;
+    measurement_complex_t ret_hg;
+    measurement_complex_t vmid;
+    measurement_complex_t ret_hg_reconstructed;
+} measurement_phasor_set_t;
 
 typedef struct
 {
-    complexf_t z;
-    float magnitude;
-    float phase_rad;
-    float resistance;
-    float reactance;
-    float capacitance_f;
-    float inductance_h;
-    float esr;
-    float q;
-    float d;
-} measurement_result_t;
+    measurement_complex_t z_ohms;
+    bool open_like;
+    bool short_like;
+} measurement_impedance_result_t;
 ```
 
 Exact types may evolve, but UI formatting must not leak into metrology types.
@@ -440,17 +439,22 @@ calibration key
 
 ### Phasor extraction
 
-Baseline approach: synchronous detection / single-bin DFT.
+Implemented approach: synchronous detection / single-bin DFT.
 
 For each channel:
 
 ```text
-I = Σ x[n] cos(ωn)
-Q = Σ x[n] sin(ωn)
-V = scale * (I + jQ)
+x[n] = dc + Re{Vpeak * exp(j * theta[n])}
+Vpeak = (2 / N) * sum(x[n] * (cos(theta[n]) - j*sin(theta[n])))
 ```
 
-Windows should contain an integer number of cycles where practical.
+The returned phasor is peak volts. Positive phase means the waveform leads the cosine
+reference. Phase is reported in radians. The current Phase 05 windows contain integer
+cycles, so VMID/DC offset is rejected by the single-bin extraction rather than by
+assuming raw ADC samples are centered around zero.
+
+Reference generation uses fixed recurrence coefficients for 64-sample and
+16-sample cycles. The target sample loop does not call runtime trigonometric functions.
 
 ### Impedance calculation
 

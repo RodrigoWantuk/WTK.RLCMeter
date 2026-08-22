@@ -21,6 +21,7 @@
 #include "hardware/hw_metrology_clock.h"
 #include "hardware/hw_metrology_raw.h"
 #include "hardware/hw_safety.h"
+#include "measurement/measurement_dsp.h"
 #include "bsp/bsp_clock.h"
 #include "bsp/bsp_time.h"
 #include "bsp/bsp_excitation.h"
@@ -1147,6 +1148,38 @@ static const char *lab_metrology_mode_string(hw_metrology_mode_t mode)
     }
 }
 
+static void lab_dump_metrology_dsp_summary(const hw_metrology_block_t *block)
+{
+    measurement_adc_calibration_t adc = measurement_adc_calibration_ideal();
+    measurement_dsp_config_t config = measurement_dsp_config_ideal(block->range_id);
+    measurement_result_t result;
+
+    write_text("DSP_BEGIN v=1\r\n");
+    if (measurement_process_block(block, &adc, &config, &result) != BSP_STATUS_OK)
+    {
+        write_text("dsp_status=");
+        write_text(measurement_status_string(result.status));
+        write_text("\r\nDSP_END\r\n");
+        return;
+    }
+
+    write_text("dsp_status=");
+    write_text(measurement_status_string(result.status));
+    write_text("\r\nreturn_channel=");
+    write_text((result.selected_channel == MEASUREMENT_RETURN_HG) ? "RET_HG" : "RET_1X");
+    write_text("\r\nz_real_mohm=");
+    write_i32(milli_from_float(result.impedance.z_ohms.re));
+    write_text("\r\nz_imag_mohm=");
+    write_i32(milli_from_float(result.impedance.z_ohms.im));
+    write_text("\r\nz_mag_mohm=");
+    write_i32(milli_from_float(result.derived.magnitude_ohms));
+    write_text("\r\nphase_mrad=");
+    write_i32(milli_from_float(result.derived.phase_rad));
+    write_text("\r\ninterpretation=");
+    write_text(measurement_interpretation_string(result.derived.interpretation));
+    write_text("\r\nDSP_END\r\n");
+}
+
 static void lab_dump_metrology_header(const hw_metrology_block_t *block)
 {
     write_text("METROLOGY_RAW_BEGIN v=1\r\n");
@@ -1175,7 +1208,9 @@ static void lab_dump_metrology_header(const hw_metrology_block_t *block)
         write_text("\r\nk1_release_guard_ms=");
         write_u32(block->k1_release_guard_ms);
     }
-    write_text("\r\nindex,vexc1,ret1x,vexc2,rethg,vmid_adc1,vmid_adc2\r\n");
+    write_text("\r\n");
+    lab_dump_metrology_dsp_summary(block);
+    write_text("index,vexc1,ret1x,vexc2,rethg,vmid_adc1,vmid_adc2\r\n");
 }
 
 static void lab_dump_raw_row(const hw_metrology_block_t *block, uint16_t row)
