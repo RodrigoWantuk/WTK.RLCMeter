@@ -20,6 +20,7 @@ The documentation deliberately separates **existing Rev.1 hardware**, **planned 
 12. [`12-Functional-Specification.md`](12-Functional-Specification.md) — feature catalog, maturity labels, engineering ranges, and functional acceptance boundaries.
 13. [`13-Detailed-Firmware-Design.md`](13-Detailed-Firmware-Design.md) — module contracts, data structures, persistence, DSP, and fault behavior.
 14. [`14-Future-Extensions.md`](14-Future-Extensions.md) — Kelvin/4-wire, high voltage, USB, guard, K2, and other concepts outside Rev.1.
+15. [`15-Measurement-Operating-Modes.md`](15-Measurement-Operating-Modes.md) — Click and Live measurement semantics, scheduling, result publication, UI interaction, and safety boundaries.
 
 AI-assisted firmware execution is planned separately under [`../plans`](../plans/).
 
