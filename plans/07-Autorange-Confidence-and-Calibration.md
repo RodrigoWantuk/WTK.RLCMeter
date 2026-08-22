@@ -1,5 +1,11 @@
 # 07 — Autorange, Confidence, Classification, and Calibration
 
+STATUS: IN_PROGRESS
+
+Stage 1 — Automatic measurement engine / autorange / confidence / classification:
+STATUS: IMPLEMENTED_REQUIRES_BENCH_VALIDATION
+
+Stage 2 — Calibration model / OPEN-SHORT-LOAD workflows / persistence:
 STATUS: NOT_STARTED
 
 ## Goal
@@ -37,6 +43,71 @@ Turn the fixed-condition impedance engine into a robust instrument measurement e
 - claiming qualification before bench evidence;
 - future 4-wire/high-voltage modes;
 - requiring normal users to preselect R/C/L before measurement.
+
+## Stage 1 implementation boundary
+
+Phase 07 Stage 1 adds a pure, host-testable automatic measurement session engine in
+`Firmware/src/measurement/measurement_engine.c/.h`.
+
+It consumes completed Phase 05 + Phase 06 attempt results and decides:
+
+```text
+next attempt
+partial result
+final result
+terminal OPEN/SHORT/no-valid-condition outcome
+```
+
+It does not directly touch GPIO, relays, range pins, ADC/DMA registers, TFT, W25Q, or
+Lab UART output during critical acquisition. Phase 05 remains the only owner of the
+fixed-condition hardware measurement transaction. Phase 06 remains the owner of the
+single-condition DSP and impedance equation.
+
+Implemented Stage 1 policy constants:
+
+```text
+MEASUREMENT_AUTO_MAX_ATTEMPTS = 6
+MEASUREMENT_AUTO_MAX_RANGE_TRANSITIONS = 4
+MEASUREMENT_AUTO_MAX_FREQUENCY_REFINEMENTS = 1
+MEASUREMENT_AUTO_MAX_REPEATED_CONDITIONS = 1
+
+initial no-hint probe:
+    RREF = 1 kOhm
+    frequency = 1 kHz
+    amplitude = 100 mVrms
+
+ratio too small:
+    |Z| / |ZREF| <= 0.20
+
+ratio too large:
+    |Z| / |ZREF| >= 5.00
+
+OPEN-like upper edge:
+    |Z| / |ZREF| >= 100 on 1 MOhm range
+
+weak return signal:
+    selected return peak < 2 mV
+
+good return signal:
+    selected return peak >= 10 mV
+
+resistive dominance:
+    |X| / |R| <= 0.10
+
+reactive dominance:
+    |X| / |R| >= 0.25
+```
+
+These thresholds are conservative software policy defaults and remain
+`REQUIRES_BENCH_VALIDATION`.
+
+Stage 1 preserves the Phase 05 amplitude safety rule: the automatic engine never emits
+`10 Ohm + 500 mVrms`, and the lower excitation service still rejects it.
+
+Click and Live modes both use the same session engine. Click runs one complete session.
+Live may start another complete session using a previous final result as a starting hint,
+but that hint only carries range/frequency/amplitude/channel preference. It carries no
+safety authorization, no permit, and no active hardware ownership across sessions.
 
 ## Task 1 — Define measurement attempt model
 
@@ -430,7 +501,27 @@ retry/rerange/refinement reason
 final result
 ```
 
-## Automated acceptance criteria
+## Stage 1 automated acceptance criteria
+
+- automatic session engine has deterministic host tests;
+- initial probe is conservative and deterministic;
+- previous-result hinting cannot bypass safety ownership;
+- forbidden `10 Ohm / 500 mVrms` is impossible through the public policy API;
+- range movement is one-directional per decision and bounded by attempted-condition
+  tracking;
+- repeated-condition loops terminate explicitly;
+- amplitude escalation is only used for weak-signal improvement and never on 10 Ohm;
+- frequency refinement is bounded and visible in session metadata;
+- partial-result publication only follows completed attempts;
+- confidence mapping has explicit reason flags and does not produce `NOMINAL` without
+  qualification evidence;
+- session classification handles resistive, capacitive, inductive, non-ideal, and
+  ambiguous vectors;
+- OPEN-like, SHORT-like, no-valid-condition, safety-abort, and cancellation paths are
+  terminal;
+- Phase 06 math tests remain green.
+
+## Later automated acceptance criteria
 
 - autorange policy has deterministic host tests;
 - no infinite retry/refinement loops;

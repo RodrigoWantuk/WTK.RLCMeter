@@ -380,13 +380,27 @@ This module owns project complex helpers, raw ADC scaling, synchronous phasor
 extraction, RET_HG reconstruction, guarded impedance calculation, derived quantities,
 and a preliminary single-condition interpretation primitive.
 
+Phase 07 Stage 1 currently implements:
+
+```text
+measurement_engine.c/.h
+```
+
+This module owns the pure automatic measurement session policy: bounded attempt history,
+initial probing, previous-result hints, range/amplitude/frequency decisions, RET channel
+selection evidence, partial/final result metadata, confidence class/reason flags, and
+session-level classification.
+
+It consumes completed Phase 05 + Phase 06 attempt results. It does not start
+acquisitions, issue permits, switch GPIOs, energize K1, render UI, or access persistent
+storage.
+
 Still deferred to later phases:
 
 ```text
-autorange
-final confidence scoring
 persistent calibration application/storage
-multi-frequency final classification
+calibration validity/qualification map
+OPEN-SHORT-LOAD workflows
 product UI publication
 ```
 

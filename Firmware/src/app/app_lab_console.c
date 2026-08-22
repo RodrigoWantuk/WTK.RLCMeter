@@ -22,6 +22,7 @@
 #include "hardware/hw_metrology_raw.h"
 #include "hardware/hw_safety.h"
 #include "measurement/measurement_dsp.h"
+#include "measurement/measurement_engine.h"
 #include "bsp/bsp_clock.h"
 #include "bsp/bsp_time.h"
 #include "bsp/bsp_excitation.h"
@@ -167,6 +168,33 @@ static void write_flash_info(const w25q_device_t *flash)
     write_text(" ");
     write_u32(flash->part.capacity_bytes);
     write_text("\r\n");
+}
+
+static void write_auto_policy(void)
+{
+    write_text("auto policy: INITIAL range=");
+    write_text(hw_range_id_string(HW_RANGE_ID_1K));
+    write_text(" freq=");
+    write_text(hw_excitation_freq_token(HW_EXCITATION_FREQ_1KHZ));
+    write_text(" amp=");
+    write_text(hw_excitation_amp_token(HW_EXCITATION_AMP_100MVRMS));
+    write_text("\r\n");
+    write_text("auto policy: limits attempts=");
+    write_u32(MEASUREMENT_AUTO_MAX_ATTEMPTS);
+    write_text(" range_transitions=");
+    write_u32(MEASUREMENT_AUTO_MAX_RANGE_TRANSITIONS);
+    write_text(" frequency_refinements=");
+    write_u32(MEASUREMENT_AUTO_MAX_FREQUENCY_REFINEMENTS);
+    write_text("\r\n");
+    write_text("auto policy: forbidden_10r_500mv=");
+    write_text(measurement_auto_condition_allowed(HW_RANGE_ID_10R,
+                                                 HW_EXCITATION_FREQ_1KHZ,
+                                                 HW_EXCITATION_AMP_500MVRMS)
+                   ? "0\r\n"
+                   : "1\r\n");
+    write_text("auto policy: unqualified_clean_class=");
+    write_text(measurement_confidence_string(MEASUREMENT_CONFIDENCE_EXTENDED));
+    write_text(" unqualified_no_nominal=1\r\n");
 }
 
 static bool parse_range_id(const char *line, hw_range_id_t *id)
@@ -1527,6 +1555,10 @@ static void run_command(app_lab_console_t *console,
     else if (text_equals(line, "lab permit status"))
     {
         write_permit_status(range, charger, sensors, k1, faults, now_ms);
+    }
+    else if (text_equals(line, "lab auto policy"))
+    {
+        write_auto_policy();
     }
     else if (parse_capture_tokens(line, &capture_freq, &capture_amp, &capture_range))
     {

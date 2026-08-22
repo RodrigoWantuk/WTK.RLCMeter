@@ -21,8 +21,13 @@ Phase 06:
     software DSP/impedance core implemented with synthetic host validation;
     physical measurement comparison remains REQUIRES_BENCH_VALIDATION
 
+Phase 07:
+    Stage 1 automatic measurement engine/autorange/confidence/classification implemented
+    with synthetic host validation; calibration persistence and physical qualification remain
+    NOT_STARTED / REQUIRES_BENCH_VALIDATION as applicable
+
 Immediate next software phase after physical/software handoff:
-    Phase 07 — Autorange, Confidence, and Calibration
+    Phase 07 Stage 2 — Calibration model, OPEN-SHORT-LOAD workflows, persistence
 ```
 
 ## Program objectives
@@ -370,4 +375,7 @@ A Rev.1 firmware release should ultimately produce:
 
 ## Immediate next action
 
-Close the Phase 03 software criteria, then establish Phase 03A virtual-hardware validation before relying on later digital integration behavior. Phase 04 may continue where independent, but subsequent agents should reuse the Phase 03A platform rather than inventing separate simulator-specific test harnesses.
+Continue Phase 07 with the calibration model, OPEN-SHORT-LOAD workflows, calibration
+validity semantics, and W25Q-backed persistence. Phase 03A virtual execution remains
+pending external Wokwi constraints and must not be treated as bench validation for
+analog/metrology behavior.

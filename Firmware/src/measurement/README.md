@@ -6,14 +6,16 @@ Metrology core of WTK.RLCMeter.
 
 Keep acquisition, DSP, impedance calculation, autorange, confidence, and calibration application independent from UI and graphics/storage device details.
 
-## Implemented Phase 06 files
+## Implemented files
 
 ```text
 measurement_dsp.c/.h
+measurement_engine.c/.h
 ```
 
-The current implementation deliberately keeps autorange, final confidence, persistent
-calibration, and product UI outside this directory until later phases.
+`measurement_dsp` is the Phase 06 fixed-condition math core. `measurement_engine` is the
+Phase 07 Stage 1 automatic session policy layer. Persistent calibration, qualification
+maps, and product UI remain outside this implementation until later phases.
 
 ## Flow
 
@@ -24,7 +26,8 @@ raw ADC samples
    -> calibrated complex phasors
    -> impedance equation
    -> derived R/C/L/ESR/Q/D
-   -> confidence gates
+   -> automatic session policy
+   -> confidence gates / partial or final result
    -> accept / retry / rerange / reject
 ```
 
@@ -69,8 +72,42 @@ provide independent double-precision reference calculations.
 
 ## Testability
 
-`phasor`, `complex_math`, `impedance`, `autorange`, `confidence`, and calibration application should compile in host tests without HAL/CMSIS dependencies.
+`phasor`, `complex_math`, `impedance`, `autorange`, `confidence`, classification, and
+calibration application should compile in host tests without HAL/CMSIS dependencies.
+
+## Automatic session engine
+
+The Phase 07 Stage 1 engine consumes completed fixed-condition attempt results. It does
+not start ADC/DMA, switch GPIOs, energize K1, issue permits, render UI, or touch W25Q.
+
+The no-history initial probe is:
+
+```text
+RREF = 1 kOhm
+frequency = 1 kHz
+amplitude = 100 mVrms
+```
+
+The engine uses bounded attempt history:
+
+```text
+maximum attempts = 6
+maximum range transitions = 4
+maximum frequency refinements = 1
+```
+
+Each emitted attempt has structured metadata: range, frequency, amplitude, RET strategy,
+attempt number, and reason. A previous successful result may seed the next Live session
+as a performance hint, but it carries no safety authorization or active hardware state.
+
+The confidence output is semantic (`NOMINAL`, `EXTENDED`, `LOW_CONFIDENCE`,
+`REJECTED`) plus reason flags. `NOMINAL` requires explicit qualification evidence; the
+current unqualified software default cannot claim nominal accuracy.
 
 ## Output
 
-In addition to the measured value, the engine should return quality metadata such as clipping, SNR, stability, selected range/frequency/amplitude, 1X/HG channel, calibration identifier, and retry/rerange reason.
+In addition to the measured value, the engine returns quality metadata such as clipping,
+selected range/frequency/amplitude, 1X/HG channel, qualification state, confidence
+reasons, classification evidence, partial/final status, and retry/rerange/refinement
+reason. True SNR, stability, persistent calibration identifiers, and qualification-map
+decisions remain later-phase inputs.

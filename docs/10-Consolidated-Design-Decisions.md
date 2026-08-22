@@ -362,6 +362,66 @@ The synthetic default is nominally `15.468085 + j0`. This is not a final calibra
 frequency/range-dependent calibrated reference impedances. The Phase 06 ideal defaults
 are only nominal real resistor values.
 
+## Phase 07 Stage 1 automatic measurement policy
+
+The first automatic measurement engine is implemented in
+`Firmware/src/measurement/measurement_engine.c/.h` as a pure policy layer. It consumes
+completed Phase 05 fixed-condition transactions and Phase 06 DSP results, then decides
+whether to publish a partial result, request another bounded attempt, or terminate with
+a final result.
+
+It does not manipulate GPIO, relays, range pins, excitation registers, ADC/DMA, TFT,
+W25Q, permits, charger state, or residual safety state directly.
+
+No-history initial probe:
+
+```text
+RREF = 1 kOhm
+frequency = 1 kHz
+amplitude = 100 mVrms
+RET strategy = AUTO
+```
+
+Live-mode previous-result hints may seed range/frequency/amplitude/channel preference,
+but they do not carry safety authorization. Every attempt still goes through the Phase
+04/05 safety permit, range transition, K1 ownership, excitation, and SAFE teardown
+contract.
+
+Stage 1 deterministic limits:
+
+```text
+maximum attempts per session = 6
+maximum range transitions = 4
+maximum frequency refinements = 1
+maximum repeated conditions = 1
+```
+
+Stage 1 provisional policy thresholds:
+
+```text
+|Z| / |ZREF| <= 0.20      request lower RREF when possible
+|Z| / |ZREF| >= 5.00      request higher RREF when possible
+|Z| / |ZREF| >= 100       OPEN-like at the 1 MOhm upper edge
+return peak < 2 mV        weak signal candidate
+return peak >= 10 mV      strong return candidate
+|X| / |R| <= 0.10         resistive dominance
+|X| / |R| >= 0.25         reactive dominance
+```
+
+These thresholds are conservative software defaults and remain
+`REQUIRES_BENCH_VALIDATION`.
+
+The automatic engine never intentionally requests `10 Ohm + 500 mVrms`; the lower
+excitation service also rejects that combination.
+
+Confidence is represented as `NOMINAL`, `EXTENDED`, `LOW_CONFIDENCE`, or `REJECTED`.
+`NOMINAL` requires explicit qualification evidence. In the current unqualified Rev.1
+software state, a mathematically clean measurement may be `EXTENDED`, not `NOMINAL`.
+
+Session classification is downstream of complex impedance calculation and may return
+`RESISTIVE`, `CAPACITIVE`, `INDUCTIVE`, or `MIXED_OR_UNKNOWN`. Ambiguous or inconsistent
+evidence remains `MIXED_OR_UNKNOWN` rather than being forced into an R/C/L label.
+
 ## Decision-change rule
 
 Any agent or contributor proposing to reverse a consolidated decision must document:
