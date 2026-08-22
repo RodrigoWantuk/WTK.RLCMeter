@@ -22,9 +22,10 @@ Phase 06:
     physical measurement comparison remains REQUIRES_BENCH_VALIDATION
 
 Phase 07:
-    Stage 1 automatic measurement engine/autorange/confidence/classification implemented
-    with synthetic host validation; calibration persistence and physical qualification remain
-    NOT_STARTED / REQUIRES_BENCH_VALIDATION as applicable
+    Stage 1A automatic measurement policy implemented; Stage 1B end-to-end automatic
+    session orchestration implemented with synthetic host validation; calibration
+    persistence and physical qualification remain NOT_STARTED / REQUIRES_BENCH_VALIDATION
+    as applicable
 
 Immediate next software phase after physical/software handoff:
     Phase 07 Stage 2 — Calibration model, OPEN-SHORT-LOAD workflows, persistence

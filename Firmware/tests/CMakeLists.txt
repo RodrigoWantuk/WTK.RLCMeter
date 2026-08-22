@@ -375,3 +375,21 @@ if(WTK_WARNINGS_AS_ERRORS_HOST)
 endif()
 
 add_test(NAME wtk_measurement_engine_test COMMAND wtk_measurement_engine_test)
+
+add_executable(wtk_app_measurement_session_test
+    app/test_app_measurement_session.c
+)
+target_link_libraries(wtk_app_measurement_session_test PRIVATE wtk_firmware_common)
+target_include_directories(wtk_app_measurement_session_test PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src
+    ${CMAKE_CURRENT_SOURCE_DIR}
+)
+wtk_configure_c_target(wtk_app_measurement_session_test)
+wtk_apply_project_warnings(wtk_app_measurement_session_test)
+wtk_apply_common_compile_options(wtk_app_measurement_session_test)
+
+if(WTK_WARNINGS_AS_ERRORS)
+    wtk_treat_warnings_as_errors(wtk_app_measurement_session_test)
+endif()
+
+add_test(NAME wtk_app_measurement_session_test COMMAND wtk_app_measurement_session_test)

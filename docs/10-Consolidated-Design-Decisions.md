@@ -362,7 +362,7 @@ The synthetic default is nominally `15.468085 + j0`. This is not a final calibra
 frequency/range-dependent calibrated reference impedances. The Phase 06 ideal defaults
 are only nominal real resistor values.
 
-## Phase 07 Stage 1 automatic measurement policy
+## Phase 07 Stage 1 automatic measurement policy and orchestration
 
 The first automatic measurement engine is implemented in
 `Firmware/src/measurement/measurement_engine.c/.h` as a pure policy layer. It consumes
@@ -370,8 +370,22 @@ completed Phase 05 fixed-condition transactions and Phase 06 DSP results, then d
 whether to publish a partial result, request another bounded attempt, or terminate with
 a final result.
 
-It does not manipulate GPIO, relays, range pins, excitation registers, ADC/DMA, TFT,
-W25Q, permits, charger state, or residual safety state directly.
+The application orchestration layer is implemented in
+`Firmware/src/app/app_measurement_session.c/.h`. It connects the pure policy to Phase
+05 fixed-condition measurements and Phase 06 DSP:
+
+```text
+policy requested attempt
+    -> Phase 05 transaction
+    -> SAFE teardown
+    -> Phase 06 DSP
+    -> policy submit
+    -> partial / next / final
+```
+
+Neither layer manipulates GPIO, relays, range pins, excitation registers, ADC/DMA, TFT,
+W25Q, permits, charger state, or residual safety state directly. Every automatic attempt
+is a fresh Phase 05 safety transaction.
 
 No-history initial probe:
 
@@ -379,7 +393,7 @@ No-history initial probe:
 RREF = 1 kOhm
 frequency = 1 kHz
 amplitude = 100 mVrms
-RET strategy = AUTO
+RET strategy = DSP_AUTO
 ```
 
 Live-mode previous-result hints may seed range/frequency/amplitude/channel preference,
@@ -415,12 +429,41 @@ The automatic engine never intentionally requests `10 Ohm + 500 mVrms`; the lowe
 excitation service also rejects that combination.
 
 Confidence is represented as `NOMINAL`, `EXTENDED`, `LOW_CONFIDENCE`, or `REJECTED`.
+It is separate from both mathematical quality and physical qualification:
+
+```text
+measurement quality:
+    GOOD / DEGRADED / INVALID
+
+qualification:
+    UNQUALIFIED / NOMINAL / EXTENDED / DISABLED
+
+publication confidence:
+    NOMINAL / EXTENDED / LOW_CONFIDENCE / REJECTED
+```
+
 `NOMINAL` requires explicit qualification evidence. In the current unqualified Rev.1
-software state, a mathematically clean measurement may be `EXTENDED`, not `NOMINAL`.
+software state, a mathematically clean measurement remains
+`qualification=UNQUALIFIED` and `publication confidence=LOW_CONFIDENCE`.
+
+The final displayed value references an explicit `primary_attempt_index` and
+`primary_attempt`. Primary selection uses deterministic quality ordering such as DSP
+validity, clipping, signal level, denominator conditioning, useful DUT/RREF ratio, RET
+selection, preferred primary frequency, and qualification status. It does not select the
+largest impedance magnitude, because reactive impedance magnitude changes naturally with
+frequency.
+
+Phase 05 captures both RET paths and Phase 06 selects the mathematically usable channel.
+Phase 07 records RET_1X/RET_HG usability, selected channel, and overlap evidence for
+confidence/calibration diagnostics, but it does not command a separate RET hardware path.
 
 Session classification is downstream of complex impedance calculation and may return
 `RESISTIVE`, `CAPACITIVE`, `INDUCTIVE`, or `MIXED_OR_UNKNOWN`. Ambiguous or inconsistent
 evidence remains `MIXED_OR_UNKNOWN` rather than being forced into an R/C/L label.
+Multi-frequency evidence is explicit and qualitative: capacitive tendency expects
+negative reactance with generally decreasing `|X|` as frequency increases, while
+inductive tendency expects positive reactance with generally increasing `|X|`. The
+implementation tolerates non-ideal ESR/winding resistance and flags inconsistent trends.
 
 ## Decision-change rule
 

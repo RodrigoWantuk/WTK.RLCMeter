@@ -2,7 +2,10 @@
 
 STATUS: IN_PROGRESS
 
-Stage 1 — Automatic measurement engine / autorange / confidence / classification:
+Stage 1A — Automatic measurement policy / autorange / confidence / classification:
+STATUS: IMPLEMENTED
+
+Stage 1B — End-to-end automatic session orchestration:
 STATUS: IMPLEMENTED_REQUIRES_BENCH_VALIDATION
 
 Stage 2 — Calibration model / OPEN-SHORT-LOAD workflows / persistence:
@@ -44,9 +47,9 @@ Turn the fixed-condition impedance engine into a robust instrument measurement e
 - future 4-wire/high-voltage modes;
 - requiring normal users to preselect R/C/L before measurement.
 
-## Stage 1 implementation boundary
+## Stage 1A/1B implementation boundary
 
-Phase 07 Stage 1 adds a pure, host-testable automatic measurement session engine in
+Phase 07 Stage 1A adds a pure, host-testable automatic measurement policy engine in
 `Firmware/src/measurement/measurement_engine.c/.h`.
 
 It consumes completed Phase 05 + Phase 06 attempt results and decides:
@@ -62,6 +65,22 @@ It does not directly touch GPIO, relays, range pins, ADC/DMA registers, TFT, W25
 Lab UART output during critical acquisition. Phase 05 remains the only owner of the
 fixed-condition hardware measurement transaction. Phase 06 remains the owner of the
 single-condition DSP and impedance equation.
+
+Phase 07 Stage 1B adds the application orchestration layer in
+`Firmware/src/app/app_measurement_session.c/.h`. The controller connects:
+
+```text
+Phase 07 policy requested attempt
+    -> Phase 05 fixed-condition transaction
+    -> Phase 06 DSP after SAFE teardown
+    -> Phase 07 policy submit
+    -> partial / next attempt / final result
+```
+
+The application controller owns session lifecycle, cancellation, partial/final result
+publication, and Lab diagnostic events. It does not directly energize K1, switch range
+GPIO, issue bypass permits, configure ADC/DMA, or keep hardware active between attempts.
+Every attempt is a fresh Phase 05 safety transaction.
 
 Implemented Stage 1 policy constants:
 
@@ -104,10 +123,67 @@ These thresholds are conservative software policy defaults and remain
 Stage 1 preserves the Phase 05 amplitude safety rule: the automatic engine never emits
 `10 Ohm + 500 mVrms`, and the lower excitation service still rejects it.
 
+The session result has explicit primary-result semantics:
+
+```text
+primary_attempt_index:
+    zero-based index into completed attempt history, or MEASUREMENT_AUTO_INDEX_NONE
+
+primary_attempt:
+    the policy-designated attempt that supports the displayed value
+
+supporting/refinement attempts:
+    retained in history and classification evidence but do not silently replace
+    the primary value
+```
+
+The primary attempt is selected by explicit quality ordering, not by impedance
+magnitude. Frequency-refinement attempts provide supporting classification/confidence
+evidence unless a future policy explicitly promotes a new primary condition.
+
+Stage 1B Lab diagnostics expose `lab auto measure`, which runs a Click-style automatic
+session and emits structured post-critical-window events:
+
+```text
+AUTO_BEGIN
+ATTEMPT_BEGIN
+PARTIAL_RESULT
+FINAL_RESULT
+AUTO_END
+```
+
 Click and Live modes both use the same session engine. Click runs one complete session.
 Live may start another complete session using a previous final result as a starting hint,
 but that hint only carries range/frequency/amplitude/channel preference. It carries no
 safety authorization, no permit, and no active hardware ownership across sessions.
+
+Current Rev.1 qualification behavior is intentionally conservative:
+
+```text
+measurement quality:
+    GOOD / DEGRADED / INVALID
+
+qualification:
+    UNQUALIFIED / NOMINAL / EXTENDED / DISABLED
+
+publication confidence:
+    NOMINAL / EXTENDED / LOW_CONFIDENCE / REJECTED
+```
+
+A mathematically clean but physically unqualified Rev.1 result remains
+`qualification=UNQUALIFIED` and `publication confidence=LOW_CONFIDENCE`. `NOMINAL`
+requires explicit qualification evidence from later Phase 09 work.
+
+RET channel ownership is resolved as follows: Phase 05 captures both RET paths and
+Phase 06 selects the mathematically usable channel for a fixed condition. Phase 07
+records RET_1X/RET_HG usability, selected channel, and overlap evidence for confidence
+and future calibration/qualification, but does not command a different hardware RET
+capture path.
+
+Multi-frequency classification records explicit evidence flags for reactance dominance,
+resistive dominance, capacitive/inductive qualitative frequency trend support, and
+trend inconsistency. Trend evidence is tolerant and qualitative; it is not an ideal
+component-law fit, and ambiguous/non-ideal networks may remain `MIXED_OR_UNKNOWN`.
 
 ## Task 1 — Define measurement attempt model
 

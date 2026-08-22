@@ -437,6 +437,30 @@ bsp_status_t hw_metrology_measure_start(hw_metrology_measure_t *measure,
     return BSP_STATUS_BUSY;
 }
 
+bsp_status_t hw_metrology_measure_abort(hw_metrology_measure_t *measure)
+{
+    if (measure == NULL)
+    {
+        return BSP_STATUS_INVALID_ARG;
+    }
+    if (measure->state == HW_METROLOGY_MEASURE_IDLE)
+    {
+        sync_k1_globals(measure);
+        return BSP_STATUS_OK;
+    }
+    if (measure->state == HW_METROLOGY_MEASURE_DONE)
+    {
+        measure->dumpable = false;
+        measure->block.valid = false;
+        measure->state = HW_METROLOGY_MEASURE_IDLE;
+        sync_k1_globals(measure);
+        return BSP_STATUS_OK;
+    }
+    enter_abort(measure, HW_METROLOGY_MEASURE_ERR_ABORT);
+    sync_k1_globals(measure);
+    return BSP_STATUS_BUSY;
+}
+
 static bsp_status_t step_success_path(hw_metrology_measure_t *measure, uint32_t now_ms)
 {
     if (measure_dynamic_abort(measure))

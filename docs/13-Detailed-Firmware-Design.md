@@ -384,16 +384,28 @@ Phase 07 Stage 1 currently implements:
 
 ```text
 measurement_engine.c/.h
+app_measurement_session.c/.h
 ```
 
-This module owns the pure automatic measurement session policy: bounded attempt history,
-initial probing, previous-result hints, range/amplitude/frequency decisions, RET channel
-selection evidence, partial/final result metadata, confidence class/reason flags, and
+`measurement_engine` owns the pure automatic measurement policy: bounded attempt
+history, initial probing, previous-result hints, range/amplitude/frequency decisions,
+RET channel evidence, explicit primary-result selection, partial/final result metadata,
+separate mathematical quality / qualification / publication confidence fields, and
 session-level classification.
 
-It consumes completed Phase 05 + Phase 06 attempt results. It does not start
-acquisitions, issue permits, switch GPIOs, energize K1, render UI, or access persistent
-storage.
+`app_measurement_session` owns application-level orchestration for Click/Live-style
+automatic sessions. It requests fixed-condition Phase 05 attempts, waits for Phase 05 to
+return hardware to SAFE, runs Phase 06 DSP outside the hazardous window, submits the
+attempt outcome to the pure policy, and publishes partial/final session events.
+
+Neither module issues permits, switches GPIOs, energizes K1 directly, renders UI, or
+accesses persistent storage. Every automatic attempt is a fresh Phase 05 safety
+transaction.
+
+The primary result is selected by explicit policy and recorded as `primary_attempt_index`;
+it is not reconstructed by choosing the largest impedance magnitude. Frequency-refinement
+attempts are retained as supporting evidence unless a future policy explicitly promotes
+a different primary condition.
 
 Still deferred to later phases:
 

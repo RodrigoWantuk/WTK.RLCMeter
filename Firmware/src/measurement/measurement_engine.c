@@ -4,11 +4,14 @@
 
 #define AUTO_RATIO_TOO_SMALL (0.20f)
 #define AUTO_RATIO_TOO_LARGE (5.00f)
+#define AUTO_RATIO_SHORT_LIKE (0.020f)
 #define AUTO_RATIO_OPEN_LIKE (100.0f)
 #define AUTO_RET_WEAK_V_PEAK (0.0020f)
 #define AUTO_RET_GOOD_V_PEAK (0.0100f)
 #define AUTO_REACTIVE_RATIO_MIN (0.25f)
 #define AUTO_RESISTIVE_RATIO_MAX (0.10f)
+#define AUTO_TREND_TOLERANCE_SUPPORT (1.25f)
+#define AUTO_TREND_TOLERANCE_REJECT (1.50f)
 
 typedef enum
 {
@@ -24,6 +27,19 @@ typedef struct
     measurement_attempt_reason_t continuation_reason;
     bool publish_partial;
 } policy_decision_t;
+
+typedef struct
+{
+    uint8_t valid;
+    uint8_t unclipped;
+    uint8_t source_ok;
+    uint8_t return_ok;
+    uint8_t denominator_ok;
+    uint8_t ratio_good;
+    uint8_t selected_1x;
+    uint8_t preferred_frequency;
+    uint8_t qualification_rank;
+} primary_score_t;
 
 static bool range_index(hw_range_id_t range_id, uint8_t *index)
 {
@@ -91,6 +107,22 @@ static bool frequency_index(hw_excitation_freq_t frequency, uint8_t *index)
     case HW_EXCITATION_FREQ_INVALID:
     default:
         return false;
+    }
+}
+
+static uint32_t frequency_hz(hw_excitation_freq_t frequency)
+{
+    switch (frequency)
+    {
+    case HW_EXCITATION_FREQ_100HZ:
+        return 100u;
+    case HW_EXCITATION_FREQ_1KHZ:
+        return 1000u;
+    case HW_EXCITATION_FREQ_10KHZ:
+        return 10000u;
+    case HW_EXCITATION_FREQ_INVALID:
+    default:
+        return 0u;
     }
 }
 
@@ -168,7 +200,7 @@ static measurement_attempt_config_t make_attempt(const measurement_auto_session_
         .range_id = range_id,
         .frequency = frequency,
         .amplitude = amplitude,
-        .ret_strategy = MEASUREMENT_RET_STRATEGY_AUTO,
+        .ret_strategy = MEASUREMENT_RET_STRATEGY_DSP_AUTO,
         .attempt_number = (uint8_t)(session->attempt_count + 1u),
         .reason = reason,
     };
@@ -320,32 +352,128 @@ static bool choose_frequency_refinement(const measurement_auto_session_t *sessio
     return false;
 }
 
-static measurement_attempt_result_t best_attempt(const measurement_auto_session_t *session)
+static uint8_t qualification_rank(measurement_qualification_t qualification)
 {
-    measurement_attempt_result_t best = {0};
-    bool have_best = false;
-    float best_mag = 0.0f;
-    if (session == NULL)
+    switch (qualification)
     {
-        return best;
+    case MEASUREMENT_QUALIFICATION_NOMINAL:
+        return 3u;
+    case MEASUREMENT_QUALIFICATION_EXTENDED:
+        return 2u;
+    case MEASUREMENT_QUALIFICATION_UNQUALIFIED:
+        return 1u;
+    case MEASUREMENT_QUALIFICATION_DISABLED:
+    default:
+        return 0u;
+    }
+}
+
+static primary_score_t primary_score(const measurement_attempt_result_t *result,
+                                     measurement_qualification_t qualification)
+{
+    primary_score_t score = {0};
+    if (!result_math_ok(result))
+    {
+        return score;
     }
 
+    const float zref = ideal_zref_mag(result->config.range_id);
+    const float zmag = measurement_complex_mag(result->z_ohms);
+    const float ratio = (result->dut_zref_ratio > 0.0f) ? result->dut_zref_ratio :
+                                                          (zmag / max_float(zref, 1.0e-6f));
+    score.valid = 1u;
+    score.unclipped = (!result->clipped && !result->ret_1x_quality.clipped &&
+                       !result->ret_hg_quality.clipped) ? 1u : 0u;
+    score.source_ok = ((result->source_peak_v == 0.0f) ||
+                       (result->source_peak_v >= AUTO_RET_GOOD_V_PEAK)) ? 1u : 0u;
+    score.return_ok = (selected_return_peak(result) >= AUTO_RET_GOOD_V_PEAK) ? 1u : 0u;
+    score.denominator_ok = ((result->denominator_peak_v == 0.0f) ||
+                            (result->denominator_peak_v >= AUTO_RET_WEAK_V_PEAK)) ? 1u : 0u;
+    score.ratio_good = ((ratio >= AUTO_RATIO_TOO_SMALL) && (ratio <= AUTO_RATIO_TOO_LARGE)) ? 1u : 0u;
+    score.selected_1x = (result->selected_channel == MEASUREMENT_RETURN_1X) ? 1u : 0u;
+    score.preferred_frequency = (result->config.frequency == HW_EXCITATION_FREQ_1KHZ) ? 1u : 0u;
+    score.qualification_rank = qualification_rank(qualification);
+    return score;
+}
+
+static bool primary_score_better(primary_score_t a, primary_score_t b)
+{
+    if (a.valid != b.valid)
+    {
+        return a.valid > b.valid;
+    }
+    if (a.unclipped != b.unclipped)
+    {
+        return a.unclipped > b.unclipped;
+    }
+    if (a.source_ok != b.source_ok)
+    {
+        return a.source_ok > b.source_ok;
+    }
+    if (a.return_ok != b.return_ok)
+    {
+        return a.return_ok > b.return_ok;
+    }
+    if (a.denominator_ok != b.denominator_ok)
+    {
+        return a.denominator_ok > b.denominator_ok;
+    }
+    if (a.ratio_good != b.ratio_good)
+    {
+        return a.ratio_good > b.ratio_good;
+    }
+    if (a.selected_1x != b.selected_1x)
+    {
+        return a.selected_1x > b.selected_1x;
+    }
+    if (a.preferred_frequency != b.preferred_frequency)
+    {
+        return a.preferred_frequency > b.preferred_frequency;
+    }
+    return a.qualification_rank > b.qualification_rank;
+}
+
+static uint8_t fallback_primary_index(const measurement_auto_session_t *session)
+{
+    uint8_t best_index = MEASUREMENT_AUTO_INDEX_NONE;
+    primary_score_t best_score = {0};
+    if (session == NULL)
+    {
+        return best_index;
+    }
     for (uint8_t i = 0u; i < session->attempt_count; i++)
     {
-        const measurement_attempt_result_t *candidate = &session->history[i];
-        if (!result_math_ok(candidate))
+        const primary_score_t score = primary_score(&session->history[i], session->qualification);
+        if ((best_index == MEASUREMENT_AUTO_INDEX_NONE) || primary_score_better(score, best_score))
         {
-            continue;
-        }
-        const float mag = measurement_complex_mag(candidate->z_ohms);
-        if (!have_best || (mag > best_mag))
-        {
-            best = *candidate;
-            best_mag = mag;
-            have_best = true;
+            best_score = score;
+            best_index = i;
         }
     }
-    return best;
+    if ((best_index != MEASUREMENT_AUTO_INDEX_NONE) && (best_score.valid == 0u))
+    {
+        best_index = MEASUREMENT_AUTO_INDEX_NONE;
+    }
+    return best_index;
+}
+
+static const measurement_attempt_result_t *primary_attempt(const measurement_auto_session_t *session,
+                                                          uint8_t *index)
+{
+    uint8_t primary = MEASUREMENT_AUTO_INDEX_NONE;
+    if (session != NULL)
+    {
+        primary = session->primary_attempt_index;
+        if ((primary == MEASUREMENT_AUTO_INDEX_NONE) || (primary >= session->attempt_count))
+        {
+            primary = fallback_primary_index(session);
+        }
+    }
+    if (index != NULL)
+    {
+        *index = primary;
+    }
+    return ((session != NULL) && (primary != MEASUREMENT_AUTO_INDEX_NONE)) ? &session->history[primary] : NULL;
 }
 
 static measurement_auto_status_t terminal_status_from_result(const measurement_attempt_result_t *result)
@@ -377,6 +505,16 @@ static measurement_auto_status_t terminal_status_from_result(const measurement_a
     return MEASUREMENT_AUTO_STATUS_NO_VALID_CONDITION;
 }
 
+static bool at_highest_range(hw_range_id_t range_id)
+{
+    return range_id == HW_RANGE_ID_1M;
+}
+
+static bool at_lowest_range(hw_range_id_t range_id)
+{
+    return range_id == HW_RANGE_ID_10R;
+}
+
 static policy_decision_t decide_next(const measurement_auto_session_t *session,
                                      const measurement_attempt_result_t *result)
 {
@@ -406,9 +544,36 @@ static policy_decision_t decide_next(const measurement_auto_session_t *session,
         return decision;
     }
 
+    measurement_attempt_config_t attempt;
+    if (result->open_like || (result->dsp_status == MEASUREMENT_STATUS_DENOMINATOR_TOO_SMALL))
+    {
+        if (!at_highest_range(result->config.range_id) &&
+            choose_next_range(session, &result->config, 1, MEASUREMENT_ATTEMPT_RERANGE, &attempt))
+        {
+            decision.decision = NEXT_DECISION_ATTEMPT;
+            decision.attempt = attempt;
+            decision.continuation_reason = MEASUREMENT_ATTEMPT_RERANGE;
+            return decision;
+        }
+        decision.final_status = MEASUREMENT_AUTO_STATUS_OPEN_LIKE;
+        return decision;
+    }
+    if (result->short_like)
+    {
+        if (!at_lowest_range(result->config.range_id) &&
+            choose_next_range(session, &result->config, -1, MEASUREMENT_ATTEMPT_RERANGE, &attempt))
+        {
+            decision.decision = NEXT_DECISION_ATTEMPT;
+            decision.attempt = attempt;
+            decision.continuation_reason = MEASUREMENT_ATTEMPT_RERANGE;
+            return decision;
+        }
+        decision.final_status = MEASUREMENT_AUTO_STATUS_SHORT_LIKE;
+        return decision;
+    }
+
     if (result->clipped || (result->dsp_status == MEASUREMENT_STATUS_CLIPPED))
     {
-        measurement_attempt_config_t attempt;
         if (choose_next_range(session, &result->config, 1, MEASUREMENT_ATTEMPT_AVOID_CLIPPING, &attempt))
         {
             decision.decision = NEXT_DECISION_ATTEMPT;
@@ -422,7 +587,6 @@ static policy_decision_t decide_next(const measurement_auto_session_t *session,
 
     if (!result_math_ok(result))
     {
-        measurement_attempt_config_t attempt;
         if (!any_ret_usable(result) && choose_500mv_retry(session, &result->config, &attempt))
         {
             decision.decision = NEXT_DECISION_ATTEMPT;
@@ -434,12 +598,20 @@ static policy_decision_t decide_next(const measurement_auto_session_t *session,
         return decision;
     }
 
-    decision.publish_partial = true;
     const float zref = ideal_zref_mag(result->config.range_id);
     const float zmag = measurement_complex_mag(result->z_ohms);
     const float ratio = zmag / max_float(zref, 1.0e-6f);
-    measurement_attempt_config_t attempt;
 
+    if ((ratio >= AUTO_RATIO_OPEN_LIKE) && at_highest_range(result->config.range_id))
+    {
+        decision.final_status = MEASUREMENT_AUTO_STATUS_OPEN_LIKE;
+        return decision;
+    }
+    if ((ratio <= AUTO_RATIO_SHORT_LIKE) && at_lowest_range(result->config.range_id))
+    {
+        decision.final_status = MEASUREMENT_AUTO_STATUS_SHORT_LIKE;
+        return decision;
+    }
     if ((ratio <= AUTO_RATIO_TOO_SMALL) &&
         choose_next_range(session, &result->config, -1, MEASUREMENT_ATTEMPT_RERANGE, &attempt))
     {
@@ -454,16 +626,6 @@ static policy_decision_t decide_next(const measurement_auto_session_t *session,
         decision.decision = NEXT_DECISION_ATTEMPT;
         decision.attempt = attempt;
         decision.continuation_reason = MEASUREMENT_ATTEMPT_RERANGE;
-        return decision;
-    }
-    if ((ratio >= AUTO_RATIO_OPEN_LIKE) && (result->config.range_id == HW_RANGE_ID_1M))
-    {
-        decision.final_status = MEASUREMENT_AUTO_STATUS_OPEN_LIKE;
-        return decision;
-    }
-    if ((ratio <= (AUTO_RATIO_TOO_SMALL * 0.1f)) && (result->config.range_id == HW_RANGE_ID_10R))
-    {
-        decision.final_status = MEASUREMENT_AUTO_STATUS_SHORT_LIKE;
         return decision;
     }
 
@@ -482,11 +644,59 @@ static policy_decision_t decide_next(const measurement_auto_session_t *session,
         decision.decision = NEXT_DECISION_ATTEMPT;
         decision.attempt = attempt;
         decision.continuation_reason = MEASUREMENT_ATTEMPT_CHECK_SECOND_FREQUENCY;
+        decision.publish_partial = true;
         return decision;
     }
 
     decision.final_status = MEASUREMENT_AUTO_STATUS_FINAL_OK;
     return decision;
+}
+
+static void fill_result_metrics(measurement_attempt_result_t *result)
+{
+    if (result == NULL)
+    {
+        return;
+    }
+    result->ret_evidence = measurement_auto_evaluate_ret_evidence(result);
+    if (result->return_peak_v == 0.0f)
+    {
+        result->return_peak_v = selected_return_peak(result);
+    }
+    if (result->dut_zref_ratio == 0.0f)
+    {
+        result->dut_zref_ratio =
+            measurement_complex_mag(result->z_ohms) / max_float(ideal_zref_mag(result->config.range_id), 1.0e-6f);
+    }
+}
+
+static void set_primary_if_needed(measurement_auto_session_t *session,
+                                  const measurement_attempt_result_t *stored,
+                                  uint8_t stored_index,
+                                  const policy_decision_t *decision)
+{
+    if ((session == NULL) || (stored == NULL) || (decision == NULL) || !result_math_ok(stored))
+    {
+        return;
+    }
+    if ((decision->decision == NEXT_DECISION_ATTEMPT) &&
+        ((decision->continuation_reason == MEASUREMENT_ATTEMPT_RERANGE) ||
+         (decision->continuation_reason == MEASUREMENT_ATTEMPT_AVOID_CLIPPING) ||
+         (decision->continuation_reason == MEASUREMENT_ATTEMPT_IMPROVE_SNR)))
+    {
+        return;
+    }
+    if (session->primary_attempt_index == MEASUREMENT_AUTO_INDEX_NONE)
+    {
+        session->primary_attempt_index = stored_index;
+        return;
+    }
+    if ((decision->continuation_reason != MEASUREMENT_ATTEMPT_CHECK_SECOND_FREQUENCY) &&
+        primary_score_better(primary_score(stored, session->qualification),
+                             primary_score(&session->history[session->primary_attempt_index], session->qualification)))
+    {
+        session->primary_attempt_index = stored_index;
+    }
 }
 
 static void finalize_result(measurement_auto_session_t *session,
@@ -497,25 +707,33 @@ static void finalize_result(measurement_auto_session_t *session,
     {
         return;
     }
-    measurement_attempt_result_t best = best_attempt(session);
+    uint8_t primary_index = MEASUREMENT_AUTO_INDEX_NONE;
+    const measurement_attempt_result_t *primary = primary_attempt(session, &primary_index);
+    measurement_attempt_result_t primary_copy = {0};
+    if (primary != NULL)
+    {
+        primary_copy = *primary;
+    }
     session->status = status;
     session->has_next_attempt = false;
     session->has_final = true;
     session->last_result.status = status;
-    session->last_result.best_attempt = best;
-    session->last_result.confidence = measurement_auto_evaluate_confidence(&best, session->qualification);
+    session->last_result.primary_attempt = primary_copy;
+    session->last_result.primary_attempt_index = primary_index;
+    session->last_result.confidence = measurement_auto_evaluate_confidence(primary, session->qualification);
     session->last_result.classification =
         measurement_auto_classify_session(session->history, session->attempt_count);
     if ((status == MEASUREMENT_AUTO_STATUS_OPEN_LIKE) || (status == MEASUREMENT_AUTO_STATUS_SHORT_LIKE))
     {
-        session->last_result.confidence.class_id = MEASUREMENT_CONFIDENCE_LOW_CONFIDENCE;
+        session->last_result.confidence.publication_confidence = MEASUREMENT_CONFIDENCE_LOW_CONFIDENCE;
     }
     if ((status == MEASUREMENT_AUTO_STATUS_NO_VALID_CONDITION) ||
         (status == MEASUREMENT_AUTO_STATUS_SAFETY_ABORT) ||
         (status == MEASUREMENT_AUTO_STATUS_CANCELED) ||
         (status == MEASUREMENT_AUTO_STATUS_FAILED))
     {
-        session->last_result.confidence.class_id = MEASUREMENT_CONFIDENCE_REJECTED;
+        session->last_result.confidence.measurement_quality = MEASUREMENT_QUALITY_INVALID;
+        session->last_result.confidence.publication_confidence = MEASUREMENT_CONFIDENCE_REJECTED;
     }
     session->last_result.continuation_reason = continuation_reason;
     session->last_result.attempt_count = session->attempt_count;
@@ -526,16 +744,22 @@ static void finalize_result(measurement_auto_session_t *session,
 }
 
 static void publish_partial(measurement_auto_session_t *session,
-                            const measurement_attempt_result_t *result,
                             measurement_attempt_reason_t continuation_reason)
 {
-    if ((session == NULL) || (result == NULL))
+    if (session == NULL)
+    {
+        return;
+    }
+    uint8_t primary_index = MEASUREMENT_AUTO_INDEX_NONE;
+    const measurement_attempt_result_t *primary = primary_attempt(session, &primary_index);
+    if (primary == NULL)
     {
         return;
     }
     session->last_result.status = MEASUREMENT_AUTO_STATUS_RUNNING;
-    session->last_result.best_attempt = *result;
-    session->last_result.confidence = measurement_auto_evaluate_confidence(result, session->qualification);
+    session->last_result.primary_attempt = *primary;
+    session->last_result.primary_attempt_index = primary_index;
+    session->last_result.confidence = measurement_auto_evaluate_confidence(primary, session->qualification);
     session->last_result.classification =
         measurement_auto_classify_session(session->history, session->attempt_count);
     session->last_result.continuation_reason = continuation_reason;
@@ -554,6 +778,8 @@ void measurement_auto_session_init(measurement_auto_session_t *session)
         *session = (measurement_auto_session_t){0};
         session->status = MEASUREMENT_AUTO_STATUS_IDLE;
         session->qualification = MEASUREMENT_QUALIFICATION_UNQUALIFIED;
+        session->primary_attempt_index = MEASUREMENT_AUTO_INDEX_NONE;
+        session->last_result.primary_attempt_index = MEASUREMENT_AUTO_INDEX_NONE;
     }
 }
 
@@ -569,6 +795,7 @@ bool measurement_auto_start_session(measurement_auto_session_t *session,
     session->mode = start->mode;
     session->qualification = start->qualification;
     session->session_sequence = start->session_sequence;
+    session->hint = hint;
     session->status = MEASUREMENT_AUTO_STATUS_RUNNING;
     session->next_attempt = initial_attempt(session, &hint);
     session->has_next_attempt = true;
@@ -601,12 +828,16 @@ measurement_auto_event_t measurement_auto_submit_result(measurement_auto_session
 
     measurement_attempt_result_t stored = *result;
     stored.config = session->next_attempt;
-    session->history[session->attempt_count] = stored;
+    fill_result_metrics(&stored);
+    const uint8_t stored_index = session->attempt_count;
+    session->history[stored_index] = stored;
     session->attempt_count++;
     session->attempted_conditions |= condition_mask(stored.config);
     session->has_next_attempt = false;
 
     const policy_decision_t decision = decide_next(session, &stored);
+    set_primary_if_needed(session, &stored, stored_index, &decision);
+
     if ((decision.decision == NEXT_DECISION_ATTEMPT) &&
         (session->attempt_count < MEASUREMENT_AUTO_MAX_ATTEMPTS))
     {
@@ -620,9 +851,9 @@ measurement_auto_event_t measurement_auto_submit_result(measurement_auto_session
         }
         session->next_attempt = decision.attempt;
         session->has_next_attempt = true;
-        if (decision.publish_partial)
+        if (decision.publish_partial && (session->primary_attempt_index != MEASUREMENT_AUTO_INDEX_NONE))
         {
-            publish_partial(session, &stored, decision.continuation_reason);
+            publish_partial(session, decision.continuation_reason);
             return MEASUREMENT_AUTO_EVENT_PARTIAL_RESULT;
         }
         return MEASUREMENT_AUTO_EVENT_ATTEMPT_READY;
@@ -652,13 +883,13 @@ measurement_auto_hint_t measurement_auto_make_hint(const measurement_session_res
     {
         return hint;
     }
-    hint.valid = measurement_auto_condition_allowed(result->best_attempt.config.range_id,
-                                                   result->best_attempt.config.frequency,
-                                                   result->best_attempt.config.amplitude);
-    hint.range_id = result->best_attempt.config.range_id;
-    hint.frequency = result->best_attempt.config.frequency;
-    hint.amplitude = result->best_attempt.config.amplitude;
-    hint.ret_channel = result->best_attempt.selected_channel;
+    hint.valid = measurement_auto_condition_allowed(result->primary_attempt.config.range_id,
+                                                   result->primary_attempt.config.frequency,
+                                                   result->primary_attempt.config.amplitude);
+    hint.range_id = result->primary_attempt.config.range_id;
+    hint.frequency = result->primary_attempt.config.frequency;
+    hint.amplitude = result->primary_attempt.config.amplitude;
+    hint.ret_channel = result->primary_attempt.selected_channel;
     return hint;
 }
 
@@ -673,43 +904,59 @@ bool measurement_auto_condition_allowed(hw_range_id_t range_id,
            (hw_excitation_validate_amplitude(range_id, amplitude) == BSP_STATUS_OK);
 }
 
-measurement_ret_policy_result_t measurement_auto_select_ret_channel(
+measurement_ret_evidence_t measurement_auto_evaluate_ret_evidence(
     const measurement_attempt_result_t *result)
 {
-    measurement_ret_policy_result_t policy = {
-        .usable = false,
+    measurement_ret_evidence_t evidence = {
+        .ret_1x_valid = false,
+        .ret_hg_valid = false,
+        .both_usable = false,
+        .agreement_available = false,
         .selected = MEASUREMENT_RETURN_1X,
+        .ret_1x_peak_v = 0.0f,
+        .ret_hg_peak_v = 0.0f,
         .reason_flags = MEASUREMENT_AUTO_REASON_NONE,
     };
     if (result == NULL)
     {
-        policy.reason_flags = MEASUREMENT_AUTO_REASON_DSP_ERROR;
-        return policy;
+        evidence.reason_flags = MEASUREMENT_AUTO_REASON_DSP_ERROR;
+        return evidence;
     }
+    evidence.ret_1x_valid = result->ret_1x_quality.usable && !result->ret_1x_quality.clipped;
+    evidence.ret_hg_valid = result->ret_hg_quality.usable && !result->ret_hg_quality.clipped;
+    evidence.both_usable = evidence.ret_1x_valid && evidence.ret_hg_valid;
+    evidence.agreement_available = evidence.both_usable;
+    evidence.selected = result->selected_channel;
+    evidence.ret_1x_peak_v = result->ret_1x_quality.signal_peak_v;
+    evidence.ret_hg_peak_v = result->ret_hg_quality.signal_peak_v;
     if (result->ret_1x_quality.clipped || result->ret_hg_quality.clipped || result->clipped)
     {
-        policy.reason_flags |= MEASUREMENT_AUTO_REASON_CLIPPED;
+        evidence.reason_flags |= MEASUREMENT_AUTO_REASON_CLIPPED;
     }
-    if (result->ret_1x_quality.usable && (result->ret_1x_quality.signal_peak_v >= AUTO_RET_GOOD_V_PEAK))
+    if (!evidence.ret_1x_valid && !evidence.ret_hg_valid)
     {
-        policy.usable = true;
-        policy.selected = MEASUREMENT_RETURN_1X;
-        return policy;
+        evidence.reason_flags |= MEASUREMENT_AUTO_REASON_RETURN_LOW;
     }
-    if (result->ret_hg_quality.usable && !result->ret_hg_quality.clipped)
+    if (evidence.selected == MEASUREMENT_RETURN_HG)
     {
-        policy.usable = true;
-        policy.selected = MEASUREMENT_RETURN_HG;
-        policy.reason_flags |= MEASUREMENT_AUTO_REASON_HG_PROVISIONAL;
-        return policy;
+        evidence.reason_flags |= MEASUREMENT_AUTO_REASON_HG_PROVISIONAL;
     }
-    if (result->ret_1x_quality.usable)
+    if (evidence.both_usable)
     {
-        policy.usable = true;
-        policy.selected = MEASUREMENT_RETURN_1X;
-        return policy;
+        evidence.reason_flags |= MEASUREMENT_AUTO_REASON_RET_OVERLAP;
     }
-    policy.reason_flags |= MEASUREMENT_AUTO_REASON_RETURN_LOW;
+    return evidence;
+}
+
+measurement_ret_policy_result_t measurement_auto_select_ret_channel(
+    const measurement_attempt_result_t *result)
+{
+    const measurement_ret_evidence_t evidence = measurement_auto_evaluate_ret_evidence(result);
+    measurement_ret_policy_result_t policy = {
+        .usable = evidence.ret_1x_valid || evidence.ret_hg_valid,
+        .selected = evidence.selected,
+        .reason_flags = evidence.reason_flags,
+    };
     return policy;
 }
 
@@ -718,7 +965,9 @@ measurement_confidence_result_t measurement_auto_evaluate_confidence(
     measurement_qualification_t qualification)
 {
     measurement_confidence_result_t confidence = {
-        .class_id = MEASUREMENT_CONFIDENCE_REJECTED,
+        .measurement_quality = MEASUREMENT_QUALITY_INVALID,
+        .qualification = qualification,
+        .publication_confidence = MEASUREMENT_CONFIDENCE_REJECTED,
         .reason_flags = MEASUREMENT_AUTO_REASON_NONE,
         .mathematically_valid = result_math_ok(result),
     };
@@ -747,7 +996,8 @@ measurement_confidence_result_t measurement_auto_evaluate_confidence(
     {
         confidence.reason_flags |= MEASUREMENT_AUTO_REASON_SOURCE_LOW;
     }
-    if (result->dsp_status == MEASUREMENT_STATUS_CHANNEL_UNUSABLE)
+    if ((result->dsp_status == MEASUREMENT_STATUS_CHANNEL_UNUSABLE) ||
+        (result->dsp_status == MEASUREMENT_STATUS_RETURN_TOO_SMALL))
     {
         confidence.reason_flags |= MEASUREMENT_AUTO_REASON_RETURN_LOW;
     }
@@ -771,40 +1021,151 @@ measurement_confidence_result_t measurement_auto_evaluate_confidence(
         }
         return confidence;
     }
+
+    confidence.measurement_quality = MEASUREMENT_QUALITY_GOOD;
     if (selected_return_peak(result) < AUTO_RET_GOOD_V_PEAK)
     {
+        confidence.measurement_quality = MEASUREMENT_QUALITY_DEGRADED;
         confidence.reason_flags |= MEASUREMENT_AUTO_REASON_RETURN_LOW;
     }
     if (result->selected_channel == MEASUREMENT_RETURN_HG)
     {
+        confidence.measurement_quality = MEASUREMENT_QUALITY_DEGRADED;
         confidence.reason_flags |= MEASUREMENT_AUTO_REASON_HG_PROVISIONAL;
     }
 
     switch (qualification)
     {
     case MEASUREMENT_QUALIFICATION_NOMINAL:
-        confidence.class_id = (confidence.reason_flags == MEASUREMENT_AUTO_REASON_NONE) ?
-                                  MEASUREMENT_CONFIDENCE_NOMINAL :
-                                  MEASUREMENT_CONFIDENCE_LOW_CONFIDENCE;
+        confidence.publication_confidence =
+            (confidence.measurement_quality == MEASUREMENT_QUALITY_GOOD) ? MEASUREMENT_CONFIDENCE_NOMINAL :
+                                                                           MEASUREMENT_CONFIDENCE_LOW_CONFIDENCE;
         break;
     case MEASUREMENT_QUALIFICATION_EXTENDED:
-        confidence.class_id = (confidence.reason_flags == MEASUREMENT_AUTO_REASON_NONE) ?
-                                  MEASUREMENT_CONFIDENCE_EXTENDED :
-                                  MEASUREMENT_CONFIDENCE_LOW_CONFIDENCE;
+        confidence.publication_confidence =
+            (confidence.measurement_quality != MEASUREMENT_QUALITY_INVALID) ? MEASUREMENT_CONFIDENCE_EXTENDED :
+                                                                              MEASUREMENT_CONFIDENCE_REJECTED;
         break;
     case MEASUREMENT_QUALIFICATION_DISABLED:
-        confidence.class_id = MEASUREMENT_CONFIDENCE_REJECTED;
+        confidence.measurement_quality = MEASUREMENT_QUALITY_INVALID;
+        confidence.publication_confidence = MEASUREMENT_CONFIDENCE_REJECTED;
         confidence.reason_flags |= MEASUREMENT_AUTO_REASON_HARDWARE_ERROR;
         break;
     case MEASUREMENT_QUALIFICATION_UNQUALIFIED:
     default:
-        confidence.class_id = (confidence.reason_flags & ~(uint32_t)MEASUREMENT_AUTO_REASON_HG_PROVISIONAL) == 0u ?
-                                  MEASUREMENT_CONFIDENCE_EXTENDED :
-                                  MEASUREMENT_CONFIDENCE_LOW_CONFIDENCE;
+        confidence.publication_confidence = MEASUREMENT_CONFIDENCE_LOW_CONFIDENCE;
         confidence.reason_flags |= MEASUREMENT_AUTO_REASON_UNQUALIFIED;
         break;
     }
     return confidence;
+}
+
+static bool attempt_local_interpretation(const measurement_attempt_result_t *result,
+                                         measurement_interpretation_t *interp,
+                                         uint32_t *flags)
+{
+    if ((result == NULL) || (interp == NULL) || (flags == NULL) || !result_math_ok(result))
+    {
+        return false;
+    }
+    const float r_abs = abs_float(result->derived.resistance_ohms);
+    const float x_abs = abs_float(result->derived.reactance_ohms);
+    const float ratio = x_abs / max_float(r_abs, 1.0e-6f);
+    if (ratio <= AUTO_RESISTIVE_RATIO_MAX)
+    {
+        *interp = MEASUREMENT_INTERPRET_RESISTIVE;
+        *flags |= MEASUREMENT_AUTO_REASON_R_DOMINANT;
+        return true;
+    }
+    if (ratio >= AUTO_REACTIVE_RATIO_MIN)
+    {
+        *interp = (result->derived.reactance_ohms < 0.0f) ?
+                      MEASUREMENT_INTERPRET_CAPACITIVE :
+                      MEASUREMENT_INTERPRET_INDUCTIVE;
+        *flags |= MEASUREMENT_AUTO_REASON_X_DOMINANT;
+        return true;
+    }
+    *interp = MEASUREMENT_INTERPRET_MIXED_OR_UNKNOWN;
+    *flags |= MEASUREMENT_AUTO_REASON_AMBIGUOUS;
+    return true;
+}
+
+static void evaluate_frequency_trend(const measurement_attempt_result_t *history,
+                                     uint8_t count,
+                                     measurement_interpretation_t interpretation,
+                                     uint32_t *flags)
+{
+    if ((history == NULL) || (flags == NULL) ||
+        ((interpretation != MEASUREMENT_INTERPRET_CAPACITIVE) &&
+         (interpretation != MEASUREMENT_INTERPRET_INDUCTIVE)))
+    {
+        return;
+    }
+
+    bool saw_pair = false;
+    bool supports = false;
+    bool inconsistent = false;
+    for (uint8_t i = 0u; i < count; i++)
+    {
+        if (!result_math_ok(&history[i]))
+        {
+            continue;
+        }
+        for (uint8_t j = (uint8_t)(i + 1u); j < count; j++)
+        {
+            if (!result_math_ok(&history[j]) || (history[i].config.frequency == history[j].config.frequency))
+            {
+                continue;
+            }
+            const measurement_attempt_result_t *low = &history[i];
+            const measurement_attempt_result_t *high = &history[j];
+            if (frequency_hz(low->config.frequency) > frequency_hz(high->config.frequency))
+            {
+                low = &history[j];
+                high = &history[i];
+            }
+            const float low_x = abs_float(low->derived.reactance_ohms);
+            const float high_x = abs_float(high->derived.reactance_ohms);
+            saw_pair = true;
+            if (interpretation == MEASUREMENT_INTERPRET_CAPACITIVE)
+            {
+                if (high_x <= (low_x * AUTO_TREND_TOLERANCE_SUPPORT))
+                {
+                    supports = true;
+                }
+                if (high_x > (low_x * AUTO_TREND_TOLERANCE_REJECT))
+                {
+                    inconsistent = true;
+                }
+            }
+            else
+            {
+                if (high_x >= (low_x / AUTO_TREND_TOLERANCE_SUPPORT))
+                {
+                    supports = true;
+                }
+                if (high_x < (low_x / AUTO_TREND_TOLERANCE_REJECT))
+                {
+                    inconsistent = true;
+                }
+            }
+        }
+    }
+    if (!saw_pair)
+    {
+        return;
+    }
+    if (inconsistent)
+    {
+        *flags |= MEASUREMENT_AUTO_REASON_FREQUENCY_TREND_INCONSISTENT |
+                  MEASUREMENT_AUTO_REASON_INCONSISTENT;
+    }
+    else if (supports)
+    {
+        *flags |= (interpretation == MEASUREMENT_INTERPRET_CAPACITIVE) ?
+                      MEASUREMENT_AUTO_REASON_FREQUENCY_TREND_CAPACITIVE :
+                      MEASUREMENT_AUTO_REASON_FREQUENCY_TREND_INDUCTIVE;
+    }
 }
 
 measurement_session_classification_t measurement_auto_classify_session(
@@ -817,7 +1178,6 @@ measurement_session_classification_t measurement_auto_classify_session(
         .supporting_attempts = 0u,
     };
     measurement_interpretation_t first = MEASUREMENT_INTERPRET_MIXED_OR_UNKNOWN;
-    int8_t sign = 0;
 
     if (history == NULL)
     {
@@ -827,47 +1187,22 @@ measurement_session_classification_t measurement_auto_classify_session(
 
     for (uint8_t i = 0u; i < count; i++)
     {
-        const measurement_attempt_result_t *result = &history[i];
-        if (!result_math_ok(result))
+        measurement_interpretation_t interp = MEASUREMENT_INTERPRET_MIXED_OR_UNKNOWN;
+        if (!attempt_local_interpretation(&history[i], &interp, &out.reason_flags))
         {
             continue;
         }
-        const float r_abs = abs_float(result->derived.resistance_ohms);
-        const float x_abs = abs_float(result->derived.reactance_ohms);
-        const float ratio = x_abs / max_float(r_abs, 1.0e-6f);
-        measurement_interpretation_t interp = MEASUREMENT_INTERPRET_MIXED_OR_UNKNOWN;
-        if (ratio <= AUTO_RESISTIVE_RATIO_MAX)
-        {
-            interp = MEASUREMENT_INTERPRET_RESISTIVE;
-        }
-        else if (ratio >= AUTO_REACTIVE_RATIO_MIN)
-        {
-            interp = (result->derived.reactance_ohms < 0.0f) ?
-                         MEASUREMENT_INTERPRET_CAPACITIVE :
-                         MEASUREMENT_INTERPRET_INDUCTIVE;
-        }
-
         if (interp == MEASUREMENT_INTERPRET_MIXED_OR_UNKNOWN)
         {
-            out.reason_flags |= MEASUREMENT_AUTO_REASON_AMBIGUOUS;
             continue;
         }
         if (first == MEASUREMENT_INTERPRET_MIXED_OR_UNKNOWN)
         {
             first = interp;
-            sign = (result->derived.reactance_ohms > 0.0f) ? 1 : (result->derived.reactance_ohms < 0.0f) ? -1 : 0;
             out.supporting_attempts = 1u;
             continue;
         }
         if (interp != first)
-        {
-            out.reason_flags |= MEASUREMENT_AUTO_REASON_INCONSISTENT;
-            out.interpretation = MEASUREMENT_INTERPRET_MIXED_OR_UNKNOWN;
-            return out;
-        }
-        const int8_t this_sign =
-            (result->derived.reactance_ohms > 0.0f) ? 1 : (result->derived.reactance_ohms < 0.0f) ? -1 : 0;
-        if ((sign != 0) && (this_sign != 0) && (this_sign != sign))
         {
             out.reason_flags |= MEASUREMENT_AUTO_REASON_INCONSISTENT;
             out.interpretation = MEASUREMENT_INTERPRET_MIXED_OR_UNKNOWN;
@@ -880,6 +1215,11 @@ measurement_session_classification_t measurement_auto_classify_session(
     if (first == MEASUREMENT_INTERPRET_MIXED_OR_UNKNOWN)
     {
         out.reason_flags |= MEASUREMENT_AUTO_REASON_AMBIGUOUS;
+    }
+    evaluate_frequency_trend(history, count, out.interpretation, &out.reason_flags);
+    if ((out.reason_flags & MEASUREMENT_AUTO_REASON_FREQUENCY_TREND_INCONSISTENT) != 0u)
+    {
+        out.interpretation = MEASUREMENT_INTERPRET_MIXED_OR_UNKNOWN;
     }
     return out;
 }
@@ -932,6 +1272,36 @@ const char *measurement_confidence_string(measurement_confidence_class_t confide
     }
 }
 
+const char *measurement_quality_string(measurement_quality_class_t quality)
+{
+    switch (quality)
+    {
+    case MEASUREMENT_QUALITY_GOOD:
+        return "GOOD";
+    case MEASUREMENT_QUALITY_DEGRADED:
+        return "DEGRADED";
+    case MEASUREMENT_QUALITY_INVALID:
+    default:
+        return "INVALID";
+    }
+}
+
+const char *measurement_qualification_string(measurement_qualification_t qualification)
+{
+    switch (qualification)
+    {
+    case MEASUREMENT_QUALIFICATION_NOMINAL:
+        return "NOMINAL";
+    case MEASUREMENT_QUALIFICATION_EXTENDED:
+        return "EXTENDED";
+    case MEASUREMENT_QUALIFICATION_DISABLED:
+        return "DISABLED";
+    case MEASUREMENT_QUALIFICATION_UNQUALIFIED:
+    default:
+        return "UNQUALIFIED";
+    }
+}
+
 const char *measurement_attempt_reason_string(measurement_attempt_reason_t reason)
 {
     switch (reason)
@@ -960,12 +1330,17 @@ const char *measurement_ret_strategy_string(measurement_ret_strategy_t strategy)
 {
     switch (strategy)
     {
-    case MEASUREMENT_RET_STRATEGY_AUTO:
-        return "AUTO";
+    case MEASUREMENT_RET_STRATEGY_DSP_AUTO:
+        return "DSP_AUTO";
     case MEASUREMENT_RET_STRATEGY_1X:
         return "RET_1X";
     case MEASUREMENT_RET_STRATEGY_HG:
     default:
         return "RET_HG";
     }
+}
+
+uint32_t measurement_auto_session_size_bytes(void)
+{
+    return (uint32_t)sizeof(measurement_auto_session_t);
 }

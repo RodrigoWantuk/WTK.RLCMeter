@@ -659,5 +659,34 @@ int main(void)
     (void)run_until_idle(&measure, &fake, &now);
     failures += expect_true(fake.metrology_faults > 0u, "excitation off failure latches metrology runtime");
 
+    fake = (fake_io_t){0};
+    fake.k1 = HW_K1_STATE_SAFE;
+    fake.exc = HW_EXCITATION_MODE_OFF;
+    fake.range_id = HW_RANGE_ID_10K;
+    fake.range_state = HW_RANGE_READY;
+    bind_default_permit_inputs(&fake, HW_RANGE_ID_10K);
+    bind_io(&io, &fake);
+    (void)hw_metrology_measure_init(&measure, &io, raw, HW_METROLOGY_RAW_WORD_COUNT);
+    now = 0u;
+    (void)hw_metrology_measure_start(&measure, &request, now);
+    for (uint32_t i = 0u; i < 8000u; i++)
+    {
+        (void)hw_metrology_measure_step(&measure, now);
+        now += 1u;
+        if (fake.k1 == HW_K1_STATE_MEASURE)
+        {
+            break;
+        }
+    }
+    failures += expect_true(fake.k1 == HW_K1_STATE_MEASURE, "public abort setup reached measure");
+    failures += expect_true(hw_metrology_measure_abort(&measure) == BSP_STATUS_BUSY, "public abort starts cleanup");
+    failures += expect_true(run_until_idle(&measure, &fake, &now) == 0, "public abort cleanup completes");
+    failures += expect_true(hw_metrology_measure_error(&measure) == HW_METROLOGY_MEASURE_ERR_ABORT,
+                            "public abort error recorded");
+    failures += expect_true(fake.k1 == HW_K1_STATE_SAFE, "public abort leaves K1 safe");
+    failures += expect_true(fake.exc == HW_EXCITATION_MODE_OFF, "public abort leaves excitation off");
+    failures += expect_true(!fake.quiet, "public abort releases quiet");
+    failures += expect_true(!hw_metrology_measure_dumpable(&measure), "public abort not dumpable");
+
     return (failures == 0) ? 0 : 1;
 }

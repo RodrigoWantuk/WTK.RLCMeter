@@ -4,6 +4,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "app/app_measurement_session.h"
 #include "app/app_safety_fault.h"
 #include "bsp/bsp_adc.h"
 #include "bsp/bsp_status.h"
@@ -192,9 +193,11 @@ static void write_auto_policy(void)
                                                  HW_EXCITATION_AMP_500MVRMS)
                    ? "0\r\n"
                    : "1\r\n");
-    write_text("auto policy: unqualified_clean_class=");
-    write_text(measurement_confidence_string(MEASUREMENT_CONFIDENCE_EXTENDED));
-    write_text(" unqualified_no_nominal=1\r\n");
+    write_text("auto policy: unqualified_clean_confidence=");
+    write_text(measurement_confidence_string(MEASUREMENT_CONFIDENCE_LOW_CONFIDENCE));
+    write_text(" qualification=");
+    write_text(measurement_qualification_string(MEASUREMENT_QUALIFICATION_UNQUALIFIED));
+    write_text("\r\n");
 }
 
 static bool parse_range_id(const char *line, hw_range_id_t *id)
@@ -949,6 +952,103 @@ static bsp_status_t lab_init_metrology_measure(app_lab_console_t *console)
                                      HW_METROLOGY_RAW_WORD_COUNT);
 }
 
+static bsp_status_t lab_auto_start_attempt(const hw_metrology_measure_request_t *request,
+                                           uint32_t now_ms,
+                                           void *user)
+{
+    app_lab_console_t *console = (app_lab_console_t *)user;
+    return (console == NULL) ? BSP_STATUS_INVALID_ARG :
+                               hw_metrology_measure_start(&console->measure, request, now_ms);
+}
+
+static bsp_status_t lab_auto_step_attempt(uint32_t now_ms, void *user)
+{
+    app_lab_console_t *console = (app_lab_console_t *)user;
+    return (console == NULL) ? BSP_STATUS_INVALID_ARG :
+                               hw_metrology_measure_step(&console->measure, now_ms);
+}
+
+static bool lab_auto_attempt_active(void *user)
+{
+    const app_lab_console_t *console = (const app_lab_console_t *)user;
+    return (console != NULL) && hw_metrology_measure_active(&console->measure);
+}
+
+static bool lab_auto_attempt_done(void *user)
+{
+    const app_lab_console_t *console = (const app_lab_console_t *)user;
+    return (console != NULL) &&
+           (hw_metrology_measure_state(&console->measure) == HW_METROLOGY_MEASURE_DONE);
+}
+
+static bool lab_auto_attempt_dumpable(void *user)
+{
+    const app_lab_console_t *console = (const app_lab_console_t *)user;
+    return (console != NULL) && hw_metrology_measure_dumpable(&console->measure);
+}
+
+static const hw_metrology_block_t *lab_auto_attempt_block(void *user)
+{
+    const app_lab_console_t *console = (const app_lab_console_t *)user;
+    return (console == NULL) ? NULL : hw_metrology_measure_block(&console->measure);
+}
+
+static hw_metrology_measure_error_t lab_auto_attempt_error(void *user)
+{
+    const app_lab_console_t *console = (const app_lab_console_t *)user;
+    return (console == NULL) ? HW_METROLOGY_MEASURE_ERR_INVALID :
+                               hw_metrology_measure_error(&console->measure);
+}
+
+static void lab_auto_attempt_acknowledge(void *user)
+{
+    app_lab_console_t *console = (app_lab_console_t *)user;
+    if (console != NULL)
+    {
+        hw_metrology_measure_acknowledge(&console->measure);
+    }
+}
+
+static bsp_status_t lab_auto_attempt_abort(void *user)
+{
+    app_lab_console_t *console = (app_lab_console_t *)user;
+    return (console == NULL) ? BSP_STATUS_INVALID_ARG :
+                               hw_metrology_measure_abort(&console->measure);
+}
+
+static bsp_status_t lab_auto_process_block(const hw_metrology_block_t *block,
+                                           const measurement_attempt_config_t *attempt,
+                                           measurement_result_t *result,
+                                           void *user)
+{
+    (void)user;
+    if ((block == NULL) || (attempt == NULL) || (result == NULL))
+    {
+        return BSP_STATUS_INVALID_ARG;
+    }
+    measurement_adc_calibration_t adc = measurement_adc_calibration_ideal();
+    measurement_dsp_config_t config = measurement_dsp_config_ideal(attempt->range_id);
+    return measurement_process_block(block, &adc, &config, result);
+}
+
+static bsp_status_t lab_init_auto_measure(app_lab_console_t *console)
+{
+    const app_measurement_session_io_t io = {
+        .start_attempt = lab_auto_start_attempt,
+        .step_attempt = lab_auto_step_attempt,
+        .attempt_active = lab_auto_attempt_active,
+        .attempt_done = lab_auto_attempt_done,
+        .attempt_dumpable = lab_auto_attempt_dumpable,
+        .attempt_block = lab_auto_attempt_block,
+        .attempt_error = lab_auto_attempt_error,
+        .attempt_acknowledge = lab_auto_attempt_acknowledge,
+        .attempt_abort = lab_auto_attempt_abort,
+        .process_block = lab_auto_process_block,
+        .user = console,
+    };
+    return app_measurement_session_init(&console->auto_measure, &io);
+}
+
 static const char *lab_range_dump_token(hw_range_id_t id)
 {
     switch (id)
@@ -1075,9 +1175,92 @@ static bool lab_metrology_busy(const app_lab_console_t *console)
 {
     return hw_metrology_session_active(&console->session) ||
            hw_metrology_measure_active(&console->measure) ||
+           app_measurement_session_active(&console->auto_measure) ||
            console->dump_active ||
            (hw_metrology_session_state(&console->session) == HW_METROLOGY_SESSION_DONE) ||
            (hw_metrology_measure_state(&console->measure) == HW_METROLOGY_MEASURE_DONE);
+}
+
+static void lab_write_attempt_config(const measurement_attempt_config_t *attempt)
+{
+    if (attempt == NULL)
+    {
+        write_text("number=0\r\n");
+        return;
+    }
+    write_text("number=");
+    write_u32(attempt->attempt_number);
+    write_text("\r\nreason=");
+    write_text(measurement_attempt_reason_string(attempt->reason));
+    write_text("\r\nrange=");
+    write_text(lab_range_dump_token(attempt->range_id));
+    write_text("\r\nfrequency=");
+    write_text(hw_excitation_freq_token(attempt->frequency));
+    write_text("\r\namplitude=");
+    write_text(hw_excitation_amp_token(attempt->amplitude));
+    write_text("\r\nret_strategy=");
+    write_text(measurement_ret_strategy_string(attempt->ret_strategy));
+    write_text("\r\n");
+}
+
+static void lab_write_auto_result(const char *prefix, const measurement_session_result_t *result)
+{
+    write_text(prefix);
+    write_text("\r\n");
+    if (result == NULL)
+    {
+        write_text("status=FAILED\r\n");
+        return;
+    }
+    write_text("status=");
+    write_text(measurement_auto_status_string(result->status));
+    write_text("\r\nprimary_attempt=");
+    write_u32((result->primary_attempt_index == MEASUREMENT_AUTO_INDEX_NONE) ?
+                  0u :
+                  result->primary_attempt.config.attempt_number);
+    write_text("\r\nattempts=");
+    write_u32(result->attempt_count);
+    write_text("\r\nclassification=");
+    write_text(measurement_interpretation_string(result->classification.interpretation));
+    write_text("\r\nquality=");
+    write_text(measurement_quality_string(result->confidence.measurement_quality));
+    write_text("\r\nqualification=");
+    write_text(measurement_qualification_string(result->confidence.qualification));
+    write_text("\r\nconfidence=");
+    write_text(measurement_confidence_string(result->confidence.publication_confidence));
+    write_text("\r\nreasons=");
+    write_hex8(result->confidence.reason_flags | result->classification.reason_flags);
+    write_text("\r\nnext_reason=");
+    write_text(measurement_attempt_reason_string(result->continuation_reason));
+    write_text("\r\n");
+}
+
+static void lab_start_auto_measure(app_lab_console_t *console, uint32_t now_ms)
+{
+    if (lab_metrology_busy(console))
+    {
+        write_text("lab auto: BUSY\r\n");
+        return;
+    }
+    const bsp_clock_summary_t *clock = bsp_clock_get_summary();
+    const bsp_status_t clock_status =
+        hw_metrology_clock_ready(clock, BSP_STATUS_OK) ? BSP_STATUS_OK : BSP_STATUS_ERROR;
+    const measurement_auto_hint_t *hint = console->auto_hint.valid ? &console->auto_hint : NULL;
+    const uint32_t sequence = console->auto_sequence + 1u;
+    const bsp_status_t status = app_measurement_session_start(&console->auto_measure,
+                                                              MEASUREMENT_AUTO_MODE_CLICK,
+                                                              sequence,
+                                                              MEASUREMENT_QUALIFICATION_UNQUALIFIED,
+                                                              hint,
+                                                              clock,
+                                                              clock_status,
+                                                              now_ms);
+    if (status == BSP_STATUS_BUSY)
+    {
+        console->auto_sequence = sequence;
+        return;
+    }
+    write_text("lab auto: ERROR\r\n");
 }
 
 static void lab_start_metrology_capture(app_lab_console_t *console,
@@ -1395,11 +1578,51 @@ static void lab_step_metrology_measure(app_lab_console_t *console, uint32_t now_
     }
 }
 
+static void lab_step_auto_measure(app_lab_console_t *console, uint32_t now_ms)
+{
+    const app_measurement_event_t event = app_measurement_session_step(&console->auto_measure, now_ms);
+    switch (event)
+    {
+    case APP_MEASUREMENT_EVENT_AUTO_BEGIN:
+        write_text("AUTO_BEGIN\r\nsession=");
+        write_u32(console->auto_sequence);
+        write_text("\r\nmode=CLICK\r\n");
+        break;
+    case APP_MEASUREMENT_EVENT_ATTEMPT_BEGIN:
+        write_text("ATTEMPT_BEGIN\r\n");
+        lab_write_attempt_config(app_measurement_session_current_attempt(&console->auto_measure));
+        break;
+    case APP_MEASUREMENT_EVENT_PARTIAL_RESULT:
+        lab_write_auto_result("PARTIAL_RESULT", app_measurement_session_partial(&console->auto_measure));
+        break;
+    case APP_MEASUREMENT_EVENT_FINAL_RESULT:
+    {
+        const measurement_session_result_t *final = app_measurement_session_final(&console->auto_measure);
+        lab_write_auto_result("FINAL_RESULT", final);
+        console->auto_hint = measurement_auto_make_hint(final);
+        write_text("AUTO_END\r\n");
+        break;
+    }
+    case APP_MEASUREMENT_EVENT_ERROR:
+        write_text("AUTO_ERROR\r\n");
+        break;
+    case APP_MEASUREMENT_EVENT_NONE:
+    default:
+        break;
+    }
+}
+
 static void lab_step_metrology(app_lab_console_t *console, uint32_t now_ms)
 {
     if (console->dump_active)
     {
         lab_step_metrology_dump(console);
+        return;
+    }
+
+    if (app_measurement_session_active(&console->auto_measure))
+    {
+        lab_step_auto_measure(console, now_ms);
         return;
     }
 
@@ -1560,6 +1783,15 @@ static void run_command(app_lab_console_t *console,
     {
         write_auto_policy();
     }
+    else if (text_equals(line, "lab auto measure"))
+    {
+        if (app_lab_console_flash_busy(console) || lab_metrology_busy(console))
+        {
+            write_text("lab auto: BUSY\r\n");
+            return;
+        }
+        lab_start_auto_measure(console, now_ms);
+    }
     else if (parse_capture_tokens(line, &capture_freq, &capture_amp, &capture_range))
     {
         if (app_lab_console_flash_busy(console) || lab_metrology_busy(console))
@@ -1601,6 +1833,8 @@ void app_lab_console_init(app_lab_console_t *console)
     console->dump_active = false;
     console->dump_row = 0u;
     console->dump_source = APP_LAB_METROLOGY_DUMP_NONE;
+    console->auto_hint = (measurement_auto_hint_t){0};
+    console->auto_sequence = 0u;
     console->range_ref = NULL;
     console->k1_ref = NULL;
     console->sensors_ref = NULL;
@@ -1612,6 +1846,7 @@ void app_lab_console_init(app_lab_console_t *console)
     }
     (void)lab_init_metrology_session(console);
     (void)lab_init_metrology_measure(console);
+    (void)lab_init_auto_measure(console);
 #else
     console->unused = 0u;
 #endif

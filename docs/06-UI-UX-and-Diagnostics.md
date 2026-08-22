@@ -361,6 +361,12 @@ UART remains the higher-volume diagnostic stream. Lab/Debug builds may emit deta
 
 Logging must respect quiet mode and must not perform high-volume output inside critical ISR/acquisition paths.
 
+Phase 07 Lab builds provide `lab auto measure` for a Click-style automatic session. It
+emits structured events such as `AUTO_BEGIN`, `ATTEMPT_BEGIN`, `PARTIAL_RESULT`,
+`FINAL_RESULT`, and `AUTO_END` only outside the critical acquisition window. These
+events are diagnostic contracts for future UI work; they are not the final product
+screen implementation.
+
 ## About
 
 About/Info should expose useful traceability data such as:

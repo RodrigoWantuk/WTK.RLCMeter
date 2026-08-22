@@ -5,6 +5,7 @@
 #include <stdint.h>
 
 #include "app/app_safety_fault.h"
+#include "app/app_measurement_session.h"
 #include "drivers/ili9341.h"
 #include "drivers/w25q.h"
 #include "hardware/hw_aux_sensors.h"
@@ -57,6 +58,9 @@ typedef struct
     bool busy_observed;
     hw_metrology_session_t session;
     hw_metrology_measure_t measure;
+    app_measurement_session_t auto_measure;
+    measurement_auto_hint_t auto_hint;
+    uint32_t auto_sequence;
     app_lab_metrology_dump_source_t dump_source;
     uint16_t dump_row;
     bool dump_active;

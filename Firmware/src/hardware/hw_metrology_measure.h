@@ -158,6 +158,7 @@ bsp_status_t hw_metrology_measure_init(hw_metrology_measure_t *measure,
 bsp_status_t hw_metrology_measure_start(hw_metrology_measure_t *measure,
                                         const hw_metrology_measure_request_t *request,
                                         uint32_t now_ms);
+bsp_status_t hw_metrology_measure_abort(hw_metrology_measure_t *measure);
 bsp_status_t hw_metrology_measure_step(hw_metrology_measure_t *measure, uint32_t now_ms);
 hw_metrology_measure_state_t hw_metrology_measure_state(const hw_metrology_measure_t *measure);
 hw_metrology_measure_error_t hw_metrology_measure_error(const hw_metrology_measure_t *measure);

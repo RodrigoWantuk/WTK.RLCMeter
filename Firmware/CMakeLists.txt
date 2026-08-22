@@ -50,6 +50,7 @@ configure_file(
 
 add_library(wtk_firmware_common STATIC
     src/app/app_safety_fault.c
+    src/app/app_measurement_session.c
     src/app/app_version.c
     src/bsp/bsp_adc_common.c
     src/bsp/bsp_adc_core.c
