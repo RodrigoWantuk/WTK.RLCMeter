@@ -8,7 +8,10 @@ STATUS: IMPLEMENTED
 Stage 1B — End-to-end automatic session orchestration:
 STATUS: IMPLEMENTED_REQUIRES_BENCH_VALIDATION
 
-Stage 2 — Calibration model / OPEN-SHORT-LOAD workflows / persistence:
+Stage 2A — Calibration data model / correction architecture / persistence substrate:
+STATUS: IMPLEMENTED_REQUIRES_BENCH_VALIDATION
+
+Stage 2B — OPEN-SHORT-LOAD workflows / calibration acquisition:
 STATUS: NOT_STARTED
 
 ## Goal
@@ -184,6 +187,144 @@ Multi-frequency classification records explicit evidence flags for reactance dom
 resistive dominance, capacitive/inductive qualitative frequency trend support, and
 trend inconsistency. Trend evidence is tolerant and qualitative; it is not an ideal
 component-law fit, and ambiguous/non-ideal networks may remain `MIXED_OR_UNKNOWN`.
+
+## Stage 2A implementation boundary
+
+Phase 07 Stage 2A implements the calibration substrate without starting any
+OPEN/SHORT/LOAD user workflow.
+
+Implemented files:
+
+```text
+Firmware/src/measurement/measurement_calibration.c/.h
+Firmware/src/measurement/measurement_calibration_store.c/.h
+Firmware/src/storage/storage_crc32.c/.h
+Firmware/src/storage/storage_layout.c/.h
+Firmware/tools/inspect_calibration_record.py
+```
+
+The active persistent schema is:
+
+```text
+MEASUREMENT_CAL_SCHEMA_VERSION = 1
+MEASUREMENT_CAL_MODEL_VERSION_DIRECT_V1 = 1
+MEASUREMENT_CAL_HARDWARE_REV1 = 0x00010001
+```
+
+`schema_version` describes the portable byte framing. `model_version` describes the
+mathematical correction model. They are intentionally separate compatibility axes.
+
+The Stage 2A correction model is the conservative direct model:
+
+```text
+per-channel ADC scale/offset:
+    volts = raw * code_to_volts + offset_volts
+
+complex high-gain transfer:
+    RET = VMID + (RET_HG - VMID) / H_HG
+
+complex ZREF:
+    ZREF(frequency, range, amplitude, RET channel)
+
+optional complex output correction:
+    Z_corrected = Z_raw * output_scale + output_offset
+```
+
+This does not implement OPEN/SHORT/LOAD correction capture. The record types reserve
+values for future OPEN, SHORT, and LOAD evidence so Stage 2B can add workflows without
+changing the frame contract gratuitously.
+
+Calibration keys include:
+
+```text
+hardware_revision
+model_version
+range_id
+frequency
+amplitude
+RET channel
+RET strategy
+```
+
+Resolution is exact-condition only in Stage 2A. Missing exact calibration may fall back
+to the ideal DSP defaults only when the caller explicitly allows that behavior; the
+provenance is then reported as `source=IDEAL`, `status=MISSING`, and `uncalibrated=true`.
+This is acceptable for Lab/debug bring-up but is not a product qualification claim.
+
+Resolution statuses are explicit:
+
+```text
+FOUND
+MISSING
+INCOMPATIBLE
+CORRUPT
+UNQUALIFIED
+INVALID_ARG
+```
+
+Calibration-set validity is also explicit, not a boolean:
+
+```text
+VALID
+MISSING
+CORRUPT
+INCOMPATIBLE_SCHEMA
+INCOMPATIBLE_HARDWARE
+INCOMPATIBLE_MODEL
+INCOMPLETE
+```
+
+Validity includes diagnostic flags for missing/corrupt/schema/hardware/model/incomplete
+and unqualified records. Required coverage is centralized through a bounded
+`measurement_cal_requirements_t` key list so later product boot policy can define the
+exact required condition set without rewriting the record validator.
+
+Portable frame contract:
+
+```text
+little-endian fields only
+header size = 64 bytes
+max frame size = 1536 bytes
+payload = calibration set header + fixed-size condition records
+CRC32 = IEEE reflected CRC32 over header fields excluding CRC/commit plus payload
+commit marker = 0x54494D43, programmed last
+temperature = signed integer millidegrees C
+floating coefficients = IEEE754 binary32, serialized field-by-field
+```
+
+Raw compiler-dependent structs are not persisted.
+
+W25Q logical layout now reserves the mutable tail of any supported W25Q part:
+
+```text
+resource pack:     0 .. mutable_tail_start - 1
+calibration slot A: 1 sector / 4096 bytes
+calibration slot B: 1 sector / 4096 bytes
+settings:          1 sector / 4096 bytes
+diagnostics:       4 sectors / 16384 bytes
+bring-up test:     final sector / 4096 bytes
+```
+
+The final sector remains reserved for the existing W25Q bring-up self-test. Resource
+assets stay separate from calibration/settings/diagnostics.
+
+The Stage 2A store is a two-slot power-loss-safe substrate:
+
+1. read both slots;
+2. choose the newest valid committed sequence, with rollover-aware comparison;
+3. serialize a candidate into the inactive slot;
+4. erase only the inactive slot;
+5. program header and payload with the commit marker still erased;
+6. program the commit marker last;
+7. verify by decoding/CRC.
+
+If power is lost before commit, the previous valid slot remains active. If power is lost
+after commit, the newly committed CRC-valid sequence may become active. The host NOR
+emulator enforces erase-to-`0xFF` and 1->0-only programming.
+
+Stage 2A does not yet add the Phase 08 mandatory calibration boot gate. Missing
+calibration remains diagnosable and explicit, and product-ready measurement blocking
+will be wired when the UI/boot calibration flow is implemented.
 
 ## Task 1 — Define measurement attempt model
 

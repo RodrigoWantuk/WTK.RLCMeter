@@ -6,6 +6,7 @@
 
 #include "hardware/hw_excitation.h"
 #include "hardware/hw_range.h"
+#include "measurement/measurement_calibration.h"
 #include "measurement/measurement_dsp.h"
 
 enum
@@ -167,6 +168,7 @@ typedef struct
     bool phase05_failed;
     bool safety_abort;
     bool canceled;
+    measurement_calibration_provenance_t calibration;
 } measurement_attempt_result_t;
 
 typedef struct

@@ -75,8 +75,12 @@ add_library(wtk_firmware_common STATIC
     src/hardware/hw_residual.c
     src/hardware/hw_safety.c
     src/measurement/measurement_dsp.c
+    src/measurement/measurement_calibration.c
+    src/measurement/measurement_calibration_store.c
     src/measurement/measurement_engine.c
     src/storage/resource_store.c
+    src/storage/storage_crc32.c
+    src/storage/storage_layout.c
     src/ui/ui_fallback_font.c
     src/ui/ui_resources.c
 )

@@ -370,6 +370,14 @@ measurement_attempt_result_t app_measurement_attempt_from_dsp(
     result.safety_abort = safety_abort;
     result.canceled = canceled;
     result.dsp_status = (dsp != NULL) ? dsp->status : MEASUREMENT_STATUS_INVALID_ARG;
+    result.calibration = (measurement_calibration_provenance_t){
+        .source = MEASUREMENT_CAL_SOURCE_IDEAL,
+        .status = MEASUREMENT_CAL_RESOLVE_MISSING,
+        .set_sequence = 0u,
+        .model_version = MEASUREMENT_CAL_MODEL_VERSION_DIRECT_V1,
+        .condition_id = 0u,
+        .uncalibrated = true,
+    };
     if (dsp != NULL)
     {
         result.z_ohms = dsp->impedance.z_ohms;
@@ -391,6 +399,15 @@ measurement_attempt_result_t app_measurement_attempt_from_dsp(
         result.dut_zref_ratio =
             measurement_complex_mag(result.z_ohms) /
             max_float(range_zref_mag(result.config.range_id), 1.0e-6f);
+        const measurement_cal_key_t cal_key =
+            measurement_cal_key(MEASUREMENT_CAL_HARDWARE_REV1,
+                                MEASUREMENT_CAL_MODEL_VERSION_DIRECT_V1,
+                                result.config.range_id,
+                                result.config.frequency,
+                                result.config.amplitude,
+                                result.selected_channel,
+                                (uint8_t)result.config.ret_strategy);
+        result.calibration.condition_id = measurement_cal_condition_id(&cal_key);
     }
     result.ret_evidence = measurement_auto_evaluate_ret_evidence(&result);
     return result;

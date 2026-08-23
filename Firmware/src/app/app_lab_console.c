@@ -22,6 +22,8 @@
 #include "hardware/hw_metrology_clock.h"
 #include "hardware/hw_metrology_raw.h"
 #include "hardware/hw_safety.h"
+#include "measurement/measurement_calibration.h"
+#include "measurement/measurement_calibration_store.h"
 #include "measurement/measurement_dsp.h"
 #include "measurement/measurement_engine.h"
 #include "bsp/bsp_clock.h"
@@ -198,6 +200,44 @@ static void write_auto_policy(void)
     write_text(" qualification=");
     write_text(measurement_qualification_string(MEASUREMENT_QUALIFICATION_UNQUALIFIED));
     write_text("\r\n");
+}
+
+static void write_calibration_status(const w25q_device_t *flash)
+{
+    write_text("CAL_SET schema=");
+    write_u32(MEASUREMENT_CAL_SCHEMA_VERSION);
+    write_text(" model=");
+    write_u32(MEASUREMENT_CAL_MODEL_VERSION_DIRECT_V1);
+    write_text(" hw=");
+    write_hex8(MEASUREMENT_CAL_HARDWARE_REV1);
+    write_text(" status=");
+    write_text(measurement_cal_resolve_status_string(MEASUREMENT_CAL_RESOLVE_MISSING));
+    write_text(" source=IDEAL uncalibrated=1\r\n");
+    write_text("CAL_STORE frame_max=");
+    write_u32(MEASUREMENT_CAL_MAX_FRAME_BYTES);
+    write_text(" context=");
+    write_u32(measurement_cal_store_context_size_bytes());
+    write_text("\r\n");
+    if ((flash != NULL) && flash->detected)
+    {
+        storage_partition_t cal_a;
+        storage_partition_t cal_b;
+        if (storage_layout_partition(flash->part.capacity_bytes, STORAGE_PARTITION_CALIBRATION_A, &cal_a) &&
+            storage_layout_partition(flash->part.capacity_bytes, STORAGE_PARTITION_CALIBRATION_B, &cal_b))
+        {
+            write_text("CAL_SLOT A start=");
+            write_hex8(cal_a.start);
+            write_text(" size=");
+            write_u32(cal_a.size);
+            write_text("\r\nCAL_SLOT B start=");
+            write_hex8(cal_b.start);
+            write_text(" size=");
+            write_u32(cal_b.size);
+            write_text("\r\n");
+            return;
+        }
+    }
+    write_text("CAL_SLOT unavailable\r\n");
 }
 
 static bool parse_range_id(const char *line, hw_range_id_t *id)
@@ -1026,8 +1066,17 @@ static bsp_status_t lab_auto_process_block(const hw_metrology_block_t *block,
     {
         return BSP_STATUS_INVALID_ARG;
     }
-    measurement_adc_calibration_t adc = measurement_adc_calibration_ideal();
-    measurement_dsp_config_t config = measurement_dsp_config_ideal(attempt->range_id);
+    measurement_adc_calibration_t adc;
+    measurement_dsp_config_t config;
+    measurement_calibration_provenance_t provenance;
+    const measurement_cal_key_t key = measurement_cal_key(MEASUREMENT_CAL_HARDWARE_REV1,
+                                                          MEASUREMENT_CAL_MODEL_VERSION_DIRECT_V1,
+                                                          attempt->range_id,
+                                                          attempt->frequency,
+                                                          attempt->amplitude,
+                                                          MEASUREMENT_RETURN_1X,
+                                                          (uint8_t)attempt->ret_strategy);
+    (void)measurement_cal_resolve(NULL, &key, true, &adc, &config, &provenance);
     return measurement_process_block(block, &adc, &config, result);
 }
 
@@ -1359,13 +1408,40 @@ static const char *lab_metrology_mode_string(hw_metrology_mode_t mode)
     }
 }
 
+static hw_excitation_freq_t lab_frequency_from_hz(uint32_t frequency_hz)
+{
+    switch (frequency_hz)
+    {
+    case 100u:
+        return HW_EXCITATION_FREQ_100HZ;
+    case 1000u:
+        return HW_EXCITATION_FREQ_1KHZ;
+    case 10000u:
+        return HW_EXCITATION_FREQ_10KHZ;
+    default:
+        return HW_EXCITATION_FREQ_INVALID;
+    }
+}
+
 static void lab_dump_metrology_dsp_summary(const hw_metrology_block_t *block)
 {
-    measurement_adc_calibration_t adc = measurement_adc_calibration_ideal();
-    measurement_dsp_config_t config = measurement_dsp_config_ideal(block->range_id);
+    measurement_adc_calibration_t adc;
+    measurement_dsp_config_t config;
+    measurement_calibration_provenance_t provenance;
     measurement_result_t result;
+    const measurement_cal_key_t key = measurement_cal_key(MEASUREMENT_CAL_HARDWARE_REV1,
+                                                          MEASUREMENT_CAL_MODEL_VERSION_DIRECT_V1,
+                                                          block->range_id,
+                                                          lab_frequency_from_hz(block->excitation_frequency_hz),
+                                                          HW_EXCITATION_AMP_100MVRMS,
+                                                          MEASUREMENT_RETURN_1X,
+                                                          (uint8_t)MEASUREMENT_RET_STRATEGY_DSP_AUTO);
+    (void)measurement_cal_resolve(NULL, &key, true, &adc, &config, &provenance);
 
     write_text("DSP_BEGIN v=1\r\n");
+    write_text("calibration=");
+    write_text(measurement_cal_resolve_status_string(provenance.status));
+    write_text("\r\n");
     if (measurement_process_block(block, &adc, &config, &result) != BSP_STATUS_OK)
     {
         write_text("dsp_status=");
@@ -1774,6 +1850,10 @@ static void run_command(app_lab_console_t *console,
         write_text("lab fault: ");
         write_hex8(app_safety_fault_mask(faults));
         write_text("\r\n");
+    }
+    else if (text_equals(line, "lab cal status"))
+    {
+        write_calibration_status(flash);
     }
     else if (text_equals(line, "lab permit status"))
     {

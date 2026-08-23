@@ -11,11 +11,16 @@ Keep acquisition, DSP, impedance calculation, autorange, confidence, and calibra
 ```text
 measurement_dsp.c/.h
 measurement_engine.c/.h
+measurement_calibration.c/.h
+measurement_calibration_store.c/.h
 ```
 
 `measurement_dsp` is the Phase 06 fixed-condition math core. `measurement_engine` is the
-Phase 07 Stage 1 automatic session policy layer. Persistent calibration, qualification
-maps, and product UI remain outside this implementation until later phases.
+Phase 07 Stage 1 automatic session policy layer. `measurement_calibration` and
+`measurement_calibration_store` are the Phase 07 Stage 2A portable calibration model,
+resolver, and redundant-slot substrate. OPEN/SHORT/LOAD acquisition workflows,
+qualification maps, and product UI remain outside this implementation until later
+phases.
 
 ## Flow
 
@@ -103,6 +108,23 @@ as a performance hint, but it carries no safety authorization or active hardware
 The confidence output is semantic (`NOMINAL`, `EXTENDED`, `LOW_CONFIDENCE`,
 `REJECTED`) plus reason flags. `NOMINAL` requires explicit qualification evidence; the
 current unqualified software default cannot claim nominal accuracy.
+
+## Calibration substrate
+
+The calibration resolver converts exact condition keys into the existing Phase 06 DSP
+inputs:
+
+```text
+measurement_adc_calibration_t
+measurement_dsp_config_t
+```
+
+The DSP does not parse Flash records. Missing exact calibration may use ideal Lab/debug
+defaults only with explicit `MISSING/uncalibrated` provenance.
+
+The persisted format is manually serialized little-endian data with CRC32 and a commit
+marker written last. The store uses two W25Q slots and preserves the previous valid set
+across interrupted candidate writes.
 
 ## Output
 

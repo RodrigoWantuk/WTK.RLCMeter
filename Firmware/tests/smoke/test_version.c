@@ -26,7 +26,7 @@ int main(void)
     failures += expect_true(strlen(version->git_commit) > 0u, "git commit fallback is populated");
     failures += expect_true(strcmp(version->hardware_compatibility, "Rev1-STM32F103C8T6-BluePill") == 0,
                             "hardware compatibility label matches");
-    failures += expect_true(version->calibration_schema_version == UINT32_C(0), "calibration schema starts at zero");
+    failures += expect_true(version->calibration_schema_version == UINT32_C(1), "calibration schema is versioned");
 
     return failures;
 }

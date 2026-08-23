@@ -23,12 +23,13 @@ Phase 06:
 
 Phase 07:
     Stage 1A automatic measurement policy implemented; Stage 1B end-to-end automatic
-    session orchestration implemented with synthetic host validation; calibration
-    persistence and physical qualification remain NOT_STARTED / REQUIRES_BENCH_VALIDATION
-    as applicable
+    session orchestration implemented with synthetic host validation; Stage 2A
+    calibration data model/resolver/redundant persistence substrate implemented;
+    OPEN-SHORT-LOAD workflows remain NOT_STARTED; physical qualification remains
+    REQUIRES_BENCH_VALIDATION
 
 Immediate next software phase after physical/software handoff:
-    Phase 07 Stage 2 — Calibration model, OPEN-SHORT-LOAD workflows, persistence
+    Phase 07 Stage 2B — OPEN-SHORT-LOAD workflows and product calibration integration
 ```
 
 ## Program objectives
@@ -376,7 +377,8 @@ A Rev.1 firmware release should ultimately produce:
 
 ## Immediate next action
 
-Continue Phase 07 with the calibration model, OPEN-SHORT-LOAD workflows, calibration
-validity semantics, and W25Q-backed persistence. Phase 03A virtual execution remains
-pending external Wokwi constraints and must not be treated as bench validation for
-analog/metrology behavior.
+Continue Phase 07 with Stage 2B OPEN-SHORT-LOAD calibration acquisition workflows and
+later product boot/UI integration. Stage 2A now provides schema v1, direct model v1,
+exact-key resolution, validity semantics, W25Q layout, CRC framing, and redundant
+two-slot persistence. Phase 03A virtual execution remains pending external Wokwi
+constraints and must not be treated as bench validation for analog/metrology behavior.
