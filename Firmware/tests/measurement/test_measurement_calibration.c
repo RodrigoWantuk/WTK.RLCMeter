@@ -1,5 +1,7 @@
 #include "measurement/measurement_calibration.h"
 #include "measurement/measurement_calibration_store.h"
+#include "measurement/measurement_condition.h"
+#include "measurement/measurement_engine.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -207,6 +209,39 @@ static measurement_cal_store_io_t fake_io(fake_nor_t *nor)
     return io;
 }
 
+static bool fake_write_slot_frame(fake_nor_t *nor,
+                                  measurement_cal_store_slot_t slot,
+                                  const measurement_cal_set_t *set)
+{
+    if ((nor == NULL) || (set == NULL))
+    {
+        return false;
+    }
+    uint8_t bytes[MEASUREMENT_CAL_MAX_FRAME_BYTES];
+    size_t written = 0u;
+    if (!measurement_cal_serialize_set(set, bytes, sizeof(bytes), &written))
+    {
+        return false;
+    }
+    storage_partition_t partition;
+    if (!storage_layout_partition(TEST_CAPACITY_BYTES,
+                                  (slot == MEASUREMENT_CAL_STORE_SLOT_A) ?
+                                      STORAGE_PARTITION_CALIBRATION_A :
+                                      STORAGE_PARTITION_CALIBRATION_B,
+                                  &partition))
+    {
+        return false;
+    }
+    size_t offset = 0u;
+    if (!fake_map(partition.start, partition.size, &offset) || (written > partition.size))
+    {
+        return false;
+    }
+    (void)memset(&nor->flash[offset], 0xFF, partition.size);
+    (void)memcpy(&nor->flash[offset], bytes, written);
+    return true;
+}
+
 static measurement_cal_key_t key_for(hw_range_id_t range,
                                      hw_excitation_freq_t frequency)
 {
@@ -373,11 +408,60 @@ static int test_serialization_resolution_and_validity(void)
     return failures;
 }
 
+static int test_duplicate_and_replace_semantics(void)
+{
+    int failures = 0;
+    measurement_cal_set_t set;
+    measurement_cal_set_init(&set,
+                             MEASUREMENT_CAL_HARDWARE_REV1,
+                             MEASUREMENT_CAL_MODEL_VERSION_CURRENT,
+                             9u);
+    measurement_cal_record_t rec_10r = record_for(HW_RANGE_ID_10R, 10u);
+    measurement_cal_record_t rec_100r = record_for(HW_RANGE_ID_100R, 100u);
+    failures += expect_true(measurement_cal_set_add_record(&set, &rec_10r), "unique add succeeds");
+    failures += expect_true(!measurement_cal_set_add_record(&set, &rec_10r), "duplicate add fails");
+    rec_10r.correction.zref_ohms = measurement_complex(11.0f, 0.0f);
+    failures += expect_true(measurement_cal_set_replace_record(&set, &rec_10r), "replace existing succeeds");
+    measurement_cal_resolved_t resolved;
+    failures += expect_true(measurement_cal_resolve_condition(&set,
+                                                              &rec_10r.key,
+                                                              false,
+                                                              &resolved) ==
+                                MEASUREMENT_CAL_RESOLVE_FOUND,
+                            "replacement resolves");
+    failures += expect_near(resolved.config.zref_ohms.re, 11.0f, 0.001f, "replacement value visible");
+    failures += expect_true(!measurement_cal_set_replace_record(&set, &rec_100r), "replace missing fails");
+    failures += expect_true(measurement_cal_set_add_record(&set, &rec_100r), "different key add succeeds");
+
+    measurement_cal_set_t corrupted = set;
+    corrupted.records[1].key = corrupted.records[0].key;
+    corrupted.records[1].condition_id = measurement_cal_condition_id(&corrupted.records[1].key);
+    measurement_cal_validity_t validity =
+        measurement_cal_validate_set(&corrupted,
+                                     NULL,
+                                     MEASUREMENT_CAL_HARDWARE_REV1,
+                                     MEASUREMENT_CAL_MODEL_VERSION_CURRENT);
+    failures += expect_true(validity.status == MEASUREMENT_CAL_VALIDITY_CORRUPT,
+                            "manual duplicate rejected");
+
+    uint8_t bytes[MEASUREMENT_CAL_MAX_FRAME_BYTES];
+    size_t written = 0u;
+    failures += expect_true(!measurement_cal_serialize_set(&corrupted, bytes, sizeof(bytes), &written),
+                            "duplicate serialization rejected");
+    failures += expect_true(measurement_cal_key_equal(&set.records[0].key, &set.records[1].key) == false,
+                            "complete key remains authoritative");
+    failures += expect_true(set.records[0].condition_id != 0u && set.records[1].condition_id != 0u,
+                            "condition id remains diagnostic metadata");
+    return failures;
+}
+
 static int test_full_supported_matrix_capacity(void)
 {
     int failures = 0;
     measurement_cal_set_t set = full_supported_set(11u);
     const measurement_cal_requirements_t req = measurement_cal_requirements_rev1_full();
+    failures += expect_true(req.count == MEASUREMENT_CONDITION_REV1_MAX_SUPPORTED,
+                            "Rev1 supported matrix count");
     failures += expect_true(req.count == set.record_count, "full matrix count matches requirements");
     failures += expect_true(set.record_count <= MEASUREMENT_CAL_MAX_RECORDS, "full matrix fits record limit");
 
@@ -404,6 +488,58 @@ static int test_full_supported_matrix_capacity(void)
                                     MEASUREMENT_CAL_RESOLVE_FOUND,
                                 "full matrix condition resolves");
     }
+    return failures;
+}
+
+static int test_condition_domain_consistency(void)
+{
+    int failures = 0;
+    uint8_t supported_count = 0u;
+    for (hw_range_id_t range = HW_RANGE_ID_10R; range <= HW_RANGE_ID_1M; range++)
+    {
+        for (hw_excitation_freq_t freq = HW_EXCITATION_FREQ_100HZ;
+             freq <= HW_EXCITATION_FREQ_10KHZ;
+             freq++)
+        {
+            for (hw_excitation_amp_t amp = HW_EXCITATION_AMP_100MVRMS;
+                 amp <= HW_EXCITATION_AMP_500MVRMS;
+                 amp++)
+            {
+                hw_excitation_freq_profile_t profile;
+                const bool hardware =
+                    (hw_excitation_freq_profile(freq, &profile) == BSP_STATUS_OK) &&
+                    (hw_excitation_validate_amplitude(range, amp) == BSP_STATUS_OK);
+                const bool condition = measurement_condition_supported(range, freq, amp);
+                const bool automatic = measurement_auto_condition_allowed(range, freq, amp);
+                const bool calibration = measurement_cal_condition_allowed(range, freq, amp);
+                failures += expect_true(condition == hardware, "condition matches hardware capability");
+                failures += expect_true(automatic == condition, "automatic matches condition domain");
+                failures += expect_true(calibration == condition, "calibration matches condition domain");
+                if (condition)
+                {
+                    supported_count++;
+                }
+            }
+        }
+    }
+    failures += expect_true(supported_count == MEASUREMENT_CONDITION_REV1_MAX_SUPPORTED,
+                            "condition domain count");
+    failures += expect_true(!measurement_condition_supported(HW_RANGE_ID_10R,
+                                                            HW_EXCITATION_FREQ_100HZ,
+                                                            HW_EXCITATION_AMP_500MVRMS),
+                            "10R 500m forbidden");
+    failures += expect_true(measurement_condition_supported(HW_RANGE_ID_100K,
+                                                           HW_EXCITATION_FREQ_10KHZ,
+                                                           HW_EXCITATION_AMP_100MVRMS),
+                            "100K 10k calibratable");
+    failures += expect_true(measurement_condition_supported(HW_RANGE_ID_1M,
+                                                           HW_EXCITATION_FREQ_1KHZ,
+                                                           HW_EXCITATION_AMP_100MVRMS),
+                            "1M 1k calibratable");
+    failures += expect_true(measurement_condition_supported(HW_RANGE_ID_1M,
+                                                           HW_EXCITATION_FREQ_10KHZ,
+                                                           HW_EXCITATION_AMP_100MVRMS),
+                            "1M 10k calibratable");
     return failures;
 }
 
@@ -557,6 +693,102 @@ static int test_store_selects_newest_usable(void)
     failures += expect_true((info[0].validity.status == MEASUREMENT_CAL_VALIDITY_INCOMPLETE) ||
                                 (info[1].validity.status == MEASUREMENT_CAL_VALIDITY_INCOMPLETE),
                             "slot diagnostics expose incomplete newer slot");
+    return failures;
+}
+
+static int exercise_incompatible_newer_slot(measurement_cal_set_t newer,
+                                            measurement_cal_validity_status_t expected_status,
+                                            const char *message)
+{
+    int failures = 0;
+    fake_nor_t nor;
+    fake_nor_init(&nor);
+    const measurement_cal_key_t required = key_for(HW_RANGE_ID_10R, HW_EXCITATION_FREQ_1KHZ);
+    measurement_cal_requirements_t req = measurement_cal_requirements_empty();
+    (void)measurement_cal_requirements_add(&req, &required);
+
+    measurement_cal_set_t active = set_with_records(10u, 1u);
+    newer.sequence = 11u;
+    failures += expect_true(fake_write_slot_frame(&nor, MEASUREMENT_CAL_STORE_SLOT_A, &active),
+                            "write compatible older slot");
+    failures += expect_true(fake_write_slot_frame(&nor, MEASUREMENT_CAL_STORE_SLOT_B, &newer),
+                            "write incompatible newer slot");
+
+    measurement_cal_store_t store;
+    measurement_cal_store_io_t io = fake_io(&nor);
+    failures += expect_true(measurement_cal_store_init(&store, &io, TEST_CAPACITY_BYTES) == BSP_STATUS_OK,
+                            "compat store init");
+    measurement_cal_set_t loaded;
+    measurement_cal_store_slot_t slot = MEASUREMENT_CAL_STORE_SLOT_B;
+    measurement_cal_store_slot_info_t info[2];
+    failures += expect_true(measurement_cal_store_load_newest_usable(&store,
+                                                                     &req,
+                                                                     MEASUREMENT_CAL_HARDWARE_REV1,
+                                                                     MEASUREMENT_CAL_MODEL_VERSION_CURRENT,
+                                                                     &loaded,
+                                                                     &slot,
+                                                                     info) == BSP_STATUS_OK,
+                            message);
+    failures += expect_true(loaded.sequence == 10u, "older compatible active");
+    failures += expect_true(slot == MEASUREMENT_CAL_STORE_SLOT_A, "older slot selected");
+    failures += expect_true(info[1].frame_valid, "incompatible frame structurally valid");
+    failures += expect_true(info[1].frame.sequence == 11u, "incompatible sequence preserved");
+    failures += expect_true(info[1].validity.status == expected_status, message);
+    return failures;
+}
+
+static int test_slot_compatibility_diagnostics(void)
+{
+    int failures = 0;
+    measurement_cal_set_t newer = set_with_records(11u, 1u);
+    newer.schema_version = (uint16_t)(MEASUREMENT_CAL_SCHEMA_VERSION - 1u);
+    failures += exercise_incompatible_newer_slot(newer,
+                                                 MEASUREMENT_CAL_VALIDITY_INCOMPATIBLE_SCHEMA,
+                                                 "old schema diagnosed");
+
+    newer = set_with_records(11u, 1u);
+    newer.hardware_revision = 0x00020001u;
+    failures += exercise_incompatible_newer_slot(newer,
+                                                 MEASUREMENT_CAL_VALIDITY_INCOMPATIBLE_HARDWARE,
+                                                 "wrong hardware diagnosed");
+
+    newer = set_with_records(11u, 1u);
+    newer.model_version = MEASUREMENT_CAL_MODEL_VERSION_DIRECT_V1;
+    failures += exercise_incompatible_newer_slot(newer,
+                                                 MEASUREMENT_CAL_VALIDITY_INCOMPATIBLE_MODEL,
+                                                 "wrong model diagnosed");
+
+    fake_nor_t nor;
+    fake_nor_init(&nor);
+    measurement_cal_set_t corrupt = set_with_records(12u, 1u);
+    failures += expect_true(fake_write_slot_frame(&nor, MEASUREMENT_CAL_STORE_SLOT_A, &corrupt),
+                            "write corrupt source");
+    storage_partition_t cal_a;
+    failures += expect_true(storage_layout_partition(TEST_CAPACITY_BYTES,
+                                                     STORAGE_PARTITION_CALIBRATION_A,
+                                                     &cal_a),
+                            "cal A for corruption");
+    size_t offset = 0u;
+    failures += expect_true(fake_map(cal_a.start, cal_a.size, &offset), "map cal A for corruption");
+    nor.flash[offset + MEASUREMENT_CAL_FRAME_HEADER_BYTES + 8u] ^= 0x01u;
+
+    measurement_cal_store_t store;
+    measurement_cal_store_io_t io = fake_io(&nor);
+    failures += expect_true(measurement_cal_store_init(&store, &io, TEST_CAPACITY_BYTES) == BSP_STATUS_OK,
+                            "corrupt store init");
+    measurement_cal_set_t loaded;
+    measurement_cal_store_slot_info_t info[2];
+    failures += expect_true(measurement_cal_store_load_newest_usable(&store,
+                                                                     NULL,
+                                                                     MEASUREMENT_CAL_HARDWARE_REV1,
+                                                                     MEASUREMENT_CAL_MODEL_VERSION_CURRENT,
+                                                                     &loaded,
+                                                                     NULL,
+                                                                     info) == BSP_STATUS_ERROR,
+                            "crc corrupt rejected");
+    failures += expect_true(info[0].validity.status == MEASUREMENT_CAL_VALIDITY_CORRUPT,
+                            "crc corrupt diagnosed");
+    failures += expect_true(!info[0].frame_valid, "crc corrupt frame invalid");
     return failures;
 }
 
@@ -739,10 +971,13 @@ int main(int argc, char **argv)
     int failures = 0;
     failures += test_crc_and_layout();
     failures += test_serialization_resolution_and_validity();
+    failures += test_duplicate_and_replace_semantics();
     failures += test_full_supported_matrix_capacity();
+    failures += test_condition_domain_consistency();
     failures += test_fake_nor_async_busy_and_page_rules();
     failures += test_store_power_loss();
     failures += test_store_selects_newest_usable();
+    failures += test_slot_compatibility_diagnostics();
     failures += test_dsp_uses_calibrated_hg_transfer();
     failures += test_output_correction_updates_result_and_derivatives();
     return (failures == 0) ? 0 : 1;

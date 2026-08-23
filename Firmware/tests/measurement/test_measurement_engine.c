@@ -185,6 +185,18 @@ static int test_initial_probe_and_policy_matrix(void)
                                                                HW_EXCITATION_FREQ_1KHZ,
                                                                HW_EXCITATION_AMP_100MVRMS),
                             "invalid range rejected");
+    failures += expect_true(measurement_auto_condition_allowed(HW_RANGE_ID_100K,
+                                                              HW_EXCITATION_FREQ_10KHZ,
+                                                              HW_EXCITATION_AMP_100MVRMS),
+                            "100K 10k remains physically selectable");
+    failures += expect_true(measurement_auto_condition_allowed(HW_RANGE_ID_1M,
+                                                              HW_EXCITATION_FREQ_1KHZ,
+                                                              HW_EXCITATION_AMP_100MVRMS),
+                            "1M 1k remains physically selectable");
+    failures += expect_true(measurement_auto_condition_allowed(HW_RANGE_ID_1M,
+                                                              HW_EXCITATION_FREQ_10KHZ,
+                                                              HW_EXCITATION_AMP_100MVRMS),
+                            "1M 10k remains physically selectable");
     return failures;
 }
 

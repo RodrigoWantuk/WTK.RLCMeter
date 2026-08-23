@@ -2,6 +2,8 @@
 
 #include <stddef.h>
 
+#include "measurement/measurement_condition.h"
+
 #define AUTO_RATIO_TOO_SMALL (0.20f)
 #define AUTO_RATIO_TOO_LARGE (5.00f)
 #define AUTO_RATIO_SHORT_LIKE (0.020f)
@@ -897,11 +899,7 @@ bool measurement_auto_condition_allowed(hw_range_id_t range_id,
                                         hw_excitation_freq_t frequency,
                                         hw_excitation_amp_t amplitude)
 {
-    uint8_t ignored = 0u;
-    return range_index(range_id, &ignored) &&
-           frequency_index(frequency, &ignored) &&
-           amplitude_index(amplitude, &ignored) &&
-           (hw_excitation_validate_amplitude(range_id, amplitude) == BSP_STATUS_OK);
+    return measurement_condition_supported(range_id, frequency, amplitude);
 }
 
 measurement_ret_evidence_t measurement_auto_evaluate_ret_evidence(

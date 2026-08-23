@@ -249,6 +249,12 @@ static void write_slot_status(const measurement_cal_store_slot_info_t *slot)
     write_text(slot->frame_valid ? "VALID" : "INVALID");
     write_text(" sequence=");
     write_u32(slot->frame.sequence);
+    write_text(" schema=");
+    write_u32(slot->frame.schema_version);
+    write_text(" hw=");
+    write_hex8(slot->frame.hardware_revision);
+    write_text(" model=");
+    write_u32(slot->frame.model_version);
     write_text(" validity=");
     write_text(measurement_cal_validity_status_string(slot->validity.status));
     write_text(" flags=");

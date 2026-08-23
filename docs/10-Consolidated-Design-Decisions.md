@@ -319,6 +319,69 @@ while one is active. Active calibration selection chooses the newest usable comp
 complete set, not merely the newest CRC-valid frame; diagnostics still expose newer
 rejected slots.
 
+### Rev.1 condition domain and calibration integrity
+
+Rev.1 firmware separates:
+
+```text
+hardware-supported condition
+calibratable condition
+qualified/product-enabled condition
+```
+
+`unqualified`, `uncalibrated`, and `unsupported` are different states. The authoritative
+Stage 2A.2 physical support rule is centralized in `measurement_condition.c/.h` and is
+shared by automatic measurement policy, calibration requirements generation, Lab
+fixed-condition validation, and future qualification-map generation.
+
+The Stage 2A.2 Rev.1 hardware-supported domain is:
+
+```text
+range:      10 Ohm / 100 Ohm / 1 kOhm / 10 kOhm / 100 kOhm / 1 MOhm
+frequency: 100 Hz / 1 kHz / 10 kHz
+amplitude: 100 mVrms / 500 mVrms
+```
+
+with the hard physical/product transport prohibition:
+
+```text
+10 Ohm + 500 mVrms is not supported at any frequency
+```
+
+Therefore the current hardware-supported and calibratable Rev.1 matrix contains 33
+conditions. The 100 kOhm and 1 MOhm high-frequency conditions remain representable for
+calibration. They may later be marked `UNQUALIFIED`, `EXTENDED`, or `DISABLED` by real
+qualification evidence, but they are not removed from calibration storage merely because
+parasitics, leakage, SNR, or phase error may make them difficult.
+
+Calibration record identity is the complete key:
+
+```text
+hardware_revision
+model_version
+range_id
+frequency
+amplitude
+```
+
+`condition_id` is diagnostic/provenance metadata derived from CRC32 of that complete
+key. It is not an authoritative lookup key, and a condition-ID collision must not select
+the wrong correction. Calibration set ADD fails on an existing complete key; REPLACE
+fails when the complete key does not already exist. Decoded or manually assembled sets
+with duplicate complete keys are invalid.
+
+Slot parsing is staged. Firmware first determines structural/integrity state, then
+schema/hardware/model compatibility, then payload completeness/usability. A committed,
+CRC-valid frame from an older schema or different hardware/model is diagnosed as
+`INCOMPATIBLE_SCHEMA`, `INCOMPATIBLE_HARDWARE`, or `INCOMPATIBLE_MODEL`, preserving
+header metadata such as sequence/schema/hardware/model for diagnostics. Genuine CRC,
+magic, length, or torn-write failures remain `CORRUPT`.
+
+The active production calibration set remains coefficient-focused. OPEN/SHORT/LOAD raw
+captures for Stage 2B should be used to derive condition corrections; if raw evidence is
+retained for audit/debug, it belongs in a separate diagnostic/evidence record path rather
+than permanently inflating the active `measurement_cal_set_t`.
+
 ## Localization
 
 Initial planned UI languages are Portuguese and English.

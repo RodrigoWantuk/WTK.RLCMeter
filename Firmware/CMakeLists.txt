@@ -75,6 +75,7 @@ add_library(wtk_firmware_common STATIC
     src/hardware/hw_residual.c
     src/hardware/hw_safety.c
     src/measurement/measurement_dsp.c
+    src/measurement/measurement_condition.c
     src/measurement/measurement_calibration.c
     src/measurement/measurement_calibration_store.c
     src/measurement/measurement_engine.c

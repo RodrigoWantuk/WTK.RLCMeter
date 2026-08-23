@@ -77,22 +77,38 @@ static bool read_slot_info(measurement_cal_store_t *store,
     }
 
     measurement_cal_frame_info_t frame = {0};
-    const bool decoded = measurement_cal_decode_set(store->image,
-                                                    MEASUREMENT_CAL_MAX_FRAME_BYTES,
-                                                    set,
-                                                    &frame);
-    measurement_cal_validity_t validity = {
-        .status = MEASUREMENT_CAL_VALIDITY_CORRUPT,
-        .flags = MEASUREMENT_CAL_VALID_FLAG_CORRUPT,
-    };
-    if (decoded)
+    measurement_cal_validity_t validity =
+        measurement_cal_inspect_frame(store->image,
+                                      MEASUREMENT_CAL_MAX_FRAME_BYTES,
+                                      hardware_revision,
+                                      model_version,
+                                      &frame);
+    const bool structurally_valid =
+        (validity.status == MEASUREMENT_CAL_VALIDITY_VALID) ||
+        (validity.status == MEASUREMENT_CAL_VALIDITY_INCOMPATIBLE_SCHEMA) ||
+        (validity.status == MEASUREMENT_CAL_VALIDITY_INCOMPATIBLE_HARDWARE) ||
+        (validity.status == MEASUREMENT_CAL_VALIDITY_INCOMPATIBLE_MODEL);
+    bool decoded = false;
+    if (validity.status == MEASUREMENT_CAL_VALIDITY_VALID)
     {
-        validity = measurement_cal_validate_set(set, requirements, hardware_revision, model_version);
+        decoded = measurement_cal_decode_set(store->image,
+                                             MEASUREMENT_CAL_MAX_FRAME_BYTES,
+                                             set,
+                                             &frame);
+        if (decoded)
+        {
+            validity = measurement_cal_validate_set(set, requirements, hardware_revision, model_version);
+        }
+        else
+        {
+            validity.status = MEASUREMENT_CAL_VALIDITY_CORRUPT;
+            validity.flags = MEASUREMENT_CAL_VALID_FLAG_CORRUPT;
+        }
     }
     if (info != NULL)
     {
         *info = (measurement_cal_store_slot_info_t){
-            .frame_valid = decoded,
+            .frame_valid = structurally_valid && (validity.status != MEASUREMENT_CAL_VALIDITY_CORRUPT),
             .slot = slot,
             .frame = frame,
             .validity = validity,
@@ -264,9 +280,25 @@ bsp_status_t measurement_cal_store_write_start(measurement_cal_store_t *store,
     }
 
     measurement_cal_set_t decoded;
+    measurement_cal_requirements_t expected_keys = measurement_cal_requirements_empty();
+    for (uint8_t i = 0u; i < staged.record_count; i++)
+    {
+        if (!measurement_cal_requirements_add(&expected_keys, &staged.records[i].key))
+        {
+            store->state = MEASUREMENT_CAL_STORE_ERROR;
+            store->last_status = BSP_STATUS_INVALID_ARG;
+            return BSP_STATUS_INVALID_ARG;
+        }
+    }
+
     if (!measurement_cal_decode_set(store->image, written, &decoded, NULL) ||
         (decoded.sequence != staged.sequence) ||
-        (decoded.record_count != staged.record_count))
+        (decoded.record_count != staged.record_count) ||
+        (measurement_cal_validate_set(&decoded,
+                                      &expected_keys,
+                                      staged.hardware_revision,
+                                      staged.model_version)
+             .status != MEASUREMENT_CAL_VALIDITY_VALID))
     {
         store->state = MEASUREMENT_CAL_STORE_ERROR;
         store->last_status = BSP_STATUS_ERROR;
@@ -277,6 +309,7 @@ bsp_status_t measurement_cal_store_write_start(measurement_cal_store_t *store,
     store->expected_hardware_revision = staged.hardware_revision;
     store->expected_model_version = staged.model_version;
     store->expected_record_count = staged.record_count;
+    store->expected_keys = expected_keys;
     store->image_size = written;
     store->program_offset = 0u;
     store->current_chunk = 0u;
@@ -478,13 +511,14 @@ bsp_status_t measurement_cal_store_step(measurement_cal_store_t *store, uint32_t
                             store->target_slot,
                             &store->scan_set,
                             &info,
-                            NULL,
+                            &store->expected_keys,
                             store->expected_hardware_revision,
                             store->expected_model_version) ||
             (store->scan_set.sequence != store->expected_sequence) ||
             (store->scan_set.hardware_revision != store->expected_hardware_revision) ||
             (store->scan_set.model_version != store->expected_model_version) ||
-            (store->scan_set.record_count != store->expected_record_count))
+            (store->scan_set.record_count != store->expected_record_count) ||
+            (info.validity.status != MEASUREMENT_CAL_VALIDITY_VALID))
         {
             store->state = MEASUREMENT_CAL_STORE_ERROR;
             store->last_status = BSP_STATUS_ERROR;

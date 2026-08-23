@@ -7,6 +7,7 @@
 
 #include "hardware/hw_excitation.h"
 #include "hardware/hw_range.h"
+#include "measurement/measurement_condition.h"
 #include "measurement/measurement_dsp.h"
 
 enum
@@ -19,8 +20,8 @@ enum
     MEASUREMENT_CAL_FRAME_MAGIC = 0x434C4157u,
     MEASUREMENT_CAL_FRAME_HEADER_BYTES = 64u,
     MEASUREMENT_CAL_COMMIT_MARKER = 0x54494D43u,
-    MEASUREMENT_CAL_MAX_RECORDS = 30u,
-    MEASUREMENT_CAL_MAX_REQUIRED_KEYS = 30u,
+    MEASUREMENT_CAL_MAX_RECORDS = MEASUREMENT_CONDITION_REV1_MAX_SUPPORTED,
+    MEASUREMENT_CAL_MAX_REQUIRED_KEYS = MEASUREMENT_CONDITION_REV1_MAX_SUPPORTED,
     MEASUREMENT_CAL_MAX_FRAME_BYTES = 3072u,
 };
 
@@ -199,6 +200,7 @@ void measurement_cal_set_init(measurement_cal_set_t *set,
                               uint32_t sequence);
 measurement_cal_record_t measurement_cal_make_ideal_record(const measurement_cal_key_t *key);
 bool measurement_cal_set_add_record(measurement_cal_set_t *set, const measurement_cal_record_t *record);
+bool measurement_cal_set_replace_record(measurement_cal_set_t *set, const measurement_cal_record_t *record);
 measurement_cal_requirements_t measurement_cal_requirements_empty(void);
 measurement_cal_requirements_t measurement_cal_requirements_rev1_full(void);
 bool measurement_cal_requirements_add(measurement_cal_requirements_t *requirements,
@@ -241,6 +243,11 @@ bool measurement_cal_decode_set(const uint8_t *src,
                                 size_t size,
                                 measurement_cal_set_t *set,
                                 measurement_cal_frame_info_t *info);
+measurement_cal_validity_t measurement_cal_inspect_frame(const uint8_t *src,
+                                                         size_t size,
+                                                         uint32_t hardware_revision,
+                                                         uint16_t model_version,
+                                                         measurement_cal_frame_info_t *info);
 
 uint32_t measurement_cal_record_size_bytes(void);
 uint32_t measurement_cal_set_size_bytes(void);

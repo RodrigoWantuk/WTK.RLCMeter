@@ -14,6 +14,9 @@ STATUS: IMPLEMENTED
 Stage 2A.1 — Calibration substrate hardening / async W25Q integration / correction plumbing:
 STATUS: IMPLEMENTED_REQUIRES_BENCH_VALIDATION
 
+Stage 2A.2 — Condition-domain / compatibility / record-integrity hardening:
+STATUS: IMPLEMENTED
+
 Stage 2B — OPEN-SHORT-LOAD workflows / calibration acquisition:
 STATUS: NOT_STARTED
 
@@ -352,6 +355,93 @@ a read-only compact listing of the active calibration records.
 Stage 2A.1 does not yet add the Phase 08 mandatory calibration boot gate. Missing
 calibration remains diagnosable and explicit, and product-ready measurement blocking
 will be wired when the UI/boot calibration flow is implemented.
+
+## Stage 2A.2 implementation boundary
+
+Stage 2A.2 unifies the Rev.1 condition domain before real calibration data is
+generated. Firmware now distinguishes three concepts:
+
+```text
+hardware-supported condition:
+    the Rev.1 firmware/electronics transport can execute it
+
+calibratable condition:
+    the current calibration model can represent coefficients for it
+
+qualified/product-enabled condition:
+    bench evidence permits ordinary product use
+```
+
+For Rev.1 Stage 2A.2, the hardware-supported and calibratable domains are identical.
+There is no qualification map yet, so every condition remains unqualified until later
+bench evidence says otherwise.
+
+The authoritative physical support rule is centralized in
+`measurement_condition.c/.h`. The only hard Stage 2A.2 Rev.1 prohibition is:
+
+```text
+RREF = 10 Ohm
+amplitude = 500 mVrms
+```
+
+All three supported frequencies remain representable for the 100 kOhm and 1 Mohm
+ranges. They may later become `UNQUALIFIED`, `EXTENDED`, or `DISABLED` based on Phase
+09 evidence, but they are not silently removed from calibration capability merely
+because high-Z/high-frequency behavior is expected to be difficult.
+
+The resulting Rev.1 calibration matrix is:
+
+```text
+6 ranges x 3 frequencies x 2 amplitudes = 36 nominal combinations
+minus 3 combinations of 10 Ohm + 500 mVrms
+= 33 hardware-supported/calibratable conditions
+```
+
+`MEASUREMENT_CAL_MAX_RECORDS`, `MEASUREMENT_CAL_MAX_REQUIRED_KEYS`, and the full-matrix
+test are sized from that product condition domain, not the reverse. With 33 fixed-size
+condition records, the serialized frame remains below the 3072-byte frame limit and
+inside one 4096-byte W25Q calibration slot.
+
+Calibration set construction has explicit identity semantics:
+
+```text
+ADD      succeeds only for a new complete key
+ADD      fails if the key already exists
+REPLACE  succeeds only for an existing key
+REPLACE  fails if the key is missing
+```
+
+Decoded or manually assembled sets containing duplicate complete keys are invalid. The
+diagnostic `condition_id` is a CRC32 of the complete key and is not authoritative for
+lookup or equality; all matching uses the full key.
+
+Slot diagnostics now separate frame integrity from compatibility:
+
+```text
+MISSING
+CORRUPT
+INCOMPATIBLE_SCHEMA
+INCOMPATIBLE_HARDWARE
+INCOMPATIBLE_MODEL
+INCOMPLETE
+VALID
+```
+
+A structurally intact slot with an old schema, wrong hardware revision, or wrong model
+version preserves header metadata such as sequence, schema, hardware revision, and model
+version for `lab cal status` instead of being reported as generic corruption. Active
+selection still chooses the newest compatible, complete, usable set and may fall back to
+an older valid slot.
+
+Post-write verification decodes the target slot, verifies sequence/hardware/model/count,
+and checks the expected complete condition keys. A CRC-valid but semantically different
+candidate is not accepted as a successful write.
+
+Stage 2B should treat raw OPEN/SHORT/LOAD captures as acquisition evidence used to
+derive compact condition coefficients. The active production calibration set should
+remain coefficient-focused and small in SRAM. If raw evidence is needed for audit or
+debug, it should be persisted separately from the active coefficient set rather than
+inflating `measurement_cal_set_t`.
 
 ## Task 1 — Define measurement attempt model
 

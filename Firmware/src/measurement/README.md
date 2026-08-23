@@ -10,13 +10,16 @@ Keep acquisition, DSP, impedance calculation, autorange, confidence, and calibra
 
 ```text
 measurement_dsp.c/.h
+measurement_condition.c/.h
 measurement_engine.c/.h
 measurement_calibration.c/.h
 measurement_calibration_store.c/.h
 ```
 
-`measurement_dsp` is the Phase 06 fixed-condition math core. `measurement_engine` is the
-Phase 07 Stage 1 automatic session policy layer. `measurement_calibration` and
+`measurement_dsp` is the Phase 06 fixed-condition math core. `measurement_condition`
+is the narrow Rev.1 physical condition-domain contract shared by automatic policy,
+calibration requirements, Lab validation, and future qualification maps.
+`measurement_engine` is the Phase 07 Stage 1 automatic session policy layer. `measurement_calibration` and
 `measurement_calibration_store` are the Phase 07 Stage 2A portable calibration model,
 resolver, and redundant-slot substrate. OPEN/SHORT/LOAD acquisition workflows,
 qualification maps, and product UI remain outside this implementation until later
@@ -143,6 +146,13 @@ The persisted format is manually serialized little-endian data with CRC32 and a 
 marker written last. The store uses two W25Q slots, asynchronous erase/program
 start/wait states, and preserves the previous usable valid set across interrupted or
 incomplete candidate writes.
+
+The Stage 2A.2 Rev.1 condition matrix is 33 calibratable conditions: all six ranges,
+three frequencies, and two amplitudes except the hard unsupported `10 Ohm + 500 mVrms`
+combination at each frequency. High-Z/high-frequency conditions remain representable
+until real qualification evidence marks them otherwise. Calibration records reject
+duplicate complete keys; `condition_id` is diagnostic metadata, not the authoritative
+lookup key.
 
 ## Output
 

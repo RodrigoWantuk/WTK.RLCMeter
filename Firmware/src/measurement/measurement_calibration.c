@@ -3,6 +3,7 @@
 #include <math.h>
 #include <string.h>
 
+#include "measurement/measurement_condition.h"
 #include "storage/storage_crc32.h"
 
 enum
@@ -92,24 +93,6 @@ static uint32_t crc_frame(const uint8_t *frame, size_t payload_length)
     return crc ^ (uint32_t)STORAGE_CRC32_XOR_OUT;
 }
 
-static bool valid_range(hw_range_id_t range_id)
-{
-    return range_id <= HW_RANGE_ID_1M;
-}
-
-static bool valid_frequency(hw_excitation_freq_t frequency)
-{
-    return (frequency == HW_EXCITATION_FREQ_100HZ) ||
-           (frequency == HW_EXCITATION_FREQ_1KHZ) ||
-           (frequency == HW_EXCITATION_FREQ_10KHZ);
-}
-
-static bool valid_amplitude(hw_excitation_amp_t amplitude)
-{
-    return (amplitude == HW_EXCITATION_AMP_100MVRMS) ||
-           (amplitude == HW_EXCITATION_AMP_500MVRMS);
-}
-
 static uint32_t frequency_hz(hw_excitation_freq_t frequency)
 {
     switch (frequency)
@@ -130,24 +113,7 @@ bool measurement_cal_condition_allowed(hw_range_id_t range_id,
                                        hw_excitation_freq_t frequency,
                                        hw_excitation_amp_t amplitude)
 {
-    if (!valid_range(range_id) || !valid_frequency(frequency) || !valid_amplitude(amplitude))
-    {
-        return false;
-    }
-    if ((range_id == HW_RANGE_ID_10R) && (amplitude == HW_EXCITATION_AMP_500MVRMS))
-    {
-        return false;
-    }
-    if ((range_id == HW_RANGE_ID_100K) && (frequency == HW_EXCITATION_FREQ_10KHZ))
-    {
-        return false;
-    }
-    if ((range_id == HW_RANGE_ID_1M) &&
-        ((frequency == HW_EXCITATION_FREQ_1KHZ) || (frequency == HW_EXCITATION_FREQ_10KHZ)))
-    {
-        return false;
-    }
-    return true;
+    return measurement_condition_calibratable(range_id, frequency, amplitude);
 }
 
 measurement_cal_key_t measurement_cal_key(uint32_t hardware_revision,
@@ -174,6 +140,22 @@ bool measurement_cal_key_equal(const measurement_cal_key_t *a, const measurement
            (a->range_id == b->range_id) &&
            (a->frequency == b->frequency) &&
            (a->amplitude == b->amplitude);
+}
+
+static int16_t find_record_index(const measurement_cal_set_t *set, const measurement_cal_key_t *key)
+{
+    if ((set == NULL) || (key == NULL))
+    {
+        return -1;
+    }
+    for (uint8_t i = 0u; i < set->record_count; i++)
+    {
+        if (measurement_cal_key_equal(&set->records[i].key, key))
+        {
+            return (int16_t)i;
+        }
+    }
+    return -1;
 }
 
 uint32_t measurement_cal_condition_id(const measurement_cal_key_t *key)
@@ -278,12 +260,31 @@ bool measurement_cal_set_add_record(measurement_cal_set_t *set, const measuremen
     if ((set == NULL) || (record == NULL) || (set->record_count >= MEASUREMENT_CAL_MAX_RECORDS) ||
         (record->record_type != MEASUREMENT_CAL_RECORD_CONDITION) || !key_valid(&record->key) ||
         !correction_finite(&record->correction) ||
-        (record->condition_id != measurement_cal_condition_id(&record->key)))
+        (record->condition_id != measurement_cal_condition_id(&record->key)) ||
+        (find_record_index(set, &record->key) >= 0))
     {
         return false;
     }
     set->records[set->record_count] = *record;
     set->record_count++;
+    return true;
+}
+
+bool measurement_cal_set_replace_record(measurement_cal_set_t *set, const measurement_cal_record_t *record)
+{
+    if ((set == NULL) || (record == NULL) ||
+        (record->record_type != MEASUREMENT_CAL_RECORD_CONDITION) || !key_valid(&record->key) ||
+        !correction_finite(&record->correction) ||
+        (record->condition_id != measurement_cal_condition_id(&record->key)))
+    {
+        return false;
+    }
+    const int16_t index = find_record_index(set, &record->key);
+    if (index < 0)
+    {
+        return false;
+    }
+    set->records[(uint8_t)index] = *record;
     return true;
 }
 
@@ -300,6 +301,13 @@ bool measurement_cal_requirements_add(measurement_cal_requirements_t *requiremen
         (requirements->count >= MEASUREMENT_CAL_MAX_REQUIRED_KEYS) || !key_valid(key))
     {
         return false;
+    }
+    for (uint8_t i = 0u; i < requirements->count; i++)
+    {
+        if (measurement_cal_key_equal(&requirements->keys[i], key))
+        {
+            return false;
+        }
     }
     requirements->keys[requirements->count] = *key;
     requirements->count++;
@@ -405,6 +413,15 @@ measurement_cal_validity_t measurement_cal_validate_set(
             validity.status = MEASUREMENT_CAL_VALIDITY_CORRUPT;
             validity.flags |= MEASUREMENT_CAL_VALID_FLAG_CORRUPT;
             return validity;
+        }
+        for (uint8_t j = (uint8_t)(i + 1u); j < set->record_count; j++)
+        {
+            if (measurement_cal_key_equal(&record->key, &set->records[j].key))
+            {
+                validity.status = MEASUREMENT_CAL_VALIDITY_CORRUPT;
+                validity.flags |= MEASUREMENT_CAL_VALID_FLAG_CORRUPT;
+                return validity;
+            }
         }
         if ((record->correction.flags & MEASUREMENT_CAL_FLAG_QUALIFIED) == 0u)
         {
@@ -719,6 +736,117 @@ static bool decode_record(const uint8_t *src, measurement_cal_record_t *record)
            correction_finite(&record->correction);
 }
 
+static bool erased_header(const uint8_t *src, size_t size)
+{
+    if (src == NULL)
+    {
+        return false;
+    }
+    const size_t inspect = (size < MEASUREMENT_CAL_FRAME_HEADER_BYTES) ?
+                               size :
+                               (size_t)MEASUREMENT_CAL_FRAME_HEADER_BYTES;
+    for (size_t i = 0u; i < inspect; i++)
+    {
+        if (src[i] != 0xFFu)
+        {
+            return false;
+        }
+    }
+    return inspect != 0u;
+}
+
+measurement_cal_validity_t measurement_cal_inspect_frame(const uint8_t *src,
+                                                         size_t size,
+                                                         uint32_t hardware_revision,
+                                                         uint16_t model_version,
+                                                         measurement_cal_frame_info_t *info)
+{
+    measurement_cal_validity_t validity = {
+        .status = MEASUREMENT_CAL_VALIDITY_CORRUPT,
+        .flags = MEASUREMENT_CAL_VALID_FLAG_CORRUPT,
+        .missing_required_count = 0u,
+        .unqualified_count = 0u,
+    };
+    if ((src == NULL) || (size < MEASUREMENT_CAL_FRAME_HEADER_BYTES))
+    {
+        if (erased_header(src, size))
+        {
+            validity.status = MEASUREMENT_CAL_VALIDITY_MISSING;
+            validity.flags = MEASUREMENT_CAL_VALID_FLAG_MISSING;
+        }
+        if (info != NULL)
+        {
+            *info = (measurement_cal_frame_info_t){0};
+        }
+        return validity;
+    }
+    if (erased_header(src, size))
+    {
+        validity.status = MEASUREMENT_CAL_VALIDITY_MISSING;
+        validity.flags = MEASUREMENT_CAL_VALID_FLAG_MISSING;
+        if (info != NULL)
+        {
+            *info = (measurement_cal_frame_info_t){0};
+        }
+        return validity;
+    }
+
+    const measurement_cal_frame_info_t frame = {
+        .magic = read_u32(&src[FRAME_OFF_MAGIC]),
+        .record_type = read_u16(&src[FRAME_OFF_RECORD_TYPE]),
+        .schema_version = read_u16(&src[FRAME_OFF_SCHEMA]),
+        .header_size = read_u16(&src[FRAME_OFF_HEADER_SIZE]),
+        .payload_length = read_u16(&src[FRAME_OFF_PAYLOAD_LENGTH]),
+        .sequence = read_u32(&src[FRAME_OFF_SEQUENCE]),
+        .hardware_revision = read_u32(&src[FRAME_OFF_HARDWARE]),
+        .model_version = read_u16(&src[FRAME_OFF_MODEL]),
+        .crc32 = read_u32(&src[FRAME_OFF_CRC32]),
+        .committed = read_u32(&src[FRAME_OFF_COMMIT]) == MEASUREMENT_CAL_COMMIT_MARKER,
+    };
+    if (info != NULL)
+    {
+        *info = frame;
+    }
+    if ((frame.magic != MEASUREMENT_CAL_FRAME_MAGIC) ||
+        (frame.record_type != (uint16_t)MEASUREMENT_CAL_RECORD_SET) ||
+        (frame.header_size != MEASUREMENT_CAL_FRAME_HEADER_BYTES) ||
+        !frame.committed)
+    {
+        return validity;
+    }
+    const size_t total = (size_t)frame.header_size + (size_t)frame.payload_length;
+    if ((total > size) || (total > MEASUREMENT_CAL_MAX_FRAME_BYTES) ||
+        (frame.payload_length < SET_PAYLOAD_HEADER_BYTES))
+    {
+        return validity;
+    }
+    if (crc_frame(src, frame.payload_length) != frame.crc32)
+    {
+        return validity;
+    }
+    if (frame.schema_version != MEASUREMENT_CAL_SCHEMA_VERSION)
+    {
+        validity.status = MEASUREMENT_CAL_VALIDITY_INCOMPATIBLE_SCHEMA;
+        validity.flags = MEASUREMENT_CAL_VALID_FLAG_SCHEMA;
+        return validity;
+    }
+    if (frame.hardware_revision != hardware_revision)
+    {
+        validity.status = MEASUREMENT_CAL_VALIDITY_INCOMPATIBLE_HARDWARE;
+        validity.flags = MEASUREMENT_CAL_VALID_FLAG_HARDWARE;
+        return validity;
+    }
+    if (frame.model_version != model_version)
+    {
+        validity.status = MEASUREMENT_CAL_VALIDITY_INCOMPATIBLE_MODEL;
+        validity.flags = MEASUREMENT_CAL_VALID_FLAG_MODEL;
+        return validity;
+    }
+    validity.status = MEASUREMENT_CAL_VALIDITY_VALID;
+    validity.flags = MEASUREMENT_CAL_VALID_FLAG_NONE;
+    return validity;
+}
+
 bool measurement_cal_serialize_set(const measurement_cal_set_t *set,
                                    uint8_t *dst,
                                    size_t capacity,
@@ -767,6 +895,13 @@ bool measurement_cal_serialize_set(const measurement_cal_set_t *set,
             !correction_finite(&set->records[i].correction))
         {
             return false;
+        }
+        for (uint8_t j = (uint8_t)(i + 1u); j < set->record_count; j++)
+        {
+            if (measurement_cal_key_equal(&set->records[i].key, &set->records[j].key))
+            {
+                return false;
+            }
         }
         encode_record(&payload[SET_PAYLOAD_HEADER_BYTES + ((size_t)i * (size_t)CAL_RECORD_BYTES)],
                       &set->records[i]);

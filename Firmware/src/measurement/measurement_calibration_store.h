@@ -63,6 +63,7 @@ typedef struct
     uint32_t expected_hardware_revision;
     uint16_t expected_model_version;
     uint8_t expected_record_count;
+    measurement_cal_requirements_t expected_keys;
     measurement_cal_store_slot_t target_slot;
     measurement_cal_store_state_t state;
     bsp_status_t last_status;
