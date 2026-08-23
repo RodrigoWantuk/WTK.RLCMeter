@@ -15,13 +15,13 @@ from pathlib import Path
 
 
 MAGIC = 0x434C4157
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 COMMIT_MARKER = 0x54494D43
 HEADER_BYTES = 64
 CRC_OFFSET = 56
 COMMIT_OFFSET = 60
-SET_PAYLOAD_HEADER_BYTES = 4
-RECORD_BYTES = 112
+SET_PAYLOAD_HEADER_BYTES = 56
+RECORD_BYTES = 80
 
 
 def crc_frame(frame: bytes, payload_length: int) -> int:
@@ -34,13 +34,11 @@ def decode_record(data: bytes, index: int) -> dict[str, object]:
     off = 0
     hardware, model = struct.unpack_from("<IH", data, off)
     off += 6
-    range_id, frequency, amplitude, ret_channel, ret_strategy, record_type = struct.unpack_from(
-        "<BBBBBB", data, off
-    )
-    off += 6
+    range_id, frequency, amplitude, record_type = struct.unpack_from("<BBBB", data, off)
+    off += 4
     temperature_mC, condition_id, flags = struct.unpack_from("<iII", data, off)
     off += 12
-    floats = struct.unpack_from("<" + ("f" * 20), data, off)
+    floats = struct.unpack_from("<" + ("f" * 12), data, off)
     return {
         "index": index,
         "hardware_revision": f"0x{hardware:08X}",
@@ -48,16 +46,16 @@ def decode_record(data: bytes, index: int) -> dict[str, object]:
         "range_id": range_id,
         "frequency": frequency,
         "amplitude": amplitude,
-        "ret_channel": ret_channel,
-        "ret_strategy": ret_strategy,
         "record_type": record_type,
         "temperature_mC": temperature_mC,
         "condition_id": f"0x{condition_id:08X}",
         "flags": f"0x{flags:08X}",
-        "ret_hg": complex(floats[12], floats[13]),
-        "zref": complex(floats[14], floats[15]),
-        "output_scale": complex(floats[16], floats[17]),
-        "output_offset": complex(floats[18], floats[19]),
+        "ret_hg": complex(floats[0], floats[1]),
+        "zref": complex(floats[2], floats[3]),
+        "ret_1x_output_scale": complex(floats[4], floats[5]),
+        "ret_1x_output_offset": complex(floats[6], floats[7]),
+        "ret_hg_output_scale": complex(floats[8], floats[9]),
+        "ret_hg_output_offset": complex(floats[10], floats[11]),
     }
 
 
@@ -96,14 +94,16 @@ def inspect(path: Path) -> int:
 
     payload = blob[HEADER_BYTES:total]
     count, required_count = struct.unpack_from("<HH", payload, 0)
+    adc_flags = struct.unpack_from("<I", payload, 4)[0]
     print(f"record_count={count}")
     print(f"required_count={required_count}")
+    print(f"adc_flags=0x{adc_flags:08X}")
     for i in range(count):
         begin = SET_PAYLOAD_HEADER_BYTES + (i * RECORD_BYTES)
         rec = decode_record(payload[begin : begin + RECORD_BYTES], i)
         print(
             "record[{index}] hw={hardware_revision} model={model_version} "
-            "range={range_id} freq={frequency} amp={amplitude} ret={ret_channel} "
+            "range={range_id} freq={frequency} amp={amplitude} "
             "type={record_type} temp_mC={temperature_mC} condition={condition_id} "
             "flags={flags} ret_hg={ret_hg} zref={zref}".format(**rec)
         )

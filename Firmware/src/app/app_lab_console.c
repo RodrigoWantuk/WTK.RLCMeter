@@ -26,6 +26,7 @@
 #include "measurement/measurement_calibration_store.h"
 #include "measurement/measurement_dsp.h"
 #include "measurement/measurement_engine.h"
+#include "storage/measurement_cal_w25q_adapter.h"
 #include "bsp/bsp_clock.h"
 #include "bsp/bsp_time.h"
 #include "bsp/bsp_excitation.h"
@@ -202,17 +203,82 @@ static void write_auto_policy(void)
     write_text("\r\n");
 }
 
-static void write_calibration_status(const w25q_device_t *flash)
+static void update_calibration_runtime(app_lab_console_t *console, w25q_device_t *flash)
 {
+    if ((console == NULL) || (flash == NULL) || !flash->detected)
+    {
+        if (console != NULL)
+        {
+            console->cal_store_ready = false;
+            console->cal_active_valid = false;
+        }
+        return;
+    }
+    const measurement_cal_store_io_t io = measurement_cal_w25q_store_io(flash);
+    const bsp_status_t init_status =
+        measurement_cal_store_init(&console->cal_store, &io, flash->part.capacity_bytes);
+    console->cal_store_ready = init_status == BSP_STATUS_OK;
+    console->cal_active_valid = false;
+    if (init_status != BSP_STATUS_OK)
+    {
+        return;
+    }
+
+    const measurement_cal_requirements_t req = measurement_cal_requirements_rev1_full();
+    const bsp_status_t load_status =
+        measurement_cal_store_load_newest_usable(&console->cal_store,
+                                                 &req,
+                                                 MEASUREMENT_CAL_HARDWARE_REV1,
+                                                 MEASUREMENT_CAL_MODEL_VERSION_CURRENT,
+                                                 &console->cal_active,
+                                                 &console->cal_active_slot,
+                                                 console->cal_slots);
+    console->cal_active_valid = load_status == BSP_STATUS_OK;
+}
+
+static const measurement_cal_set_t *active_calibration_set(const app_lab_console_t *console)
+{
+    return ((console != NULL) && console->cal_active_valid) ? &console->cal_active : NULL;
+}
+
+static void write_slot_status(const measurement_cal_store_slot_info_t *slot)
+{
+    write_text("CAL_SLOT ");
+    write_text((slot->slot == MEASUREMENT_CAL_STORE_SLOT_A) ? "A" : "B");
+    write_text(" frame=");
+    write_text(slot->frame_valid ? "VALID" : "INVALID");
+    write_text(" sequence=");
+    write_u32(slot->frame.sequence);
+    write_text(" validity=");
+    write_text(measurement_cal_validity_status_string(slot->validity.status));
+    write_text(" flags=");
+    write_hex8(slot->validity.flags);
+    write_text(" records=");
+    write_u32(slot->record_count);
+    write_text("\r\n");
+}
+
+static void write_calibration_status(app_lab_console_t *console, w25q_device_t *flash)
+{
+    update_calibration_runtime(console, flash);
     write_text("CAL_SET schema=");
     write_u32(MEASUREMENT_CAL_SCHEMA_VERSION);
     write_text(" model=");
-    write_u32(MEASUREMENT_CAL_MODEL_VERSION_DIRECT_V1);
+    write_u32(MEASUREMENT_CAL_MODEL_VERSION_CURRENT);
     write_text(" hw=");
     write_hex8(MEASUREMENT_CAL_HARDWARE_REV1);
-    write_text(" status=");
-    write_text(measurement_cal_resolve_status_string(MEASUREMENT_CAL_RESOLVE_MISSING));
-    write_text(" source=IDEAL uncalibrated=1\r\n");
+    write_text(" active=");
+    write_text(((console != NULL) && console->cal_active_valid) ? "1" : "0");
+    if ((console != NULL) && console->cal_active_valid)
+    {
+        write_text(" slot=");
+        write_text((console->cal_active_slot == MEASUREMENT_CAL_STORE_SLOT_A) ? "A" : "B");
+        write_text(" sequence=");
+        write_u32(console->cal_active.sequence);
+        write_text(" records=");
+        write_u32(console->cal_active.record_count);
+    }
+    write_text("\r\n");
     write_text("CAL_STORE frame_max=");
     write_u32(MEASUREMENT_CAL_MAX_FRAME_BYTES);
     write_text(" context=");
@@ -234,10 +300,50 @@ static void write_calibration_status(const w25q_device_t *flash)
             write_text(" size=");
             write_u32(cal_b.size);
             write_text("\r\n");
+            if (console != NULL)
+            {
+                write_slot_status(&console->cal_slots[0]);
+                write_slot_status(&console->cal_slots[1]);
+            }
             return;
         }
     }
     write_text("CAL_SLOT unavailable\r\n");
+}
+
+static void write_calibration_dump(app_lab_console_t *console, w25q_device_t *flash)
+{
+    update_calibration_runtime(console, flash);
+    if ((console == NULL) || !console->cal_active_valid)
+    {
+        write_text("CAL_DUMP unavailable\r\n");
+        return;
+    }
+    write_text("CAL_DUMP_BEGIN\r\nsequence=");
+    write_u32(console->cal_active.sequence);
+    write_text("\r\nslot=");
+    write_text((console->cal_active_slot == MEASUREMENT_CAL_STORE_SLOT_A) ? "A" : "B");
+    write_text("\r\nrecords=");
+    write_u32(console->cal_active.record_count);
+    write_text("\r\n");
+    for (uint8_t i = 0u; i < console->cal_active.record_count; i++)
+    {
+        const measurement_cal_record_t *record = &console->cal_active.records[i];
+        write_text("CAL_REC index=");
+        write_u32(i);
+        write_text(" condition=");
+        write_hex8(record->condition_id);
+        write_text(" range=");
+        write_text(hw_range_id_string(record->key.range_id));
+        write_text(" freq=");
+        write_text(hw_excitation_freq_token(record->key.frequency));
+        write_text(" amp=");
+        write_text(hw_excitation_amp_token(record->key.amplitude));
+        write_text(" flags=");
+        write_hex8(record->correction.flags);
+        write_text("\r\n");
+    }
+    write_text("CAL_DUMP_END\r\n");
 }
 
 static bool parse_range_id(const char *line, hw_range_id_t *id)
@@ -1058,26 +1164,20 @@ static bsp_status_t lab_auto_attempt_abort(void *user)
 
 static bsp_status_t lab_auto_process_block(const hw_metrology_block_t *block,
                                            const measurement_attempt_config_t *attempt,
-                                           measurement_result_t *result,
+                                           measurement_calibrated_result_t *result,
                                            void *user)
 {
-    (void)user;
+    const app_lab_console_t *console = (const app_lab_console_t *)user;
     if ((block == NULL) || (attempt == NULL) || (result == NULL))
     {
         return BSP_STATUS_INVALID_ARG;
     }
-    measurement_adc_calibration_t adc;
-    measurement_dsp_config_t config;
-    measurement_calibration_provenance_t provenance;
     const measurement_cal_key_t key = measurement_cal_key(MEASUREMENT_CAL_HARDWARE_REV1,
-                                                          MEASUREMENT_CAL_MODEL_VERSION_DIRECT_V1,
+                                                          MEASUREMENT_CAL_MODEL_VERSION_CURRENT,
                                                           attempt->range_id,
                                                           attempt->frequency,
-                                                          attempt->amplitude,
-                                                          MEASUREMENT_RETURN_1X,
-                                                          (uint8_t)attempt->ret_strategy);
-    (void)measurement_cal_resolve(NULL, &key, true, &adc, &config, &provenance);
-    return measurement_process_block(block, &adc, &config, result);
+                                                          attempt->amplitude);
+    return measurement_cal_process_block(block, active_calibration_set(console), &key, true, result);
 }
 
 static bsp_status_t lab_init_auto_measure(app_lab_console_t *console)
@@ -1423,51 +1523,63 @@ static hw_excitation_freq_t lab_frequency_from_hz(uint32_t frequency_hz)
     }
 }
 
-static void lab_dump_metrology_dsp_summary(const hw_metrology_block_t *block)
+static void lab_dump_metrology_dsp_summary(const app_lab_console_t *console, const hw_metrology_block_t *block)
 {
-    measurement_adc_calibration_t adc;
-    measurement_dsp_config_t config;
-    measurement_calibration_provenance_t provenance;
-    measurement_result_t result;
+    measurement_calibrated_result_t processed;
     const measurement_cal_key_t key = measurement_cal_key(MEASUREMENT_CAL_HARDWARE_REV1,
-                                                          MEASUREMENT_CAL_MODEL_VERSION_DIRECT_V1,
+                                                          MEASUREMENT_CAL_MODEL_VERSION_CURRENT,
                                                           block->range_id,
                                                           lab_frequency_from_hz(block->excitation_frequency_hz),
-                                                          HW_EXCITATION_AMP_100MVRMS,
-                                                          MEASUREMENT_RETURN_1X,
-                                                          (uint8_t)MEASUREMENT_RET_STRATEGY_DSP_AUTO);
-    (void)measurement_cal_resolve(NULL, &key, true, &adc, &config, &provenance);
+                                                          (block->requested_amplitude_mvrms == 500u) ?
+                                                              HW_EXCITATION_AMP_500MVRMS :
+                                                              HW_EXCITATION_AMP_100MVRMS);
 
     write_text("DSP_BEGIN v=1\r\n");
     write_text("calibration=");
-    write_text(measurement_cal_resolve_status_string(provenance.status));
-    write_text("\r\n");
-    if (measurement_process_block(block, &adc, &config, &result) != BSP_STATUS_OK)
+    if (measurement_cal_process_block(block,
+                                      active_calibration_set(console),
+                                      &key,
+                                      true,
+                                      &processed) != BSP_STATUS_OK)
     {
-        write_text("dsp_status=");
-        write_text(measurement_status_string(result.status));
+        write_text(measurement_cal_resolve_status_string(processed.provenance.status));
+        write_text("\r\ndsp_status=");
+        write_text(measurement_status_string(processed.result.status));
         write_text("\r\nDSP_END\r\n");
         return;
     }
+    write_text(measurement_cal_resolve_status_string(processed.provenance.status));
+    write_text(" source=");
+    write_text((processed.provenance.source == MEASUREMENT_CAL_SOURCE_PERSISTED) ? "PERSISTED" :
+               ((processed.provenance.source == MEASUREMENT_CAL_SOURCE_IDEAL) ? "IDEAL" : "NONE"));
+    write_text("\r\n");
+    if (processed.output_corrected)
+    {
+        write_text("z_raw_real_mohm=");
+        write_i32(milli_from_float(processed.raw_z_ohms.re));
+        write_text("\r\nz_raw_imag_mohm=");
+        write_i32(milli_from_float(processed.raw_z_ohms.im));
+        write_text("\r\n");
+    }
 
     write_text("dsp_status=");
-    write_text(measurement_status_string(result.status));
+    write_text(measurement_status_string(processed.result.status));
     write_text("\r\nreturn_channel=");
-    write_text((result.selected_channel == MEASUREMENT_RETURN_HG) ? "RET_HG" : "RET_1X");
+    write_text((processed.result.selected_channel == MEASUREMENT_RETURN_HG) ? "RET_HG" : "RET_1X");
     write_text("\r\nz_real_mohm=");
-    write_i32(milli_from_float(result.impedance.z_ohms.re));
+    write_i32(milli_from_float(processed.result.impedance.z_ohms.re));
     write_text("\r\nz_imag_mohm=");
-    write_i32(milli_from_float(result.impedance.z_ohms.im));
+    write_i32(milli_from_float(processed.result.impedance.z_ohms.im));
     write_text("\r\nz_mag_mohm=");
-    write_i32(milli_from_float(result.derived.magnitude_ohms));
+    write_i32(milli_from_float(processed.result.derived.magnitude_ohms));
     write_text("\r\nphase_mrad=");
-    write_i32(milli_from_float(result.derived.phase_rad));
+    write_i32(milli_from_float(processed.result.derived.phase_rad));
     write_text("\r\ninterpretation=");
-    write_text(measurement_interpretation_string(result.derived.interpretation));
+    write_text(measurement_interpretation_string(processed.result.derived.interpretation));
     write_text("\r\nDSP_END\r\n");
 }
 
-static void lab_dump_metrology_header(const hw_metrology_block_t *block)
+static void lab_dump_metrology_header(const app_lab_console_t *console, const hw_metrology_block_t *block)
 {
     write_text("METROLOGY_RAW_BEGIN v=1\r\n");
     write_text("mode=");
@@ -1496,7 +1608,7 @@ static void lab_dump_metrology_header(const hw_metrology_block_t *block)
         write_u32(block->k1_release_guard_ms);
     }
     write_text("\r\n");
-    lab_dump_metrology_dsp_summary(block);
+    lab_dump_metrology_dsp_summary(console, block);
     write_text("index,vexc1,ret1x,vexc2,rethg,vmid_adc1,vmid_adc2\r\n");
 }
 
@@ -1592,7 +1704,7 @@ static void lab_step_metrology_capture(app_lab_console_t *console, uint32_t now_
         if (hw_metrology_session_dumpable(&console->session))
         {
             const hw_metrology_block_t *block = hw_metrology_session_block(&console->session);
-            lab_dump_metrology_header(block);
+            lab_dump_metrology_header(console, block);
             console->dump_row = 0u;
             console->dump_source = APP_LAB_METROLOGY_DUMP_CAPTURE;
             console->dump_active = true;
@@ -1630,7 +1742,7 @@ static void lab_step_metrology_measure(app_lab_console_t *console, uint32_t now_
         if (hw_metrology_measure_dumpable(&console->measure))
         {
             const hw_metrology_block_t *block = hw_metrology_measure_block(&console->measure);
-            lab_dump_metrology_header(block);
+            lab_dump_metrology_header(console, block);
             console->dump_row = 0u;
             console->dump_source = APP_LAB_METROLOGY_DUMP_MEASURE;
             console->dump_active = true;
@@ -1853,7 +1965,11 @@ static void run_command(app_lab_console_t *console,
     }
     else if (text_equals(line, "lab cal status"))
     {
-        write_calibration_status(flash);
+        write_calibration_status(console, flash);
+    }
+    else if (text_equals(line, "lab cal dump"))
+    {
+        write_calibration_dump(console, flash);
     }
     else if (text_equals(line, "lab permit status"))
     {
@@ -1870,6 +1986,7 @@ static void run_command(app_lab_console_t *console,
             write_text("lab auto: BUSY\r\n");
             return;
         }
+        update_calibration_runtime(console, flash);
         lab_start_auto_measure(console, now_ms);
     }
     else if (parse_capture_tokens(line, &capture_freq, &capture_amp, &capture_range))
@@ -1915,6 +2032,9 @@ void app_lab_console_init(app_lab_console_t *console)
     console->dump_source = APP_LAB_METROLOGY_DUMP_NONE;
     console->auto_hint = (measurement_auto_hint_t){0};
     console->auto_sequence = 0u;
+    console->cal_store_ready = false;
+    console->cal_active_valid = false;
+    console->cal_active_slot = MEASUREMENT_CAL_STORE_SLOT_A;
     console->range_ref = NULL;
     console->k1_ref = NULL;
     console->sensors_ref = NULL;

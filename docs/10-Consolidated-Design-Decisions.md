@@ -233,11 +233,11 @@ Calibration persistence uses W25Q. The STM32F103C8T6 has no native EEPROM; repos
 
 ## Calibration persistence and correction substrate
 
-The first persisted calibration substrate uses two independent compatibility versions:
+The persisted calibration substrate uses two independent compatibility versions:
 
 ```text
-schema_version = 1              portable byte/framing schema
-model_version  = 1              direct complex correction model
+schema_version = 2              portable byte/framing schema
+model_version  = 2              direct complex correction model
 hardware_rev   = 0x00010001     Rev.1 STM32F103C8T6 firmware/hardware contract
 ```
 
@@ -272,20 +272,26 @@ Temperature metadata is stored as signed integer millidegrees C.
 The direct model represented by calibration records is:
 
 ```text
-volts = raw * code_to_volts + offset_volts       per ADC stream
+volts = raw * code_to_volts + offset_volts       global per ADC stream
 RET = VMID + (RET_HG - VMID) / H_HG              complex high-gain transfer
-ZREF = complex ZREF(frequency, range, amplitude, RET channel)
-Z_corrected = Z_raw * output_scale + output_offset
+ZREF = complex ZREF(frequency, range, amplitude)
+Z_corrected = Z_raw * output_scale[RET_1X or RET_HG] + output_offset[RET_1X or RET_HG]
 ```
 
-The output scale/offset term is reserved in the model but OPEN/SHORT/LOAD acquisition
-workflows are not implemented yet. Missing exact calibration can be explicitly resolved
-to ideal defaults for Lab/debug, but the result provenance remains `MISSING` and
-uncalibrated. Product qualification must not treat that fallback as calibrated.
+The output scale/offset term is applied after Phase 06 computes raw complex impedance,
+and derived quantities are recalculated from corrected impedance. OPEN/SHORT/LOAD
+acquisition workflows are not implemented yet. Missing exact calibration can be
+explicitly resolved to ideal defaults for Lab/debug, but the result provenance remains
+`MISSING` and uncalibrated. Product qualification must not treat that fallback as
+calibrated.
 
-Calibration keys include hardware revision, model version, range, frequency, amplitude,
-RET channel, and RET strategy. Stage 2A resolution is exact-condition only; there is no
-silent cross-frequency/range extrapolation.
+Calibration keys include hardware revision, model version, range, frequency, and
+amplitude. RET channel and RET strategy are deliberately excluded from the persistent
+pre-DSP lookup key because Phase 05 captures both return channels and Phase 06 selects
+the usable return path after DSP. Each condition record carries both RET_1X and RET_HG
+output-correction terms, avoiding a circular dependency between calibration lookup and
+RET selection. Stage 2A.1 resolution is exact-condition only; there is no silent
+cross-frequency/range extrapolation.
 
 W25Q layout reserves the mutable tail of each supported part:
 
@@ -306,6 +312,12 @@ Calibration set validity is not a boolean. Firmware distinguishes missing, corru
 schema-incompatible, hardware-incompatible, model-incompatible, incomplete, and valid
 sets with diagnostic flags. Phase 08 will consume this validity model for the mandatory
 calibration boot gate; Stage 2A only provides the substrate and tests.
+
+The calibration store is asynchronous against the W25Q driver. Erase and program use
+start/wait states and driver polling, and the store never starts a second W25Q mutation
+while one is active. Active calibration selection chooses the newest usable compatible
+complete set, not merely the newest CRC-valid frame; diagnostics still expose newer
+rejected slots.
 
 ## Localization
 

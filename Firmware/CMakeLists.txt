@@ -121,6 +121,7 @@ elseif(WTK_TARGET_PLATFORM STREQUAL "stm32")
         src/drivers/ili9341.c
         src/drivers/spi_bus.c
         src/drivers/w25q_device.c
+        src/storage/measurement_cal_w25q_adapter.c
         src/hardware/hw_backlight.c
         src/hardware/hw_buzzer.c
         src/hardware/hw_peripherals.c

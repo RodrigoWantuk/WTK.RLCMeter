@@ -15,6 +15,7 @@
 #include "hardware/hw_metrology_session.h"
 #include "hardware/hw_range.h"
 #include "hardware/hw_safety.h"
+#include "measurement/measurement_calibration_store.h"
 #include "wtk_build_config.h"
 
 enum
@@ -60,7 +61,13 @@ typedef struct
     hw_metrology_measure_t measure;
     app_measurement_session_t auto_measure;
     measurement_auto_hint_t auto_hint;
+    measurement_cal_store_t cal_store;
+    measurement_cal_set_t cal_active;
+    measurement_cal_store_slot_info_t cal_slots[2];
     uint32_t auto_sequence;
+    measurement_cal_store_slot_t cal_active_slot;
+    bool cal_store_ready;
+    bool cal_active_valid;
     app_lab_metrology_dump_source_t dump_source;
     uint16_t dump_row;
     bool dump_active;

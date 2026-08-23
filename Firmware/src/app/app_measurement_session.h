@@ -45,7 +45,7 @@ typedef struct
     bsp_status_t (*attempt_abort)(void *user);
     bsp_status_t (*process_block)(const hw_metrology_block_t *block,
                                   const measurement_attempt_config_t *attempt,
-                                  measurement_result_t *result,
+                                  measurement_calibrated_result_t *result,
                                   void *user);
     void *user;
 } app_measurement_session_io_t;
@@ -55,7 +55,7 @@ typedef struct
     app_measurement_session_io_t io;
     measurement_auto_session_t policy;
     measurement_attempt_config_t current_attempt;
-    measurement_result_t dsp_result;
+    measurement_calibrated_result_t dsp_result;
     measurement_session_result_t last_partial;
     measurement_session_result_t last_final;
     const bsp_clock_summary_t *clock_summary;
@@ -99,7 +99,7 @@ app_measurement_session_state_t app_measurement_session_state(
 
 measurement_attempt_result_t app_measurement_attempt_from_dsp(
     const measurement_attempt_config_t *attempt,
-    const measurement_result_t *dsp,
+    const measurement_calibrated_result_t *processed,
     bool phase05_failed,
     bool safety_abort,
     bool canceled);

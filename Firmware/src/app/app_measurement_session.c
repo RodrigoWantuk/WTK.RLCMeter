@@ -356,12 +356,13 @@ app_measurement_session_state_t app_measurement_session_state(
 
 measurement_attempt_result_t app_measurement_attempt_from_dsp(
     const measurement_attempt_config_t *attempt,
-    const measurement_result_t *dsp,
+    const measurement_calibrated_result_t *processed,
     bool phase05_failed,
     bool safety_abort,
     bool canceled)
 {
     measurement_attempt_result_t result = {0};
+    const measurement_result_t *dsp = (processed != NULL) ? &processed->result : NULL;
     if (attempt != NULL)
     {
         result.config = *attempt;
@@ -374,10 +375,14 @@ measurement_attempt_result_t app_measurement_attempt_from_dsp(
         .source = MEASUREMENT_CAL_SOURCE_IDEAL,
         .status = MEASUREMENT_CAL_RESOLVE_MISSING,
         .set_sequence = 0u,
-        .model_version = MEASUREMENT_CAL_MODEL_VERSION_DIRECT_V1,
+        .model_version = MEASUREMENT_CAL_MODEL_VERSION_CURRENT,
         .condition_id = 0u,
         .uncalibrated = true,
     };
+    if (processed != NULL)
+    {
+        result.calibration = processed->provenance;
+    }
     if (dsp != NULL)
     {
         result.z_ohms = dsp->impedance.z_ohms;
@@ -399,15 +404,16 @@ measurement_attempt_result_t app_measurement_attempt_from_dsp(
         result.dut_zref_ratio =
             measurement_complex_mag(result.z_ohms) /
             max_float(range_zref_mag(result.config.range_id), 1.0e-6f);
-        const measurement_cal_key_t cal_key =
-            measurement_cal_key(MEASUREMENT_CAL_HARDWARE_REV1,
-                                MEASUREMENT_CAL_MODEL_VERSION_DIRECT_V1,
-                                result.config.range_id,
-                                result.config.frequency,
-                                result.config.amplitude,
-                                result.selected_channel,
-                                (uint8_t)result.config.ret_strategy);
-        result.calibration.condition_id = measurement_cal_condition_id(&cal_key);
+        if (processed == NULL)
+        {
+            const measurement_cal_key_t cal_key =
+                measurement_cal_key(MEASUREMENT_CAL_HARDWARE_REV1,
+                                    MEASUREMENT_CAL_MODEL_VERSION_CURRENT,
+                                    result.config.range_id,
+                                    result.config.frequency,
+                                    result.config.amplitude);
+            result.calibration.condition_id = measurement_cal_condition_id(&cal_key);
+        }
     }
     result.ret_evidence = measurement_auto_evaluate_ret_evidence(&result);
     return result;

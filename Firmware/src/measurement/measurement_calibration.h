@@ -11,15 +11,17 @@
 
 enum
 {
-    MEASUREMENT_CAL_SCHEMA_VERSION = 1u,
+    MEASUREMENT_CAL_SCHEMA_VERSION = 2u,
     MEASUREMENT_CAL_MODEL_VERSION_DIRECT_V1 = 1u,
+    MEASUREMENT_CAL_MODEL_VERSION_DIRECT_V2 = 2u,
+    MEASUREMENT_CAL_MODEL_VERSION_CURRENT = MEASUREMENT_CAL_MODEL_VERSION_DIRECT_V2,
     MEASUREMENT_CAL_HARDWARE_REV1 = 0x00010001u,
     MEASUREMENT_CAL_FRAME_MAGIC = 0x434C4157u,
     MEASUREMENT_CAL_FRAME_HEADER_BYTES = 64u,
     MEASUREMENT_CAL_COMMIT_MARKER = 0x54494D43u,
-    MEASUREMENT_CAL_MAX_RECORDS = 12u,
-    MEASUREMENT_CAL_MAX_REQUIRED_KEYS = 8u,
-    MEASUREMENT_CAL_MAX_FRAME_BYTES = 1536u,
+    MEASUREMENT_CAL_MAX_RECORDS = 30u,
+    MEASUREMENT_CAL_MAX_REQUIRED_KEYS = 30u,
+    MEASUREMENT_CAL_MAX_FRAME_BYTES = 3072u,
 };
 
 typedef enum
@@ -36,7 +38,8 @@ typedef enum
     MEASUREMENT_CAL_FLAG_ADC = 1u << 0,
     MEASUREMENT_CAL_FLAG_RET_HG = 1u << 1,
     MEASUREMENT_CAL_FLAG_ZREF = 1u << 2,
-    MEASUREMENT_CAL_FLAG_OUTPUT_CORRECTION = 1u << 3,
+    MEASUREMENT_CAL_FLAG_OUTPUT_CORRECTION_1X = 1u << 3,
+    MEASUREMENT_CAL_FLAG_OUTPUT_CORRECTION_HG = 1u << 4,
     MEASUREMENT_CAL_FLAG_QUALIFIED = 1u << 8,
 } measurement_cal_flags_t;
 
@@ -87,17 +90,20 @@ typedef struct
     hw_range_id_t range_id;
     hw_excitation_freq_t frequency;
     hw_excitation_amp_t amplitude;
-    measurement_return_channel_t ret_channel;
-    uint8_t ret_strategy;
 } measurement_cal_key_t;
 
 typedef struct
 {
-    measurement_adc_calibration_t adc;
+    measurement_complex_t scale;
+    measurement_complex_t offset_ohms;
+} measurement_cal_output_correction_t;
+
+typedef struct
+{
     measurement_complex_t ret_hg_transfer;
     measurement_complex_t zref_ohms;
-    measurement_complex_t output_scale;
-    measurement_complex_t output_offset_ohms;
+    measurement_cal_output_correction_t ret_1x_output;
+    measurement_cal_output_correction_t ret_hg_output;
     uint32_t flags;
 } measurement_cal_correction_t;
 
@@ -116,6 +122,8 @@ typedef struct
     uint32_t hardware_revision;
     uint16_t schema_version;
     uint16_t model_version;
+    bool adc_valid;
+    measurement_adc_calibration_t adc;
     uint8_t record_count;
     measurement_cal_record_t records[MEASUREMENT_CAL_MAX_RECORDS];
 } measurement_cal_set_t;
@@ -146,6 +154,22 @@ typedef struct
 
 typedef struct
 {
+    measurement_adc_calibration_t adc;
+    measurement_dsp_config_t config;
+    measurement_cal_correction_t correction;
+    measurement_calibration_provenance_t provenance;
+} measurement_cal_resolved_t;
+
+typedef struct
+{
+    measurement_result_t result;
+    measurement_complex_t raw_z_ohms;
+    measurement_calibration_provenance_t provenance;
+    bool output_corrected;
+} measurement_calibrated_result_t;
+
+typedef struct
+{
     uint32_t magic;
     uint16_t record_type;
     uint16_t schema_version;
@@ -162,11 +186,12 @@ measurement_cal_key_t measurement_cal_key(uint32_t hardware_revision,
                                           uint16_t model_version,
                                           hw_range_id_t range_id,
                                           hw_excitation_freq_t frequency,
-                                          hw_excitation_amp_t amplitude,
-                                          measurement_return_channel_t ret_channel,
-                                          uint8_t ret_strategy);
+                                          hw_excitation_amp_t amplitude);
 bool measurement_cal_key_equal(const measurement_cal_key_t *a, const measurement_cal_key_t *b);
 uint32_t measurement_cal_condition_id(const measurement_cal_key_t *key);
+bool measurement_cal_condition_allowed(hw_range_id_t range_id,
+                                       hw_excitation_freq_t frequency,
+                                       hw_excitation_amp_t amplitude);
 
 void measurement_cal_set_init(measurement_cal_set_t *set,
                               uint32_t hardware_revision,
@@ -175,6 +200,7 @@ void measurement_cal_set_init(measurement_cal_set_t *set,
 measurement_cal_record_t measurement_cal_make_ideal_record(const measurement_cal_key_t *key);
 bool measurement_cal_set_add_record(measurement_cal_set_t *set, const measurement_cal_record_t *record);
 measurement_cal_requirements_t measurement_cal_requirements_empty(void);
+measurement_cal_requirements_t measurement_cal_requirements_rev1_full(void);
 bool measurement_cal_requirements_add(measurement_cal_requirements_t *requirements,
                                       const measurement_cal_key_t *key);
 measurement_cal_validity_t measurement_cal_validate_set(
@@ -183,6 +209,11 @@ measurement_cal_validity_t measurement_cal_validate_set(
     uint32_t hardware_revision,
     uint16_t model_version);
 
+measurement_cal_resolve_status_t measurement_cal_resolve_condition(
+    const measurement_cal_set_t *set,
+    const measurement_cal_key_t *key,
+    bool allow_ideal_fallback,
+    measurement_cal_resolved_t *resolved);
 measurement_cal_resolve_status_t measurement_cal_resolve(
     const measurement_cal_set_t *set,
     const measurement_cal_key_t *key,
@@ -193,7 +224,14 @@ measurement_cal_resolve_status_t measurement_cal_resolve(
 
 measurement_complex_t measurement_cal_apply_output_correction(
     measurement_complex_t z_ohms,
-    const measurement_cal_correction_t *correction);
+    const measurement_cal_correction_t *correction,
+    measurement_return_channel_t selected_channel,
+    bool *applied);
+bsp_status_t measurement_cal_process_block(const hw_metrology_block_t *block,
+                                           const measurement_cal_set_t *set,
+                                           const measurement_cal_key_t *key,
+                                           bool allow_ideal_fallback,
+                                           measurement_calibrated_result_t *result);
 
 bool measurement_cal_serialize_set(const measurement_cal_set_t *set,
                                    uint8_t *dst,
@@ -204,6 +242,8 @@ bool measurement_cal_decode_set(const uint8_t *src,
                                 measurement_cal_set_t *set,
                                 measurement_cal_frame_info_t *info);
 
+uint32_t measurement_cal_record_size_bytes(void);
+uint32_t measurement_cal_set_size_bytes(void);
 const char *measurement_cal_resolve_status_string(measurement_cal_resolve_status_t status);
 const char *measurement_cal_validity_status_string(measurement_cal_validity_status_t status);
 

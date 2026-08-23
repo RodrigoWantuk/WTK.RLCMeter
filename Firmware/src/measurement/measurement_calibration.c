@@ -19,8 +19,8 @@ enum
     FRAME_OFF_RESERVED = 24u,
     FRAME_OFF_CRC32 = 56u,
     FRAME_OFF_COMMIT = 60u,
-    SET_PAYLOAD_HEADER_BYTES = 4u,
-    CAL_RECORD_BYTES = 112u,
+    SET_PAYLOAD_HEADER_BYTES = 56u,
+    CAL_RECORD_BYTES = 80u,
 };
 
 static bool finite_f(float value)
@@ -110,28 +110,58 @@ static bool valid_amplitude(hw_excitation_amp_t amplitude)
            (amplitude == HW_EXCITATION_AMP_500MVRMS);
 }
 
-static bool valid_ret(measurement_return_channel_t ret_channel)
+static uint32_t frequency_hz(hw_excitation_freq_t frequency)
 {
-    return (ret_channel == MEASUREMENT_RETURN_1X) ||
-           (ret_channel == MEASUREMENT_RETURN_HG);
+    switch (frequency)
+    {
+    case HW_EXCITATION_FREQ_100HZ:
+        return 100u;
+    case HW_EXCITATION_FREQ_1KHZ:
+        return 1000u;
+    case HW_EXCITATION_FREQ_10KHZ:
+        return 10000u;
+    case HW_EXCITATION_FREQ_INVALID:
+    default:
+        return 0u;
+    }
+}
+
+bool measurement_cal_condition_allowed(hw_range_id_t range_id,
+                                       hw_excitation_freq_t frequency,
+                                       hw_excitation_amp_t amplitude)
+{
+    if (!valid_range(range_id) || !valid_frequency(frequency) || !valid_amplitude(amplitude))
+    {
+        return false;
+    }
+    if ((range_id == HW_RANGE_ID_10R) && (amplitude == HW_EXCITATION_AMP_500MVRMS))
+    {
+        return false;
+    }
+    if ((range_id == HW_RANGE_ID_100K) && (frequency == HW_EXCITATION_FREQ_10KHZ))
+    {
+        return false;
+    }
+    if ((range_id == HW_RANGE_ID_1M) &&
+        ((frequency == HW_EXCITATION_FREQ_1KHZ) || (frequency == HW_EXCITATION_FREQ_10KHZ)))
+    {
+        return false;
+    }
+    return true;
 }
 
 measurement_cal_key_t measurement_cal_key(uint32_t hardware_revision,
                                           uint16_t model_version,
                                           hw_range_id_t range_id,
                                           hw_excitation_freq_t frequency,
-                                          hw_excitation_amp_t amplitude,
-                                          measurement_return_channel_t ret_channel,
-                                          uint8_t ret_strategy)
+                                          hw_excitation_amp_t amplitude)
 {
-    measurement_cal_key_t key = {
+    const measurement_cal_key_t key = {
         .hardware_revision = hardware_revision,
         .model_version = model_version,
         .range_id = range_id,
         .frequency = frequency,
         .amplitude = amplitude,
-        .ret_channel = ret_channel,
-        .ret_strategy = ret_strategy,
     };
     return key;
 }
@@ -143,9 +173,7 @@ bool measurement_cal_key_equal(const measurement_cal_key_t *a, const measurement
            (a->model_version == b->model_version) &&
            (a->range_id == b->range_id) &&
            (a->frequency == b->frequency) &&
-           (a->amplitude == b->amplitude) &&
-           (a->ret_channel == b->ret_channel) &&
-           (a->ret_strategy == b->ret_strategy);
+           (a->amplitude == b->amplitude);
 }
 
 uint32_t measurement_cal_condition_id(const measurement_cal_key_t *key)
@@ -154,15 +182,53 @@ uint32_t measurement_cal_condition_id(const measurement_cal_key_t *key)
     {
         return 0u;
     }
-    uint8_t bytes[16] = {0};
+    uint8_t bytes[12] = {0};
     write_u32(&bytes[0], key->hardware_revision);
     write_u16(&bytes[4], key->model_version);
     bytes[6] = (uint8_t)key->range_id;
     bytes[7] = (uint8_t)key->frequency;
     bytes[8] = (uint8_t)key->amplitude;
-    bytes[9] = (uint8_t)key->ret_channel;
-    bytes[10] = key->ret_strategy;
     return storage_crc32(bytes, sizeof(bytes));
+}
+
+static bool key_valid(const measurement_cal_key_t *key)
+{
+    return (key != NULL) &&
+           (key->hardware_revision == MEASUREMENT_CAL_HARDWARE_REV1) &&
+           (key->model_version == MEASUREMENT_CAL_MODEL_VERSION_CURRENT) &&
+           measurement_cal_condition_allowed(key->range_id, key->frequency, key->amplitude);
+}
+
+static bool scale_finite(measurement_adc_scale_t scale)
+{
+    return finite_f(scale.code_to_volts) && finite_f(scale.offset_volts);
+}
+
+static bool adc_finite(const measurement_adc_calibration_t *adc)
+{
+    return (adc != NULL) &&
+           scale_finite(adc->vexc_1) &&
+           scale_finite(adc->ret_1x) &&
+           scale_finite(adc->vexc_2) &&
+           scale_finite(adc->ret_hg) &&
+           scale_finite(adc->vmid_adc1) &&
+           scale_finite(adc->vmid_adc2);
+}
+
+static bool output_finite(const measurement_cal_output_correction_t *correction)
+{
+    return (correction != NULL) &&
+           measurement_complex_is_finite(correction->scale) &&
+           measurement_complex_is_finite(correction->offset_ohms);
+}
+
+static bool correction_finite(const measurement_cal_correction_t *correction)
+{
+    return (correction != NULL) &&
+           measurement_complex_is_finite(correction->ret_hg_transfer) &&
+           measurement_complex_is_finite(correction->zref_ohms) &&
+           output_finite(&correction->ret_1x_output) &&
+           output_finite(&correction->ret_hg_output);
 }
 
 void measurement_cal_set_init(measurement_cal_set_t *set,
@@ -179,6 +245,8 @@ void measurement_cal_set_init(measurement_cal_set_t *set,
     set->hardware_revision = hardware_revision;
     set->schema_version = MEASUREMENT_CAL_SCHEMA_VERSION;
     set->model_version = model_version;
+    set->adc = measurement_adc_calibration_ideal();
+    set->adc_valid = true;
 }
 
 measurement_cal_record_t measurement_cal_make_ideal_record(const measurement_cal_key_t *key)
@@ -189,15 +257,16 @@ measurement_cal_record_t measurement_cal_make_ideal_record(const measurement_cal
         record.key = *key;
     }
     measurement_dsp_config_t config = measurement_dsp_config_ideal(record.key.range_id);
-    record.correction.adc = measurement_adc_calibration_ideal();
     record.correction.ret_hg_transfer = config.ret_hg_transfer;
     record.correction.zref_ohms = config.zref_ohms;
-    record.correction.output_scale = measurement_complex(1.0f, 0.0f);
-    record.correction.output_offset_ohms = measurement_complex(0.0f, 0.0f);
-    record.correction.flags = MEASUREMENT_CAL_FLAG_ADC |
-                              MEASUREMENT_CAL_FLAG_RET_HG |
+    record.correction.ret_1x_output.scale = measurement_complex(1.0f, 0.0f);
+    record.correction.ret_1x_output.offset_ohms = measurement_complex(0.0f, 0.0f);
+    record.correction.ret_hg_output.scale = measurement_complex(1.0f, 0.0f);
+    record.correction.ret_hg_output.offset_ohms = measurement_complex(0.0f, 0.0f);
+    record.correction.flags = MEASUREMENT_CAL_FLAG_RET_HG |
                               MEASUREMENT_CAL_FLAG_ZREF |
-                              MEASUREMENT_CAL_FLAG_OUTPUT_CORRECTION;
+                              MEASUREMENT_CAL_FLAG_OUTPUT_CORRECTION_1X |
+                              MEASUREMENT_CAL_FLAG_OUTPUT_CORRECTION_HG;
     record.record_type = MEASUREMENT_CAL_RECORD_CONDITION;
     record.temperature_mC = 25000;
     record.condition_id = measurement_cal_condition_id(&record.key);
@@ -206,7 +275,10 @@ measurement_cal_record_t measurement_cal_make_ideal_record(const measurement_cal
 
 bool measurement_cal_set_add_record(measurement_cal_set_t *set, const measurement_cal_record_t *record)
 {
-    if ((set == NULL) || (record == NULL) || (set->record_count >= MEASUREMENT_CAL_MAX_RECORDS))
+    if ((set == NULL) || (record == NULL) || (set->record_count >= MEASUREMENT_CAL_MAX_RECORDS) ||
+        (record->record_type != MEASUREMENT_CAL_RECORD_CONDITION) || !key_valid(&record->key) ||
+        !correction_finite(&record->correction) ||
+        (record->condition_id != measurement_cal_condition_id(&record->key)))
     {
         return false;
     }
@@ -217,7 +289,7 @@ bool measurement_cal_set_add_record(measurement_cal_set_t *set, const measuremen
 
 measurement_cal_requirements_t measurement_cal_requirements_empty(void)
 {
-    measurement_cal_requirements_t requirements = {0};
+    const measurement_cal_requirements_t requirements = {0};
     return requirements;
 }
 
@@ -225,7 +297,7 @@ bool measurement_cal_requirements_add(measurement_cal_requirements_t *requiremen
                                       const measurement_cal_key_t *key)
 {
     if ((requirements == NULL) || (key == NULL) ||
-        (requirements->count >= MEASUREMENT_CAL_MAX_REQUIRED_KEYS))
+        (requirements->count >= MEASUREMENT_CAL_MAX_REQUIRED_KEYS) || !key_valid(key))
     {
         return false;
     }
@@ -234,36 +306,33 @@ bool measurement_cal_requirements_add(measurement_cal_requirements_t *requiremen
     return true;
 }
 
-static bool correction_finite(const measurement_cal_correction_t *correction)
+measurement_cal_requirements_t measurement_cal_requirements_rev1_full(void)
 {
-    return (correction != NULL) &&
-           finite_f(correction->adc.vexc_1.code_to_volts) &&
-           finite_f(correction->adc.vexc_1.offset_volts) &&
-           finite_f(correction->adc.ret_1x.code_to_volts) &&
-           finite_f(correction->adc.ret_1x.offset_volts) &&
-           finite_f(correction->adc.vexc_2.code_to_volts) &&
-           finite_f(correction->adc.vexc_2.offset_volts) &&
-           finite_f(correction->adc.ret_hg.code_to_volts) &&
-           finite_f(correction->adc.ret_hg.offset_volts) &&
-           finite_f(correction->adc.vmid_adc1.code_to_volts) &&
-           finite_f(correction->adc.vmid_adc1.offset_volts) &&
-           finite_f(correction->adc.vmid_adc2.code_to_volts) &&
-           finite_f(correction->adc.vmid_adc2.offset_volts) &&
-           measurement_complex_is_finite(correction->ret_hg_transfer) &&
-           measurement_complex_is_finite(correction->zref_ohms) &&
-           measurement_complex_is_finite(correction->output_scale) &&
-           measurement_complex_is_finite(correction->output_offset_ohms);
-}
-
-static bool key_valid(const measurement_cal_key_t *key)
-{
-    return (key != NULL) &&
-           (key->hardware_revision == MEASUREMENT_CAL_HARDWARE_REV1) &&
-           (key->model_version == MEASUREMENT_CAL_MODEL_VERSION_DIRECT_V1) &&
-           valid_range(key->range_id) &&
-           valid_frequency(key->frequency) &&
-           valid_amplitude(key->amplitude) &&
-           valid_ret(key->ret_channel);
+    measurement_cal_requirements_t requirements = measurement_cal_requirements_empty();
+    for (hw_range_id_t range = HW_RANGE_ID_10R; range <= HW_RANGE_ID_1M; range++)
+    {
+        for (hw_excitation_freq_t freq = HW_EXCITATION_FREQ_100HZ;
+             freq <= HW_EXCITATION_FREQ_10KHZ;
+             freq++)
+        {
+            for (hw_excitation_amp_t amp = HW_EXCITATION_AMP_100MVRMS;
+                 amp <= HW_EXCITATION_AMP_500MVRMS;
+                 amp++)
+            {
+                if (measurement_cal_condition_allowed(range, freq, amp))
+                {
+                    const measurement_cal_key_t key =
+                        measurement_cal_key(MEASUREMENT_CAL_HARDWARE_REV1,
+                                            MEASUREMENT_CAL_MODEL_VERSION_CURRENT,
+                                            range,
+                                            freq,
+                                            amp);
+                    (void)measurement_cal_requirements_add(&requirements, &key);
+                }
+            }
+        }
+    }
+    return requirements;
 }
 
 static const measurement_cal_record_t *find_record(const measurement_cal_set_t *set,
@@ -319,10 +388,18 @@ measurement_cal_validity_t measurement_cal_validate_set(
         validity.flags |= MEASUREMENT_CAL_VALID_FLAG_MODEL;
         return validity;
     }
+    if (!set->adc_valid || !adc_finite(&set->adc))
+    {
+        validity.status = MEASUREMENT_CAL_VALIDITY_INCOMPLETE;
+        validity.flags |= MEASUREMENT_CAL_VALID_FLAG_INCOMPLETE;
+        return validity;
+    }
     for (uint8_t i = 0u; i < set->record_count; i++)
     {
         const measurement_cal_record_t *record = &set->records[i];
-        if (!key_valid(&record->key) || !correction_finite(&record->correction) ||
+        if ((record->record_type != MEASUREMENT_CAL_RECORD_CONDITION) ||
+            !key_valid(&record->key) ||
+            !correction_finite(&record->correction) ||
             (record->condition_id != measurement_cal_condition_id(&record->key)))
         {
             validity.status = MEASUREMENT_CAL_VALIDITY_CORRUPT;
@@ -353,30 +430,30 @@ measurement_cal_validity_t measurement_cal_validate_set(
     return validity;
 }
 
-static void fill_from_record(const measurement_cal_record_t *record,
-                             measurement_adc_calibration_t *adc,
-                             measurement_dsp_config_t *config)
+static void fill_from_record(const measurement_cal_set_t *set,
+                             const measurement_cal_record_t *record,
+                             measurement_cal_resolved_t *resolved)
 {
-    *adc = record->correction.adc;
-    *config = measurement_dsp_config_ideal(record->key.range_id);
-    config->ret_hg_transfer = record->correction.ret_hg_transfer;
-    config->zref_ohms = record->correction.zref_ohms;
+    resolved->adc = ((set != NULL) && set->adc_valid) ? set->adc : measurement_adc_calibration_ideal();
+    resolved->config = measurement_dsp_config_ideal(record->key.range_id);
+    resolved->config.ret_hg_transfer = record->correction.ret_hg_transfer;
+    resolved->config.zref_ohms = record->correction.zref_ohms;
+    resolved->correction = record->correction;
 }
 
-measurement_cal_resolve_status_t measurement_cal_resolve(
+measurement_cal_resolve_status_t measurement_cal_resolve_condition(
     const measurement_cal_set_t *set,
     const measurement_cal_key_t *key,
     bool allow_ideal_fallback,
-    measurement_adc_calibration_t *adc,
-    measurement_dsp_config_t *config,
-    measurement_calibration_provenance_t *provenance)
+    measurement_cal_resolved_t *resolved)
 {
-    if ((key == NULL) || (adc == NULL) || (config == NULL) || (provenance == NULL))
+    if ((key == NULL) || (resolved == NULL))
     {
         return MEASUREMENT_CAL_RESOLVE_INVALID_ARG;
     }
 
-    *provenance = (measurement_calibration_provenance_t){
+    *resolved = (measurement_cal_resolved_t){0};
+    resolved->provenance = (measurement_calibration_provenance_t){
         .source = MEASUREMENT_CAL_SOURCE_NONE,
         .status = MEASUREMENT_CAL_RESOLVE_MISSING,
         .set_sequence = 0u,
@@ -387,51 +464,145 @@ measurement_cal_resolve_status_t measurement_cal_resolve(
 
     if (!key_valid(key))
     {
-        provenance->status = MEASUREMENT_CAL_RESOLVE_INCOMPATIBLE;
+        resolved->provenance.status = MEASUREMENT_CAL_RESOLVE_INCOMPATIBLE;
         return MEASUREMENT_CAL_RESOLVE_INCOMPATIBLE;
     }
 
     const measurement_cal_record_t *record = find_record(set, key);
     if (record != NULL)
     {
-        if (!correction_finite(&record->correction))
+        if (((set != NULL) && (!set->adc_valid || !adc_finite(&set->adc))) ||
+            !correction_finite(&record->correction))
         {
-            provenance->status = MEASUREMENT_CAL_RESOLVE_CORRUPT;
+            resolved->provenance.status = MEASUREMENT_CAL_RESOLVE_CORRUPT;
             return MEASUREMENT_CAL_RESOLVE_CORRUPT;
         }
-        fill_from_record(record, adc, config);
-        provenance->source = MEASUREMENT_CAL_SOURCE_PERSISTED;
-        provenance->set_sequence = (set != NULL) ? set->sequence : 0u;
-        provenance->model_version = record->key.model_version;
-        provenance->condition_id = record->condition_id;
-        provenance->uncalibrated = (record->correction.flags & MEASUREMENT_CAL_FLAG_QUALIFIED) == 0u;
-        provenance->status = provenance->uncalibrated ? MEASUREMENT_CAL_RESOLVE_UNQUALIFIED :
-                                                        MEASUREMENT_CAL_RESOLVE_FOUND;
-        return provenance->status;
+        fill_from_record(set, record, resolved);
+        resolved->provenance.source = MEASUREMENT_CAL_SOURCE_PERSISTED;
+        resolved->provenance.set_sequence = (set != NULL) ? set->sequence : 0u;
+        resolved->provenance.model_version = record->key.model_version;
+        resolved->provenance.condition_id = record->condition_id;
+        resolved->provenance.uncalibrated =
+            (record->correction.flags & MEASUREMENT_CAL_FLAG_QUALIFIED) == 0u;
+        resolved->provenance.status = resolved->provenance.uncalibrated ?
+                                          MEASUREMENT_CAL_RESOLVE_UNQUALIFIED :
+                                          MEASUREMENT_CAL_RESOLVE_FOUND;
+        return resolved->provenance.status;
     }
 
     if (allow_ideal_fallback)
     {
         const measurement_cal_record_t ideal = measurement_cal_make_ideal_record(key);
-        fill_from_record(&ideal, adc, config);
-        provenance->source = MEASUREMENT_CAL_SOURCE_IDEAL;
-        provenance->status = MEASUREMENT_CAL_RESOLVE_MISSING;
-        provenance->uncalibrated = true;
+        fill_from_record(NULL, &ideal, resolved);
+        resolved->provenance.source = MEASUREMENT_CAL_SOURCE_IDEAL;
+        resolved->provenance.status = MEASUREMENT_CAL_RESOLVE_MISSING;
+        resolved->provenance.uncalibrated = true;
     }
-    return provenance->status;
+    return resolved->provenance.status;
+}
+
+measurement_cal_resolve_status_t measurement_cal_resolve(
+    const measurement_cal_set_t *set,
+    const measurement_cal_key_t *key,
+    bool allow_ideal_fallback,
+    measurement_adc_calibration_t *adc,
+    measurement_dsp_config_t *config,
+    measurement_calibration_provenance_t *provenance)
+{
+    if ((adc == NULL) || (config == NULL) || (provenance == NULL))
+    {
+        return MEASUREMENT_CAL_RESOLVE_INVALID_ARG;
+    }
+    measurement_cal_resolved_t resolved;
+    const measurement_cal_resolve_status_t status =
+        measurement_cal_resolve_condition(set, key, allow_ideal_fallback, &resolved);
+    if ((status == MEASUREMENT_CAL_RESOLVE_FOUND) ||
+        (status == MEASUREMENT_CAL_RESOLVE_UNQUALIFIED) ||
+        (status == MEASUREMENT_CAL_RESOLVE_MISSING))
+    {
+        *adc = resolved.adc;
+        *config = resolved.config;
+    }
+    *provenance = resolved.provenance;
+    return status;
 }
 
 measurement_complex_t measurement_cal_apply_output_correction(
     measurement_complex_t z_ohms,
-    const measurement_cal_correction_t *correction)
+    const measurement_cal_correction_t *correction,
+    measurement_return_channel_t selected_channel,
+    bool *applied)
 {
-    if ((correction == NULL) ||
-        ((correction->flags & MEASUREMENT_CAL_FLAG_OUTPUT_CORRECTION) == 0u))
+    if (applied != NULL)
+    {
+        *applied = false;
+    }
+    if (correction == NULL)
     {
         return z_ohms;
     }
-    return measurement_complex_add(measurement_complex_mul(z_ohms, correction->output_scale),
-                                   correction->output_offset_ohms);
+    const bool use_hg = selected_channel == MEASUREMENT_RETURN_HG;
+    const uint32_t flag = use_hg ? MEASUREMENT_CAL_FLAG_OUTPUT_CORRECTION_HG :
+                                   MEASUREMENT_CAL_FLAG_OUTPUT_CORRECTION_1X;
+    const measurement_cal_output_correction_t *selected =
+        use_hg ? &correction->ret_hg_output : &correction->ret_1x_output;
+    if ((correction->flags & flag) == 0u)
+    {
+        return z_ohms;
+    }
+    if (applied != NULL)
+    {
+        *applied = true;
+    }
+    return measurement_complex_add(measurement_complex_mul(z_ohms, selected->scale),
+                                   selected->offset_ohms);
+}
+
+bsp_status_t measurement_cal_process_block(const hw_metrology_block_t *block,
+                                           const measurement_cal_set_t *set,
+                                           const measurement_cal_key_t *key,
+                                           bool allow_ideal_fallback,
+                                           measurement_calibrated_result_t *result)
+{
+    if ((block == NULL) || (key == NULL) || (result == NULL))
+    {
+        return BSP_STATUS_INVALID_ARG;
+    }
+    *result = (measurement_calibrated_result_t){0};
+    measurement_cal_resolved_t resolved;
+    const measurement_cal_resolve_status_t resolve_status =
+        measurement_cal_resolve_condition(set, key, allow_ideal_fallback, &resolved);
+    if ((resolve_status != MEASUREMENT_CAL_RESOLVE_FOUND) &&
+        (resolve_status != MEASUREMENT_CAL_RESOLVE_UNQUALIFIED) &&
+        (resolve_status != MEASUREMENT_CAL_RESOLVE_MISSING))
+    {
+        result->provenance = resolved.provenance;
+        return BSP_STATUS_ERROR;
+    }
+
+    result->provenance = resolved.provenance;
+    const bsp_status_t status =
+        measurement_process_block(block, &resolved.adc, &resolved.config, &result->result);
+    if (status != BSP_STATUS_OK)
+    {
+        return status;
+    }
+    result->raw_z_ohms = result->result.impedance.z_ohms;
+    const measurement_complex_t corrected =
+        measurement_cal_apply_output_correction(result->raw_z_ohms,
+                                                &resolved.correction,
+                                                result->result.selected_channel,
+                                                &result->output_corrected);
+    if (result->output_corrected)
+    {
+        result->result.impedance.z_ohms = corrected;
+        result->result.derived =
+            measurement_derive_quantities(corrected,
+                                          frequency_hz(key->frequency),
+                                          &resolved.config,
+                                          result->result.impedance.status);
+    }
+    return BSP_STATUS_OK;
 }
 
 static void encode_scale(uint8_t **cursor, measurement_adc_scale_t scale)
@@ -444,7 +615,7 @@ static void encode_scale(uint8_t **cursor, measurement_adc_scale_t scale)
 
 static measurement_adc_scale_t decode_scale(const uint8_t **cursor)
 {
-    measurement_adc_scale_t scale = {
+    const measurement_adc_scale_t scale = {
         .code_to_volts = read_f32(*cursor),
         .offset_volts = read_f32(*cursor + sizeof(uint32_t)),
     };
@@ -462,12 +633,32 @@ static void encode_complex(uint8_t **cursor, measurement_complex_t value)
 
 static measurement_complex_t decode_complex(const uint8_t **cursor)
 {
-    measurement_complex_t value = {
+    const measurement_complex_t value = {
         .re = read_f32(*cursor),
         .im = read_f32(*cursor + sizeof(uint32_t)),
     };
     *cursor += 2u * sizeof(uint32_t);
     return value;
+}
+
+static void encode_adc(uint8_t **cursor, const measurement_adc_calibration_t *adc)
+{
+    encode_scale(cursor, adc->vexc_1);
+    encode_scale(cursor, adc->ret_1x);
+    encode_scale(cursor, adc->vexc_2);
+    encode_scale(cursor, adc->ret_hg);
+    encode_scale(cursor, adc->vmid_adc1);
+    encode_scale(cursor, adc->vmid_adc2);
+}
+
+static void decode_adc(const uint8_t **cursor, measurement_adc_calibration_t *adc)
+{
+    adc->vexc_1 = decode_scale(cursor);
+    adc->ret_1x = decode_scale(cursor);
+    adc->vexc_2 = decode_scale(cursor);
+    adc->ret_hg = decode_scale(cursor);
+    adc->vmid_adc1 = decode_scale(cursor);
+    adc->vmid_adc2 = decode_scale(cursor);
 }
 
 static void encode_record(uint8_t *dst, const measurement_cal_record_t *record)
@@ -480,8 +671,6 @@ static void encode_record(uint8_t *dst, const measurement_cal_record_t *record)
     *cursor++ = (uint8_t)record->key.range_id;
     *cursor++ = (uint8_t)record->key.frequency;
     *cursor++ = (uint8_t)record->key.amplitude;
-    *cursor++ = (uint8_t)record->key.ret_channel;
-    *cursor++ = record->key.ret_strategy;
     *cursor++ = (uint8_t)record->record_type;
     write_i32(cursor, record->temperature_mC);
     cursor += sizeof(uint32_t);
@@ -489,16 +678,12 @@ static void encode_record(uint8_t *dst, const measurement_cal_record_t *record)
     cursor += sizeof(uint32_t);
     write_u32(cursor, record->correction.flags);
     cursor += sizeof(uint32_t);
-    encode_scale(&cursor, record->correction.adc.vexc_1);
-    encode_scale(&cursor, record->correction.adc.ret_1x);
-    encode_scale(&cursor, record->correction.adc.vexc_2);
-    encode_scale(&cursor, record->correction.adc.ret_hg);
-    encode_scale(&cursor, record->correction.adc.vmid_adc1);
-    encode_scale(&cursor, record->correction.adc.vmid_adc2);
     encode_complex(&cursor, record->correction.ret_hg_transfer);
     encode_complex(&cursor, record->correction.zref_ohms);
-    encode_complex(&cursor, record->correction.output_scale);
-    encode_complex(&cursor, record->correction.output_offset_ohms);
+    encode_complex(&cursor, record->correction.ret_1x_output.scale);
+    encode_complex(&cursor, record->correction.ret_1x_output.offset_ohms);
+    encode_complex(&cursor, record->correction.ret_hg_output.scale);
+    encode_complex(&cursor, record->correction.ret_hg_output.offset_ohms);
     while ((uint32_t)(cursor - dst) < CAL_RECORD_BYTES)
     {
         *cursor++ = 0u;
@@ -515,8 +700,6 @@ static bool decode_record(const uint8_t *src, measurement_cal_record_t *record)
     record->key.range_id = (hw_range_id_t)*cursor++;
     record->key.frequency = (hw_excitation_freq_t)*cursor++;
     record->key.amplitude = (hw_excitation_amp_t)*cursor++;
-    record->key.ret_channel = (measurement_return_channel_t)*cursor++;
-    record->key.ret_strategy = *cursor++;
     record->record_type = (measurement_cal_record_type_t)*cursor++;
     record->temperature_mC = read_i32(cursor);
     cursor += sizeof(uint32_t);
@@ -524,17 +707,14 @@ static bool decode_record(const uint8_t *src, measurement_cal_record_t *record)
     cursor += sizeof(uint32_t);
     record->correction.flags = read_u32(cursor);
     cursor += sizeof(uint32_t);
-    record->correction.adc.vexc_1 = decode_scale(&cursor);
-    record->correction.adc.ret_1x = decode_scale(&cursor);
-    record->correction.adc.vexc_2 = decode_scale(&cursor);
-    record->correction.adc.ret_hg = decode_scale(&cursor);
-    record->correction.adc.vmid_adc1 = decode_scale(&cursor);
-    record->correction.adc.vmid_adc2 = decode_scale(&cursor);
     record->correction.ret_hg_transfer = decode_complex(&cursor);
     record->correction.zref_ohms = decode_complex(&cursor);
-    record->correction.output_scale = decode_complex(&cursor);
-    record->correction.output_offset_ohms = decode_complex(&cursor);
-    return key_valid(&record->key) &&
+    record->correction.ret_1x_output.scale = decode_complex(&cursor);
+    record->correction.ret_1x_output.offset_ohms = decode_complex(&cursor);
+    record->correction.ret_hg_output.scale = decode_complex(&cursor);
+    record->correction.ret_hg_output.offset_ohms = decode_complex(&cursor);
+    return (record->record_type == MEASUREMENT_CAL_RECORD_CONDITION) &&
+           key_valid(&record->key) &&
            (record->condition_id == measurement_cal_condition_id(&record->key)) &&
            correction_finite(&record->correction);
 }
@@ -545,7 +725,8 @@ bool measurement_cal_serialize_set(const measurement_cal_set_t *set,
                                    size_t *written)
 {
     if ((set == NULL) || (dst == NULL) || (written == NULL) ||
-        (set->record_count > MEASUREMENT_CAL_MAX_RECORDS))
+        (set->record_count > MEASUREMENT_CAL_MAX_RECORDS) ||
+        !adc_finite(&set->adc))
     {
         return false;
     }
@@ -553,7 +734,8 @@ bool measurement_cal_serialize_set(const measurement_cal_set_t *set,
     const size_t payload_length = SET_PAYLOAD_HEADER_BYTES +
                                   ((size_t)set->record_count * (size_t)CAL_RECORD_BYTES);
     const size_t total = MEASUREMENT_CAL_FRAME_HEADER_BYTES + payload_length;
-    if ((capacity < total) || (total > MEASUREMENT_CAL_MAX_FRAME_BYTES))
+    if ((capacity < total) || (total > MEASUREMENT_CAL_MAX_FRAME_BYTES) ||
+        (payload_length > 0xFFFFu))
     {
         return false;
     }
@@ -568,15 +750,24 @@ bool measurement_cal_serialize_set(const measurement_cal_set_t *set,
     write_u32(&dst[FRAME_OFF_SEQUENCE], set->sequence);
     write_u32(&dst[FRAME_OFF_HARDWARE], set->hardware_revision);
     write_u16(&dst[FRAME_OFF_MODEL], set->model_version);
-    write_u16(&dst[FRAME_OFF_FLAGS], 0u);
+    write_u16(&dst[FRAME_OFF_FLAGS], set->adc_valid ? (uint16_t)MEASUREMENT_CAL_FLAG_ADC : 0u);
     write_u32(&dst[FRAME_OFF_CRC32], 0u);
     write_u32(&dst[FRAME_OFF_COMMIT], 0xFFFFFFFFu);
 
     uint8_t *payload = &dst[MEASUREMENT_CAL_FRAME_HEADER_BYTES];
     write_u16(&payload[0], set->record_count);
     write_u16(&payload[2], 0u);
+    write_u32(&payload[4], set->adc_valid ? (uint32_t)MEASUREMENT_CAL_FLAG_ADC : 0u);
+    uint8_t *cursor = &payload[8];
+    encode_adc(&cursor, &set->adc);
     for (uint8_t i = 0u; i < set->record_count; i++)
     {
+        if ((set->records[i].condition_id != measurement_cal_condition_id(&set->records[i].key)) ||
+            !key_valid(&set->records[i].key) ||
+            !correction_finite(&set->records[i].correction))
+        {
+            return false;
+        }
         encode_record(&payload[SET_PAYLOAD_HEADER_BYTES + ((size_t)i * (size_t)CAL_RECORD_BYTES)],
                       &set->records[i]);
     }
@@ -596,7 +787,7 @@ bool measurement_cal_decode_set(const uint8_t *src,
     {
         return false;
     }
-    measurement_cal_frame_info_t frame = {
+    const measurement_cal_frame_info_t frame = {
         .magic = read_u32(&src[FRAME_OFF_MAGIC]),
         .record_type = read_u16(&src[FRAME_OFF_RECORD_TYPE]),
         .schema_version = read_u16(&src[FRAME_OFF_SCHEMA]),
@@ -633,14 +824,24 @@ bool measurement_cal_decode_set(const uint8_t *src,
 
     const uint8_t *payload = &src[MEASUREMENT_CAL_FRAME_HEADER_BYTES];
     const uint16_t count = read_u16(&payload[0]);
+    const uint32_t adc_flags = read_u32(&payload[4]);
     if ((count > MEASUREMENT_CAL_MAX_RECORDS) ||
         ((size_t)frame.payload_length !=
-         (SET_PAYLOAD_HEADER_BYTES + ((size_t)count * (size_t)CAL_RECORD_BYTES))))
+         (SET_PAYLOAD_HEADER_BYTES + ((size_t)count * (size_t)CAL_RECORD_BYTES))) ||
+        ((adc_flags & MEASUREMENT_CAL_FLAG_ADC) == 0u))
     {
         return false;
     }
 
     measurement_cal_set_init(set, frame.hardware_revision, frame.model_version, frame.sequence);
+    set->adc_valid = true;
+    const uint8_t *cursor = &payload[8];
+    decode_adc(&cursor, &set->adc);
+    if (!adc_finite(&set->adc))
+    {
+        return false;
+    }
+
     for (uint16_t i = 0u; i < count; i++)
     {
         measurement_cal_record_t record = {0};
@@ -652,6 +853,16 @@ bool measurement_cal_decode_set(const uint8_t *src,
         }
     }
     return true;
+}
+
+uint32_t measurement_cal_record_size_bytes(void)
+{
+    return (uint32_t)sizeof(measurement_cal_record_t);
+}
+
+uint32_t measurement_cal_set_size_bytes(void)
+{
+    return (uint32_t)sizeof(measurement_cal_set_t);
 }
 
 const char *measurement_cal_resolve_status_string(measurement_cal_resolve_status_t status)

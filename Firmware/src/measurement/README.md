@@ -117,14 +117,32 @@ inputs:
 ```text
 measurement_adc_calibration_t
 measurement_dsp_config_t
+measurement_calibrated_result_t
 ```
 
 The DSP does not parse Flash records. Missing exact calibration may use ideal Lab/debug
 defaults only with explicit `MISSING/uncalibrated` provenance.
 
+The persisted schema v2 uses a pre-DSP physical condition key:
+
+```text
+hardware revision
+model version
+range
+frequency
+amplitude
+```
+
+RET channel and RET strategy are not persistent key dimensions. Phase 05 captures both
+return paths and Phase 06 selects the usable return path, so one condition resolution
+returns corrections for both RET_1X and RET_HG. The calibration wrapper applies the
+selected-channel output correction after raw impedance calculation and then recomputes
+derived values.
+
 The persisted format is manually serialized little-endian data with CRC32 and a commit
-marker written last. The store uses two W25Q slots and preserves the previous valid set
-across interrupted candidate writes.
+marker written last. The store uses two W25Q slots, asynchronous erase/program
+start/wait states, and preserves the previous usable valid set across interrupted or
+incomplete candidate writes.
 
 ## Output
 

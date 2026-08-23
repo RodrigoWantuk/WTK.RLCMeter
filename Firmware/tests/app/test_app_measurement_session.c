@@ -211,19 +211,28 @@ static bsp_status_t fake_attempt_abort(void *user)
 
 static bsp_status_t fake_process_block(const hw_metrology_block_t *block,
                                        const measurement_attempt_config_t *attempt,
-                                       measurement_result_t *result,
+                                       measurement_calibrated_result_t *processed,
                                        void *user)
 {
     (void)block;
     fake_io_t *fake = (fake_io_t *)user;
-    if ((fake == NULL) || (attempt == NULL) || (result == NULL) ||
+    if ((fake == NULL) || (attempt == NULL) || (processed == NULL) ||
         (fake->process_count >= fake->outcome_count))
     {
         return BSP_STATUS_ERROR;
     }
     const fake_outcome_t *outcome = &fake->outcomes[fake->process_count];
     fake->process_count++;
-    *result = (measurement_result_t){0};
+    *processed = (measurement_calibrated_result_t){0};
+    measurement_result_t *result = &processed->result;
+    processed->provenance = (measurement_calibration_provenance_t){
+        .source = MEASUREMENT_CAL_SOURCE_IDEAL,
+        .status = MEASUREMENT_CAL_RESOLVE_MISSING,
+        .set_sequence = 0u,
+        .model_version = MEASUREMENT_CAL_MODEL_VERSION_CURRENT,
+        .condition_id = 0u,
+        .uncalibrated = true,
+    };
     result->status = outcome->dsp_status;
     result->phasors.vexc_1_peak_v = outcome->source_peak_v;
     result->phasors.vexc_2_peak_v = outcome->source_peak_v;

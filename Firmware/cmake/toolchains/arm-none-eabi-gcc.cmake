@@ -1,10 +1,18 @@
 set(CMAKE_SYSTEM_NAME Generic)
 set(CMAKE_SYSTEM_PROCESSOR cortex-m3)
 
-set(CMAKE_C_COMPILER arm-none-eabi-gcc)
-set(CMAKE_ASM_COMPILER arm-none-eabi-gcc)
-set(CMAKE_OBJCOPY arm-none-eabi-objcopy CACHE FILEPATH "Arm objcopy")
-set(CMAKE_SIZE arm-none-eabi-size CACHE FILEPATH "Arm size")
+file(GLOB WTK_ARM_TOOLCHAIN_HINTS
+    "C:/Program Files (x86)/Arm GNU Toolchain arm-none-eabi/*/bin"
+    "C:/Program Files/Arm GNU Toolchain arm-none-eabi/*/bin"
+)
+
+find_program(WTK_ARM_GCC arm-none-eabi-gcc HINTS ${WTK_ARM_TOOLCHAIN_HINTS} REQUIRED)
+find_program(WTK_ARM_OBJCOPY arm-none-eabi-objcopy HINTS ${WTK_ARM_TOOLCHAIN_HINTS} REQUIRED)
+find_program(WTK_ARM_SIZE arm-none-eabi-size HINTS ${WTK_ARM_TOOLCHAIN_HINTS} REQUIRED)
+set(CMAKE_C_COMPILER "${WTK_ARM_GCC}")
+set(CMAKE_ASM_COMPILER "${WTK_ARM_GCC}")
+set(CMAKE_OBJCOPY "${WTK_ARM_OBJCOPY}" CACHE FILEPATH "Arm objcopy" FORCE)
+set(CMAKE_SIZE "${WTK_ARM_SIZE}" CACHE FILEPATH "Arm size" FORCE)
 
 set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
 set(CMAKE_EXECUTABLE_SUFFIX ".elf")
@@ -21,6 +29,3 @@ set(CMAKE_C_FLAGS_RELEASE_INIT "-Os -g0 -DNDEBUG")
 set(CMAKE_EXE_LINKER_FLAGS_DEBUG_INIT "")
 set(CMAKE_EXE_LINKER_FLAGS_LAB_INIT "")
 set(CMAKE_EXE_LINKER_FLAGS_RELEASE_INIT "")
-
-find_program(CMAKE_OBJCOPY arm-none-eabi-objcopy REQUIRED)
-find_program(CMAKE_SIZE arm-none-eabi-size REQUIRED)

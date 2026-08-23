@@ -8,7 +8,10 @@ STATUS: IMPLEMENTED
 Stage 1B — End-to-end automatic session orchestration:
 STATUS: IMPLEMENTED_REQUIRES_BENCH_VALIDATION
 
-Stage 2A — Calibration data model / correction architecture / persistence substrate:
+Stage 2A — Initial calibration data model / correction architecture / persistence substrate:
+STATUS: IMPLEMENTED
+
+Stage 2A.1 — Calibration substrate hardening / async W25Q integration / correction plumbing:
 STATUS: IMPLEMENTED_REQUIRES_BENCH_VALIDATION
 
 Stage 2B — OPEN-SHORT-LOAD workflows / calibration acquisition:
@@ -188,7 +191,7 @@ resistive dominance, capacitive/inductive qualitative frequency trend support, a
 trend inconsistency. Trend evidence is tolerant and qualitative; it is not an ideal
 component-law fit, and ambiguous/non-ideal networks may remain `MIXED_OR_UNKNOWN`.
 
-## Stage 2A implementation boundary
+## Stage 2A / 2A.1 implementation boundary
 
 Phase 07 Stage 2A implements the calibration substrate without starting any
 OPEN/SHORT/LOAD user workflow.
@@ -206,35 +209,35 @@ Firmware/tools/inspect_calibration_record.py
 The active persistent schema is:
 
 ```text
-MEASUREMENT_CAL_SCHEMA_VERSION = 1
-MEASUREMENT_CAL_MODEL_VERSION_DIRECT_V1 = 1
+MEASUREMENT_CAL_SCHEMA_VERSION = 2
+MEASUREMENT_CAL_MODEL_VERSION_DIRECT_V2 = 2
 MEASUREMENT_CAL_HARDWARE_REV1 = 0x00010001
 ```
 
 `schema_version` describes the portable byte framing. `model_version` describes the
 mathematical correction model. They are intentionally separate compatibility axes.
 
-The Stage 2A correction model is the conservative direct model:
+The Stage 2A.1 correction model is the conservative direct model:
 
 ```text
-per-channel ADC scale/offset:
+global per-channel ADC scale/offset:
     volts = raw * code_to_volts + offset_volts
 
 complex high-gain transfer:
     RET = VMID + (RET_HG - VMID) / H_HG
 
 complex ZREF:
-    ZREF(frequency, range, amplitude, RET channel)
+    ZREF(frequency, range, amplitude)
 
-optional complex output correction:
-    Z_corrected = Z_raw * output_scale + output_offset
+optional complex output correction per selected return path:
+    Z_corrected = Z_raw * output_scale[RET_1X or RET_HG] + output_offset[RET_1X or RET_HG]
 ```
 
 This does not implement OPEN/SHORT/LOAD correction capture. The record types reserve
 values for future OPEN, SHORT, and LOAD evidence so Stage 2B can add workflows without
 changing the frame contract gratuitously.
 
-Calibration keys include:
+Calibration keys intentionally include only the physical pre-DSP condition:
 
 ```text
 hardware_revision
@@ -242,14 +245,19 @@ model_version
 range_id
 frequency
 amplitude
-RET channel
-RET strategy
 ```
 
-Resolution is exact-condition only in Stage 2A. Missing exact calibration may fall back
-to the ideal DSP defaults only when the caller explicitly allows that behavior; the
-provenance is then reported as `source=IDEAL`, `status=MISSING`, and `uncalibrated=true`.
-This is acceptable for Lab/debug bring-up but is not a product qualification claim.
+RET channel and RET strategy are not key dimensions. Phase 05 captures both return
+paths and Phase 06 selects the usable channel after DSP; therefore the calibration
+record carries both RET_1X and RET_HG output-correction terms together. This removes
+the circular dependency where persistent lookup previously needed a RET choice before
+the DSP made one.
+
+Resolution is exact-condition only in Stage 2A.1. Missing exact calibration may fall
+back to the ideal DSP defaults only when the caller explicitly allows that behavior;
+the provenance is then reported as `source=IDEAL`, `status=MISSING`, and
+`uncalibrated=true`. This is acceptable for Lab/debug bring-up but is not a product
+qualification claim.
 
 Resolution statuses are explicit:
 
@@ -284,8 +292,8 @@ Portable frame contract:
 ```text
 little-endian fields only
 header size = 64 bytes
-max frame size = 1536 bytes
-payload = calibration set header + fixed-size condition records
+max frame size = 3072 bytes
+payload = set header with global ADC correction + fixed-size condition records
 CRC32 = IEEE reflected CRC32 over header fields excluding CRC/commit plus payload
 commit marker = 0x54494D43, programmed last
 temperature = signed integer millidegrees C
@@ -322,7 +330,26 @@ If power is lost before commit, the previous valid slot remains active. If power
 after commit, the newly committed CRC-valid sequence may become active. The host NOR
 emulator enforces erase-to-`0xFF` and 1->0-only programming.
 
-Stage 2A does not yet add the Phase 08 mandatory calibration boot gate. Missing
+The store API is asynchronous. `measurement_cal_store_step(store, now_ms)` starts one
+W25Q erase/program operation, waits through the driver `poll()` contract, and never
+starts a second mutation while the previous one is active. The real W25Q adapter maps
+the portable store IO onto `w25q_device_read()`,
+`w25q_device_sector_erase_start()`, `w25q_device_page_program_start()`, and
+`w25q_device_poll()`; no duplicate SPI path is introduced.
+
+The newest CRC-valid slot is not automatically selected for product use. Active
+selection requires a usable compatible complete set. Diagnostics still expose newer
+rejected slots as missing/corrupt/incompatible/incomplete.
+
+The Phase 05/06 processing integration applies the resolved output correction to the
+raw complex impedance and recomputes derived quantities. Result metadata preserves
+calibration provenance (`IDEAL`, `PERSISTED`, missing/unqualified/found status,
+sequence, model, and condition ID) for later UI/qualification policy.
+
+Lab diagnostics expose `lab cal status` for active/slot validity and `lab cal dump` for
+a read-only compact listing of the active calibration records.
+
+Stage 2A.1 does not yet add the Phase 08 mandatory calibration boot gate. Missing
 calibration remains diagnosable and explicit, and product-ready measurement blocking
 will be wired when the UI/boot calibration flow is implemented.
 
