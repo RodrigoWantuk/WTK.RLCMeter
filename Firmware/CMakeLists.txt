@@ -50,6 +50,7 @@ configure_file(
 
 add_library(wtk_firmware_common STATIC
     src/app/app_safety_fault.c
+    src/app/app_calibration_runtime.c
     src/app/app_measurement_session.c
     src/app/app_version.c
     src/bsp/bsp_adc_common.c
@@ -102,6 +103,10 @@ if(WTK_TARGET_PLATFORM STREQUAL "host")
     enable_testing()
     add_subdirectory(tests)
 elseif(WTK_TARGET_PLATFORM STREQUAL "stm32")
+    if(CMAKE_C_COMPILER_ID MATCHES "GNU")
+        target_compile_options(wtk_firmware_common PRIVATE -fstack-usage)
+    endif()
+
     add_executable(wtk_rlcmeter
         src/app/app_shell.c
         src/app/app_lab_console.c
@@ -144,6 +149,9 @@ elseif(WTK_TARGET_PLATFORM STREQUAL "stm32")
     wtk_apply_project_warnings(wtk_rlcmeter)
     wtk_apply_common_compile_options(wtk_rlcmeter)
     wtk_configure_stm32cube_f1(wtk_rlcmeter)
+    if(CMAKE_C_COMPILER_ID MATCHES "GNU")
+        target_compile_options(wtk_rlcmeter PRIVATE -fstack-usage)
+    endif()
 
     if(WTK_WARNINGS_AS_ERRORS_STM32)
         wtk_treat_warnings_as_errors(wtk_rlcmeter)

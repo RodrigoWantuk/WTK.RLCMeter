@@ -7,7 +7,15 @@ enum
     COMMIT_OFFSET = 60u,
     COMMIT_BYTES = 4u,
     PAGE_BYTES = 256u,
+    KEY_BITS_PER_RANGE = 6u,
+    KEY_BITS_PER_FREQ = 2u,
+    MEASUREMENT_CAL_STORE_CONTEXT_BUDGET_BYTES = 6400u,
 };
+
+_Static_assert(sizeof(measurement_cal_set_t) <= MEASUREMENT_CAL_MAX_FRAME_BYTES,
+               "decoded calibration set must fit one persisted frame");
+_Static_assert(sizeof(measurement_cal_store_t) <= MEASUREMENT_CAL_STORE_CONTEXT_BUDGET_BYTES,
+               "calibration store scratch exceeded SRAM budget");
 
 static bool io_valid(const measurement_cal_store_io_t *io)
 {
@@ -18,9 +26,118 @@ static bool io_valid(const measurement_cal_store_io_t *io)
            (io->poll != NULL);
 }
 
+static bool read_slot_info(measurement_cal_store_t *store,
+                           measurement_cal_store_slot_t slot,
+                           measurement_cal_set_t *set,
+                           measurement_cal_store_slot_info_t *info,
+                           const measurement_cal_requirements_t *requirements,
+                           uint32_t hardware_revision,
+                           uint16_t model_version);
+
 bool measurement_cal_store_sequence_newer(uint32_t a, uint32_t b)
 {
     return (a != b) && ((uint32_t)(a - b) < 0x80000000u);
+}
+
+static bool key_bit(const measurement_cal_key_t *key, uint8_t *bit)
+{
+    if ((key == NULL) || (bit == NULL) ||
+        (key->hardware_revision != MEASUREMENT_CAL_HARDWARE_REV1) ||
+        (key->model_version != MEASUREMENT_CAL_MODEL_VERSION_CURRENT) ||
+        !measurement_cal_condition_allowed(key->range_id, key->frequency, key->amplitude))
+    {
+        return false;
+    }
+    if ((key->range_id > HW_RANGE_ID_1M) ||
+        (key->frequency > HW_EXCITATION_FREQ_10KHZ) ||
+        (key->amplitude > HW_EXCITATION_AMP_500MVRMS))
+    {
+        return false;
+    }
+    *bit = (uint8_t)(((uint8_t)key->range_id * KEY_BITS_PER_RANGE) +
+                     ((uint8_t)key->frequency * KEY_BITS_PER_FREQ) +
+                     (uint8_t)key->amplitude);
+    return *bit < 64u;
+}
+
+static bool set_key_mask(const measurement_cal_set_t *set, uint64_t *mask)
+{
+    if ((set == NULL) || (mask == NULL) || (set->record_count > MEASUREMENT_CAL_MAX_RECORDS))
+    {
+        return false;
+    }
+    uint64_t built = 0u;
+    for (uint8_t i = 0u; i < set->record_count; i++)
+    {
+        uint8_t bit = 0u;
+        if (!key_bit(&set->records[i].key, &bit))
+        {
+            return false;
+        }
+        const uint64_t flag = (uint64_t)1u << bit;
+        if ((built & flag) != 0u)
+        {
+            return false;
+        }
+        built |= flag;
+    }
+    *mask = built;
+    return true;
+}
+
+static bool set_matches_expected_mask(const measurement_cal_set_t *set, uint64_t expected_mask)
+{
+    uint64_t actual_mask = 0u;
+    return set_key_mask(set, &actual_mask) && (actual_mask == expected_mask);
+}
+
+static bool find_newest_decoded_slot(measurement_cal_store_t *store,
+                                     const measurement_cal_requirements_t *requirements,
+                                     measurement_cal_store_slot_t *slot,
+                                     uint32_t *sequence)
+{
+    bool have_best = false;
+    uint32_t best_sequence = 0u;
+    measurement_cal_store_slot_t best_slot = MEASUREMENT_CAL_STORE_SLOT_A;
+    measurement_cal_set_t *candidate = &store->scan_set;
+
+    for (uint8_t i = 0u; i < 2u; i++)
+    {
+        const measurement_cal_store_slot_t current_slot = (measurement_cal_store_slot_t)i;
+        const bool decoded = read_slot_info(store,
+                                            current_slot,
+                                            candidate,
+                                            NULL,
+                                            requirements,
+                                            MEASUREMENT_CAL_HARDWARE_REV1,
+                                            MEASUREMENT_CAL_MODEL_VERSION_CURRENT);
+        const measurement_cal_validity_t validity =
+            measurement_cal_validate_set(decoded ? candidate : NULL,
+                                         requirements,
+                                         MEASUREMENT_CAL_HARDWARE_REV1,
+                                         MEASUREMENT_CAL_MODEL_VERSION_CURRENT);
+        if (decoded && (validity.status == MEASUREMENT_CAL_VALIDITY_VALID) &&
+            (!have_best || measurement_cal_store_sequence_newer(candidate->sequence, best_sequence)))
+        {
+            best_sequence = candidate->sequence;
+            best_slot = current_slot;
+            have_best = true;
+        }
+    }
+
+    if (!have_best)
+    {
+        return false;
+    }
+    if (slot != NULL)
+    {
+        *slot = best_slot;
+    }
+    if (sequence != NULL)
+    {
+        *sequence = best_sequence;
+    }
+    return true;
 }
 
 bsp_status_t measurement_cal_store_init(measurement_cal_store_t *store,
@@ -178,7 +295,6 @@ bsp_status_t measurement_cal_store_load_newest_usable(
     }
 
     measurement_cal_set_t *candidate = &store->scan_set;
-    measurement_cal_set_t best = {0};
     bool have_best = false;
     measurement_cal_store_slot_t best_slot = MEASUREMENT_CAL_STORE_SLOT_A;
 
@@ -199,9 +315,9 @@ bsp_status_t measurement_cal_store_load_newest_usable(
                                          hardware_revision,
                                          model_version);
         if (decoded && (validity.status == MEASUREMENT_CAL_VALIDITY_VALID) &&
-            (!have_best || measurement_cal_store_sequence_newer(candidate->sequence, best.sequence)))
+            (!have_best || measurement_cal_store_sequence_newer(candidate->sequence, set->sequence)))
         {
-            best = *candidate;
+            *set = *candidate;
             best_slot = current_slot;
             have_best = true;
         }
@@ -211,7 +327,6 @@ bsp_status_t measurement_cal_store_load_newest_usable(
     {
         return BSP_STATUS_ERROR;
     }
-    *set = best;
     if (slot != NULL)
     {
         *slot = best_slot;
@@ -234,70 +349,47 @@ bsp_status_t measurement_cal_store_write_start(measurement_cal_store_t *store,
         return BSP_STATUS_BUSY;
     }
 
-    measurement_cal_set_t staged = *candidate;
-    staged.schema_version = MEASUREMENT_CAL_SCHEMA_VERSION;
-    staged.model_version = MEASUREMENT_CAL_MODEL_VERSION_CURRENT;
-    store->staged_validity = measurement_cal_validate_set(&staged,
-                                                          requirements,
-                                                          MEASUREMENT_CAL_HARDWARE_REV1,
-                                                          MEASUREMENT_CAL_MODEL_VERSION_CURRENT);
-    if (store->staged_validity.status != MEASUREMENT_CAL_VALIDITY_VALID)
-    {
-        store->state = MEASUREMENT_CAL_STORE_ERROR;
-        store->last_status = BSP_STATUS_INVALID_ARG;
-        return BSP_STATUS_INVALID_ARG;
-    }
-
-    measurement_cal_set_t current;
-    measurement_cal_store_slot_t current_slot = MEASUREMENT_CAL_STORE_SLOT_B;
+    measurement_cal_store_slot_t newest_slot = MEASUREMENT_CAL_STORE_SLOT_B;
     measurement_cal_store_slot_t target_slot = MEASUREMENT_CAL_STORE_SLOT_A;
-    if (measurement_cal_store_load_newest(store, &current, NULL) == BSP_STATUS_OK)
+    uint32_t next_sequence = candidate->sequence;
+    uint32_t newest_sequence = 0u;
+    if (find_newest_decoded_slot(store, NULL, NULL, &newest_sequence))
     {
-        staged.sequence = current.sequence + 1u;
+        next_sequence = newest_sequence + 1u;
     }
-    else if (staged.sequence == 0u)
+    else if (next_sequence == 0u)
     {
-        staged.sequence = 1u;
+        next_sequence = 1u;
     }
-    if (measurement_cal_store_load_newest_usable(store,
-                                                 requirements,
-                                                 MEASUREMENT_CAL_HARDWARE_REV1,
-                                                 MEASUREMENT_CAL_MODEL_VERSION_CURRENT,
-                                                 &current,
-                                                 &current_slot,
-                                                 NULL) == BSP_STATUS_OK)
+    if (find_newest_decoded_slot(store, requirements, &newest_slot, NULL))
     {
-        target_slot = (current_slot == MEASUREMENT_CAL_STORE_SLOT_A) ? MEASUREMENT_CAL_STORE_SLOT_B :
-                                                                       MEASUREMENT_CAL_STORE_SLOT_A;
+        target_slot = (newest_slot == MEASUREMENT_CAL_STORE_SLOT_A) ? MEASUREMENT_CAL_STORE_SLOT_B :
+                                                                      MEASUREMENT_CAL_STORE_SLOT_A;
     }
 
     size_t written = 0u;
-    if (!measurement_cal_serialize_set(&staged, store->image, sizeof(store->image), &written))
+    if (!measurement_cal_serialize_set_with_header(candidate,
+                                                   MEASUREMENT_CAL_SCHEMA_VERSION,
+                                                   MEASUREMENT_CAL_MODEL_VERSION_CURRENT,
+                                                   next_sequence,
+                                                   store->image,
+                                                   sizeof(store->image),
+                                                   &written))
     {
         store->state = MEASUREMENT_CAL_STORE_ERROR;
         store->last_status = BSP_STATUS_INVALID_ARG;
         return BSP_STATUS_INVALID_ARG;
     }
 
-    measurement_cal_set_t decoded;
-    measurement_cal_requirements_t expected_keys = measurement_cal_requirements_empty();
-    for (uint8_t i = 0u; i < staged.record_count; i++)
-    {
-        if (!measurement_cal_requirements_add(&expected_keys, &staged.records[i].key))
-        {
-            store->state = MEASUREMENT_CAL_STORE_ERROR;
-            store->last_status = BSP_STATUS_INVALID_ARG;
-            return BSP_STATUS_INVALID_ARG;
-        }
-    }
-
-    if (!measurement_cal_decode_set(store->image, written, &decoded, NULL) ||
-        (decoded.sequence != staged.sequence) ||
-        (decoded.record_count != staged.record_count) ||
-        (measurement_cal_validate_set(&decoded,
-                                      &expected_keys,
-                                      staged.hardware_revision,
-                                      staged.model_version)
+    uint64_t expected_key_mask = 0u;
+    if (!measurement_cal_decode_set(store->image, written, &store->scan_set, NULL) ||
+        !set_key_mask(&store->scan_set, &expected_key_mask) ||
+        (store->scan_set.sequence != next_sequence) ||
+        (store->scan_set.record_count != candidate->record_count) ||
+        (measurement_cal_validate_set(&store->scan_set,
+                                      requirements,
+                                      MEASUREMENT_CAL_HARDWARE_REV1,
+                                      MEASUREMENT_CAL_MODEL_VERSION_CURRENT)
              .status != MEASUREMENT_CAL_VALIDITY_VALID))
     {
         store->state = MEASUREMENT_CAL_STORE_ERROR;
@@ -305,11 +397,15 @@ bsp_status_t measurement_cal_store_write_start(measurement_cal_store_t *store,
         return BSP_STATUS_ERROR;
     }
 
-    store->expected_sequence = staged.sequence;
-    store->expected_hardware_revision = staged.hardware_revision;
-    store->expected_model_version = staged.model_version;
-    store->expected_record_count = staged.record_count;
-    store->expected_keys = expected_keys;
+    store->staged_validity = measurement_cal_validate_set(&store->scan_set,
+                                                          requirements,
+                                                          MEASUREMENT_CAL_HARDWARE_REV1,
+                                                          MEASUREMENT_CAL_MODEL_VERSION_CURRENT);
+    store->expected_sequence = store->scan_set.sequence;
+    store->expected_hardware_revision = store->scan_set.hardware_revision;
+    store->expected_model_version = store->scan_set.model_version;
+    store->expected_record_count = store->scan_set.record_count;
+    store->expected_key_mask = expected_key_mask;
     store->image_size = written;
     store->program_offset = 0u;
     store->current_chunk = 0u;
@@ -511,13 +607,14 @@ bsp_status_t measurement_cal_store_step(measurement_cal_store_t *store, uint32_t
                             store->target_slot,
                             &store->scan_set,
                             &info,
-                            &store->expected_keys,
+                            NULL,
                             store->expected_hardware_revision,
                             store->expected_model_version) ||
             (store->scan_set.sequence != store->expected_sequence) ||
             (store->scan_set.hardware_revision != store->expected_hardware_revision) ||
             (store->scan_set.model_version != store->expected_model_version) ||
             (store->scan_set.record_count != store->expected_record_count) ||
+            !set_matches_expected_mask(&store->scan_set, store->expected_key_mask) ||
             (info.validity.status != MEASUREMENT_CAL_VALIDITY_VALID))
         {
             store->state = MEASUREMENT_CAL_STORE_ERROR;

@@ -205,40 +205,24 @@ static void write_auto_policy(void)
 
 static void update_calibration_runtime(app_lab_console_t *console, w25q_device_t *flash)
 {
-    if ((console == NULL) || (flash == NULL) || !flash->detected)
+    if ((console == NULL) || (console->cal_runtime == NULL) || (flash == NULL) || !flash->detected)
     {
-        if (console != NULL)
+        if ((console != NULL) && (console->cal_runtime != NULL))
         {
-            console->cal_store_ready = false;
-            console->cal_active_valid = false;
+            app_calibration_runtime_init(console->cal_runtime);
         }
         return;
     }
     const measurement_cal_store_io_t io = measurement_cal_w25q_store_io(flash);
-    const bsp_status_t init_status =
-        measurement_cal_store_init(&console->cal_store, &io, flash->part.capacity_bytes);
-    console->cal_store_ready = init_status == BSP_STATUS_OK;
-    console->cal_active_valid = false;
-    if (init_status != BSP_STATUS_OK)
-    {
-        return;
-    }
-
-    const measurement_cal_requirements_t req = measurement_cal_requirements_rev1_full();
-    const bsp_status_t load_status =
-        measurement_cal_store_load_newest_usable(&console->cal_store,
-                                                 &req,
-                                                 MEASUREMENT_CAL_HARDWARE_REV1,
-                                                 MEASUREMENT_CAL_MODEL_VERSION_CURRENT,
-                                                 &console->cal_active,
-                                                 &console->cal_active_slot,
-                                                 console->cal_slots);
-    console->cal_active_valid = load_status == BSP_STATUS_OK;
+    (void)app_calibration_runtime_refresh(console->cal_runtime,
+                                          &console->cal_store,
+                                          &io,
+                                          flash->part.capacity_bytes);
 }
 
 static const measurement_cal_set_t *active_calibration_set(const app_lab_console_t *console)
 {
-    return ((console != NULL) && console->cal_active_valid) ? &console->cal_active : NULL;
+    return (console != NULL) ? app_calibration_runtime_active_set(console->cal_runtime) : NULL;
 }
 
 static void write_slot_status(const measurement_cal_store_slot_info_t *slot)
@@ -274,21 +258,28 @@ static void write_calibration_status(app_lab_console_t *console, w25q_device_t *
     write_text(" hw=");
     write_hex8(MEASUREMENT_CAL_HARDWARE_REV1);
     write_text(" active=");
-    write_text(((console != NULL) && console->cal_active_valid) ? "1" : "0");
-    if ((console != NULL) && console->cal_active_valid)
+    write_text(((console != NULL) && app_calibration_runtime_active_valid(console->cal_runtime)) ? "1" : "0");
+    if ((console != NULL) && app_calibration_runtime_active_valid(console->cal_runtime))
     {
+        const measurement_cal_set_t *active = app_calibration_runtime_active_set(console->cal_runtime);
         write_text(" slot=");
-        write_text((console->cal_active_slot == MEASUREMENT_CAL_STORE_SLOT_A) ? "A" : "B");
+        write_text((app_calibration_runtime_active_slot(console->cal_runtime) == MEASUREMENT_CAL_STORE_SLOT_A) ?
+                       "A" :
+                       "B");
         write_text(" sequence=");
-        write_u32(console->cal_active.sequence);
+        write_u32(active->sequence);
         write_text(" records=");
-        write_u32(console->cal_active.record_count);
+        write_u32(active->record_count);
     }
     write_text("\r\n");
     write_text("CAL_STORE frame_max=");
     write_u32(MEASUREMENT_CAL_MAX_FRAME_BYTES);
     write_text(" context=");
     write_u32(measurement_cal_store_context_size_bytes());
+    write_text(" runtime=");
+    write_u32(app_calibration_runtime_context_size_bytes());
+    write_text(" lab=");
+    write_u32(app_lab_console_context_size_bytes());
     write_text("\r\n");
     if ((flash != NULL) && flash->detected)
     {
@@ -308,8 +299,13 @@ static void write_calibration_status(app_lab_console_t *console, w25q_device_t *
             write_text("\r\n");
             if (console != NULL)
             {
-                write_slot_status(&console->cal_slots[0]);
-                write_slot_status(&console->cal_slots[1]);
+                const measurement_cal_store_slot_info_t *slots =
+                    app_calibration_runtime_slots(console->cal_runtime);
+                if (slots != NULL)
+                {
+                    write_slot_status(&slots[0]);
+                    write_slot_status(&slots[1]);
+                }
             }
             return;
         }
@@ -320,21 +316,24 @@ static void write_calibration_status(app_lab_console_t *console, w25q_device_t *
 static void write_calibration_dump(app_lab_console_t *console, w25q_device_t *flash)
 {
     update_calibration_runtime(console, flash);
-    if ((console == NULL) || !console->cal_active_valid)
+    const measurement_cal_set_t *active = active_calibration_set(console);
+    if ((console == NULL) || (active == NULL))
     {
         write_text("CAL_DUMP unavailable\r\n");
         return;
     }
     write_text("CAL_DUMP_BEGIN\r\nsequence=");
-    write_u32(console->cal_active.sequence);
+    write_u32(active->sequence);
     write_text("\r\nslot=");
-    write_text((console->cal_active_slot == MEASUREMENT_CAL_STORE_SLOT_A) ? "A" : "B");
+    write_text((app_calibration_runtime_active_slot(console->cal_runtime) == MEASUREMENT_CAL_STORE_SLOT_A) ?
+                   "A" :
+                   "B");
     write_text("\r\nrecords=");
-    write_u32(console->cal_active.record_count);
+    write_u32(active->record_count);
     write_text("\r\n");
-    for (uint8_t i = 0u; i < console->cal_active.record_count; i++)
+    for (uint8_t i = 0u; i < active->record_count; i++)
     {
-        const measurement_cal_record_t *record = &console->cal_active.records[i];
+        const measurement_cal_record_t *record = &active->records[i];
         write_text("CAL_REC index=");
         write_u32(i);
         write_text(" condition=");
@@ -2038,9 +2037,7 @@ void app_lab_console_init(app_lab_console_t *console)
     console->dump_source = APP_LAB_METROLOGY_DUMP_NONE;
     console->auto_hint = (measurement_auto_hint_t){0};
     console->auto_sequence = 0u;
-    console->cal_store_ready = false;
-    console->cal_active_valid = false;
-    console->cal_active_slot = MEASUREMENT_CAL_STORE_SLOT_A;
+    console->cal_runtime = NULL;
     console->range_ref = NULL;
     console->k1_ref = NULL;
     console->sensors_ref = NULL;
@@ -2055,6 +2052,20 @@ void app_lab_console_init(app_lab_console_t *console)
     (void)lab_init_auto_measure(console);
 #else
     console->unused = 0u;
+#endif
+}
+
+void app_lab_console_attach_calibration_runtime(app_lab_console_t *console,
+                                                app_calibration_runtime_t *runtime)
+{
+#if WTK_ENABLE_LAB_DIAGNOSTICS
+    if (console != NULL)
+    {
+        console->cal_runtime = runtime;
+    }
+#else
+    (void)console;
+    (void)runtime;
 #endif
 }
 
@@ -2143,4 +2154,9 @@ bool app_lab_console_capture_busy(const app_lab_console_t *console)
     (void)console;
     return false;
 #endif
+}
+
+uint32_t app_lab_console_context_size_bytes(void)
+{
+    return (uint32_t)sizeof(app_lab_console_t);
 }

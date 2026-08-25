@@ -1,6 +1,7 @@
 #include "app/app_shell.h"
 
 #include "app/app_lab_console.h"
+#include "app/app_calibration_runtime.h"
 #include "app/app_safety_fault.h"
 #include "bsp/bsp_adc.h"
 #include "bsp/bsp_clock.h"
@@ -46,6 +47,7 @@ static hw_charger_t g_charger;
 static hw_aux_sensors_t g_aux_sensors;
 static app_safety_fault_latch_t g_safety_faults;
 static hw_safety_result_t g_safety_result;
+static app_calibration_runtime_t g_calibration_runtime;
 #if WTK_ENABLE_LAB_DIAGNOSTICS
 static app_lab_console_t g_lab_console;
 static bool g_display_ready_reported = false;
@@ -322,6 +324,7 @@ void app_shell_run(void)
     const bsp_reset_reason_t reset_reason = bsp_reset_capture_reason();
 
     app_safety_fault_init(&g_safety_faults);
+    app_calibration_runtime_init(&g_calibration_runtime);
     const bsp_status_t gpio_status = bsp_gpio_init_safe();
     app_record_status_fault(gpio_status, APP_SAFETY_FAULT_GPIO_INIT);
     const bsp_status_t clock_status = bsp_clock_init();
@@ -387,6 +390,7 @@ void app_shell_run(void)
     g_reported_primary_blocker = HW_SAFETY_BLOCKED_SENSOR_INVALID;
 #if WTK_ENABLE_LAB_DIAGNOSTICS
     app_lab_console_init(&g_lab_console);
+    app_lab_console_attach_calibration_runtime(&g_lab_console, &g_calibration_runtime);
     g_display_ready_reported = false;
 #endif
     w25q_device_init(&g_flash);

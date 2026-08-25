@@ -17,6 +17,9 @@ STATUS: IMPLEMENTED_REQUIRES_BENCH_VALIDATION
 Stage 2A.2 — Condition-domain / compatibility / record-integrity hardening:
 STATUS: IMPLEMENTED
 
+Stage 2A.3 — SRAM/stack hardening / calibration runtime ownership:
+STATUS: IMPLEMENTED
+
 Stage 2B — OPEN-SHORT-LOAD workflows / calibration acquisition:
 STATUS: NOT_STARTED
 
@@ -442,6 +445,74 @@ derive compact condition coefficients. The active production calibration set sho
 remain coefficient-focused and small in SRAM. If raw evidence is needed for audit or
 debug, it should be persisted separately from the active coefficient set rather than
 inflating `measurement_cal_set_t`.
+
+## Stage 2A.3 implementation boundary
+
+Stage 2A.3 hardens the calibration substrate for the STM32F103C8T6 SRAM and stack
+budget before OPEN/SHORT/LOAD workflow work begins. It does not implement calibration
+capture workflows, calibration wizards, or persistent raw evidence.
+
+Calibration store memory ownership is:
+
+```text
+measurement_cal_store_t
+    owns one serialized frame image while an async write is active
+    owns one decoded scan scratch set for slot scanning and verification
+    stores expected post-write identity as sequence/hardware/model/count/key-mask
+
+app_calibration_runtime_t
+    owns the active decoded calibration set and active-slot provenance
+    owns compact slot diagnostics
+    does not own W25Q or raw metrology buffers
+
+app_lab_console_t
+    owns Lab command state and a store scratch context
+    attaches to app_calibration_runtime_t through its public API
+    does not own the active calibration set
+```
+
+The store no longer places multiple complete `measurement_cal_set_t` objects on the
+normal embedded write path. `measurement_cal_store_write_start()` serializes the caller's
+const candidate with an explicit current schema/model/sequence header, decodes into the
+store scan scratch for preflight verification, then retains only the serialized image and
+compact expected identity for the asynchronous erase/program/verify state machine.
+`measurement_cal_store_load_newest_usable()` now copies a decoded candidate directly into
+the caller output when it becomes the newest valid choice instead of keeping a second
+full `best` set on the stack.
+
+Expected-key post-write verification is compact but remains semantic. It derives a
+bit-mask from the complete Rev.1 calibration key fields:
+
+```text
+hardware_revision
+model_version
+range
+frequency
+amplitude
+```
+
+The diagnostic `condition_id` remains non-authoritative and is not used as the write
+verification identity. Sequence, hardware revision, model version, record count, CRC,
+commit marker, duplicate-key rejection, and exact key-mask agreement must all pass.
+
+Current SRAM/stack policy:
+
+```text
+guaranteed SRAM:             20480 bytes
+minimum stack headroom:       2048 bytes
+maximum calibration frame:    3072 bytes
+W25Q calibration slot:        4096 bytes
+metrology raw DMA buffer:     BSP-owned; never copied by calibration runtime
+```
+
+STM32 builds enable GCC `-fstack-usage` so relevant stack frames can be audited from
+generated `.su` files. A compile-time guard keeps `measurement_cal_store_t` within its
+documented scratch budget. Lab-only diagnostics may retain extra command/dump state, but
+Release must not carry Lab-only console buffers or raw calibration workflow fixtures.
+
+Stage 2B must keep raw OPEN/SHORT/LOAD captures as transient acquisition evidence. It
+must reuse the existing Phase 05 raw block ownership, derive compact coefficients, and
+avoid copying complete raw ADC blocks into calibration/session contexts.
 
 ## Task 1 — Define measurement attempt model
 

@@ -2,6 +2,7 @@
 #include "measurement/measurement_calibration_store.h"
 #include "measurement/measurement_condition.h"
 #include "measurement/measurement_engine.h"
+#include "app/app_calibration_runtime.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -625,6 +626,45 @@ static int test_store_power_loss(void)
     return failures;
 }
 
+static int test_store_write_header_override_does_not_mutate_candidate(void)
+{
+    int failures = 0;
+    fake_nor_t nor;
+    fake_nor_init(&nor);
+    measurement_cal_store_t store;
+    measurement_cal_store_io_t io = fake_io(&nor);
+    failures += expect_true(measurement_cal_store_init(&store, &io, TEST_CAPACITY_BYTES) == BSP_STATUS_OK,
+                            "store init for header override");
+
+    measurement_cal_set_t candidate;
+    measurement_cal_set_init(&candidate,
+                             MEASUREMENT_CAL_HARDWARE_REV1,
+                             MEASUREMENT_CAL_MODEL_VERSION_CURRENT,
+                             0u);
+    const measurement_cal_key_t key = key_for(HW_RANGE_ID_1K, HW_EXCITATION_FREQ_1KHZ);
+    const measurement_cal_record_t record = measurement_cal_make_ideal_record(&key);
+    failures += expect_true(measurement_cal_set_add_record(&candidate, &record),
+                            "header override candidate record");
+    candidate.schema_version = 1u;
+    candidate.model_version = MEASUREMENT_CAL_MODEL_VERSION_DIRECT_V1;
+    failures += expect_true(write_to_completion(&store, &candidate) == 0, "header override write");
+    failures += expect_true(candidate.sequence == 0u, "candidate sequence not mutated");
+    failures += expect_true(candidate.schema_version == 1u, "candidate schema not mutated");
+    failures += expect_true(candidate.model_version == MEASUREMENT_CAL_MODEL_VERSION_DIRECT_V1,
+                            "candidate model not mutated");
+
+    measurement_cal_set_t loaded;
+    measurement_cal_store_slot_t slot;
+    failures += expect_true(measurement_cal_store_load_newest(&store, &loaded, &slot) == BSP_STATUS_OK,
+                            "header override load");
+    failures += expect_true(loaded.sequence == 1u, "stored sequence assigned");
+    failures += expect_true(loaded.schema_version == MEASUREMENT_CAL_SCHEMA_VERSION,
+                            "stored schema current");
+    failures += expect_true(loaded.model_version == MEASUREMENT_CAL_MODEL_VERSION_CURRENT,
+                            "stored model current");
+    return failures;
+}
+
 static int test_fake_nor_async_busy_and_page_rules(void)
 {
     int failures = 0;
@@ -734,6 +774,67 @@ static int exercise_incompatible_newer_slot(measurement_cal_set_t newer,
     failures += expect_true(info[1].frame_valid, "incompatible frame structurally valid");
     failures += expect_true(info[1].frame.sequence == 11u, "incompatible sequence preserved");
     failures += expect_true(info[1].validity.status == expected_status, message);
+    return failures;
+}
+
+static int test_app_calibration_runtime_loads_active_set(void)
+{
+    int failures = 0;
+    fake_nor_t nor;
+    fake_nor_init(&nor);
+
+    measurement_cal_set_t set;
+    measurement_cal_set_init(&set,
+                             MEASUREMENT_CAL_HARDWARE_REV1,
+                             MEASUREMENT_CAL_MODEL_VERSION_CURRENT,
+                             9u);
+    for (hw_range_id_t range = HW_RANGE_ID_10R; range <= HW_RANGE_ID_1M; range++)
+    {
+        for (hw_excitation_freq_t freq = HW_EXCITATION_FREQ_100HZ;
+             freq <= HW_EXCITATION_FREQ_10KHZ;
+             freq++)
+        {
+            for (hw_excitation_amp_t amp = HW_EXCITATION_AMP_100MVRMS;
+                 amp <= HW_EXCITATION_AMP_500MVRMS;
+                 amp++)
+            {
+                if (measurement_cal_condition_allowed(range, freq, amp))
+                {
+                    const measurement_cal_key_t key =
+                        measurement_cal_key(MEASUREMENT_CAL_HARDWARE_REV1,
+                                            MEASUREMENT_CAL_MODEL_VERSION_CURRENT,
+                                            range,
+                                            freq,
+                                            amp);
+                    measurement_cal_record_t record = measurement_cal_make_ideal_record(&key);
+                    record.correction.flags |= MEASUREMENT_CAL_FLAG_QUALIFIED;
+                    failures += expect_true(measurement_cal_set_add_record(&set, &record),
+                                            "runtime fixture record add");
+                }
+            }
+        }
+    }
+    failures += expect_true(fake_write_slot_frame(&nor, MEASUREMENT_CAL_STORE_SLOT_B, &set),
+                            "runtime fixture writes slot");
+
+    measurement_cal_store_t store_scratch;
+    app_calibration_runtime_t runtime;
+    app_calibration_runtime_init(&runtime);
+    measurement_cal_store_io_t io = fake_io(&nor);
+    failures += expect_true(app_calibration_runtime_refresh(&runtime,
+                                                            &store_scratch,
+                                                            &io,
+                                                            TEST_CAPACITY_BYTES) == BSP_STATUS_OK,
+                            "runtime refresh loads active calibration");
+    failures += expect_true(app_calibration_runtime_store_ready(&runtime), "runtime store ready");
+    failures += expect_true(app_calibration_runtime_active_valid(&runtime), "runtime active valid");
+    failures += expect_true(app_calibration_runtime_active_slot(&runtime) == MEASUREMENT_CAL_STORE_SLOT_B,
+                            "runtime records active slot");
+    const measurement_cal_set_t *active = app_calibration_runtime_active_set(&runtime);
+    failures += expect_true((active != NULL) && (active->sequence == 9u), "runtime active sequence");
+    failures += expect_true((active != NULL) &&
+                                (active->record_count == MEASUREMENT_CONDITION_REV1_MAX_SUPPORTED),
+                            "runtime active complete record count");
     return failures;
 }
 
@@ -961,10 +1062,16 @@ int main(int argc, char **argv)
     {
         (void)printf("measurement_cal_record_t=%lu\n",
                      (unsigned long)measurement_cal_record_size_bytes());
+        (void)printf("measurement_cal_key_t=%lu\n",
+                     (unsigned long)measurement_cal_key_size_bytes());
         (void)printf("measurement_cal_set_t=%lu\n",
                      (unsigned long)measurement_cal_set_size_bytes());
+        (void)printf("measurement_cal_requirements_t=%lu\n",
+                     (unsigned long)measurement_cal_requirements_size_bytes());
         (void)printf("measurement_cal_store_t=%lu\n",
                      (unsigned long)measurement_cal_store_context_size_bytes());
+        (void)printf("app_calibration_runtime_t=%lu\n",
+                     (unsigned long)app_calibration_runtime_context_size_bytes());
         return 0;
     }
 
@@ -976,7 +1083,9 @@ int main(int argc, char **argv)
     failures += test_condition_domain_consistency();
     failures += test_fake_nor_async_busy_and_page_rules();
     failures += test_store_power_loss();
+    failures += test_store_write_header_override_does_not_mutate_candidate();
     failures += test_store_selects_newest_usable();
+    failures += test_app_calibration_runtime_loads_active_set();
     failures += test_slot_compatibility_diagnostics();
     failures += test_dsp_uses_calibrated_hg_transfer();
     failures += test_output_correction_updates_result_and_derivatives();

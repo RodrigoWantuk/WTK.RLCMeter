@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "app/app_calibration_runtime.h"
 #include "app/app_safety_fault.h"
 #include "app/app_measurement_session.h"
 #include "drivers/ili9341.h"
@@ -62,12 +63,8 @@ typedef struct
     app_measurement_session_t auto_measure;
     measurement_auto_hint_t auto_hint;
     measurement_cal_store_t cal_store;
-    measurement_cal_set_t cal_active;
-    measurement_cal_store_slot_info_t cal_slots[2];
+    app_calibration_runtime_t *cal_runtime;
     uint32_t auto_sequence;
-    measurement_cal_store_slot_t cal_active_slot;
-    bool cal_store_ready;
-    bool cal_active_valid;
     app_lab_metrology_dump_source_t dump_source;
     uint16_t dump_row;
     bool dump_active;
@@ -83,6 +80,8 @@ typedef struct
 } app_lab_console_t;
 
 void app_lab_console_init(app_lab_console_t *console);
+void app_lab_console_attach_calibration_runtime(app_lab_console_t *console,
+                                                app_calibration_runtime_t *runtime);
 void app_lab_console_step(app_lab_console_t *console,
                           w25q_device_t *flash,
                           ili9341_t *display,
@@ -95,5 +94,6 @@ void app_lab_console_step(app_lab_console_t *console,
                           uint32_t now_ms);
 bool app_lab_console_flash_busy(const app_lab_console_t *console);
 bool app_lab_console_capture_busy(const app_lab_console_t *console);
+uint32_t app_lab_console_context_size_bytes(void);
 
 #endif

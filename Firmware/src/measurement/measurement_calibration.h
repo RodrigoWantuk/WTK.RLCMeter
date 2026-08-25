@@ -239,6 +239,13 @@ bool measurement_cal_serialize_set(const measurement_cal_set_t *set,
                                    uint8_t *dst,
                                    size_t capacity,
                                    size_t *written);
+bool measurement_cal_serialize_set_with_header(const measurement_cal_set_t *set,
+                                               uint16_t schema_version,
+                                               uint16_t model_version,
+                                               uint32_t sequence,
+                                               uint8_t *dst,
+                                               size_t capacity,
+                                               size_t *written);
 bool measurement_cal_decode_set(const uint8_t *src,
                                 size_t size,
                                 measurement_cal_set_t *set,
@@ -250,7 +257,9 @@ measurement_cal_validity_t measurement_cal_inspect_frame(const uint8_t *src,
                                                          measurement_cal_frame_info_t *info);
 
 uint32_t measurement_cal_record_size_bytes(void);
+uint32_t measurement_cal_key_size_bytes(void);
 uint32_t measurement_cal_set_size_bytes(void);
+uint32_t measurement_cal_requirements_size_bytes(void);
 const char *measurement_cal_resolve_status_string(measurement_cal_resolve_status_t status);
 const char *measurement_cal_validity_status_string(measurement_cal_validity_status_t status);
 

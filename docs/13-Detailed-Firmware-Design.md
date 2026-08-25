@@ -732,6 +732,32 @@ calibration type/model version
 
 The persisted format must support schema evolution without directly serializing fragile C struct layouts.
 
+## Calibration runtime memory ownership
+
+The active calibration set is application runtime state. Lab diagnostics may inspect it,
+but the Lab console must not be the owner of product calibration validity.
+
+Runtime ownership is split to keep the STM32F103C8T6 SRAM budget visible:
+
+```text
+app_calibration_runtime_t:
+    active decoded calibration coefficients and compact provenance
+
+measurement_cal_store_t:
+    one persisted-frame image buffer
+    one decoded scan/verify scratch set
+    asynchronous W25Q write state
+
+Phase 05 raw ADC buffer:
+    owned by metrology transport/BSP
+    never copied into calibration runtime or Lab console state
+```
+
+The normal calibration store write path must not place multiple complete
+`measurement_cal_set_t` objects on stack. Stage 2B OPEN/SHORT/LOAD work should consume
+raw captures as transient evidence, derive compact condition coefficients, and keep any
+future raw-evidence persistence separate from the active coefficient set.
+
 ## Calibration boot gate
 
 Calibration validity is product state, not merely a menu preference.

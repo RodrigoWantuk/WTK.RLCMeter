@@ -847,10 +847,13 @@ measurement_cal_validity_t measurement_cal_inspect_frame(const uint8_t *src,
     return validity;
 }
 
-bool measurement_cal_serialize_set(const measurement_cal_set_t *set,
-                                   uint8_t *dst,
-                                   size_t capacity,
-                                   size_t *written)
+bool measurement_cal_serialize_set_with_header(const measurement_cal_set_t *set,
+                                               uint16_t schema_version,
+                                               uint16_t model_version,
+                                               uint32_t sequence,
+                                               uint8_t *dst,
+                                               size_t capacity,
+                                               size_t *written)
 {
     if ((set == NULL) || (dst == NULL) || (written == NULL) ||
         (set->record_count > MEASUREMENT_CAL_MAX_RECORDS) ||
@@ -872,12 +875,12 @@ bool measurement_cal_serialize_set(const measurement_cal_set_t *set,
     (void)memset(&dst[FRAME_OFF_RESERVED], 0x00, FRAME_OFF_CRC32 - FRAME_OFF_RESERVED);
     write_u32(&dst[FRAME_OFF_MAGIC], MEASUREMENT_CAL_FRAME_MAGIC);
     write_u16(&dst[FRAME_OFF_RECORD_TYPE], (uint16_t)MEASUREMENT_CAL_RECORD_SET);
-    write_u16(&dst[FRAME_OFF_SCHEMA], set->schema_version);
+    write_u16(&dst[FRAME_OFF_SCHEMA], schema_version);
     write_u16(&dst[FRAME_OFF_HEADER_SIZE], MEASUREMENT_CAL_FRAME_HEADER_BYTES);
     write_u16(&dst[FRAME_OFF_PAYLOAD_LENGTH], (uint16_t)payload_length);
-    write_u32(&dst[FRAME_OFF_SEQUENCE], set->sequence);
+    write_u32(&dst[FRAME_OFF_SEQUENCE], sequence);
     write_u32(&dst[FRAME_OFF_HARDWARE], set->hardware_revision);
-    write_u16(&dst[FRAME_OFF_MODEL], set->model_version);
+    write_u16(&dst[FRAME_OFF_MODEL], model_version);
     write_u16(&dst[FRAME_OFF_FLAGS], set->adc_valid ? (uint16_t)MEASUREMENT_CAL_FLAG_ADC : 0u);
     write_u32(&dst[FRAME_OFF_CRC32], 0u);
     write_u32(&dst[FRAME_OFF_COMMIT], 0xFFFFFFFFu);
@@ -911,6 +914,24 @@ bool measurement_cal_serialize_set(const measurement_cal_set_t *set,
     write_u32(&dst[FRAME_OFF_COMMIT], MEASUREMENT_CAL_COMMIT_MARKER);
     *written = total;
     return true;
+}
+
+bool measurement_cal_serialize_set(const measurement_cal_set_t *set,
+                                   uint8_t *dst,
+                                   size_t capacity,
+                                   size_t *written)
+{
+    if (set == NULL)
+    {
+        return false;
+    }
+    return measurement_cal_serialize_set_with_header(set,
+                                                     set->schema_version,
+                                                     set->model_version,
+                                                     set->sequence,
+                                                     dst,
+                                                     capacity,
+                                                     written);
 }
 
 bool measurement_cal_decode_set(const uint8_t *src,
@@ -995,9 +1016,19 @@ uint32_t measurement_cal_record_size_bytes(void)
     return (uint32_t)sizeof(measurement_cal_record_t);
 }
 
+uint32_t measurement_cal_key_size_bytes(void)
+{
+    return (uint32_t)sizeof(measurement_cal_key_t);
+}
+
 uint32_t measurement_cal_set_size_bytes(void)
 {
     return (uint32_t)sizeof(measurement_cal_set_t);
+}
+
+uint32_t measurement_cal_requirements_size_bytes(void)
+{
+    return (uint32_t)sizeof(measurement_cal_requirements_t);
 }
 
 const char *measurement_cal_resolve_status_string(measurement_cal_resolve_status_t status)

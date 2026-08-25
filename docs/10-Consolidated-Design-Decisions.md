@@ -382,6 +382,41 @@ captures for Stage 2B should be used to derive condition corrections; if raw evi
 retained for audit/debug, it belongs in a separate diagnostic/evidence record path rather
 than permanently inflating the active `measurement_cal_set_t`.
 
+### Calibration SRAM and runtime ownership
+
+The calibration runtime is application-owned, not Lab-console-owned. The ownership model
+is intentionally split:
+
+```text
+app_calibration_runtime_t:
+    active decoded coefficient set
+    active slot/provenance
+    compact slot diagnostics
+
+measurement_cal_store_t:
+    one 3072-byte serialized frame image
+    one decoded scan scratch set
+    async W25Q erase/program/verify metadata
+
+app_lab_console_t:
+    Lab command/dump state
+    a store scratch context
+    pointer to the application calibration runtime
+```
+
+`measurement_cal_store_write_start()` must not allocate multiple complete
+`measurement_cal_set_t` instances on the stack. It serializes the const candidate into
+the store-owned image, preflights through the store-owned scan scratch, and keeps compact
+expected identity metadata for post-write verification. Post-write identity is checked
+from the complete condition-key fields rather than from the diagnostic `condition_id`.
+
+The STM32F103C8T6 SRAM policy reserves at least 2048 bytes for stack headroom in every
+target build. STM32 builds produce GCC `.su` stack-usage files so calibration store/load
+frames can be audited. Calibration workflows must not duplicate the Phase 05 raw ADC
+DMA buffer; Stage 2B must consume raw captures in place, derive compact coefficients,
+and discard transient acquisition evidence unless an explicit future diagnostic storage
+path is specified.
+
 ## Localization
 
 Initial planned UI languages are Portuguese and English.
