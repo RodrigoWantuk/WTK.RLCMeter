@@ -237,7 +237,7 @@ The persisted calibration substrate uses two independent compatibility versions:
 
 ```text
 schema_version = 2              portable byte/framing schema
-model_version  = 2              direct complex correction model
+model_version  = 3              OSL/Mobius projective correction model
 hardware_rev   = 0x00010001     Rev.1 STM32F103C8T6 firmware/hardware contract
 ```
 
@@ -269,21 +269,33 @@ write cannot make an incomplete candidate look valid.
 Floating correction coefficients are serialized as explicit IEEE754 binary32 fields.
 Temperature metadata is stored as signed integer millidegrees C.
 
-The direct model represented by calibration records is:
+Model version 2 represented direct complex output correction. Model version 3 keeps
+the same portable schema but reinterprets the condition payload as the Rev.1
+OSL/Mobius model:
 
 ```text
 volts = raw * code_to_volts + offset_volts       global per ADC stream
 RET = VMID + (RET_HG - VMID) / H_HG              complex high-gain transfer
-ZREF = complex ZREF(frequency, range, amplitude)
-Z_corrected = Z_raw * output_scale[RET_1X or RET_HG] + output_offset[RET_1X or RET_HG]
+t = Vx / Vs
+Z_corrected = K * (t - t_short) / (t - t_open)
 ```
 
-The output scale/offset term is applied after Phase 06 computes raw complex impedance,
-and derived quantities are recalculated from corrected impedance. OPEN/SHORT/LOAD
-acquisition workflows are not implemented yet. Missing exact calibration can be
-explicitly resolved to ideal defaults for Lab/debug, but the result provenance remains
-`MISSING` and uncalibrated. Product qualification must not treat that fallback as
-calibrated.
+For model 3, the six persisted complex fields are interpreted as:
+
+```text
+ret_hg_transfer      = observed/calibrated H_HG
+zref_ohms            = known LOAD standard used for the solve
+ret_1x_output.scale  = t_short
+ret_1x_output.offset = t_open
+ret_hg_output.scale  = K
+ret_hg_output.offset = reserved zero
+```
+
+The legacy field names remain in the C struct only to preserve the 80-byte portable
+record layout. Diagnostics and new code should use OSL names. Missing exact calibration
+can still be explicitly resolved to ideal defaults for Lab/debug, but the provenance
+remains `MISSING` and uncalibrated. Product qualification must not treat that fallback
+as calibrated.
 
 Calibration keys include hardware revision, model version, range, frequency, and
 amplitude. RET channel and RET strategy are deliberately excluded from the persistent

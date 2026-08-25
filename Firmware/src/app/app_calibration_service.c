@@ -14,6 +14,11 @@ static bool store_busy(const measurement_cal_store_t *store)
            (state != MEASUREMENT_CAL_STORE_ERROR);
 }
 
+static bool store_terminal_ok(const measurement_cal_store_t *store)
+{
+    return (store != NULL) && (measurement_cal_store_state(store) == MEASUREMENT_CAL_STORE_DONE);
+}
+
 void app_calibration_service_init(app_calibration_service_t *service)
 {
     if (service == NULL)
@@ -168,6 +173,121 @@ bsp_status_t app_calibration_service_start_workflow(app_calibration_service_t *s
     {
         service->status = APP_CAL_SERVICE_WORKFLOW_ACTIVE;
     }
+    return status;
+}
+
+bsp_status_t app_calibration_service_candidate_begin(app_calibration_service_t *service)
+{
+    if (service == NULL)
+    {
+        return BSP_STATUS_INVALID_ARG;
+    }
+    if (app_calibration_service_busy(service))
+    {
+        return BSP_STATUS_BUSY;
+    }
+    measurement_cal_set_init(&service->store.scan_set,
+                             MEASUREMENT_CAL_HARDWARE_REV1,
+                             MEASUREMENT_CAL_MODEL_VERSION_CURRENT,
+                             0u);
+    service->status = APP_CAL_SERVICE_READY;
+    return BSP_STATUS_OK;
+}
+
+measurement_cal_set_t *app_calibration_service_candidate_set(app_calibration_service_t *service)
+{
+    return (service == NULL) ? NULL : &service->store.scan_set;
+}
+
+const measurement_cal_set_t *app_calibration_service_candidate_set_const(
+    const app_calibration_service_t *service)
+{
+    return (service == NULL) ? NULL : &service->store.scan_set;
+}
+
+measurement_cal_validity_t app_calibration_service_candidate_validity(
+    const app_calibration_service_t *service)
+{
+    const measurement_cal_requirements_t requirements = measurement_cal_requirements_rev1_full();
+    return measurement_cal_validate_set((service == NULL) ? NULL : &service->store.scan_set,
+                                        &requirements,
+                                        MEASUREMENT_CAL_HARDWARE_REV1,
+                                        MEASUREMENT_CAL_MODEL_VERSION_CURRENT);
+}
+
+bsp_status_t app_calibration_service_candidate_commit_start(app_calibration_service_t *service)
+{
+    if (service == NULL)
+    {
+        return BSP_STATUS_INVALID_ARG;
+    }
+    if (!service->storage_available)
+    {
+        service->status = APP_CAL_SERVICE_STORAGE_UNAVAILABLE;
+        return BSP_STATUS_ERROR;
+    }
+    if (app_calibration_service_busy(service))
+    {
+        service->status = APP_CAL_SERVICE_STORE_BUSY;
+        return BSP_STATUS_BUSY;
+    }
+    const measurement_cal_requirements_t requirements = measurement_cal_requirements_rev1_full();
+    const measurement_cal_validity_t validity =
+        measurement_cal_validate_set(&service->store.scan_set,
+                                     &requirements,
+                                     MEASUREMENT_CAL_HARDWARE_REV1,
+                                     MEASUREMENT_CAL_MODEL_VERSION_CURRENT);
+    if (validity.status != MEASUREMENT_CAL_VALIDITY_VALID)
+    {
+        service->status = APP_CAL_SERVICE_ERROR;
+        service->last_store_status = BSP_STATUS_INVALID_ARG;
+        return BSP_STATUS_INVALID_ARG;
+    }
+    const bsp_status_t status =
+        measurement_cal_store_write_start(&service->store, &service->store.scan_set, &requirements);
+    service->last_store_status = status;
+    service->status = (status == BSP_STATUS_BUSY) ? APP_CAL_SERVICE_STORE_BUSY : APP_CAL_SERVICE_ERROR;
+    return status;
+}
+
+bsp_status_t app_calibration_service_step(app_calibration_service_t *service, uint32_t now_ms)
+{
+    if (service == NULL)
+    {
+        return BSP_STATUS_INVALID_ARG;
+    }
+    if (!store_busy(&service->store))
+    {
+        if (store_terminal_ok(&service->store))
+        {
+            service->runtime.active_set = service->store.scan_set;
+            service->runtime.active_valid = true;
+            service->runtime.store_ready = true;
+            service->runtime.last_status = BSP_STATUS_OK;
+            service->storage_available = true;
+            service->status = APP_CAL_SERVICE_ACTIVE_VALID;
+            service->last_store_status = BSP_STATUS_OK;
+        }
+        return BSP_STATUS_OK;
+    }
+    const bsp_status_t status = measurement_cal_store_step(&service->store, now_ms);
+    service->last_store_status = status;
+    if (status == BSP_STATUS_BUSY)
+    {
+        service->status = APP_CAL_SERVICE_STORE_BUSY;
+        return status;
+    }
+    if (status == BSP_STATUS_OK)
+    {
+        service->runtime.active_set = service->store.scan_set;
+        service->runtime.active_valid = true;
+        service->runtime.store_ready = true;
+        service->runtime.last_status = BSP_STATUS_OK;
+        service->storage_available = true;
+        service->status = APP_CAL_SERVICE_ACTIVE_VALID;
+        return BSP_STATUS_OK;
+    }
+    service->status = APP_CAL_SERVICE_ERROR;
     return status;
 }
 

@@ -59,13 +59,22 @@ LOAD stability is evaluated from measured impedance relative to the known comple
 standard. Both VEXC paths and both return paths must remain observable so later
 coefficient solving can distinguish 1X, raw HG, reconstructed HG, and overlap behavior.
 
-The first implementation may use direct complex offset/scale corrections. If real data justifies it, OPEN/SHORT/LOAD can support a bilinear/Möbius correction:
+The implemented Rev.1 Stage 2B.2 calibration model uses the normalized transfer:
 
 ```text
-Zcorr = (a * Zraw + b) / (c * Zraw + 1)
+t = Vx / Vs
+K = ZL * (tL - tO) / (tL - tS)
+Zcorr = K * (t - tS) / (t - tO)
 ```
 
-Do not commit to a more complex model before comparing it against measured data.
+where `tS`, `tO`, and `tL` are the measured SHORT, OPEN, and LOAD transfers for one
+exact range/frequency/amplitude condition, and `ZL` is the known complex LOAD standard.
+This maps SHORT to 0 ohm, LOAD to `ZL`, and OPEN to a singularity. Coefficients are
+computed from stable OSL evidence and stored as a projective/Möbius condition record.
+
+The solver and model are software-implemented and synthetically host-tested. Physical
+accuracy, model residuals, leakage behavior, and temperature drift remain
+`REQUIRES_BENCH_VALIDATION`.
 
 ## Range validation
 

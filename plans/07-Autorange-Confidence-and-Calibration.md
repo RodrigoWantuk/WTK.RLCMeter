@@ -27,7 +27,7 @@ Stage 2B.1 — Product calibration service / OSL evidence acquisition:
 STATUS: IMPLEMENTED_REQUIRES_BENCH_VALIDATION
 
 Stage 2B.2 — OSL coefficient solving / calibration-set replacement:
-STATUS: NOT_STARTED
+STATUS: IMPLEMENTED_REQUIRES_BENCH_VALIDATION
 
 ## Goal
 
@@ -222,14 +222,15 @@ The active persistent schema is:
 
 ```text
 MEASUREMENT_CAL_SCHEMA_VERSION = 2
-MEASUREMENT_CAL_MODEL_VERSION_DIRECT_V2 = 2
+MEASUREMENT_CAL_MODEL_VERSION_OSL_MOBIUS_V1 = 3
 MEASUREMENT_CAL_HARDWARE_REV1 = 0x00010001
 ```
 
 `schema_version` describes the portable byte framing. `model_version` describes the
 mathematical correction model. They are intentionally separate compatibility axes.
 
-The Stage 2A.1 correction model is the conservative direct model:
+The Stage 2A.1 correction substrate originally carried the conservative direct model.
+Stage 2B.2 keeps the same schema and updates the active model to OSL/Mobius:
 
 ```text
 global per-channel ADC scale/offset:
@@ -238,16 +239,15 @@ global per-channel ADC scale/offset:
 complex high-gain transfer:
     RET = VMID + (RET_HG - VMID) / H_HG
 
-complex ZREF:
-    ZREF(frequency, range, amplitude)
+normalized transfer:
+    t = Vx / Vs
 
-optional complex output correction per selected return path:
-    Z_corrected = Z_raw * output_scale[RET_1X or RET_HG] + output_offset[RET_1X or RET_HG]
+OSL/Mobius correction:
+    Z_corrected = K * (t - t_short) / (t - t_open)
 ```
 
-This does not implement OPEN/SHORT/LOAD correction capture. The record types reserve
-values for future OPEN, SHORT, and LOAD evidence so Stage 2B can add workflows without
-changing the frame contract gratuitously.
+The record types reserve values for OPEN, SHORT, and LOAD evidence, while the active
+condition records store solved OSL coefficients.
 
 Calibration keys intentionally include only the physical pre-DSP condition:
 
@@ -619,6 +619,75 @@ unchanged throughout Stage 2B.1.
 Capture temperature is recorded only when the auxiliary NTC snapshot is valid. Lab
 commands must not inject a fixed placeholder temperature. Temperature evidence is
 reported as unavailable when the current sensor snapshot cannot support it.
+
+## Stage 2B.2 implementation boundary
+
+Stage 2B.2 implements the first OSL coefficient solver and activation substrate. The
+portable frame schema remains:
+
+```text
+MEASUREMENT_CAL_SCHEMA_VERSION = 2
+```
+
+The active mathematical model is now:
+
+```text
+MEASUREMENT_CAL_MODEL_VERSION_OSL_MOBIUS_V1 = 3
+```
+
+For each exact Rev.1 condition, the solver uses stable OPEN/SHORT/LOAD evidence in
+the normalized transfer plane:
+
+```text
+t = Vx / Vs
+K = ZL * (tL - tO) / (tL - tS)
+Zcorrected(t) = K * (t - tS) / (t - tO)
+```
+
+This maps SHORT to 0 ohm, LOAD to the known complex standard, and OPEN to a runtime
+singularity. Runtime processing detects `t` near `t_open` as OPEN-like rather than
+depending on NaN/Inf propagation.
+
+The 80-byte condition-record payload is unchanged, but model version 3 gives the
+existing complex fields OSL semantics:
+
+```text
+ret_hg_transfer      = observed/calibrated H_HG
+zref_ohms            = known LOAD standard for the solve
+ret_1x_output.scale  = t_short
+ret_1x_output.offset = t_open
+ret_hg_output.scale  = K
+ret_hg_output.offset = reserved zero
+```
+
+The legacy member names remain only to avoid a schema change. New diagnostics and
+documentation use OSL names.
+
+The product service reuses the existing calibration-store scratch set as the candidate
+set to avoid another permanent multi-kilobyte SRAM allocation. A complete candidate is
+written to the inactive W25Q slot, the commit marker is programmed last, and activation
+occurs only after the store verifies the written frame. The previous active set remains
+the active set if candidate serialization, erase, program, commit, or verify fails.
+
+Lab diagnostics added for Stage 2B.2:
+
+```text
+lab cal campaign begin <freq> <amp> <range>
+lab cal campaign status
+lab cal campaign solve
+lab cal campaign commit
+lab cal campaign discard
+```
+
+`lab cal acquire ...` remains the only acquisition command; completed stable
+OPEN/SHORT/LOAD acquisitions feed the active campaign. Lab commands do not bypass the
+Phase 05 measurement transaction, K1 ownership, range FSM, measurement permit, or SAFE
+teardown.
+
+Stage 2B.2 is `IMPLEMENTED_REQUIRES_BENCH_VALIDATION`. The solver is host-tested with
+deterministic synthetic vectors, including complex systematic error and HG fallback,
+but actual fixture standards, leakage, shunt/series parasitics, temperature behavior,
+and model residuals remain physical-bench work.
 
 ## Task 1 — Define measurement attempt model
 

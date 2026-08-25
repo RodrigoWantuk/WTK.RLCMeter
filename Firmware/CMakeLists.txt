@@ -53,6 +53,7 @@ add_library(wtk_firmware_common STATIC
     src/app/app_calibration_runtime.c
     src/app/app_calibration_service.c
     src/app/app_calibration_session.c
+    src/app/app_calibration_campaign.c
     src/app/app_calibration_workflow.c
     src/app/app_measurement_session.c
     src/app/app_version.c
@@ -81,6 +82,7 @@ add_library(wtk_firmware_common STATIC
     src/measurement/measurement_dsp.c
     src/measurement/measurement_condition.c
     src/measurement/measurement_calibration.c
+    src/measurement/measurement_calibration_solver.c
     src/measurement/measurement_calibration_store.c
     src/measurement/measurement_engine.c
     src/storage/resource_store.c
@@ -111,7 +113,9 @@ elseif(WTK_TARGET_PLATFORM STREQUAL "stm32")
         # of Flash. Keep the largest Lab/calibration orchestration units size-optimized.
         set_source_files_properties(
             src/app/app_calibration_session.c
+            src/app/app_calibration_campaign.c
             src/app/app_calibration_workflow.c
+            src/measurement/measurement_calibration_solver.c
             src/app/app_lab_console.c
             PROPERTIES COMPILE_OPTIONS "-Os"
         )

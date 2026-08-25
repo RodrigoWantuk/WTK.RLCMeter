@@ -15,7 +15,8 @@ enum
     MEASUREMENT_CAL_SCHEMA_VERSION = 2u,
     MEASUREMENT_CAL_MODEL_VERSION_DIRECT_V1 = 1u,
     MEASUREMENT_CAL_MODEL_VERSION_DIRECT_V2 = 2u,
-    MEASUREMENT_CAL_MODEL_VERSION_CURRENT = MEASUREMENT_CAL_MODEL_VERSION_DIRECT_V2,
+    MEASUREMENT_CAL_MODEL_VERSION_OSL_MOBIUS_V1 = 3u,
+    MEASUREMENT_CAL_MODEL_VERSION_CURRENT = MEASUREMENT_CAL_MODEL_VERSION_OSL_MOBIUS_V1,
     MEASUREMENT_CAL_HARDWARE_REV1 = 0x00010001u,
     MEASUREMENT_CAL_FRAME_MAGIC = 0x434C4157u,
     MEASUREMENT_CAL_FRAME_HEADER_BYTES = 64u,
@@ -41,6 +42,9 @@ typedef enum
     MEASUREMENT_CAL_FLAG_ZREF = 1u << 2,
     MEASUREMENT_CAL_FLAG_OUTPUT_CORRECTION_1X = 1u << 3,
     MEASUREMENT_CAL_FLAG_OUTPUT_CORRECTION_HG = 1u << 4,
+    MEASUREMENT_CAL_FLAG_OSL_MOBIUS = 1u << 5,
+    MEASUREMENT_CAL_FLAG_TEMPERATURE_VALID = 1u << 6,
+    MEASUREMENT_CAL_FLAG_HG_OBSERVED = 1u << 7,
     MEASUREMENT_CAL_FLAG_QUALIFIED = 1u << 8,
 } measurement_cal_flags_t;
 
@@ -107,6 +111,15 @@ typedef struct
     measurement_cal_output_correction_t ret_hg_output;
     uint32_t flags;
 } measurement_cal_correction_t;
+
+typedef struct
+{
+    measurement_complex_t ret_hg_transfer;
+    measurement_complex_t load_z_ohms;
+    measurement_complex_t t_short;
+    measurement_complex_t t_open;
+    measurement_complex_t k;
+} measurement_cal_osl_coefficients_t;
 
 typedef struct
 {
@@ -199,6 +212,12 @@ void measurement_cal_set_init(measurement_cal_set_t *set,
                               uint16_t model_version,
                               uint32_t sequence);
 measurement_cal_record_t measurement_cal_make_ideal_record(const measurement_cal_key_t *key);
+measurement_cal_correction_t measurement_cal_make_osl_correction(
+    const measurement_cal_osl_coefficients_t *coefficients,
+    bool temperature_valid,
+    bool hg_observed);
+bool measurement_cal_get_osl_coefficients(const measurement_cal_correction_t *correction,
+                                          measurement_cal_osl_coefficients_t *coefficients);
 bool measurement_cal_set_add_record(measurement_cal_set_t *set, const measurement_cal_record_t *record);
 bool measurement_cal_set_replace_record(measurement_cal_set_t *set, const measurement_cal_record_t *record);
 measurement_cal_requirements_t measurement_cal_requirements_empty(void);

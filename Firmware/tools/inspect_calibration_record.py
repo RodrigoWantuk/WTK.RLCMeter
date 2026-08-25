@@ -16,6 +16,7 @@ from pathlib import Path
 
 MAGIC = 0x434C4157
 SCHEMA_VERSION = 2
+MODEL_OSL_MOBIUS_V1 = 3
 COMMIT_MARKER = 0x54494D43
 HEADER_BYTES = 64
 CRC_OFFSET = 56
@@ -39,7 +40,7 @@ def decode_record(data: bytes, index: int) -> dict[str, object]:
     temperature_mC, condition_id, flags = struct.unpack_from("<iII", data, off)
     off += 12
     floats = struct.unpack_from("<" + ("f" * 12), data, off)
-    return {
+    record = {
         "index": index,
         "hardware_revision": f"0x{hardware:08X}",
         "model_version": model,
@@ -57,6 +58,17 @@ def decode_record(data: bytes, index: int) -> dict[str, object]:
         "ret_hg_output_scale": complex(floats[8], floats[9]),
         "ret_hg_output_offset": complex(floats[10], floats[11]),
     }
+    if model == MODEL_OSL_MOBIUS_V1:
+        record.update(
+            {
+                "osl_ret_hg_transfer": complex(floats[0], floats[1]),
+                "osl_load_z": complex(floats[2], floats[3]),
+                "osl_t_short": complex(floats[4], floats[5]),
+                "osl_t_open": complex(floats[6], floats[7]),
+                "osl_k": complex(floats[8], floats[9]),
+            }
+        )
+    return record
 
 
 def inspect(path: Path) -> int:
@@ -101,12 +113,18 @@ def inspect(path: Path) -> int:
     for i in range(count):
         begin = SET_PAYLOAD_HEADER_BYTES + (i * RECORD_BYTES)
         rec = decode_record(payload[begin : begin + RECORD_BYTES], i)
-        print(
+        line = (
             "record[{index}] hw={hardware_revision} model={model_version} "
             "range={range_id} freq={frequency} amp={amplitude} "
             "type={record_type} temp_mC={temperature_mC} condition={condition_id} "
-            "flags={flags} ret_hg={ret_hg} zref={zref}".format(**rec)
-        )
+            "flags={flags} ret_hg={ret_hg} zref={zref}"
+        ).format(**rec)
+        if rec["model_version"] == MODEL_OSL_MOBIUS_V1:
+            line += (
+                " osl_t_short={osl_t_short} osl_t_open={osl_t_open} "
+                "osl_k={osl_k} osl_load_z={osl_load_z}"
+            ).format(**rec)
+        print(line)
     return 0
 
 

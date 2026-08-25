@@ -24,6 +24,7 @@
 #include "hardware/hw_safety.h"
 #include "measurement/measurement_calibration.h"
 #include "measurement/measurement_calibration_store.h"
+#include "measurement/measurement_condition.h"
 #include "measurement/measurement_dsp.h"
 #include "measurement/measurement_engine.h"
 #include "storage/measurement_cal_w25q_adapter.h"
@@ -1483,6 +1484,44 @@ static bool parse_cal_acquire_tokens(const char *line,
     return true;
 }
 
+static bool parse_cal_campaign_begin_tokens(const char *line, measurement_cal_key_t *key)
+{
+    if ((key == NULL) || !text_starts_with(line, "lab cal campaign begin "))
+    {
+        return false;
+    }
+    const char *cursor = line + 23;
+    char freq_token[8] = {0};
+    char amp_token[8] = {0};
+    char range_token[8] = {0};
+    hw_excitation_freq_t frequency = HW_EXCITATION_FREQ_INVALID;
+    hw_excitation_amp_t amplitude = HW_EXCITATION_AMP_INVALID;
+    hw_range_id_t range_id = HW_RANGE_ID_INVALID;
+    if (!read_token(&cursor, freq_token, sizeof(freq_token)) ||
+        !read_token(&cursor, amp_token, sizeof(amp_token)) ||
+        !read_token(&cursor, range_token, sizeof(range_token)) ||
+        !hw_excitation_parse_freq_token(freq_token, &frequency) ||
+        !hw_excitation_parse_amp_token(amp_token, &amplitude) ||
+        !hw_excitation_parse_range_token(range_token, &range_id))
+    {
+        return false;
+    }
+    while (*cursor == ' ')
+    {
+        cursor++;
+    }
+    if (*cursor != '\0')
+    {
+        return false;
+    }
+    *key = measurement_cal_key(MEASUREMENT_CAL_HARDWARE_REV1,
+                               MEASUREMENT_CAL_MODEL_VERSION_CURRENT,
+                               range_id,
+                               frequency,
+                               amplitude);
+    return true;
+}
+
 static bool lab_metrology_busy(const app_lab_console_t *console)
 {
     return (console != NULL) &&
@@ -2090,6 +2129,87 @@ static void lab_cal_write_terminal(app_lab_console_t *console)
     write_text(" state=");
     write_text(app_cal_workflow_state_string(state));
     write_text("\r\n");
+    if (app_calibration_workflow_result(workflow) == APP_CAL_WORKFLOW_RESULT_OK)
+    {
+        const bsp_status_t campaign_status =
+            app_calibration_campaign_submit_evidence(&console->cal_campaign,
+                                                     app_calibration_workflow_evidence(workflow));
+        write_text("CAL_CAMPAIGN_EVIDENCE status=");
+        write_text(bsp_status_string(campaign_status));
+        write_text(" missing=");
+        write_hex8(app_calibration_campaign_missing_mask(&console->cal_campaign));
+        write_text("\r\n");
+    }
+}
+
+static void lab_cal_campaign_status(app_lab_console_t *console)
+{
+    if (console == NULL)
+    {
+        write_text("CAL_CAMPAIGN status=ERROR\r\n");
+        return;
+    }
+    const measurement_cal_set_t *candidate =
+        app_calibration_service_candidate_set_const(console->cal_service);
+    const measurement_cal_validity_t validity =
+        app_calibration_service_candidate_validity(console->cal_service);
+    write_text("CAL_CAMPAIGN state=");
+    write_text(app_cal_campaign_state_string(console->cal_campaign.state));
+    write_text(" missing=");
+    write_hex8(app_calibration_campaign_missing_mask(&console->cal_campaign));
+    write_text(" records=");
+    write_u32((candidate != NULL) ? candidate->record_count : 0u);
+    write_text(" required=");
+    write_u32(MEASUREMENT_CONDITION_REV1_MAX_SUPPORTED);
+    write_text(" validity=");
+    write_text(measurement_cal_validity_status_string(validity.status));
+    write_text(" flags=");
+    write_hex8(validity.flags);
+    write_text("\r\n");
+}
+
+static void lab_cal_campaign_solve(app_lab_console_t *console)
+{
+    if ((console == NULL) || (console->cal_service == NULL))
+    {
+        write_text("CAL_CAMPAIGN_SOLVE status=ERROR\r\n");
+        return;
+    }
+    measurement_cal_record_t record;
+    const measurement_cal_solver_status_t solve =
+        app_calibration_campaign_solve_condition(&console->cal_campaign, &record);
+    if (solve != MEASUREMENT_CAL_SOLVER_OK)
+    {
+        write_text("CAL_CAMPAIGN_SOLVE status=");
+        write_text(measurement_cal_solver_status_string(solve));
+        write_text("\r\n");
+        return;
+    }
+    measurement_cal_set_t *candidate = app_calibration_service_candidate_set(console->cal_service);
+    const bsp_status_t inserted = app_calibration_campaign_insert_record(&record, candidate);
+    write_text("CAL_CAMPAIGN_SOLVE status=");
+    write_text((inserted == BSP_STATUS_OK) ? "OK" : bsp_status_string(inserted));
+    write_text(" condition=");
+    write_hex8(record.condition_id);
+    write_text(" flags=");
+    write_hex8(record.correction.flags);
+    write_text(" records=");
+    write_u32((candidate != NULL) ? candidate->record_count : 0u);
+    write_text("\r\n");
+}
+
+static void lab_cal_campaign_commit(app_lab_console_t *console)
+{
+    if ((console == NULL) || (console->cal_service == NULL))
+    {
+        write_text("CAL_CAMPAIGN_COMMIT status=ERROR\r\n");
+        return;
+    }
+    const bsp_status_t status =
+        app_calibration_service_candidate_commit_start(console->cal_service);
+    write_text("CAL_CAMPAIGN_COMMIT status=");
+    write_text((status == BSP_STATUS_BUSY) ? "START" : bsp_status_string(status));
+    write_text("\r\n");
 }
 
 static void lab_step_calibration_session(app_lab_console_t *console, uint32_t now_ms)
@@ -2194,6 +2314,7 @@ static void run_command(app_lab_console_t *console,
     hw_excitation_amp_t measure_amp = HW_EXCITATION_AMP_INVALID;
     hw_range_id_t measure_range = HW_RANGE_ID_INVALID;
     app_cal_workflow_request_t cal_request = {0};
+    measurement_cal_key_t cal_campaign_key = {0};
 
     lab_bind_refs(console, range, charger, sensors, k1, faults);
 
@@ -2341,6 +2462,53 @@ static void run_command(app_lab_console_t *console,
             (console != NULL) ? console->cal_service : NULL)));
         write_text("\r\n");
     }
+    else if (parse_cal_campaign_begin_tokens(line, &cal_campaign_key))
+    {
+        if ((console == NULL) || (console->cal_service == NULL))
+        {
+            write_text("CAL_CAMPAIGN_BEGIN status=ERROR\r\n");
+            return;
+        }
+        const measurement_cal_set_t *candidate =
+            app_calibration_service_candidate_set_const(console->cal_service);
+        const bool candidate_uninitialized =
+            (candidate == NULL) ||
+            (candidate->hardware_revision != MEASUREMENT_CAL_HARDWARE_REV1) ||
+            (candidate->model_version != MEASUREMENT_CAL_MODEL_VERSION_CURRENT) ||
+            (candidate->schema_version != MEASUREMENT_CAL_SCHEMA_VERSION);
+        const bsp_status_t candidate_status = candidate_uninitialized ?
+            app_calibration_service_candidate_begin(console->cal_service) :
+            BSP_STATUS_OK;
+        const bsp_status_t campaign_status =
+            app_calibration_campaign_begin_condition(&console->cal_campaign, &cal_campaign_key);
+        write_text("CAL_CAMPAIGN_BEGIN status=");
+        write_text((candidate_status == BSP_STATUS_OK) ? bsp_status_string(campaign_status) :
+                                                        bsp_status_string(candidate_status));
+        write_text(" condition=");
+        write_hex8(measurement_cal_condition_id(&cal_campaign_key));
+        write_text("\r\n");
+    }
+    else if (text_equals(line, "lab cal campaign status"))
+    {
+        lab_cal_campaign_status(console);
+    }
+    else if (text_equals(line, "lab cal campaign solve"))
+    {
+        lab_cal_campaign_solve(console);
+    }
+    else if (text_equals(line, "lab cal campaign discard"))
+    {
+        app_calibration_campaign_init((console != NULL) ? &console->cal_campaign : NULL);
+        if ((console != NULL) && (console->cal_service != NULL))
+        {
+            (void)app_calibration_service_candidate_begin(console->cal_service);
+        }
+        write_text("CAL_CAMPAIGN_DISCARD status=OK\r\n");
+    }
+    else if (text_equals(line, "lab cal campaign commit"))
+    {
+        lab_cal_campaign_commit(console);
+    }
     else if (text_equals(line, "lab cal cancel"))
     {
         if ((console == NULL) || !app_calibration_session_active(&console->cal_session))
@@ -2426,6 +2594,7 @@ void app_lab_console_init(app_lab_console_t *console)
     console->dump_source = APP_LAB_METROLOGY_DUMP_NONE;
     console->auto_hint = (measurement_auto_hint_t){0};
     console->cal_session = (app_calibration_session_t){0};
+    app_calibration_campaign_init(&console->cal_campaign);
     console->auto_sequence = 0u;
     console->cal_service = NULL;
     console->range_ref = NULL;
@@ -2478,6 +2647,7 @@ void app_lab_console_step(app_lab_console_t *console,
     }
 
     lab_bind_refs(console, range, charger, sensors, k1, faults);
+    (void)app_calibration_service_step(console->cal_service, now_ms);
     lab_step_metrology(console, now_ms);
     step_flash_selftest(console, flash, now_ms);
 

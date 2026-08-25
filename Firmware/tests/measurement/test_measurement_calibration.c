@@ -1,4 +1,5 @@
 #include "measurement/measurement_calibration.h"
+#include "measurement/measurement_calibration_solver.h"
 #include "measurement/measurement_calibration_store.h"
 #include "measurement/measurement_condition.h"
 #include "measurement/measurement_engine.h"
@@ -60,6 +61,28 @@ static int expect_near(float actual, float expected, float tolerance, const char
         return 1;
     }
     return 0;
+}
+
+static measurement_complex_t cadd(measurement_complex_t a, measurement_complex_t b)
+{
+    return measurement_complex_add(a, b);
+}
+
+static measurement_complex_t csub(measurement_complex_t a, measurement_complex_t b)
+{
+    return measurement_complex_sub(a, b);
+}
+
+static measurement_complex_t cmul(measurement_complex_t a, measurement_complex_t b)
+{
+    return measurement_complex_mul(a, b);
+}
+
+static measurement_complex_t cdiv_test(measurement_complex_t a, measurement_complex_t b)
+{
+    measurement_complex_t out = measurement_complex(0.0f, 0.0f);
+    (void)measurement_complex_div(a, b, &out);
+    return out;
 }
 
 static void fake_nor_init(fake_nor_t *nor)
@@ -314,6 +337,75 @@ static measurement_cal_set_t full_supported_set(uint32_t sequence)
     return set;
 }
 
+static measurement_complex_t t_for_z(measurement_complex_t z,
+                                     const measurement_cal_osl_coefficients_t *model)
+{
+    const measurement_complex_t numerator =
+        csub(cmul(z, model->t_open), cmul(model->k, model->t_short));
+    const measurement_complex_t denominator = csub(z, model->k);
+    return cdiv_test(numerator, denominator);
+}
+
+static measurement_cal_solver_standard_t solver_standard(measurement_cal_key_t key,
+                                                         measurement_cal_standard_type_t type,
+                                                         measurement_complex_t z,
+                                                         measurement_complex_t t,
+                                                         bool valid_1x)
+{
+    measurement_cal_solver_standard_t standard = {
+        .key = key,
+        .standard = type,
+        .standard_z_ohms = z,
+        .standard_z_valid = type == MEASUREMENT_CAL_STANDARD_LOAD,
+        .t_1x = t,
+        .t_hg = t,
+        .hg_observed_transfer = measurement_complex(15.5f, 0.1f),
+        .temperature_mC = 23125,
+        .ret_1x_valid = valid_1x,
+        .ret_hg_valid = true,
+        .hg_observed_valid = true,
+        .stable = true,
+        .temperature_valid = true,
+    };
+    return standard;
+}
+
+static measurement_cal_solver_input_t solver_input_from_model(measurement_cal_key_t key,
+                                                              const measurement_cal_osl_coefficients_t *model,
+                                                              measurement_complex_t load_z,
+                                                              bool valid_1x)
+{
+    const measurement_cal_solver_input_t input = {
+        .open = solver_standard(key,
+                                MEASUREMENT_CAL_STANDARD_OPEN,
+                                measurement_complex(0.0f, 0.0f),
+                                model->t_open,
+                                valid_1x),
+        .shorted = solver_standard(key,
+                                   MEASUREMENT_CAL_STANDARD_SHORT,
+                                   measurement_complex(0.0f, 0.0f),
+                                   model->t_short,
+                                   valid_1x),
+        .load = solver_standard(key,
+                                MEASUREMENT_CAL_STANDARD_LOAD,
+                                load_z,
+                                t_for_z(load_z, model),
+                                valid_1x),
+    };
+    return input;
+}
+
+static int expect_complex_near(measurement_complex_t actual,
+                               measurement_complex_t expected,
+                               float tolerance,
+                               const char *message)
+{
+    int failures = 0;
+    failures += expect_near(actual.re, expected.re, tolerance, message);
+    failures += expect_near(actual.im, expected.im, tolerance, message);
+    return failures;
+}
+
 static int test_crc_and_layout(void)
 {
     int failures = 0;
@@ -391,7 +483,7 @@ static int test_serialization_resolution_and_validity(void)
                                                     &config,
                                                     &provenance) == MEASUREMENT_CAL_RESOLVE_FOUND,
                             "resolve exact");
-    failures += expect_near(config.zref_ohms.re, 10.0f, 0.01f, "resolved zref");
+    failures += expect_near(config.zref_ohms.re, 10.0f, 0.01f, "resolved direct-equation zref");
     failures += expect_true(measurement_cal_resolve(&decoded,
                                                     &missing,
                                                     true,
@@ -430,7 +522,14 @@ static int test_duplicate_and_replace_semantics(void)
                                                               &resolved) ==
                                 MEASUREMENT_CAL_RESOLVE_FOUND,
                             "replacement resolves");
-    failures += expect_near(resolved.config.zref_ohms.re, 11.0f, 0.001f, "replacement value visible");
+    measurement_cal_osl_coefficients_t replaced_coefficients;
+    failures += expect_true(measurement_cal_get_osl_coefficients(&resolved.correction,
+                                                                 &replaced_coefficients),
+                            "replacement OSL coefficients visible");
+    failures += expect_near(replaced_coefficients.load_z_ohms.re,
+                            11.0f,
+                            0.001f,
+                            "replacement load value visible");
     failures += expect_true(!measurement_cal_set_replace_record(&set, &rec_100r), "replace missing fails");
     failures += expect_true(measurement_cal_set_add_record(&set, &rec_100r), "different key add succeeds");
 
@@ -986,7 +1085,7 @@ static int test_dsp_uses_calibrated_hg_transfer(void)
     return failures;
 }
 
-static int test_output_correction_updates_result_and_derivatives(void)
+static int test_osl_process_block_updates_result_and_derivatives(void)
 {
     int failures = 0;
     measurement_cal_set_t set;
@@ -995,11 +1094,15 @@ static int test_output_correction_updates_result_and_derivatives(void)
                              MEASUREMENT_CAL_MODEL_VERSION_CURRENT,
                              4u);
     const measurement_cal_key_t key = key_for(HW_RANGE_ID_1K, HW_EXCITATION_FREQ_1KHZ);
+    const measurement_cal_osl_coefficients_t coefficients = {
+        .ret_hg_transfer = measurement_dsp_config_ideal(HW_RANGE_ID_1K).ret_hg_transfer,
+        .load_z_ohms = measurement_complex(1000.0f, 0.0f),
+        .t_short = measurement_complex(0.010f, 0.0f),
+        .t_open = measurement_complex(0.980f, 0.0f),
+        .k = measurement_complex(-900.0f, 0.0f),
+    };
     measurement_cal_record_t record = measurement_cal_make_ideal_record(&key);
-    record.correction.ret_1x_output.scale = measurement_complex(2.0f, 0.0f);
-    record.correction.ret_1x_output.offset_ohms = measurement_complex(3.0f, 4.0f);
-    record.correction.ret_hg_output.scale = measurement_complex(2.0f, 0.0f);
-    record.correction.ret_hg_output.offset_ohms = measurement_complex(3.0f, 4.0f);
+    record.correction = measurement_cal_make_osl_correction(&coefficients, false, false);
     record.correction.flags |= MEASUREMENT_CAL_FLAG_QUALIFIED;
     (void)measurement_cal_set_add_record(&set, &record);
 
@@ -1038,21 +1141,163 @@ static int test_output_correction_updates_result_and_derivatives(void)
     measurement_calibrated_result_t processed;
     failures += expect_true(measurement_cal_process_block(&block, &set, &key, false, &processed) == BSP_STATUS_OK,
                             "calibrated block processes");
-    failures += expect_true(processed.output_corrected, "output correction applied");
+    failures += expect_true(processed.output_corrected, "OSL model applied");
+    const measurement_complex_t expected =
+        cmul(coefficients.k,
+             cdiv_test(csub(measurement_complex(0.1f, 0.0f), coefficients.t_short),
+                       csub(measurement_complex(0.1f, 0.0f), coefficients.t_open)));
     failures += expect_near(processed.result.impedance.z_ohms.re,
-                            (processed.raw_z_ohms.re * 2.0f) + 3.0f,
-                            0.02f,
-                            "corrected Z real");
+                            expected.re,
+                            4.0f,
+                            "OSL corrected Z real");
     failures += expect_near(processed.result.impedance.z_ohms.im,
-                            (processed.raw_z_ohms.im * 2.0f) + 4.0f,
-                            0.02f,
-                            "corrected Z imag");
+                            expected.im,
+                            1.0f,
+                            "OSL corrected Z imag");
     failures += expect_near(processed.result.derived.resistance_ohms,
                             processed.result.impedance.z_ohms.re,
                             0.001f,
                             "derived resistance follows corrected Z");
     failures += expect_true(processed.provenance.source == MEASUREMENT_CAL_SOURCE_PERSISTED,
                             "persisted provenance used");
+    return failures;
+}
+
+static int test_osl_mobius_solver_recovers_systematic_model(void)
+{
+    int failures = 0;
+    const measurement_cal_key_t key = key_for(HW_RANGE_ID_1K, HW_EXCITATION_FREQ_1KHZ);
+    const measurement_cal_osl_coefficients_t model = {
+        .ret_hg_transfer = measurement_complex(15.5f, 0.1f),
+        .load_z_ohms = measurement_complex(1000.0f, 0.0f),
+        .t_short = measurement_complex(0.012f, -0.004f),
+        .t_open = measurement_complex(0.985f, 0.018f),
+        .k = measurement_complex(-1040.0f, 38.0f),
+    };
+    const measurement_cal_solver_input_t input =
+        solver_input_from_model(key, &model, measurement_complex(1000.0f, 0.0f), true);
+    measurement_cal_solver_solution_t solution;
+    failures += expect_true(measurement_cal_solver_solve(&input, &solution) == MEASUREMENT_CAL_SOLVER_OK,
+                            "OSL solver accepts complete stable standards");
+    failures += expect_true(solution.fit_channel == MEASUREMENT_RETURN_1X, "1X path preferred");
+    failures += expect_complex_near(solution.coefficients.t_short, model.t_short, 0.00001f, "t_short");
+    failures += expect_complex_near(solution.coefficients.t_open, model.t_open, 0.00001f, "t_open");
+    failures += expect_complex_near(solution.coefficients.k, model.k, 0.02f, "K");
+    failures += expect_complex_near(solution.coefficients.ret_hg_transfer,
+                                   measurement_complex(15.5f, 0.1f),
+                                   0.00001f,
+                                   "HG observed");
+
+    const measurement_complex_t validation_z = measurement_complex(4700.0f, -1250.0f);
+    const measurement_complex_t measured_t = t_for_z(validation_z, &model);
+    measurement_complex_t corrected = measurement_complex(0.0f, 0.0f);
+    failures += expect_true(measurement_cal_solver_apply_osl(&solution.coefficients,
+                                                             measured_t,
+                                                             &corrected) == MEASUREMENT_CAL_SOLVER_OK,
+                            "OSL apply succeeds for validation DUT");
+    failures += expect_complex_near(corrected, validation_z, 0.7f, "validation impedance");
+    return failures;
+}
+
+static int test_osl_solver_errors_and_hg_fallback(void)
+{
+    int failures = 0;
+    const measurement_cal_key_t key = key_for(HW_RANGE_ID_1K, HW_EXCITATION_FREQ_1KHZ);
+    const measurement_cal_osl_coefficients_t model = {
+        .ret_hg_transfer = measurement_complex(15.5f, 0.0f),
+        .load_z_ohms = measurement_complex(1000.0f, 0.0f),
+        .t_short = measurement_complex(0.01f, 0.0f),
+        .t_open = measurement_complex(0.99f, 0.0f),
+        .k = measurement_complex(-1005.0f, 0.0f),
+    };
+
+    measurement_cal_solver_input_t input =
+        solver_input_from_model(key, &model, measurement_complex(1000.0f, 0.0f), false);
+    measurement_cal_solver_solution_t solution;
+    failures += expect_true(measurement_cal_solver_solve(&input, &solution) == MEASUREMENT_CAL_SOLVER_OK,
+                            "HG path solves when 1X is missing");
+    failures += expect_true(solution.fit_channel == MEASUREMENT_RETURN_HG, "HG fallback selected");
+
+    input.open.hg_observed_valid = false;
+    input.shorted.hg_observed_valid = false;
+    input.load.hg_observed_valid = false;
+    failures += expect_true(measurement_cal_solver_solve(&input, &solution) ==
+                                MEASUREMENT_CAL_SOLVER_HG_MISSING,
+                            "HG-only solve requires observed HG transfer");
+
+    input = solver_input_from_model(key, &model, measurement_complex(1000.0f, 0.0f), true);
+    input.load.key.range_id = HW_RANGE_ID_10K;
+    failures += expect_true(measurement_cal_solver_solve(&input, &solution) ==
+                                MEASUREMENT_CAL_SOLVER_KEY_MISMATCH,
+                            "key mismatch rejected");
+
+    input = solver_input_from_model(key, &model, measurement_complex(1000.0f, 0.0f), true);
+    input.load.stable = false;
+    failures += expect_true(measurement_cal_solver_solve(&input, &solution) ==
+                                MEASUREMENT_CAL_SOLVER_UNSTABLE,
+                            "unstable evidence rejected");
+
+    input = solver_input_from_model(key, &model, measurement_complex(1000.0f, 0.0f), true);
+    input.load.t_1x = input.shorted.t_1x;
+    input.load.t_hg = input.shorted.t_hg;
+    failures += expect_true(measurement_cal_solver_solve(&input, &solution) ==
+                                MEASUREMENT_CAL_SOLVER_ILL_CONDITIONED,
+                            "ill-conditioned triplet rejected");
+    return failures;
+}
+
+static int test_osl_record_serializes_and_resolves(void)
+{
+    int failures = 0;
+    const measurement_cal_key_t key = key_for(HW_RANGE_ID_1K, HW_EXCITATION_FREQ_1KHZ);
+    const measurement_cal_osl_coefficients_t model = {
+        .ret_hg_transfer = measurement_complex(15.5f, -0.05f),
+        .load_z_ohms = measurement_complex(1000.0f, 0.0f),
+        .t_short = measurement_complex(0.02f, 0.001f),
+        .t_open = measurement_complex(0.98f, -0.003f),
+        .k = measurement_complex(-990.0f, 12.0f),
+    };
+    const measurement_cal_solver_input_t input =
+        solver_input_from_model(key, &model, measurement_complex(1000.0f, 0.0f), true);
+    measurement_cal_solver_solution_t solution;
+    (void)measurement_cal_solver_solve(&input, &solution);
+    measurement_cal_record_t record = measurement_cal_solver_make_record(&solution);
+    failures += expect_true((record.correction.flags & MEASUREMENT_CAL_FLAG_OSL_MOBIUS) != 0u,
+                            "OSL flag set");
+    failures += expect_true((record.correction.flags & MEASUREMENT_CAL_FLAG_TEMPERATURE_VALID) != 0u,
+                            "temperature validity flag set");
+    failures += expect_true(record.temperature_mC == 23125, "reference temperature preserved");
+
+    measurement_cal_osl_coefficients_t decoded_coefficients;
+    failures += expect_true(measurement_cal_get_osl_coefficients(&record.correction,
+                                                                 &decoded_coefficients),
+                            "OSL coefficients decode from correction payload");
+    failures += expect_complex_near(decoded_coefficients.t_open, model.t_open, 0.00001f, "decoded t_open");
+
+    measurement_cal_set_t set;
+    measurement_cal_set_init(&set,
+                             MEASUREMENT_CAL_HARDWARE_REV1,
+                             MEASUREMENT_CAL_MODEL_VERSION_CURRENT,
+                             22u);
+    failures += expect_true(measurement_cal_set_add_record(&set, &record), "OSL record add");
+    uint8_t bytes[MEASUREMENT_CAL_MAX_FRAME_BYTES];
+    size_t written = 0u;
+    failures += expect_true(measurement_cal_serialize_set(&set, bytes, sizeof(bytes), &written),
+                            "OSL set serializes");
+    measurement_cal_set_t decoded;
+    failures += expect_true(measurement_cal_decode_set(bytes, written, &decoded, NULL),
+                            "OSL set decodes");
+    measurement_cal_resolved_t resolved;
+    failures += expect_true(measurement_cal_resolve_condition(&decoded,
+                                                              &key,
+                                                              false,
+                                                              &resolved) ==
+                                MEASUREMENT_CAL_RESOLVE_UNQUALIFIED,
+                            "OSL resolves as unqualified before bench qualification");
+    failures += expect_near(resolved.config.zref_ohms.re,
+                            measurement_dsp_config_ideal(HW_RANGE_ID_1K).zref_ohms.re,
+                            0.001f,
+                            "runtime config keeps ideal direct zref separate from OSL load");
     return failures;
 }
 
@@ -1088,6 +1333,9 @@ int main(int argc, char **argv)
     failures += test_app_calibration_runtime_loads_active_set();
     failures += test_slot_compatibility_diagnostics();
     failures += test_dsp_uses_calibrated_hg_transfer();
-    failures += test_output_correction_updates_result_and_derivatives();
+    failures += test_osl_process_block_updates_result_and_derivatives();
+    failures += test_osl_mobius_solver_recovers_systematic_model();
+    failures += test_osl_solver_errors_and_hg_fallback();
+    failures += test_osl_record_serializes_and_resolves();
     return (failures == 0) ? 0 : 1;
 }

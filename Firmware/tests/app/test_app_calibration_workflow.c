@@ -1,5 +1,6 @@
 #include "app/app_calibration_service.h"
 #include "app/app_calibration_session.h"
+#include "app/app_calibration_campaign.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -960,6 +961,107 @@ static int test_product_service_owns_store_and_blocks_rescan_while_busy(void)
     return failures;
 }
 
+static app_cal_evidence_t campaign_evidence(app_cal_standard_type_t type,
+                                            measurement_cal_key_t key,
+                                            measurement_complex_t t,
+                                            measurement_complex_t source,
+                                            measurement_complex_t load_z)
+{
+    app_cal_evidence_t evidence = {
+        .key = key,
+        .standard = {
+            .type = type,
+            .z_ohms = load_z,
+            .z_valid = type == APP_CAL_STANDARD_LOAD,
+        },
+        .accepted = APP_CAL_WORKFLOW_REQUIRED_ACCEPTED,
+        .attempts = APP_CAL_WORKFLOW_REQUIRED_ACCEPTED,
+        .stable = true,
+        .ret_1x_consistent = true,
+        .ret_hg_consistent = true,
+        .ret_1x_evidence_valid = true,
+        .ret_hg_evidence_valid = true,
+        .hg_overlap_valid = true,
+        .temperature = {
+            .count = 1u,
+            .mean_mC = 24000,
+            .min_mC = 24000,
+            .max_mC = 24000,
+            .valid = true,
+        },
+        .source_1 = {.count = APP_CAL_WORKFLOW_REQUIRED_ACCEPTED, .mean = source},
+        .source_2 = {.count = APP_CAL_WORKFLOW_REQUIRED_ACCEPTED, .mean = source},
+        .ret_1x = {.count = APP_CAL_WORKFLOW_REQUIRED_ACCEPTED,
+                   .mean = measurement_complex_mul(source, t)},
+        .ret_hg_reconstructed = {.count = APP_CAL_WORKFLOW_REQUIRED_ACCEPTED,
+                                 .mean = measurement_complex_mul(source, t)},
+        .open_y_1x = {.count = APP_CAL_WORKFLOW_REQUIRED_ACCEPTED, .mean = t},
+        .open_y_hg = {.count = APP_CAL_WORKFLOW_REQUIRED_ACCEPTED, .mean = t},
+        .hg_observed_transfer = {.count = APP_CAL_WORKFLOW_REQUIRED_ACCEPTED,
+                                 .mean = measurement_complex(15.4f, 0.2f)},
+    };
+    evidence.ret_1x_path.stable = true;
+    evidence.ret_hg_path.stable = true;
+    evidence.ret_1x_path.evidence_valid = true;
+    evidence.ret_hg_path.evidence_valid = true;
+    evidence.ret_1x_path.usable_count = APP_CAL_WORKFLOW_REQUIRED_ACCEPTED;
+    evidence.ret_hg_path.usable_count = APP_CAL_WORKFLOW_REQUIRED_ACCEPTED;
+    return evidence;
+}
+
+static int test_campaign_solves_condition_and_inserts_candidate_record(void)
+{
+    int failures = 0;
+    const measurement_cal_key_t key =
+        key_for(HW_RANGE_ID_1K, HW_EXCITATION_FREQ_1KHZ, HW_EXCITATION_AMP_100MVRMS);
+    app_calibration_campaign_t campaign;
+    app_calibration_campaign_init(&campaign);
+    failures += expect_true(app_calibration_campaign_begin_condition(&campaign, &key) == BSP_STATUS_OK,
+                            "campaign begins condition");
+    failures += expect_u32(app_calibration_campaign_missing_mask(&campaign),
+                           0x07u,
+                           "all standards initially missing");
+
+    const measurement_complex_t source = measurement_complex(0.1f, 0.0f);
+    const measurement_complex_t open_t = measurement_complex(0.98f, 0.01f);
+    const measurement_complex_t short_t = measurement_complex(0.02f, 0.0f);
+    const measurement_complex_t load_t = measurement_complex(0.50f, 0.02f);
+    const measurement_complex_t load_z = measurement_complex(1000.0f, 0.0f);
+    app_cal_evidence_t open = campaign_evidence(APP_CAL_STANDARD_OPEN, key, open_t, source, load_z);
+    app_cal_evidence_t shorted = campaign_evidence(APP_CAL_STANDARD_SHORT, key, short_t, source, load_z);
+    app_cal_evidence_t load = campaign_evidence(APP_CAL_STANDARD_LOAD, key, load_t, source, load_z);
+    failures += expect_true(app_calibration_campaign_submit_evidence(&campaign, &open) == BSP_STATUS_OK,
+                            "open evidence accepted");
+    failures += expect_true(app_calibration_campaign_submit_evidence(&campaign, &shorted) == BSP_STATUS_OK,
+                            "short evidence accepted");
+    failures += expect_true(app_calibration_campaign_submit_evidence(&campaign, &load) == BSP_STATUS_OK,
+                            "load evidence accepted");
+    failures += expect_true(app_calibration_campaign_condition_ready(&campaign), "condition ready");
+
+    measurement_cal_record_t record;
+    failures += expect_true(app_calibration_campaign_solve_condition(&campaign, &record) ==
+                                MEASUREMENT_CAL_SOLVER_OK,
+                            "campaign solves condition");
+    failures += expect_true((record.correction.flags & MEASUREMENT_CAL_FLAG_OSL_MOBIUS) != 0u,
+                            "campaign record is OSL");
+    failures += expect_true((record.correction.flags & MEASUREMENT_CAL_FLAG_TEMPERATURE_VALID) != 0u,
+                            "campaign preserves temperature validity");
+
+    measurement_cal_set_t candidate;
+    measurement_cal_set_init(&candidate,
+                             MEASUREMENT_CAL_HARDWARE_REV1,
+                             MEASUREMENT_CAL_MODEL_VERSION_CURRENT,
+                             0u);
+    failures += expect_true(app_calibration_campaign_insert_record(&record, &candidate) == BSP_STATUS_OK,
+                            "candidate insert");
+    failures += expect_u32(candidate.record_count, 1u, "candidate count");
+    record.correction.zref_ohms = measurement_complex(999.0f, 1.0f);
+    failures += expect_true(app_calibration_campaign_insert_record(&record, &candidate) == BSP_STATUS_OK,
+                            "candidate replace");
+    failures += expect_u32(candidate.record_count, 1u, "candidate still one record");
+    return failures;
+}
+
 int main(int argc, char **argv)
 {
     if ((argc > 1) && (strcmp(argv[1], "--print-sizes") == 0))
@@ -978,6 +1080,8 @@ int main(int argc, char **argv)
                      (unsigned long)sizeof(app_cal_path_evidence_t));
         (void)printf("app_calibration_session_t=%lu\n",
                      (unsigned long)app_calibration_session_context_size_bytes());
+        (void)printf("app_calibration_campaign_t=%lu\n",
+                     (unsigned long)app_calibration_campaign_context_size_bytes());
         return 0;
     }
 
@@ -998,6 +1102,7 @@ int main(int argc, char **argv)
     failures += test_safety_abort_fails_immediately();
     failures += test_cancel_during_capture_discards_evidence();
     failures += test_product_service_owns_store_and_blocks_rescan_while_busy();
+    failures += test_campaign_solves_condition_and_inserts_candidate_record();
     failures += test_session_runs_open_capture_end_to_end();
     failures += test_session_phase05_safety_abort_fails_safely();
     failures += test_session_cancel_waits_for_phase05_abort();

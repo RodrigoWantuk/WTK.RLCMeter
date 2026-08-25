@@ -19,6 +19,20 @@ Zx = ZREF * Vx / (Vs - Vx)
 
 This is the central impedance equation of the instrument.
 
+After OPEN/SHORT/LOAD calibration the runtime calibration model operates on the
+normalized transfer:
+
+```text
+t = Vx / Vs
+Z = K * (t - t_short) / (t - t_open)
+```
+
+The Rev.1 OSL/Mobius model stores `t_short`, `t_open`, and `K` per exact
+range/frequency/amplitude condition. This form is intentionally projective: the SHORT
+standard maps to 0 ohm, the LOAD standard maps to the known complex load, and the OPEN
+standard maps to a singularity. Runtime processing must therefore treat `t` values near
+`t_open` as OPEN-like rather than allowing NaN/Inf propagation.
+
 ## Complex processing
 
 Amplitude alone is not sufficient to separate resistance from reactance. Each measured channel is converted into a complex phasor through synchronous detection or an equivalent single-bin DFT:
@@ -61,6 +75,11 @@ RET = VMID + (RET_HG - VMID) / H_HG(f)
 ```
 
 where `H_HG(f)` is a calibrated complex transfer response. The current nominal DC gain is approximately 15.47×, but firmware must not treat it as exact or frequency independent.
+
+The Stage 2B.2 solver records an observed complex `H_HG` from RET_HG/RET_1X overlap
+evidence when available. The present Rev.1 assumption stores one transfer in the exact
+condition record; whether temperature/frequency/amplitude/range need denser HG
+modeling remains `REQUIRES_BENCH_VALIDATION`.
 
 The measurement engine chooses the channel with the best useful SNR while rejecting clipping and invalid calibration regions.
 

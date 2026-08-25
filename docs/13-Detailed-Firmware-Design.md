@@ -751,6 +751,11 @@ app_calibration_session_t:
     connects the service workflow to Phase 05 fixed-condition measurements
     owns cancellation/capture events, not raw DMA storage
 
+app_calibration_campaign_t:
+    compact current-condition OSL campaign
+    stores only OPEN/SHORT/LOAD summaries and one solved condition
+    inserts records into an external candidate set
+
 app_calibration_runtime_t:
     active decoded calibration coefficients and compact provenance
 
@@ -784,6 +789,13 @@ standard-specific stability observables. OPEN uses normalized `(Vs - Vx) / Vx`
 observables because a valid OPEN may not have a finite final impedance. SHORT and LOAD
 use per-path provisional impedance observables. Missing path evidence is not counted as
 stable.
+
+Stage 2B.2 adds the pure `measurement_calibration_solver` and the compact
+`app_calibration_campaign` layer. The active model is `OSL_MOBIUS_V1`: the solver uses
+`t = Vx / Vs` and stores `t_short`, `t_open`, and `K` in the existing 80-byte condition
+record payload. The service reuses `measurement_cal_store_t.scan_set` as the candidate
+set and activates it only after the inactive W25Q slot has been programmed and verified.
+No Lab/application calibration path owns GPIO, K1, range switching, or raw DMA storage.
 
 ## Calibration boot gate
 

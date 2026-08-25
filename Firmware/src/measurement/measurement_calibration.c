@@ -29,6 +29,11 @@ static bool finite_f(float value)
     return isfinite(value) != 0;
 }
 
+static measurement_complex_t complex_neg(measurement_complex_t value)
+{
+    return measurement_complex(-value.re, -value.im);
+}
+
 static void write_u16(uint8_t *dst, uint16_t value)
 {
     dst[0] = (uint8_t)(value & 0xFFu);
@@ -181,6 +186,12 @@ static bool key_valid(const measurement_cal_key_t *key)
            measurement_cal_condition_allowed(key->range_id, key->frequency, key->amplitude);
 }
 
+static bool model_is_direct(uint16_t model_version)
+{
+    return (model_version == MEASUREMENT_CAL_MODEL_VERSION_DIRECT_V1) ||
+           (model_version == MEASUREMENT_CAL_MODEL_VERSION_DIRECT_V2);
+}
+
 static bool scale_finite(measurement_adc_scale_t scale)
 {
     return finite_f(scale.code_to_volts) && finite_f(scale.offset_volts);
@@ -239,20 +250,87 @@ measurement_cal_record_t measurement_cal_make_ideal_record(const measurement_cal
         record.key = *key;
     }
     measurement_dsp_config_t config = measurement_dsp_config_ideal(record.key.range_id);
-    record.correction.ret_hg_transfer = config.ret_hg_transfer;
-    record.correction.zref_ohms = config.zref_ohms;
-    record.correction.ret_1x_output.scale = measurement_complex(1.0f, 0.0f);
-    record.correction.ret_1x_output.offset_ohms = measurement_complex(0.0f, 0.0f);
-    record.correction.ret_hg_output.scale = measurement_complex(1.0f, 0.0f);
-    record.correction.ret_hg_output.offset_ohms = measurement_complex(0.0f, 0.0f);
-    record.correction.flags = MEASUREMENT_CAL_FLAG_RET_HG |
-                              MEASUREMENT_CAL_FLAG_ZREF |
-                              MEASUREMENT_CAL_FLAG_OUTPUT_CORRECTION_1X |
-                              MEASUREMENT_CAL_FLAG_OUTPUT_CORRECTION_HG;
+    if ((key != NULL) && (key->model_version == MEASUREMENT_CAL_MODEL_VERSION_OSL_MOBIUS_V1))
+    {
+        const measurement_cal_osl_coefficients_t ideal = {
+            .ret_hg_transfer = config.ret_hg_transfer,
+            .load_z_ohms = config.zref_ohms,
+            .t_short = measurement_complex(0.0f, 0.0f),
+            .t_open = measurement_complex(1.0f, 0.0f),
+            .k = complex_neg(config.zref_ohms),
+        };
+        record.correction = measurement_cal_make_osl_correction(&ideal, false, false);
+    }
+    else
+    {
+        record.correction.ret_hg_transfer = config.ret_hg_transfer;
+        record.correction.zref_ohms = config.zref_ohms;
+        record.correction.ret_1x_output.scale = measurement_complex(1.0f, 0.0f);
+        record.correction.ret_1x_output.offset_ohms = measurement_complex(0.0f, 0.0f);
+        record.correction.ret_hg_output.scale = measurement_complex(1.0f, 0.0f);
+        record.correction.ret_hg_output.offset_ohms = measurement_complex(0.0f, 0.0f);
+        record.correction.flags = MEASUREMENT_CAL_FLAG_RET_HG |
+                                  MEASUREMENT_CAL_FLAG_ZREF |
+                                  MEASUREMENT_CAL_FLAG_OUTPUT_CORRECTION_1X |
+                                  MEASUREMENT_CAL_FLAG_OUTPUT_CORRECTION_HG;
+    }
     record.record_type = MEASUREMENT_CAL_RECORD_CONDITION;
-    record.temperature_mC = 25000;
+    record.temperature_mC = 0;
     record.condition_id = measurement_cal_condition_id(&record.key);
     return record;
+}
+
+measurement_cal_correction_t measurement_cal_make_osl_correction(
+    const measurement_cal_osl_coefficients_t *coefficients,
+    bool temperature_valid,
+    bool hg_observed)
+{
+    measurement_cal_correction_t correction = {0};
+    if (coefficients == NULL)
+    {
+        return correction;
+    }
+    correction.ret_hg_transfer = coefficients->ret_hg_transfer;
+    correction.zref_ohms = coefficients->load_z_ohms;
+    correction.ret_1x_output.scale = coefficients->t_short;
+    correction.ret_1x_output.offset_ohms = coefficients->t_open;
+    correction.ret_hg_output.scale = coefficients->k;
+    correction.ret_hg_output.offset_ohms = measurement_complex(0.0f, 0.0f);
+    correction.flags = MEASUREMENT_CAL_FLAG_RET_HG |
+                       MEASUREMENT_CAL_FLAG_ZREF |
+                       MEASUREMENT_CAL_FLAG_OSL_MOBIUS;
+    if (temperature_valid)
+    {
+        correction.flags |= MEASUREMENT_CAL_FLAG_TEMPERATURE_VALID;
+    }
+    if (hg_observed)
+    {
+        correction.flags |= MEASUREMENT_CAL_FLAG_HG_OBSERVED;
+    }
+    return correction;
+}
+
+bool measurement_cal_get_osl_coefficients(const measurement_cal_correction_t *correction,
+                                          measurement_cal_osl_coefficients_t *coefficients)
+{
+    if ((correction == NULL) || (coefficients == NULL) ||
+        ((correction->flags & MEASUREMENT_CAL_FLAG_OSL_MOBIUS) == 0u) ||
+        !correction_finite(correction))
+    {
+        return false;
+    }
+    *coefficients = (measurement_cal_osl_coefficients_t){
+        .ret_hg_transfer = correction->ret_hg_transfer,
+        .load_z_ohms = correction->zref_ohms,
+        .t_short = correction->ret_1x_output.scale,
+        .t_open = correction->ret_1x_output.offset_ohms,
+        .k = correction->ret_hg_output.scale,
+    };
+    return measurement_complex_is_finite(coefficients->ret_hg_transfer) &&
+           measurement_complex_is_finite(coefficients->load_z_ohms) &&
+           measurement_complex_is_finite(coefficients->t_short) &&
+           measurement_complex_is_finite(coefficients->t_open) &&
+           measurement_complex_is_finite(coefficients->k);
 }
 
 bool measurement_cal_set_add_record(measurement_cal_set_t *set, const measurement_cal_record_t *record)
@@ -454,7 +532,10 @@ static void fill_from_record(const measurement_cal_set_t *set,
     resolved->adc = ((set != NULL) && set->adc_valid) ? set->adc : measurement_adc_calibration_ideal();
     resolved->config = measurement_dsp_config_ideal(record->key.range_id);
     resolved->config.ret_hg_transfer = record->correction.ret_hg_transfer;
-    resolved->config.zref_ohms = record->correction.zref_ohms;
+    if (model_is_direct(record->key.model_version))
+    {
+        resolved->config.zref_ohms = record->correction.zref_ohms;
+    }
     resolved->correction = record->correction;
 }
 
@@ -575,6 +656,170 @@ measurement_complex_t measurement_cal_apply_output_correction(
                                    selected->offset_ohms);
 }
 
+static bool stream_clipped(const hw_metrology_block_t *block, hw_metrology_stream_t stream)
+{
+    return (block != NULL) && (stream < HW_METROLOGY_STREAM_COUNT) &&
+           block->streams[stream].hard_clipped;
+}
+
+static measurement_status_t compute_t(measurement_complex_t vx,
+                                      measurement_complex_t vs,
+                                      float source_min,
+                                      measurement_complex_t *t)
+{
+    if (t == NULL)
+    {
+        return MEASUREMENT_STATUS_INVALID_ARG;
+    }
+    if (measurement_complex_near_zero(vs, source_min))
+    {
+        *t = measurement_complex(0.0f, 0.0f);
+        return MEASUREMENT_STATUS_SOURCE_TOO_SMALL;
+    }
+    return measurement_complex_div(vx, vs, t);
+}
+
+static measurement_impedance_result_t compute_osl_impedance(measurement_complex_t vs,
+                                                            measurement_complex_t vx,
+                                                            const measurement_cal_osl_coefficients_t *coefficients,
+                                                            const measurement_dsp_config_t *config,
+                                                            measurement_return_channel_t channel)
+{
+    measurement_impedance_result_t result = {
+        .status = MEASUREMENT_STATUS_OK,
+        .channel = channel,
+        .vs_v = vs,
+        .vx_v = vx,
+        .z_ohms = measurement_complex(0.0f, 0.0f),
+        .open_like = false,
+        .short_like = false,
+    };
+    if ((coefficients == NULL) || (config == NULL))
+    {
+        result.status = MEASUREMENT_STATUS_INVALID_ARG;
+        return result;
+    }
+    if (!measurement_complex_is_finite(vs) || !measurement_complex_is_finite(vx) ||
+        !measurement_complex_is_finite(coefficients->t_short) ||
+        !measurement_complex_is_finite(coefficients->t_open) ||
+        !measurement_complex_is_finite(coefficients->k))
+    {
+        result.status = MEASUREMENT_STATUS_NONFINITE;
+        return result;
+    }
+
+    measurement_complex_t t = measurement_complex(0.0f, 0.0f);
+    result.status = compute_t(vx, vs, config->source_min_v_peak, &t);
+    if (result.status != MEASUREMENT_STATUS_OK)
+    {
+        return result;
+    }
+    const measurement_complex_t numerator = measurement_complex_sub(t, coefficients->t_short);
+    const measurement_complex_t denominator = measurement_complex_sub(t, coefficients->t_open);
+    if (measurement_complex_near_zero(denominator, 1.0e-5f))
+    {
+        result.status = MEASUREMENT_STATUS_DENOMINATOR_TOO_SMALL;
+        result.open_like = true;
+        return result;
+    }
+    if (measurement_complex_near_zero(numerator, 1.0e-5f) ||
+        measurement_complex_near_zero(vx, config->return_min_v_peak))
+    {
+        result.short_like = true;
+    }
+
+    measurement_complex_t ratio = measurement_complex(0.0f, 0.0f);
+    result.status = measurement_complex_div(numerator, denominator, &ratio);
+    if (result.status != MEASUREMENT_STATUS_OK)
+    {
+        return result;
+    }
+    result.z_ohms = measurement_complex_mul(coefficients->k, ratio);
+    if (!measurement_complex_is_finite(result.z_ohms))
+    {
+        result.status = MEASUREMENT_STATUS_NONFINITE;
+    }
+    return result;
+}
+
+static bsp_status_t process_osl_block(const hw_metrology_block_t *block,
+                                      const measurement_cal_resolved_t *resolved,
+                                      const measurement_cal_key_t *key,
+                                      measurement_calibrated_result_t *result)
+{
+    measurement_cal_osl_coefficients_t coefficients;
+    if (!measurement_cal_get_osl_coefficients(&resolved->correction, &coefficients))
+    {
+        return BSP_STATUS_ERROR;
+    }
+    if (measurement_extract_phasors(block, &resolved->adc, &resolved->config, &result->result.phasors) !=
+        BSP_STATUS_OK)
+    {
+        result->result.status = block->clipped ? MEASUREMENT_STATUS_CLIPPED : MEASUREMENT_STATUS_INVALID_ARG;
+        return BSP_STATUS_ERROR;
+    }
+
+    const measurement_complex_t ret_1x_signal =
+        measurement_complex_sub(result->result.phasors.ret_1x, result->result.phasors.vmid);
+    const measurement_complex_t ret_hg_signal =
+        measurement_complex_sub(result->result.phasors.ret_hg_reconstructed, result->result.phasors.vmid);
+    const bool vmid_clipped = stream_clipped(block, HW_METROLOGY_STREAM_VMID_ADC1) ||
+                              stream_clipped(block, HW_METROLOGY_STREAM_VMID_ADC2);
+    const bool ret_1x_clipped = stream_clipped(block, HW_METROLOGY_STREAM_RET_1X) ||
+                                stream_clipped(block, HW_METROLOGY_STREAM_VEXC_1) ||
+                                vmid_clipped;
+    const bool ret_hg_clipped = stream_clipped(block, HW_METROLOGY_STREAM_RET_HG) ||
+                                stream_clipped(block, HW_METROLOGY_STREAM_VEXC_2) ||
+                                vmid_clipped;
+    result->result.ret_1x_quality = measurement_channel_quality(&ret_1x_signal,
+                                                                ret_1x_clipped,
+                                                                true,
+                                                                resolved->config.return_min_v_peak);
+    result->result.ret_hg_quality =
+        measurement_channel_quality(&ret_hg_signal,
+                                    ret_hg_clipped,
+                                    !measurement_complex_near_zero(resolved->config.ret_hg_transfer, 1.0e-6f),
+                                    resolved->config.return_min_v_peak);
+    result->result.selected_channel = measurement_select_return_channel(&result->result.ret_1x_quality,
+                                                                        &result->result.ret_hg_quality);
+    if ((result->result.selected_channel == MEASUREMENT_RETURN_HG) && result->result.ret_hg_quality.usable)
+    {
+        result->result.impedance =
+            compute_osl_impedance(measurement_complex_sub(result->result.phasors.vexc_2,
+                                                          result->result.phasors.vmid),
+                                  ret_hg_signal,
+                                  &coefficients,
+                                  &resolved->config,
+                                  MEASUREMENT_RETURN_HG);
+    }
+    else if (result->result.ret_1x_quality.usable)
+    {
+        result->result.selected_channel = MEASUREMENT_RETURN_1X;
+        result->result.impedance =
+            compute_osl_impedance(measurement_complex_sub(result->result.phasors.vexc_1,
+                                                          result->result.phasors.vmid),
+                                  ret_1x_signal,
+                                  &coefficients,
+                                  &resolved->config,
+                                  MEASUREMENT_RETURN_1X);
+    }
+    else
+    {
+        result->result.status = block->clipped ? MEASUREMENT_STATUS_CLIPPED :
+                                                 MEASUREMENT_STATUS_CHANNEL_UNUSABLE;
+        return BSP_STATUS_ERROR;
+    }
+
+    result->result.status = result->result.impedance.status;
+    result->raw_z_ohms = result->result.impedance.z_ohms;
+    result->output_corrected = true;
+    result->result.derived = measurement_derive_quantities(result->result.impedance.z_ohms,
+                                                           frequency_hz(key->frequency),
+                                                           &resolved->config,
+                                                           result->result.impedance.status);
+    return (result->result.status == MEASUREMENT_STATUS_OK) ? BSP_STATUS_OK : BSP_STATUS_ERROR;
+}
+
 bsp_status_t measurement_cal_process_block(const hw_metrology_block_t *block,
                                            const measurement_cal_set_t *set,
                                            const measurement_cal_key_t *key,
@@ -598,6 +843,12 @@ bsp_status_t measurement_cal_process_block(const hw_metrology_block_t *block,
     }
 
     result->provenance = resolved.provenance;
+    if ((key->model_version == MEASUREMENT_CAL_MODEL_VERSION_OSL_MOBIUS_V1) &&
+        ((resolved.correction.flags & MEASUREMENT_CAL_FLAG_OSL_MOBIUS) != 0u))
+    {
+        return process_osl_block(block, &resolved, key, result);
+    }
+
     const bsp_status_t status =
         measurement_process_block(block, &resolved.adc, &resolved.config, &result->result);
     if (status != BSP_STATUS_OK)

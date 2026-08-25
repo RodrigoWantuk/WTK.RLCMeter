@@ -53,6 +53,14 @@ const app_calibration_workflow_t *app_calibration_service_workflow_const(
 
 bsp_status_t app_calibration_service_start_workflow(app_calibration_service_t *service,
                                                     const app_cal_workflow_request_t *request);
+bsp_status_t app_calibration_service_candidate_begin(app_calibration_service_t *service);
+measurement_cal_set_t *app_calibration_service_candidate_set(app_calibration_service_t *service);
+const measurement_cal_set_t *app_calibration_service_candidate_set_const(
+    const app_calibration_service_t *service);
+measurement_cal_validity_t app_calibration_service_candidate_validity(
+    const app_calibration_service_t *service);
+bsp_status_t app_calibration_service_candidate_commit_start(app_calibration_service_t *service);
+bsp_status_t app_calibration_service_step(app_calibration_service_t *service, uint32_t now_ms);
 uint32_t app_calibration_service_context_size_bytes(void);
 const char *app_calibration_service_status_string(app_cal_service_status_t status);
 
