@@ -740,6 +740,10 @@ but the Lab console must not be the owner of product calibration validity.
 Runtime ownership is split to keep the STM32F103C8T6 SRAM budget visible:
 
 ```text
+app_calibration_service_t:
+    product-owned calibration service
+    owns runtime + one store scratch + active OSL evidence workflow
+
 app_calibration_runtime_t:
     active decoded calibration coefficients and compact provenance
 
@@ -751,12 +755,20 @@ measurement_cal_store_t:
 Phase 05 raw ADC buffer:
     owned by metrology transport/BSP
     never copied into calibration runtime or Lab console state
+
+app_lab_console_t:
+    owns Lab command state only
+    attaches to app_calibration_service_t
+    does not own calibration store scratch
 ```
 
 The normal calibration store write path must not place multiple complete
 `measurement_cal_set_t` objects on stack. Stage 2B OPEN/SHORT/LOAD work should consume
 raw captures as transient evidence, derive compact condition coefficients, and keep any
 future raw-evidence persistence separate from the active coefficient set.
+
+Stage 2B.1 implements evidence acquisition only. It does not replace the active
+persisted calibration set and does not solve or commit new coefficients.
 
 ## Calibration boot gate
 

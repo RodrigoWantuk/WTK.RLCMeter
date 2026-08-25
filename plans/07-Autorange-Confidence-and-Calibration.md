@@ -21,6 +21,12 @@ Stage 2A.3 — SRAM/stack hardening / calibration runtime ownership:
 STATUS: IMPLEMENTED
 
 Stage 2B — OPEN-SHORT-LOAD workflows / calibration acquisition:
+STATUS: IN_PROGRESS
+
+Stage 2B.1 — Product calibration service / OSL evidence acquisition:
+STATUS: IMPLEMENTED_REQUIRES_BENCH_VALIDATION
+
+Stage 2B.2 — OSL coefficient solving / calibration-set replacement:
 STATUS: NOT_STARTED
 
 ## Goal
@@ -460,15 +466,22 @@ measurement_cal_store_t
     owns one decoded scan scratch set for slot scanning and verification
     stores expected post-write identity as sequence/hardware/model/count/key-mask
 
+app_calibration_service_t
+    owns the product calibration runtime
+    owns the single calibration store scratch context
+    owns the active OPEN/SHORT/LOAD acquisition workflow
+    is available in Debug, Release, and Lab builds
+
 app_calibration_runtime_t
     owns the active decoded calibration set and active-slot provenance
     owns compact slot diagnostics
     does not own W25Q or raw metrology buffers
 
 app_lab_console_t
-    owns Lab command state and a store scratch context
-    attaches to app_calibration_runtime_t through its public API
+    owns Lab command state only
+    attaches to app_calibration_service_t through its public API
     does not own the active calibration set
+    does not own calibration store scratch storage
 ```
 
 The store no longer places multiple complete `measurement_cal_set_t` objects on the
@@ -513,6 +526,63 @@ Release must not carry Lab-only console buffers or raw calibration workflow fixt
 Stage 2B must keep raw OPEN/SHORT/LOAD captures as transient acquisition evidence. It
 must reuse the existing Phase 05 raw block ownership, derive compact coefficients, and
 avoid copying complete raw ADC blocks into calibration/session contexts.
+
+## Stage 2B.1 implementation boundary
+
+Stage 2B.1 adds a product-owned calibration service and the first OPEN/SHORT/LOAD
+evidence acquisition workflow. It does not solve or commit new calibration
+coefficients.
+
+On boot, after W25Q probing, the application initializes the product calibration
+service. If W25Q is present, the service initializes the calibration store, scans both
+slots, selects the newest usable persisted set, and publishes cached runtime validity.
+If W25Q is absent or rejected, the service records `STORAGE_UNAVAILABLE`. Lab status and
+dump commands read this cached state; they do not rescan or reinitialize storage. A
+manual Lab rescan is rejected while a store transaction or OSL workflow is active.
+
+The OSL workflow captures one exact condition at a time:
+
+```text
+Lab/UI intent
+    -> app_calibration_service_t
+    -> app_calibration_workflow_t
+    -> Phase 05 fixed-condition DUT measurement
+    -> Phase 06 baseline DSP evidence extraction after SAFE teardown
+    -> compact per-condition OPEN/SHORT/LOAD evidence
+```
+
+Each capture is a separate Phase 05 safety transaction. The workflow never energizes
+K1 directly, never keeps K1 energized between repeats, never bypasses measurement
+permits, and never owns range GPIO.
+
+Initial Stage 2B.1 repetition policy:
+
+```text
+accepted captures required: 6
+maximum total attempts:     10
+stability limit:            20000 ppm of complex-Z magnitude
+minimum source magnitude:   5000 uV peak
+minimum denominator:        1000 uV peak for SHORT/LOAD evidence
+```
+
+These acquisition thresholds are provisional and remain `REQUIRES_BENCH_VALIDATION`.
+The workflow uses online complex statistics and stores only compact evidence. It does
+not copy the 3072-byte Phase 05 raw DMA buffer.
+
+Stage 2B.1 standard semantics:
+
+- `OPEN` preserves phasor evidence and residual apparent impedance/noise when meaningful;
+- `SHORT` preserves compact complex residual impedance evidence;
+- `LOAD` records a known complex standard impedance, with the initial Lab command
+  accepting pure resistance in ohms;
+- both RET_1X and RET_HG paths remain visible in evidence.
+
+Rejected captures are explicit. Causes include Phase 05 failure, safety abort,
+clipping, invalid/non-finite DSP evidence, source too small, no usable RET channel, and
+severe denominator conditioning where applicable. Cancellation during an active Phase 05
+transaction requests the existing safe abort path, waits for the hardware-safe end
+state, then discards incomplete evidence. Active persisted calibration remains
+unchanged throughout Stage 2B.1.
 
 ## Task 1 — Define measurement attempt model
 

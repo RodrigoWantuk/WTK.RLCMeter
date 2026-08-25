@@ -651,6 +651,24 @@ negative reactance with generally decreasing `|X|` as frequency increases, while
 inductive tendency expects positive reactance with generally increasing `|X|`. The
 implementation tolerates non-ideal ESR/winding resistance and flags inconsistent trends.
 
+## Product Calibration Service Ownership
+
+Phase 07 Stage 2B.1 makes calibration storage a product-owned service, not a Lab-console
+scratch object. `app_calibration_service_t` owns the active calibration runtime, the
+single `measurement_cal_store_t` scratch context, and the active OPEN/SHORT/LOAD
+evidence workflow. The Lab console attaches to this service and reports cached state.
+
+Normal `lab cal status`, `lab cal dump`, automatic measurement, and calibration
+acquisition commands must not rescan or reinitialize W25Q storage. A deliberate
+`lab cal rescan` command may refresh the cached product state, but it must be rejected
+while the store or calibration workflow is busy.
+
+OPEN/SHORT/LOAD acquisition evidence is transient in Stage 2B.1. It uses Phase 05
+fixed-condition measurement transactions and Phase 06 baseline DSP extraction after the
+hardware has returned SAFE, then retains compact phasor/statistical evidence. It does
+not replace the active persisted calibration set and does not copy the 3072-byte raw ADC
+DMA buffer into application or calibration contexts.
+
 ## Decision-change rule
 
 Any agent or contributor proposing to reverse a consolidated decision must document:

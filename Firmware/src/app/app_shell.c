@@ -1,7 +1,7 @@
 #include "app/app_shell.h"
 
 #include "app/app_lab_console.h"
-#include "app/app_calibration_runtime.h"
+#include "app/app_calibration_service.h"
 #include "app/app_safety_fault.h"
 #include "bsp/bsp_adc.h"
 #include "bsp/bsp_clock.h"
@@ -28,6 +28,7 @@
 #include "hardware/hw_range.h"
 #include "hardware/hw_safety.h"
 #include "ui/ui_fallback_renderer.h"
+#include "storage/measurement_cal_w25q_adapter.h"
 #include "wtk_build_config.h"
 
 typedef enum
@@ -47,7 +48,7 @@ static hw_charger_t g_charger;
 static hw_aux_sensors_t g_aux_sensors;
 static app_safety_fault_latch_t g_safety_faults;
 static hw_safety_result_t g_safety_result;
-static app_calibration_runtime_t g_calibration_runtime;
+static app_calibration_service_t g_calibration_service;
 #if WTK_ENABLE_LAB_DIAGNOSTICS
 static app_lab_console_t g_lab_console;
 static bool g_display_ready_reported = false;
@@ -324,7 +325,7 @@ void app_shell_run(void)
     const bsp_reset_reason_t reset_reason = bsp_reset_capture_reason();
 
     app_safety_fault_init(&g_safety_faults);
-    app_calibration_runtime_init(&g_calibration_runtime);
+    app_calibration_service_init(&g_calibration_service);
     const bsp_status_t gpio_status = bsp_gpio_init_safe();
     app_record_status_fault(gpio_status, APP_SAFETY_FAULT_GPIO_INIT);
     const bsp_status_t clock_status = bsp_clock_init();
@@ -390,7 +391,7 @@ void app_shell_run(void)
     g_reported_primary_blocker = HW_SAFETY_BLOCKED_SENSOR_INVALID;
 #if WTK_ENABLE_LAB_DIAGNOSTICS
     app_lab_console_init(&g_lab_console);
-    app_lab_console_attach_calibration_runtime(&g_lab_console, &g_calibration_runtime);
+    app_lab_console_attach_calibration_service(&g_lab_console, &g_calibration_service);
     g_display_ready_reported = false;
 #endif
     w25q_device_init(&g_flash);
@@ -415,6 +416,13 @@ void app_shell_run(void)
     bsp_diagnostics_write_key_value_text("w25q", w25q_status_string(flash_status));
     if (flash_status == W25Q_STATUS_OK)
     {
+        const measurement_cal_store_io_t cal_io = measurement_cal_w25q_store_io(&g_flash);
+        const bsp_status_t cal_status =
+            app_calibration_service_load(&g_calibration_service, &cal_io, g_flash.part.capacity_bytes);
+        bsp_diagnostics_write_key_value_text("calibration", bsp_status_string(cal_status));
+        bsp_diagnostics_write_key_value_text("calibration_state",
+                                             app_calibration_service_status_string(
+                                                 app_calibration_service_status(&g_calibration_service)));
         const unsigned int jedec = ((unsigned int)g_flash.part.jedec.manufacturer_id << 16u) |
                                    ((unsigned int)g_flash.part.jedec.memory_type << 8u) |
                                    (unsigned int)g_flash.part.jedec.capacity_code;
@@ -423,6 +431,13 @@ void app_shell_run(void)
         bsp_diagnostics_write_key_value_u32("w25q_capacity", g_flash.part.capacity_bytes);
         bsp_diagnostics_write_key_value_u32("w25q_test_sector",
                                             w25q_reserved_test_sector_address(g_flash.part.capacity_bytes));
+    }
+    else
+    {
+        app_calibration_service_mark_storage_unavailable(&g_calibration_service);
+        bsp_diagnostics_write_key_value_text("calibration_state",
+                                             app_calibration_service_status_string(
+                                                 app_calibration_service_status(&g_calibration_service)));
     }
 
     ili9341_init_start(&g_display, bsp_time_now_ms());

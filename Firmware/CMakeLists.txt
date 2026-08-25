@@ -51,6 +51,8 @@ configure_file(
 add_library(wtk_firmware_common STATIC
     src/app/app_safety_fault.c
     src/app/app_calibration_runtime.c
+    src/app/app_calibration_service.c
+    src/app/app_calibration_workflow.c
     src/app/app_measurement_session.c
     src/app/app_version.c
     src/bsp/bsp_adc_common.c

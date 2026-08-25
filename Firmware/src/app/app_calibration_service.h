@@ -1,0 +1,59 @@
+#ifndef WTK_APP_CALIBRATION_SERVICE_H
+#define WTK_APP_CALIBRATION_SERVICE_H
+
+#include <stdbool.h>
+#include <stdint.h>
+
+#include "app/app_calibration_runtime.h"
+#include "app/app_calibration_workflow.h"
+#include "bsp/bsp_status.h"
+#include "measurement/measurement_calibration_store.h"
+
+typedef enum
+{
+    APP_CAL_SERVICE_UNINITIALIZED = 0,
+    APP_CAL_SERVICE_READY,
+    APP_CAL_SERVICE_STORAGE_UNAVAILABLE,
+    APP_CAL_SERVICE_NO_VALID_CALIBRATION,
+    APP_CAL_SERVICE_ACTIVE_VALID,
+    APP_CAL_SERVICE_WORKFLOW_ACTIVE,
+    APP_CAL_SERVICE_STORE_BUSY,
+    APP_CAL_SERVICE_ERROR,
+} app_cal_service_status_t;
+
+typedef struct
+{
+    app_calibration_runtime_t runtime;
+    measurement_cal_store_t store;
+    app_calibration_workflow_t workflow;
+    app_cal_service_status_t status;
+    bsp_status_t last_store_status;
+    uint32_t capacity_bytes;
+    uint32_t workflow_sequence;
+    bool initialized;
+    bool storage_available;
+} app_calibration_service_t;
+
+void app_calibration_service_init(app_calibration_service_t *service);
+bsp_status_t app_calibration_service_load(app_calibration_service_t *service,
+                                          const measurement_cal_store_io_t *io,
+                                          uint32_t capacity_bytes);
+void app_calibration_service_mark_storage_unavailable(app_calibration_service_t *service);
+app_cal_service_status_t app_calibration_service_status(const app_calibration_service_t *service);
+bool app_calibration_service_busy(const app_calibration_service_t *service);
+
+app_calibration_runtime_t *app_calibration_service_runtime(app_calibration_service_t *service);
+const app_calibration_runtime_t *app_calibration_service_runtime_const(
+    const app_calibration_service_t *service);
+const measurement_cal_set_t *app_calibration_service_active_set(
+    const app_calibration_service_t *service);
+app_calibration_workflow_t *app_calibration_service_workflow(app_calibration_service_t *service);
+const app_calibration_workflow_t *app_calibration_service_workflow_const(
+    const app_calibration_service_t *service);
+
+bsp_status_t app_calibration_service_start_workflow(app_calibration_service_t *service,
+                                                    const app_cal_workflow_request_t *request);
+uint32_t app_calibration_service_context_size_bytes(void);
+const char *app_calibration_service_status_string(app_cal_service_status_t status);
+
+#endif

@@ -4,7 +4,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include "app/app_calibration_runtime.h"
+#include "app/app_calibration_service.h"
 #include "app/app_safety_fault.h"
 #include "app/app_measurement_session.h"
 #include "drivers/ili9341.h"
@@ -62,8 +62,7 @@ typedef struct
     hw_metrology_measure_t measure;
     app_measurement_session_t auto_measure;
     measurement_auto_hint_t auto_hint;
-    measurement_cal_store_t cal_store;
-    app_calibration_runtime_t *cal_runtime;
+    app_calibration_service_t *cal_service;
     uint32_t auto_sequence;
     app_lab_metrology_dump_source_t dump_source;
     uint16_t dump_row;
@@ -80,8 +79,8 @@ typedef struct
 } app_lab_console_t;
 
 void app_lab_console_init(app_lab_console_t *console);
-void app_lab_console_attach_calibration_runtime(app_lab_console_t *console,
-                                                app_calibration_runtime_t *runtime);
+void app_lab_console_attach_calibration_service(app_lab_console_t *console,
+                                                app_calibration_service_t *service);
 void app_lab_console_step(app_lab_console_t *console,
                           w25q_device_t *flash,
                           ili9341_t *display,
