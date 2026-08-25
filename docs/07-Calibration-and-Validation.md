@@ -21,28 +21,43 @@ Each relevant calibration condition should be identified by a key similar to:
 
 ```text
 hardware_revision
-frequency
-range
-excitation_amplitude
-return_channel
 calibration_model_version
+range
+frequency
+excitation_amplitude
 ```
 
-Calibration temperature should also be recorded.
+`return_channel` is not part of the persistent Rev.1 condition key because Phase 05
+captures RET_1X and RET_HG together for the same physical condition. A calibration
+record may carry separate RET_1X/RET_HG correction terms and overlap evidence, but the
+lookup key remains the shared hardware/model/range/frequency/amplitude condition.
+
+Calibration temperature should also be recorded with an explicit validity flag. If no
+valid NTC temperature is available for a capture, firmware must not substitute a
+synthetic ambient value.
 
 ## OPEN / SHORT / LOAD
 
 ### OPEN
 
 Fixture with no DUT. Characterizes leakage and residual admittance/parasitics.
+Evidence should be taken from synchronized raw phasors. A true OPEN may make the final
+impedance equation singular, so the calibration workflow must preserve normalized
+OPEN observables such as `(Vs - Vx) / Vx` instead of rejecting the capture only because
+`Zx` cannot be computed.
 
 ### SHORT
 
 Repeatable short at the fixture. Characterizes residual series impedance, contacts, traces, switches, and relay path.
+SHORT stability is evaluated from residual series impedance observables on each usable
+return path.
 
 ### LOAD
 
 Known standard within the useful region of the selected range. Characterizes scale and phase tracking.
+LOAD stability is evaluated from measured impedance relative to the known complex
+standard. Both VEXC paths and both return paths must remain observable so later
+coefficient solving can distinguish 1X, raw HG, reconstructed HG, and overlap behavior.
 
 The first implementation may use direct complex offset/scale corrections. If real data justifies it, OPEN/SHORT/LOAD can support a bilinear/Möbius correction:
 

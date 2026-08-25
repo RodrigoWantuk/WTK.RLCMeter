@@ -74,6 +74,7 @@ typedef struct
     measurement_cal_key_t key;
     app_cal_standard_t standard;
     int32_t temperature_mC;
+    bool temperature_valid;
 } app_cal_workflow_request_t;
 
 typedef struct
@@ -82,18 +83,37 @@ typedef struct
     app_cal_standard_type_t standard_type;
     uint32_t timestamp_ms;
     int32_t temperature_mC;
+    bool temperature_valid;
     measurement_complex_t source_v;
+    measurement_complex_t vexc_1_v;
+    measurement_complex_t vexc_2_v;
     measurement_complex_t ret_1x_v;
+    measurement_complex_t ret_hg_raw_v;
+    measurement_complex_t ret_hg_reconstructed_v;
     measurement_complex_t ret_hg_v;
+    measurement_complex_t vmid_adc1_v;
+    measurement_complex_t vmid_adc2_v;
+    measurement_complex_t open_y_1x;
+    measurement_complex_t open_y_hg;
+    measurement_complex_t hg_observed_transfer;
     measurement_complex_t z_1x_ohms;
     measurement_complex_t z_hg_ohms;
     float source_peak_v;
+    float vexc_1_peak_v;
+    float vexc_2_peak_v;
     float ret_1x_peak_v;
+    float ret_hg_raw_peak_v;
+    float ret_hg_reconstructed_peak_v;
     float ret_hg_peak_v;
     float denominator_1x_peak_v;
     float denominator_hg_peak_v;
+    bool ret_1x_clipped;
+    bool ret_hg_clipped;
     bool ret_1x_usable;
     bool ret_hg_usable;
+    bool open_y_1x_valid;
+    bool open_y_hg_valid;
+    bool hg_overlap_valid;
     bool z_1x_valid;
     bool z_hg_valid;
     bool clipped;
@@ -110,6 +130,25 @@ typedef struct
 
 typedef struct
 {
+    uint8_t sample_count;
+    uint8_t usable_count;
+    uint8_t rejected_count;
+    bool stable;
+    bool insufficient;
+    bool evidence_valid;
+} app_cal_path_evidence_t;
+
+typedef struct
+{
+    uint8_t count;
+    int32_t mean_mC;
+    int32_t min_mC;
+    int32_t max_mC;
+    bool valid;
+} app_cal_temperature_evidence_t;
+
+typedef struct
+{
     measurement_cal_key_t key;
     app_cal_standard_t standard;
     uint8_t accepted;
@@ -118,12 +157,26 @@ typedef struct
     uint32_t reject_flags;
     uint32_t sequence;
     int32_t last_temperature_mC;
+    bool last_temperature_valid;
     bool stable;
     bool ret_1x_consistent;
     bool ret_hg_consistent;
+    bool ret_1x_evidence_valid;
+    bool ret_hg_evidence_valid;
+    bool hg_overlap_valid;
+    app_cal_path_evidence_t ret_1x_path;
+    app_cal_path_evidence_t ret_hg_path;
+    app_cal_temperature_evidence_t temperature;
     app_cal_complex_stats_t source;
+    app_cal_complex_stats_t source_1;
+    app_cal_complex_stats_t source_2;
     app_cal_complex_stats_t ret_1x;
+    app_cal_complex_stats_t ret_hg_raw;
+    app_cal_complex_stats_t ret_hg_reconstructed;
     app_cal_complex_stats_t ret_hg;
+    app_cal_complex_stats_t open_y_1x;
+    app_cal_complex_stats_t open_y_hg;
+    app_cal_complex_stats_t hg_observed_transfer;
     app_cal_complex_stats_t z_1x;
     app_cal_complex_stats_t z_hg;
 } app_cal_evidence_t;

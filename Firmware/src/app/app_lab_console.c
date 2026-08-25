@@ -1245,6 +1245,27 @@ static bsp_status_t lab_init_auto_measure(app_lab_console_t *console)
     return app_measurement_session_init(&console->auto_measure, &io);
 }
 
+static bsp_status_t lab_init_calibration_session(app_lab_console_t *console)
+{
+    if ((console == NULL) || (console->cal_service == NULL))
+    {
+        return BSP_STATUS_INVALID_ARG;
+    }
+    const app_cal_session_io_t io = {
+        .start_capture = lab_auto_start_attempt,
+        .step_capture = lab_auto_step_attempt,
+        .capture_active = lab_auto_attempt_active,
+        .capture_done = lab_auto_attempt_done,
+        .capture_dumpable = lab_auto_attempt_dumpable,
+        .capture_block = lab_auto_attempt_block,
+        .capture_error = lab_auto_attempt_error,
+        .capture_acknowledge = lab_auto_attempt_acknowledge,
+        .capture_abort = lab_auto_attempt_abort,
+        .user = console,
+    };
+    return app_calibration_session_init(&console->cal_session, console->cal_service, &io);
+}
+
 static const char *lab_range_dump_token(hw_range_id_t id)
 {
     switch (id)
@@ -1456,7 +1477,8 @@ static bool parse_cal_acquire_tokens(const char *line,
                                    frequency,
                                    amplitude),
         .standard = standard,
-        .temperature_mC = 25000,
+        .temperature_mC = 0,
+        .temperature_valid = false,
     };
     return true;
 }
@@ -1467,7 +1489,7 @@ static bool lab_metrology_busy(const app_lab_console_t *console)
            (hw_metrology_session_active(&console->session) ||
            hw_metrology_measure_active(&console->measure) ||
            app_measurement_session_active(&console->auto_measure) ||
-           app_calibration_workflow_active(app_calibration_service_workflow_const(console->cal_service)) ||
+           app_calibration_session_active(&console->cal_session) ||
            console->dump_active ||
            (hw_metrology_session_state(&console->session) == HW_METROLOGY_SESSION_DONE) ||
            (hw_metrology_measure_state(&console->measure) == HW_METROLOGY_MEASURE_DONE));
@@ -1556,14 +1578,33 @@ static void lab_start_auto_measure(app_lab_console_t *console, uint32_t now_ms)
 }
 
 static void lab_start_cal_acquire(app_lab_console_t *console,
-                                  const app_cal_workflow_request_t *request)
+                                  app_cal_workflow_request_t *request,
+                                  uint32_t now_ms)
 {
     if ((console == NULL) || (request == NULL) || (console->cal_service == NULL))
     {
         write_text("lab cal: ERROR\r\n");
         return;
     }
-    const bsp_status_t status = app_calibration_service_start_workflow(console->cal_service, request);
+    if (console->sensors_ref != NULL)
+    {
+        hw_aux_sensors_snapshot_t snapshot;
+        hw_aux_sensors_snapshot(console->sensors_ref, now_ms, &snapshot);
+        request->temperature_valid = snapshot.ntc_temperature_valid;
+        if (snapshot.ntc_temperature_valid)
+        {
+            request->temperature_mC = milli_from_float(snapshot.ntc_temperature_c);
+        }
+    }
+    else
+    {
+        request->temperature_valid = false;
+    }
+    const bsp_clock_summary_t *clock = bsp_clock_get_summary();
+    const bsp_status_t clock_status =
+        hw_metrology_clock_ready(clock, BSP_STATUS_OK) ? BSP_STATUS_OK : BSP_STATUS_ERROR;
+    const bsp_status_t status =
+        app_calibration_session_start(&console->cal_session, request, clock, clock_status, now_ms);
     if (status == BSP_STATUS_BUSY)
     {
         write_text("CAL_ACQUIRE_BEGIN standard=");
@@ -1576,6 +1617,13 @@ static void lab_start_cal_acquire(app_lab_console_t *console,
         write_text(hw_excitation_freq_token(request->key.frequency));
         write_text(" amplitude=");
         write_text(hw_excitation_amp_token(request->key.amplitude));
+        write_text(" temperature_valid=");
+        write_text(request->temperature_valid ? "1" : "0");
+        if (request->temperature_valid)
+        {
+            write_text(" temperature_mC=");
+            write_i32(request->temperature_mC);
+        }
         if (request->standard.type == APP_CAL_STANDARD_LOAD)
         {
             write_text(" load_mohm=");
@@ -1979,11 +2027,6 @@ static void lab_step_auto_measure(app_lab_console_t *console, uint32_t now_ms)
     }
 }
 
-static app_calibration_workflow_t *lab_cal_workflow(app_lab_console_t *console)
-{
-    return (console == NULL) ? NULL : app_calibration_service_workflow(console->cal_service);
-}
-
 static void lab_write_cal_evidence(const app_cal_evidence_t *evidence)
 {
     if (evidence == NULL)
@@ -2008,14 +2051,28 @@ static void lab_write_cal_evidence(const app_cal_evidence_t *evidence)
     write_u32(evidence->attempts);
     write_text(" stable=");
     write_text(evidence->stable ? "1" : "0");
+    write_text(" ret_1x_valid=");
+    write_text(evidence->ret_1x_evidence_valid ? "1" : "0");
+    write_text(" ret_hg_valid=");
+    write_text(evidence->ret_hg_evidence_valid ? "1" : "0");
+    write_text(" hg_overlap=");
+    write_text(evidence->hg_overlap_valid ? "1" : "0");
+    write_text(" temperature_valid=");
+    write_text(evidence->temperature.valid ? "1" : "0");
+    if (evidence->temperature.valid)
+    {
+        write_text(" temperature_mean_mC=");
+        write_i32(evidence->temperature.mean_mC);
+    }
     write_text(" flags=");
     write_hex8(evidence->reject_flags);
     write_text("\r\n");
 }
 
-static void lab_cal_finish_if_terminal(app_lab_console_t *console)
+static void lab_cal_write_terminal(app_lab_console_t *console)
 {
-    app_calibration_workflow_t *workflow = lab_cal_workflow(console);
+    const app_calibration_workflow_t *workflow =
+        (console == NULL) ? NULL : app_calibration_service_workflow_const(console->cal_service);
     if (workflow == NULL)
     {
         return;
@@ -2035,115 +2092,61 @@ static void lab_cal_finish_if_terminal(app_lab_console_t *console)
     write_text("\r\n");
 }
 
-static uint32_t cal_reject_from_measure_error(hw_metrology_measure_error_t error)
+static void lab_step_calibration_session(app_lab_console_t *console, uint32_t now_ms)
 {
-    if ((error == HW_METROLOGY_MEASURE_ERR_PERMIT) ||
-        (error == HW_METROLOGY_MEASURE_ERR_ABORT))
-    {
-        return APP_CAL_REJECT_SAFETY_ABORT;
-    }
-    return APP_CAL_REJECT_PHASE05;
-}
-
-static void lab_step_calibration_workflow(app_lab_console_t *console, uint32_t now_ms)
-{
-    app_calibration_workflow_t *workflow = lab_cal_workflow(console);
-    if ((console == NULL) || (workflow == NULL))
+    if (console == NULL)
     {
         return;
     }
-
-    if (app_calibration_workflow_state(workflow) == APP_CAL_WORKFLOW_CANCELING)
+    const app_cal_session_event_t event = app_calibration_session_step(&console->cal_session, now_ms);
+    switch (event)
     {
-        (void)hw_metrology_measure_abort(&console->measure);
-        (void)hw_metrology_measure_step(&console->measure, now_ms);
-        if (!hw_metrology_measure_active(&console->measure) ||
-            (hw_metrology_measure_state(&console->measure) == HW_METROLOGY_MEASURE_DONE))
-        {
-            hw_metrology_measure_acknowledge(&console->measure);
-            app_calibration_workflow_cancel_complete(workflow);
-            lab_cal_finish_if_terminal(console);
-        }
-        return;
-    }
-
-    if (app_calibration_workflow_capture_pending(workflow))
+    case APP_CAL_SESSION_EVENT_BEGIN:
+        break;
+    case APP_CAL_SESSION_EVENT_CAPTURE_BEGIN:
     {
-        measurement_cal_key_t key = {0};
-        if (app_calibration_workflow_capture_request(workflow, &key) != BSP_STATUS_OK)
+        const app_cal_evidence_t *evidence = app_calibration_session_evidence(&console->cal_session);
+        if (evidence == NULL)
         {
-            return;
+            break;
         }
         write_text("CAL_CAPTURE_BEGIN attempt=");
-        const app_cal_evidence_t *evidence = app_calibration_workflow_evidence(workflow);
-        write_u32((evidence != NULL) ? ((uint32_t)evidence->attempts + 1u) : 0u);
+        write_u32((uint32_t)evidence->attempts + 1u);
         write_text(" range=");
-        write_text(lab_range_dump_token(key.range_id));
+        write_text(lab_range_dump_token(evidence->key.range_id));
         write_text(" frequency=");
-        write_text(hw_excitation_freq_token(key.frequency));
+        write_text(hw_excitation_freq_token(evidence->key.frequency));
         write_text(" amplitude=");
-        write_text(hw_excitation_amp_token(key.amplitude));
+        write_text(hw_excitation_amp_token(evidence->key.amplitude));
         write_text("\r\n");
-        const hw_metrology_measure_request_t request = {
-            .clock_summary = bsp_clock_get_summary(),
-            .clock_init_status = hw_metrology_clock_ready(bsp_clock_get_summary(), BSP_STATUS_OK) ?
-                                     BSP_STATUS_OK :
-                                     BSP_STATUS_ERROR,
-            .frequency = key.frequency,
-            .amplitude = key.amplitude,
-            .range_id = key.range_id,
-        };
-        const bsp_status_t started = hw_metrology_measure_start(&console->measure, &request, now_ms);
-        (void)app_calibration_workflow_mark_capture_started(workflow);
-        if ((started != BSP_STATUS_BUSY) && (started != BSP_STATUS_OK))
-        {
-            (void)app_calibration_workflow_submit_failure(workflow, APP_CAL_REJECT_PHASE05);
-            write_text("CAL_CAPTURE_REJECT flags=");
-            write_hex8(APP_CAL_REJECT_PHASE05);
-            write_text("\r\n");
-            lab_cal_finish_if_terminal(console);
-        }
-        return;
+        break;
     }
-
-    if (app_calibration_workflow_state(workflow) != APP_CAL_WORKFLOW_WAIT_CAPTURE)
-    {
-        return;
-    }
-
-    const bsp_status_t step_status = hw_metrology_measure_step(&console->measure, now_ms);
-    if (hw_metrology_measure_state(&console->measure) != HW_METROLOGY_MEASURE_DONE)
-    {
-        (void)step_status;
-        return;
-    }
-
-    if (hw_metrology_measure_dumpable(&console->measure))
-    {
-        app_cal_capture_sample_t sample;
-        const bsp_status_t sample_status =
-            app_calibration_workflow_sample_from_block(hw_metrology_measure_block(&console->measure),
-                                                       &workflow->request,
-                                                       &sample);
-        (void)app_calibration_workflow_submit_sample(workflow, &sample);
-        write_text((app_calibration_workflow_last_reject_flags(workflow) == APP_CAL_REJECT_NONE) ?
-                       "CAL_CAPTURE_ACCEPT flags=" :
-                       "CAL_CAPTURE_REJECT flags=");
-        write_hex8(app_calibration_workflow_last_reject_flags(workflow));
+    case APP_CAL_SESSION_EVENT_CAPTURE_ACCEPTED:
+        write_text("CAL_CAPTURE_ACCEPT flags=");
+        write_hex8(app_calibration_session_last_reject_flags(&console->cal_session));
         write_text(" dsp=");
-        write_text(bsp_status_string(sample_status));
+        write_text(bsp_status_string(app_calibration_session_last_sample_status(&console->cal_session)));
         write_text("\r\n");
-    }
-    else
-    {
-        const uint32_t flags = cal_reject_from_measure_error(hw_metrology_measure_error(&console->measure));
-        (void)app_calibration_workflow_submit_failure(workflow, flags);
+        break;
+    case APP_CAL_SESSION_EVENT_CAPTURE_REJECTED:
         write_text("CAL_CAPTURE_REJECT flags=");
-        write_hex8(flags);
+        write_hex8(app_calibration_session_last_reject_flags(&console->cal_session));
+        write_text(" dsp=");
+        write_text(bsp_status_string(app_calibration_session_last_sample_status(&console->cal_session)));
         write_text("\r\n");
+        break;
+    case APP_CAL_SESSION_EVENT_COMPLETE:
+    case APP_CAL_SESSION_EVENT_FAILED:
+    case APP_CAL_SESSION_EVENT_CANCELED:
+        lab_cal_write_terminal(console);
+        break;
+    case APP_CAL_SESSION_EVENT_ERROR:
+        write_text("CAL_ACQUIRE_END result=ERROR state=ERROR\r\n");
+        break;
+    case APP_CAL_SESSION_EVENT_NONE:
+    default:
+        break;
     }
-    hw_metrology_measure_acknowledge(&console->measure);
-    lab_cal_finish_if_terminal(console);
 }
 
 static void lab_step_metrology(app_lab_console_t *console, uint32_t now_ms)
@@ -2154,9 +2157,9 @@ static void lab_step_metrology(app_lab_console_t *console, uint32_t now_ms)
         return;
     }
 
-    if (app_calibration_workflow_active(lab_cal_workflow(console)))
+    if (app_calibration_session_active(&console->cal_session))
     {
-        lab_step_calibration_workflow(console, now_ms);
+        lab_step_calibration_session(console, now_ms);
         return;
     }
 
@@ -2340,21 +2343,19 @@ static void run_command(app_lab_console_t *console,
     }
     else if (text_equals(line, "lab cal cancel"))
     {
-        app_calibration_workflow_t *workflow = lab_cal_workflow(console);
-        if ((workflow == NULL) || !app_calibration_workflow_active(workflow))
+        if ((console == NULL) || !app_calibration_session_active(&console->cal_session))
         {
             write_text("lab cal: IDLE\r\n");
             return;
         }
-        const bsp_status_t cancel_status = app_calibration_workflow_cancel(workflow);
+        const bsp_status_t cancel_status = app_calibration_session_cancel(&console->cal_session);
         if (cancel_status == BSP_STATUS_BUSY)
         {
-            (void)hw_metrology_measure_abort(&console->measure);
             write_text("lab cal: CANCELING\r\n");
             return;
         }
         write_text("lab cal: CANCELED\r\n");
-        lab_cal_finish_if_terminal(console);
+        lab_cal_write_terminal(console);
     }
     else if (parse_cal_acquire_tokens(line, &cal_request))
     {
@@ -2363,7 +2364,7 @@ static void run_command(app_lab_console_t *console,
             write_text("lab cal: BUSY\r\n");
             return;
         }
-        lab_start_cal_acquire(console, &cal_request);
+        lab_start_cal_acquire(console, &cal_request, now_ms);
     }
     else if (text_equals(line, "lab permit status"))
     {
@@ -2424,6 +2425,7 @@ void app_lab_console_init(app_lab_console_t *console)
     console->dump_row = 0u;
     console->dump_source = APP_LAB_METROLOGY_DUMP_NONE;
     console->auto_hint = (measurement_auto_hint_t){0};
+    console->cal_session = (app_calibration_session_t){0};
     console->auto_sequence = 0u;
     console->cal_service = NULL;
     console->range_ref = NULL;
@@ -2450,6 +2452,7 @@ void app_lab_console_attach_calibration_service(app_lab_console_t *console,
     if (console != NULL)
     {
         console->cal_service = service;
+        (void)lab_init_calibration_session(console);
     }
 #else
     (void)console;

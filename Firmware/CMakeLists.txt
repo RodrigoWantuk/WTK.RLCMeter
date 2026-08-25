@@ -52,6 +52,7 @@ add_library(wtk_firmware_common STATIC
     src/app/app_safety_fault.c
     src/app/app_calibration_runtime.c
     src/app/app_calibration_service.c
+    src/app/app_calibration_session.c
     src/app/app_calibration_workflow.c
     src/app/app_measurement_session.c
     src/app/app_version.c
@@ -105,6 +106,17 @@ if(WTK_TARGET_PLATFORM STREQUAL "host")
     enable_testing()
     add_subdirectory(tests)
 elseif(WTK_TARGET_PLATFORM STREQUAL "stm32")
+    if(WTK_BUILD_TYPE STREQUAL "Lab")
+        # Lab diagnostics are intentionally rich but Rev.1 still guarantees only 64 KiB
+        # of Flash. Keep the largest Lab/calibration orchestration units size-optimized.
+        set_source_files_properties(
+            src/app/app_calibration_session.c
+            src/app/app_calibration_workflow.c
+            src/app/app_lab_console.c
+            PROPERTIES COMPILE_OPTIONS "-Os"
+        )
+    endif()
+
     if(CMAKE_C_COMPILER_ID MATCHES "GNU")
         target_compile_options(wtk_firmware_common PRIVATE -fstack-usage)
     endif()

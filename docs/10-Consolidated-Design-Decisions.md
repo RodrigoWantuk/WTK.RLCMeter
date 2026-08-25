@@ -656,7 +656,9 @@ implementation tolerates non-ideal ESR/winding resistance and flags inconsistent
 Phase 07 Stage 2B.1 makes calibration storage a product-owned service, not a Lab-console
 scratch object. `app_calibration_service_t` owns the active calibration runtime, the
 single `measurement_cal_store_t` scratch context, and the active OPEN/SHORT/LOAD
-evidence workflow. The Lab console attaches to this service and reports cached state.
+evidence workflow. `app_calibration_session_t` owns the application-level capture
+orchestration between that workflow and Phase 05. The Lab console attaches to the
+service/session and reports cached state/events.
 
 Normal `lab cal status`, `lab cal dump`, automatic measurement, and calibration
 acquisition commands must not rescan or reinitialize W25Q storage. A deliberate
@@ -664,10 +666,27 @@ acquisition commands must not rescan or reinitialize W25Q storage. A deliberate
 while the store or calibration workflow is busy.
 
 OPEN/SHORT/LOAD acquisition evidence is transient in Stage 2B.1. It uses Phase 05
-fixed-condition measurement transactions and Phase 06 baseline DSP extraction after the
-hardware has returned SAFE, then retains compact phasor/statistical evidence. It does
-not replace the active persisted calibration set and does not copy the 3072-byte raw ADC
-DMA buffer into application or calibration contexts.
+fixed-condition measurement transactions after the hardware has returned SAFE, then
+extracts compact raw phasor/statistical evidence. It does not replace the active
+persisted calibration set and does not copy the 3072-byte raw ADC DMA buffer into
+application or calibration contexts.
+
+Calibration evidence must preserve these raw observed quantities when available:
+`VEXC_1`, `VEXC_2`, `RET_1X`, physical `RET_HG_raw`, reconstructed `RET_HG`, `VMID_ADC1`,
+`VMID_ADC2`, per-path clipping/usability, and observed complex HG transfer
+`RET_HG_raw / RET_1X`. The HG-side provisional impedance uses `VEXC_2` with reconstructed
+HG return; it must not reuse `VEXC_1`.
+
+The Stage 2B.1 workflow distinguishes raw observed evidence, provisional repeatability
+measurements, and future corrected output. Active persisted output corrections are not
+fed back into OSL evidence capture. OPEN captures may be singular in the final
+impedance equation, so OPEN stability uses normalized admittance-like evidence
+`(Vs - Vx) / Vx` rather than requiring a finite final `Zx`. SHORT and LOAD use
+per-path impedance evidence. Missing path evidence is never counted as stable.
+
+Calibration capture temperature is valid only when the auxiliary NTC snapshot is valid.
+Firmware must not substitute a fixed placeholder ambient temperature in calibration
+records or Lab acquisition requests.
 
 ## Decision-change rule
 

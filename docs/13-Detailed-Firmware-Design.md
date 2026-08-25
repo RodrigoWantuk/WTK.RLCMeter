@@ -723,12 +723,14 @@ Conceptual key:
 
 ```text
 hardware_revision
+calibration_model_version
+RREF/range
 frequency
-RREF
 excitation amplitude
-RET channel
-calibration type/model version
 ```
+
+RET_1X and RET_HG are captured together for one Rev.1 condition. The return path is
+represented inside correction/evidence fields, not as a separate persistent key axis.
 
 The persisted format must support schema evolution without directly serializing fragile C struct layouts.
 
@@ -744,6 +746,11 @@ app_calibration_service_t:
     product-owned calibration service
     owns runtime + one store scratch + active OSL evidence workflow
 
+app_calibration_session_t:
+    application-level OSL capture controller
+    connects the service workflow to Phase 05 fixed-condition measurements
+    owns cancellation/capture events, not raw DMA storage
+
 app_calibration_runtime_t:
     active decoded calibration coefficients and compact provenance
 
@@ -758,7 +765,7 @@ Phase 05 raw ADC buffer:
 
 app_lab_console_t:
     owns Lab command state only
-    attaches to app_calibration_service_t
+    attaches to app_calibration_service_t/app_calibration_session_t
     does not own calibration store scratch
 ```
 
@@ -769,6 +776,14 @@ future raw-evidence persistence separate from the active coefficient set.
 
 Stage 2B.1 implements evidence acquisition only. It does not replace the active
 persisted calibration set and does not solve or commit new coefficients.
+
+Stage 2B.1 evidence extraction is intentionally below the final corrected-impedance
+gate. It preserves raw synchronized phasors, both VEXC paths, RET_1X, physical raw
+RET_HG, reconstructed RET_HG, per-path clipping/usability, observed HG transfer, and
+standard-specific stability observables. OPEN uses normalized `(Vs - Vx) / Vx`
+observables because a valid OPEN may not have a finite final impedance. SHORT and LOAD
+use per-path provisional impedance observables. Missing path evidence is not counted as
+stable.
 
 ## Calibration boot gate
 

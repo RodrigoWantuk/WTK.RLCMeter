@@ -545,22 +545,26 @@ The OSL workflow captures one exact condition at a time:
 ```text
 Lab/UI intent
     -> app_calibration_service_t
+    -> app_calibration_session_t
     -> app_calibration_workflow_t
     -> Phase 05 fixed-condition DUT measurement
-    -> Phase 06 baseline DSP evidence extraction after SAFE teardown
+    -> raw phasor evidence extraction after SAFE teardown
     -> compact per-condition OPEN/SHORT/LOAD evidence
 ```
 
-Each capture is a separate Phase 05 safety transaction. The workflow never energizes
-K1 directly, never keeps K1 energized between repeats, never bypasses measurement
-permits, and never owns range GPIO.
+`app_calibration_session_t` is the application-layer controller that connects the
+product calibration workflow to Phase 05. The Lab console attaches to this controller
+and reports events; it no longer owns the capture/repeat loop itself. Each capture is a
+separate Phase 05 safety transaction. The workflow/session never energizes K1 directly,
+never keeps K1 energized between repeats, never bypasses measurement permits, and never
+owns range GPIO.
 
 Initial Stage 2B.1 repetition policy:
 
 ```text
 accepted captures required: 6
 maximum total attempts:     10
-stability limit:            20000 ppm of complex-Z magnitude
+stability limit:            20000 ppm of the standard-specific complex observable
 minimum source magnitude:   5000 uV peak
 minimum denominator:        1000 uV peak for SHORT/LOAD evidence
 ```
@@ -571,11 +575,39 @@ not copy the 3072-byte Phase 05 raw DMA buffer.
 
 Stage 2B.1 standard semantics:
 
-- `OPEN` preserves phasor evidence and residual apparent impedance/noise when meaningful;
-- `SHORT` preserves compact complex residual impedance evidence;
+- `OPEN` preserves normalized admittance-like evidence `(Vs - Vx) / Vx` for each usable
+  return path. This allows true OPEN captures to remain valid even when final DUT
+  impedance would be singular or near-singular.
+- `SHORT` preserves compact complex residual impedance evidence for each usable return
+  path.
 - `LOAD` records a known complex standard impedance, with the initial Lab command
-  accepting pure resistance in ohms;
-- both RET_1X and RET_HG paths remain visible in evidence.
+  accepting pure resistance in ohms.
+- VEXC_1, VEXC_2, RET_1X, raw physical RET_HG, reconstructed RET_HG, VMID_ADC1, and
+  VMID_ADC2 remain visible in evidence.
+- HG-side provisional impedance uses the HG-side source phasor (`VEXC_2`) paired with
+  reconstructed HG return. It must not reuse the 1X source phasor.
+- Raw HG overlap evidence preserves the observed complex `RET_HG_raw / RET_1X`
+  transfer when both paths are usable. This is diagnostic/provisional evidence for
+  later coefficient solving and does not by itself qualify HG accuracy.
+- Missing or unusable path evidence is not treated as stable. A standard completes only
+  when at least one path has the required usable count and stable observable.
+
+Stage 2B.1 calibration evidence has three distinct concepts:
+
+```text
+raw observed:
+    synchronized phasors and raw HG overlap extracted from the current capture
+
+provisional measurement:
+    uncorrected per-path impedance or OPEN observable used only to judge repeatability
+
+corrected output:
+    future Stage 2B.2/2C coefficient-solved measurement result
+```
+
+Stage 2B.1 intentionally does not feed active persisted output corrections back into
+evidence extraction. OPEN/SHORT/LOAD evidence must characterize the present hardware
+capture, not measure itself through an older calibration set.
 
 Rejected captures are explicit. Causes include Phase 05 failure, safety abort,
 clipping, invalid/non-finite DSP evidence, source too small, no usable RET channel, and
@@ -583,6 +615,10 @@ severe denominator conditioning where applicable. Cancellation during an active 
 transaction requests the existing safe abort path, waits for the hardware-safe end
 state, then discards incomplete evidence. Active persisted calibration remains
 unchanged throughout Stage 2B.1.
+
+Capture temperature is recorded only when the auxiliary NTC snapshot is valid. Lab
+commands must not inject a fixed placeholder temperature. Temperature evidence is
+reported as unavailable when the current sensor snapshot cannot support it.
 
 ## Task 1 — Define measurement attempt model
 

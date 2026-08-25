@@ -83,11 +83,62 @@ static bool stats_stable(const app_cal_complex_stats_t *stats)
     return stats_variance_mag2(stats) <= (limit * limit);
 }
 
-static bool sample_has_valid_z(const app_cal_capture_sample_t *sample)
+static void temperature_push(app_cal_temperature_evidence_t *stats, int32_t temperature_mC)
 {
-    return (sample != NULL) &&
-           ((sample->ret_1x_usable && sample->z_1x_valid && finite_complex(sample->z_1x_ohms)) ||
-            (sample->ret_hg_usable && sample->z_hg_valid && finite_complex(sample->z_hg_ohms)));
+    if (stats == NULL)
+    {
+        return;
+    }
+    if (stats->count == 0u)
+    {
+        stats->mean_mC = temperature_mC;
+        stats->min_mC = temperature_mC;
+        stats->max_mC = temperature_mC;
+        stats->valid = true;
+    }
+    else
+    {
+        const int32_t delta = temperature_mC - stats->mean_mC;
+        stats->mean_mC += delta / (int32_t)((uint32_t)stats->count + 1u);
+        if (temperature_mC < stats->min_mC)
+        {
+            stats->min_mC = temperature_mC;
+        }
+        if (temperature_mC > stats->max_mC)
+        {
+            stats->max_mC = temperature_mC;
+        }
+    }
+    stats->count++;
+}
+
+static bool path_has_valid_observable(const app_cal_capture_sample_t *sample,
+                                      app_cal_standard_type_t standard,
+                                      measurement_return_channel_t channel)
+{
+    if (sample == NULL)
+    {
+        return false;
+    }
+    const bool hg = channel == MEASUREMENT_RETURN_HG;
+    const bool usable = hg ? sample->ret_hg_usable : sample->ret_1x_usable;
+    if (!usable)
+    {
+        return false;
+    }
+    if (standard == APP_CAL_STANDARD_OPEN)
+    {
+        return hg ? (sample->open_y_hg_valid && finite_complex(sample->open_y_hg)) :
+                    (sample->open_y_1x_valid && finite_complex(sample->open_y_1x));
+    }
+    const float threshold = (float)APP_CAL_WORKFLOW_DENOMINATOR_MIN_UV_PEAK / 1000000.0f;
+    const float denominator = hg ? sample->denominator_hg_peak_v : sample->denominator_1x_peak_v;
+    if (denominator < threshold)
+    {
+        return false;
+    }
+    return hg ? (sample->z_hg_valid && finite_complex(sample->z_hg_ohms)) :
+                (sample->z_1x_valid && finite_complex(sample->z_1x_ohms));
 }
 
 static uint32_t sample_reject_flags(const app_cal_capture_sample_t *sample,
@@ -104,28 +155,41 @@ static uint32_t sample_reject_flags(const app_cal_capture_sample_t *sample,
         flags |= APP_CAL_REJECT_CLIPPED;
     }
     if (!finite_complex(sample->source_v) ||
+        !finite_complex(sample->vexc_1_v) ||
+        !finite_complex(sample->vexc_2_v) ||
         !finite_complex(sample->ret_1x_v) ||
+        !finite_complex(sample->ret_hg_raw_v) ||
+        !finite_complex(sample->ret_hg_reconstructed_v) ||
         !finite_complex(sample->ret_hg_v) ||
         !finite_float(sample->source_peak_v) ||
+        !finite_float(sample->vexc_1_peak_v) ||
+        !finite_float(sample->vexc_2_peak_v) ||
         !finite_float(sample->ret_1x_peak_v) ||
+        !finite_float(sample->ret_hg_raw_peak_v) ||
+        !finite_float(sample->ret_hg_reconstructed_peak_v) ||
         !finite_float(sample->ret_hg_peak_v))
     {
         flags |= APP_CAL_REJECT_NONFINITE;
     }
-    if (sample->source_peak_v < ((float)APP_CAL_WORKFLOW_SOURCE_MIN_UV_PEAK / 1000000.0f))
+    const float source_threshold = (float)APP_CAL_WORKFLOW_SOURCE_MIN_UV_PEAK / 1000000.0f;
+    if ((sample->vexc_1_peak_v < source_threshold) &&
+        (sample->vexc_2_peak_v < source_threshold))
     {
         flags |= APP_CAL_REJECT_SOURCE_TOO_SMALL;
     }
-    if (!sample->ret_1x_usable && !sample->ret_hg_usable)
+    const bool usable_1x = path_has_valid_observable(sample, standard, MEASUREMENT_RETURN_1X);
+    const bool usable_hg = path_has_valid_observable(sample, standard, MEASUREMENT_RETURN_HG);
+    if (!usable_1x && !usable_hg)
     {
         flags |= APP_CAL_REJECT_NO_USABLE_CHANNEL;
+        if (sample->ret_1x_clipped || sample->ret_hg_clipped || sample->clipped)
+        {
+            flags |= APP_CAL_REJECT_CLIPPED;
+        }
     }
     if (standard != APP_CAL_STANDARD_OPEN)
     {
-        const float threshold = (float)APP_CAL_WORKFLOW_DENOMINATOR_MIN_UV_PEAK / 1000000.0f;
-        if (((sample->ret_1x_usable && (sample->denominator_1x_peak_v < threshold)) ||
-             (sample->ret_hg_usable && (sample->denominator_hg_peak_v < threshold))) ||
-            !sample_has_valid_z(sample))
+        if (!usable_1x && !usable_hg)
         {
             flags |= APP_CAL_REJECT_DENOMINATOR_TOO_SMALL;
         }
@@ -162,13 +226,31 @@ static void evaluate_completion(app_calibration_workflow_t *workflow)
         return;
     }
 
-    const bool ret_1x_stable = (workflow->evidence.z_1x.count >= APP_CAL_WORKFLOW_REQUIRED_ACCEPTED) ?
-                                   stats_stable(&workflow->evidence.z_1x) :
-                                   true;
-    const bool ret_hg_stable = (workflow->evidence.z_hg.count >= APP_CAL_WORKFLOW_REQUIRED_ACCEPTED) ?
-                                  stats_stable(&workflow->evidence.z_hg) :
-                                  true;
-    workflow->evidence.stable = ret_1x_stable && ret_hg_stable;
+    const bool open = workflow->request.standard.type == APP_CAL_STANDARD_OPEN;
+    const bool ret_1x_stable = open ? stats_stable(&workflow->evidence.open_y_1x) :
+                                      stats_stable(&workflow->evidence.z_1x);
+    const bool ret_hg_stable = open ? stats_stable(&workflow->evidence.open_y_hg) :
+                                     stats_stable(&workflow->evidence.z_hg);
+    const bool source_1_stable = stats_stable(&workflow->evidence.source_1);
+    const bool source_2_stable = stats_stable(&workflow->evidence.source_2);
+
+    workflow->evidence.ret_1x_path.stable = ret_1x_stable && source_1_stable;
+    workflow->evidence.ret_hg_path.stable = ret_hg_stable && source_2_stable;
+    workflow->evidence.ret_1x_path.insufficient =
+        workflow->evidence.ret_1x_path.usable_count < APP_CAL_WORKFLOW_REQUIRED_ACCEPTED;
+    workflow->evidence.ret_hg_path.insufficient =
+        workflow->evidence.ret_hg_path.usable_count < APP_CAL_WORKFLOW_REQUIRED_ACCEPTED;
+    workflow->evidence.ret_1x_path.evidence_valid =
+        !workflow->evidence.ret_1x_path.insufficient && workflow->evidence.ret_1x_path.stable;
+    workflow->evidence.ret_hg_path.evidence_valid =
+        !workflow->evidence.ret_hg_path.insufficient && workflow->evidence.ret_hg_path.stable;
+    workflow->evidence.ret_1x_evidence_valid = workflow->evidence.ret_1x_path.evidence_valid;
+    workflow->evidence.ret_hg_evidence_valid = workflow->evidence.ret_hg_path.evidence_valid;
+    workflow->evidence.hg_overlap_valid =
+        (workflow->evidence.hg_observed_transfer.count >= APP_CAL_WORKFLOW_REQUIRED_ACCEPTED) &&
+        stats_stable(&workflow->evidence.hg_observed_transfer);
+    workflow->evidence.stable = workflow->evidence.ret_1x_evidence_valid ||
+                                workflow->evidence.ret_hg_evidence_valid;
     if (workflow->evidence.stable)
     {
         workflow->state = APP_CAL_WORKFLOW_COMPLETE;
@@ -307,30 +389,60 @@ bsp_status_t app_calibration_workflow_submit_sample(app_calibration_workflow_t *
 
     workflow->evidence.accepted++;
     workflow->evidence.last_temperature_mC = sample->temperature_mC;
+    workflow->evidence.last_temperature_valid = sample->temperature_valid;
+    const bool open = workflow->request.standard.type == APP_CAL_STANDARD_OPEN;
+    if (sample->temperature_valid)
+    {
+        temperature_push(&workflow->evidence.temperature, sample->temperature_mC);
+    }
     stats_push(&workflow->evidence.source, sample->source_v);
+    stats_push(&workflow->evidence.source_1, sample->vexc_1_v);
+    stats_push(&workflow->evidence.source_2, sample->vexc_2_v);
     if (sample->ret_1x_usable)
     {
+        workflow->evidence.ret_1x_path.sample_count++;
         stats_push(&workflow->evidence.ret_1x, sample->ret_1x_v);
-        if (sample->z_1x_valid)
+        if (open && sample->open_y_1x_valid)
+        {
+            stats_push(&workflow->evidence.open_y_1x, sample->open_y_1x);
+            workflow->evidence.ret_1x_path.usable_count++;
+        }
+        else if (sample->z_1x_valid)
         {
             stats_push(&workflow->evidence.z_1x, sample->z_1x_ohms);
+            workflow->evidence.ret_1x_path.usable_count++;
         }
     }
     else
     {
         workflow->evidence.ret_1x_consistent = false;
+        workflow->evidence.ret_1x_path.rejected_count++;
     }
     if (sample->ret_hg_usable)
     {
+        workflow->evidence.ret_hg_path.sample_count++;
+        stats_push(&workflow->evidence.ret_hg_raw, sample->ret_hg_raw_v);
+        stats_push(&workflow->evidence.ret_hg_reconstructed, sample->ret_hg_reconstructed_v);
         stats_push(&workflow->evidence.ret_hg, sample->ret_hg_v);
-        if (sample->z_hg_valid)
+        if (open && sample->open_y_hg_valid)
+        {
+            stats_push(&workflow->evidence.open_y_hg, sample->open_y_hg);
+            workflow->evidence.ret_hg_path.usable_count++;
+        }
+        else if (sample->z_hg_valid)
         {
             stats_push(&workflow->evidence.z_hg, sample->z_hg_ohms);
+            workflow->evidence.ret_hg_path.usable_count++;
         }
     }
     else
     {
         workflow->evidence.ret_hg_consistent = false;
+        workflow->evidence.ret_hg_path.rejected_count++;
+    }
+    if (sample->hg_overlap_valid)
+    {
+        stats_push(&workflow->evidence.hg_observed_transfer, sample->hg_observed_transfer);
     }
     evaluate_completion(workflow);
     return BSP_STATUS_OK;
@@ -403,53 +515,128 @@ void app_calibration_workflow_cancel_complete(app_calibration_workflow_t *workfl
     }
 }
 
-static app_cal_capture_sample_t make_sample_from_result(const hw_metrology_block_t *block,
-                                                        const app_cal_workflow_request_t *request,
-                                                        const measurement_result_t *result,
-                                                        const measurement_dsp_config_t *config)
+static bool stream_clipped(const hw_metrology_block_t *block, hw_metrology_stream_t stream)
 {
-    const measurement_complex_t vmid = result->phasors.vmid;
-    const measurement_complex_t source = measurement_complex_sub(result->phasors.vexc_1, vmid);
-    const measurement_complex_t ret_1x = measurement_complex_sub(result->phasors.ret_1x, vmid);
-    const measurement_complex_t ret_hg = measurement_complex_sub(result->phasors.ret_hg_reconstructed, vmid);
-    measurement_impedance_result_t z_1x =
-        measurement_compute_impedance(source, ret_1x, config->zref_ohms, config, MEASUREMENT_RETURN_1X);
-    measurement_impedance_result_t z_hg =
-        measurement_compute_impedance(source, ret_hg, config->zref_ohms, config, MEASUREMENT_RETURN_HG);
+    return (block != NULL) && (stream < HW_METROLOGY_STREAM_COUNT) &&
+           block->streams[stream].hard_clipped;
+}
+
+static bool compute_ratio(measurement_complex_t numerator,
+                          measurement_complex_t denominator,
+                          measurement_complex_t *out)
+{
+    return measurement_complex_div(numerator, denominator, out) == MEASUREMENT_STATUS_OK;
+}
+
+static bool compute_provisional_z(measurement_complex_t vx,
+                                  measurement_complex_t denominator,
+                                  measurement_complex_t zref,
+                                  float denominator_min,
+                                  measurement_complex_t *out)
+{
+    if ((out == NULL) || measurement_complex_near_zero(denominator, denominator_min))
+    {
+        return false;
+    }
+    measurement_complex_t ratio = {0.0f, 0.0f};
+    if (!compute_ratio(vx, denominator, &ratio))
+    {
+        return false;
+    }
+    *out = measurement_complex_mul(zref, ratio);
+    return measurement_complex_is_finite(*out);
+}
+
+static app_cal_capture_sample_t make_sample_from_phasors(const hw_metrology_block_t *block,
+                                                         const app_cal_workflow_request_t *request,
+                                                         const measurement_phasor_set_t *phasors,
+                                                         const measurement_dsp_config_t *config)
+{
+    const measurement_complex_t vmid = phasors->vmid;
+    const measurement_complex_t vexc_1 = measurement_complex_sub(phasors->vexc_1, vmid);
+    const measurement_complex_t vexc_2 = measurement_complex_sub(phasors->vexc_2, vmid);
+    const measurement_complex_t ret_1x = measurement_complex_sub(phasors->ret_1x, vmid);
+    const measurement_complex_t ret_hg_raw = measurement_complex_sub(phasors->ret_hg, vmid);
+    const measurement_complex_t ret_hg_reconstructed =
+        measurement_complex_sub(phasors->ret_hg_reconstructed, vmid);
+    const measurement_complex_t denominator_1x = measurement_complex_sub(vexc_1, ret_1x);
+    const measurement_complex_t denominator_hg = measurement_complex_sub(vexc_2, ret_hg_reconstructed);
+    measurement_complex_t open_y_1x = {0.0f, 0.0f};
+    measurement_complex_t open_y_hg = {0.0f, 0.0f};
+    measurement_complex_t h_hg = {0.0f, 0.0f};
+    measurement_complex_t z_1x = {0.0f, 0.0f};
+    measurement_complex_t z_hg = {0.0f, 0.0f};
+    const bool open_y_1x_valid = compute_ratio(denominator_1x, ret_1x, &open_y_1x);
+    const bool open_y_hg_valid = compute_ratio(denominator_hg, ret_hg_reconstructed, &open_y_hg);
+    const bool raw_hg_ratio_valid = compute_ratio(ret_hg_raw, ret_1x, &h_hg);
+    const bool z_1x_valid = compute_provisional_z(ret_1x,
+                                                  denominator_1x,
+                                                  config->zref_ohms,
+                                                  config->denominator_min_v_peak,
+                                                  &z_1x);
+    const bool z_hg_valid = compute_provisional_z(ret_hg_reconstructed,
+                                                 denominator_hg,
+                                                 config->zref_ohms,
+                                                 config->denominator_min_v_peak,
+                                                 &z_hg);
+    const bool vmid_clipped = stream_clipped(block, HW_METROLOGY_STREAM_VMID_ADC1) ||
+                              stream_clipped(block, HW_METROLOGY_STREAM_VMID_ADC2);
+    const bool ret_1x_clipped = stream_clipped(block, HW_METROLOGY_STREAM_RET_1X) ||
+                                stream_clipped(block, HW_METROLOGY_STREAM_VEXC_1) ||
+                                vmid_clipped;
+    const bool ret_hg_clipped = stream_clipped(block, HW_METROLOGY_STREAM_RET_HG) ||
+                                stream_clipped(block, HW_METROLOGY_STREAM_VEXC_2) ||
+                                vmid_clipped;
+    const measurement_channel_quality_t ret_1x_quality =
+        measurement_channel_quality(&ret_1x, ret_1x_clipped, true, config->return_min_v_peak);
+    const measurement_channel_quality_t ret_hg_quality =
+        measurement_channel_quality(&ret_hg_reconstructed,
+                                    ret_hg_clipped,
+                                    !measurement_complex_near_zero(config->ret_hg_transfer, 1.0e-6f),
+                                    config->return_min_v_peak);
+    const bool hg_overlap_valid = raw_hg_ratio_valid && ret_1x_quality.usable && ret_hg_quality.usable;
 
     app_cal_capture_sample_t sample = {
         .key = request->key,
         .standard_type = request->standard.type,
         .timestamp_ms = block->permit_validate_ms,
         .temperature_mC = request->temperature_mC,
-        .source_v = source,
+        .temperature_valid = request->temperature_valid,
+        .source_v = vexc_1,
+        .vexc_1_v = vexc_1,
+        .vexc_2_v = vexc_2,
         .ret_1x_v = ret_1x,
-        .ret_hg_v = ret_hg,
-        .z_1x_ohms = z_1x.z_ohms,
-        .z_hg_ohms = z_hg.z_ohms,
-        .source_peak_v = measurement_complex_mag(source),
+        .ret_hg_raw_v = ret_hg_raw,
+        .ret_hg_reconstructed_v = ret_hg_reconstructed,
+        .ret_hg_v = ret_hg_reconstructed,
+        .vmid_adc1_v = phasors->vmid_adc1,
+        .vmid_adc2_v = phasors->vmid_adc2,
+        .open_y_1x = open_y_1x,
+        .open_y_hg = open_y_hg,
+        .hg_observed_transfer = h_hg,
+        .z_1x_ohms = z_1x,
+        .z_hg_ohms = z_hg,
+        .source_peak_v = max_float(measurement_complex_mag(vexc_1), measurement_complex_mag(vexc_2)),
+        .vexc_1_peak_v = measurement_complex_mag(vexc_1),
+        .vexc_2_peak_v = measurement_complex_mag(vexc_2),
         .ret_1x_peak_v = measurement_complex_mag(ret_1x),
-        .ret_hg_peak_v = measurement_complex_mag(ret_hg),
-        .denominator_1x_peak_v = measurement_complex_mag(measurement_complex_sub(source, ret_1x)),
-        .denominator_hg_peak_v = measurement_complex_mag(measurement_complex_sub(source, ret_hg)),
-        .ret_1x_usable = result->ret_1x_quality.usable && !result->ret_1x_quality.clipped,
-        .ret_hg_usable = result->ret_hg_quality.usable && !result->ret_hg_quality.clipped,
-        .z_1x_valid = z_1x.status == MEASUREMENT_STATUS_OK,
-        .z_hg_valid = z_hg.status == MEASUREMENT_STATUS_OK,
-        .clipped = block->clipped || result->phasors.clipped ||
-                   result->ret_1x_quality.clipped ||
-                   result->ret_hg_quality.clipped,
+        .ret_hg_raw_peak_v = measurement_complex_mag(ret_hg_raw),
+        .ret_hg_reconstructed_peak_v = measurement_complex_mag(ret_hg_reconstructed),
+        .ret_hg_peak_v = measurement_complex_mag(ret_hg_reconstructed),
+        .denominator_1x_peak_v = measurement_complex_mag(denominator_1x),
+        .denominator_hg_peak_v = measurement_complex_mag(denominator_hg),
+        .ret_1x_clipped = ret_1x_clipped,
+        .ret_hg_clipped = ret_hg_clipped,
+        .ret_1x_usable = ret_1x_quality.usable,
+        .ret_hg_usable = ret_hg_quality.usable,
+        .open_y_1x_valid = open_y_1x_valid,
+        .open_y_hg_valid = open_y_hg_valid,
+        .hg_overlap_valid = hg_overlap_valid,
+        .z_1x_valid = z_1x_valid,
+        .z_hg_valid = z_hg_valid,
+        .clipped = vmid_clipped,
         .reject_flags = APP_CAL_REJECT_NONE,
     };
-    if ((result->status != MEASUREMENT_STATUS_OK) && (result->status != MEASUREMENT_STATUS_DENOMINATOR_TOO_SMALL))
-    {
-        sample.reject_flags |= APP_CAL_REJECT_DSP;
-    }
-    if ((z_1x.status == MEASUREMENT_STATUS_DENOMINATOR_TOO_SMALL) ||
-        (z_hg.status == MEASUREMENT_STATUS_DENOMINATOR_TOO_SMALL))
-    {
-        sample.reject_flags |= APP_CAL_REJECT_DENOMINATOR_TOO_SMALL;
-    }
     return sample;
 }
 
@@ -472,8 +659,8 @@ bsp_status_t app_calibration_workflow_sample_from_block(const hw_metrology_block
 
     const measurement_adc_calibration_t adc = measurement_adc_calibration_ideal();
     measurement_dsp_config_t config = measurement_dsp_config_ideal(request->key.range_id);
-    measurement_result_t result;
-    const bsp_status_t status = measurement_process_block(block, &adc, &config, &result);
+    measurement_phasor_set_t phasors = {0};
+    const bsp_status_t status = measurement_extract_phasors(block, &adc, &config, &phasors);
     if (status != BSP_STATUS_OK)
     {
         *sample = (app_cal_capture_sample_t){
@@ -481,17 +668,13 @@ bsp_status_t app_calibration_workflow_sample_from_block(const hw_metrology_block
             .standard_type = request->standard.type,
             .timestamp_ms = block->permit_validate_ms,
             .temperature_mC = request->temperature_mC,
-            .source_peak_v = result.phasors.vexc_1_peak_v,
-            .ret_1x_peak_v = result.ret_1x_quality.signal_peak_v,
-            .ret_hg_peak_v = result.ret_hg_quality.signal_peak_v,
-            .ret_1x_usable = result.ret_1x_quality.usable && !result.ret_1x_quality.clipped,
-            .ret_hg_usable = result.ret_hg_quality.usable && !result.ret_hg_quality.clipped,
-            .clipped = block->clipped || result.phasors.clipped,
-            .reject_flags = (status == BSP_STATUS_OK) ? APP_CAL_REJECT_NONE : APP_CAL_REJECT_DSP,
+            .temperature_valid = request->temperature_valid,
+            .clipped = block->clipped,
+            .reject_flags = APP_CAL_REJECT_DSP,
         };
         return status;
     }
-    *sample = make_sample_from_result(block, request, &result, &config);
+    *sample = make_sample_from_phasors(block, request, &phasors, &config);
     return BSP_STATUS_OK;
 }
 
