@@ -5,6 +5,7 @@
 #include "measurement/measurement_engine.h"
 #include "app/app_calibration_runtime.h"
 
+#include <math.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -290,6 +291,49 @@ static measurement_cal_record_t record_for(hw_range_id_t range, uint32_t zref_oh
     return record;
 }
 
+static measurement_cal_record_t osl_record_for_key(measurement_cal_key_t key)
+{
+    const measurement_cal_osl_coefficients_t coefficients = {
+        .ret_hg_transfer = measurement_complex(15.5f, 0.1f),
+        .load_z_ohms = measurement_complex(1000.0f, 0.0f),
+        .t_short = measurement_complex(0.02f, 0.001f),
+        .t_open = measurement_complex(0.98f, -0.003f),
+        .k = measurement_complex(-990.0f, 12.0f),
+    };
+    measurement_cal_record_t record = measurement_cal_make_ideal_record(&key);
+    record.correction = measurement_cal_make_osl_correction(&coefficients, false, true);
+    record.condition_id = measurement_cal_condition_id(&record.key);
+    return record;
+}
+
+static int expect_osl_record_rejected(measurement_cal_record_t record, const char *message)
+{
+    int failures = 0;
+    measurement_cal_set_t set;
+    measurement_cal_set_init(&set,
+                             MEASUREMENT_CAL_HARDWARE_REV1,
+                             MEASUREMENT_CAL_MODEL_VERSION_CURRENT,
+                             77u);
+    failures += expect_true(!measurement_cal_set_add_record(&set, &record), message);
+    set.record_count = 1u;
+    set.records[0] = record;
+    measurement_cal_validity_t validity =
+        measurement_cal_validate_set(&set,
+                                     NULL,
+                                     MEASUREMENT_CAL_HARDWARE_REV1,
+                                     MEASUREMENT_CAL_MODEL_VERSION_CURRENT);
+    failures += expect_true(validity.status == MEASUREMENT_CAL_VALIDITY_CORRUPT,
+                            "malformed OSL set validates corrupt");
+    measurement_cal_resolved_t resolved;
+    failures += expect_true(measurement_cal_resolve_condition(&set,
+                                                              &record.key,
+                                                              false,
+                                                              &resolved) ==
+                                MEASUREMENT_CAL_RESOLVE_CORRUPT,
+                            "malformed OSL resolver rejects runtime use");
+    return failures;
+}
+
 static measurement_cal_set_t set_with_records(uint32_t sequence, uint8_t count)
 {
     measurement_cal_set_t set;
@@ -403,14 +447,15 @@ static measurement_cal_solver_standard_t solver_standard(measurement_cal_key_t k
                                                          measurement_complex_t t,
                                                          bool valid_1x)
 {
+    const measurement_complex_t h_hg = measurement_complex(15.5f, 0.1f);
     measurement_cal_solver_standard_t standard = {
         .key = key,
         .standard = type,
         .standard_z_ohms = z,
         .standard_z_valid = type == MEASUREMENT_CAL_STANDARD_LOAD,
         .t_1x = t,
-        .t_hg = t,
-        .hg_observed_transfer = measurement_complex(15.5f, 0.1f),
+        .t_hg_raw = measurement_complex_mul(t, h_hg),
+        .hg_observed_transfer = h_hg,
         .temperature_mC = 23125,
         .ret_1x_valid = valid_1x,
         .ret_hg_valid = true,
@@ -640,8 +685,8 @@ static int test_full_supported_matrix_capacity(void)
                                     MEASUREMENT_CAL_RESOLVE_FOUND,
                                 "full matrix condition resolves");
         failures += expect_true(resolved.provenance.model_version ==
-                                    MEASUREMENT_CAL_MODEL_VERSION_OSL_MOBIUS_V1,
-                                "full matrix model v3");
+                                    MEASUREMENT_CAL_MODEL_VERSION_CURRENT,
+                                "full matrix current OSL model");
         failures += expect_true((resolved.correction.flags & MEASUREMENT_CAL_FLAG_OSL_MOBIUS) != 0u,
                                 "full matrix record is OSL");
         measurement_cal_osl_coefficients_t coefficients;
@@ -1223,6 +1268,72 @@ static int test_osl_process_block_updates_result_and_derivatives(void)
     return failures;
 }
 
+static int test_persisted_osl_without_observed_hg_does_not_select_hg(void)
+{
+    int failures = 0;
+    measurement_cal_set_t set;
+    measurement_cal_set_init(&set,
+                             MEASUREMENT_CAL_HARDWARE_REV1,
+                             MEASUREMENT_CAL_MODEL_VERSION_CURRENT,
+                             44u);
+    const measurement_cal_key_t key = key_for(HW_RANGE_ID_1K, HW_EXCITATION_FREQ_1KHZ);
+    measurement_cal_record_t record = measurement_cal_make_ideal_record(&key);
+    record.correction.flags |= MEASUREMENT_CAL_FLAG_QUALIFIED;
+    record.correction.flags &= ~MEASUREMENT_CAL_FLAG_HG_OBSERVED;
+    failures += expect_true(measurement_cal_set_add_record(&set, &record),
+                            "persisted OSL without observed HG is storable");
+
+    hw_metrology_block_t block = {0};
+    uint32_t raw[HW_METROLOGY_RAW_WORD_COUNT];
+    (void)memset(raw, 0, sizeof(raw));
+    block.valid = true;
+    block.excitation_frequency_hz = 1000u;
+    block.requested_amplitude_mvrms = 100u;
+    block.range_id = HW_RANGE_ID_1K;
+    block.sample_count = HW_METROLOGY_SAMPLES_PER_BLOCK;
+    block.samples_per_cycle = 64u;
+    block.cycles_per_block = 4u;
+    block.words_per_sample = HW_METROLOGY_WORDS_PER_SAMPLE;
+    block.raw_words = raw;
+    block.dma_complete = true;
+
+    const measurement_complex_t source = measurement_complex(0.05f, 0.0f);
+    const measurement_complex_t ret = measurement_complex(0.004f, 0.0f);
+    const measurement_complex_t ret_hg = measurement_complex_mul(ret, record.correction.ret_hg_transfer);
+    float cos_ref = 1.0f;
+    float sin_ref = 0.0f;
+    for (uint32_t n = 0u; n < HW_METROLOGY_SAMPLES_PER_BLOCK; n++)
+    {
+        raw[(3u * n) + 0u] =
+            hw_metrology_pack_word(volts_to_raw(waveform(1.65f, source, cos_ref, sin_ref)),
+                                   volts_to_raw(waveform(1.65f, ret, cos_ref, sin_ref)));
+        raw[(3u * n) + 1u] =
+            hw_metrology_pack_word(volts_to_raw(waveform(1.65f, source, cos_ref, sin_ref)),
+                                   volts_to_raw(waveform(1.65f, ret_hg, cos_ref, sin_ref)));
+        raw[(3u * n) + 2u] = hw_metrology_pack_word(volts_to_raw(1.65f), volts_to_raw(1.65f));
+        step_ref(&cos_ref, &sin_ref);
+    }
+    hw_metrology_analyze_block(raw, HW_METROLOGY_SAMPLES_PER_BLOCK, &block);
+
+    measurement_calibrated_result_t processed;
+    failures += expect_true(measurement_cal_process_block(&block, &set, &key, false, &processed) == BSP_STATUS_OK,
+                            "1X usable path processes");
+    failures += expect_true(processed.result.selected_channel == MEASUREMENT_RETURN_1X,
+                            "persisted unobserved HG is not selected");
+    failures += expect_true(!processed.result.ret_hg_quality.usable,
+                            "unobserved persisted HG quality is unusable");
+
+    block.streams[HW_METROLOGY_STREAM_RET_1X].hard_clipped = true;
+    block.clipped = true;
+    failures += expect_true(measurement_cal_process_block(&block, &set, &key, false, &processed) ==
+                                BSP_STATUS_ERROR,
+                            "HG-only persisted unobserved path is rejected");
+    failures += expect_true(processed.result.status == MEASUREMENT_STATUS_CLIPPED ||
+                                processed.result.status == MEASUREMENT_STATUS_CHANNEL_UNUSABLE,
+                            "HG-only rejection is explicit");
+    return failures;
+}
+
 static int test_osl_mobius_solver_recovers_systematic_model(void)
 {
     int failures = 0;
@@ -1433,13 +1544,13 @@ static int test_osl_solver_errors_and_hg_fallback(void)
 
     input = solver_input_from_model(key, &model, measurement_complex(1000.0f, 0.0f), true);
     input.load.t_1x = input.shorted.t_1x;
-    input.load.t_hg = input.shorted.t_hg;
+    input.load.t_hg_raw = input.shorted.t_hg_raw;
     failures += expect_true(measurement_cal_solver_solve(&input, &solution) ==
                                 MEASUREMENT_CAL_SOLVER_ILL_CONDITIONED,
                             "ill-conditioned triplet rejected");
     input = solver_input_from_model(key, &model, measurement_complex(1000.0f, 0.0f), true);
     input.load.t_1x = input.open.t_1x;
-    input.load.t_hg = input.open.t_hg;
+    input.load.t_hg_raw = input.open.t_hg_raw;
     failures += expect_true(measurement_cal_solver_solve(&input, &solution) ==
                                 MEASUREMENT_CAL_SOLVER_ILL_CONDITIONED,
                             "load near open rejected");
@@ -1517,6 +1628,39 @@ static int test_osl_record_serializes_and_resolves(void)
     return failures;
 }
 
+static int test_osl_model_rejects_malformed_corrections(void)
+{
+    int failures = 0;
+    const measurement_cal_key_t key = key_for(HW_RANGE_ID_1K, HW_EXCITATION_FREQ_1KHZ);
+
+    measurement_cal_record_t record = osl_record_for_key(key);
+    record.correction.flags &= ~MEASUREMENT_CAL_FLAG_OSL_MOBIUS;
+    failures += expect_osl_record_rejected(record, "OSL record without OSL flag rejected");
+
+    record = osl_record_for_key(key);
+    record.correction.ret_1x_output.scale.re = NAN;
+    failures += expect_osl_record_rejected(record, "OSL nonfinite t_short rejected");
+
+    record = osl_record_for_key(key);
+    record.correction.ret_1x_output.offset_ohms.im = NAN;
+    failures += expect_osl_record_rejected(record, "OSL nonfinite t_open rejected");
+
+    record = osl_record_for_key(key);
+    record.correction.ret_hg_output.scale.re = NAN;
+    failures += expect_osl_record_rejected(record, "OSL nonfinite K rejected");
+
+    record = osl_record_for_key(key);
+    record.correction.ret_1x_output.scale = record.correction.ret_1x_output.offset_ohms;
+    failures += expect_osl_record_rejected(record, "OSL degenerate t_short/t_open rejected");
+
+    record = osl_record_for_key(key);
+    record.correction.flags |= MEASUREMENT_CAL_FLAG_ZREF |
+                               MEASUREMENT_CAL_FLAG_OUTPUT_CORRECTION_1X |
+                               MEASUREMENT_CAL_FLAG_OUTPUT_CORRECTION_HG;
+    failures += expect_osl_record_rejected(record, "OSL legacy direct flags rejected");
+    return failures;
+}
+
 int main(int argc, char **argv)
 {
     if ((argc == 2) && (strcmp(argv[1], "--sizes") == 0))
@@ -1554,10 +1698,12 @@ int main(int argc, char **argv)
     failures += test_slot_compatibility_diagnostics();
     failures += test_dsp_uses_calibrated_hg_transfer();
     failures += test_osl_process_block_updates_result_and_derivatives();
+    failures += test_persisted_osl_without_observed_hg_does_not_select_hg();
     failures += test_osl_ideal_reduces_to_divider_equation();
     failures += test_osl_mobius_solver_recovers_systematic_model();
     failures += test_osl_outperforms_affine_for_series_shunt_complex_error();
     failures += test_osl_solver_errors_and_hg_fallback();
     failures += test_osl_record_serializes_and_resolves();
+    failures += test_osl_model_rejects_malformed_corrections();
     return (failures == 0) ? 0 : 1;
 }

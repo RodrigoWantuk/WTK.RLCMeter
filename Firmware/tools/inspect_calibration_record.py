@@ -17,6 +17,10 @@ from pathlib import Path
 MAGIC = 0x434C4157
 SCHEMA_VERSION = 2
 MODEL_OSL_MOBIUS_V1 = 3
+MODEL_OSL_MOBIUS_EFFECTIVE_HG_V1 = 4
+MODEL_OSL_MODELS = {MODEL_OSL_MOBIUS_V1, MODEL_OSL_MOBIUS_EFFECTIVE_HG_V1}
+FLAG_HG_OBSERVED = 1 << 7
+FLAG_QUALIFIED = 1 << 8
 COMMIT_MARKER = 0x54494D43
 HEADER_BYTES = 64
 CRC_OFFSET = 56
@@ -58,14 +62,16 @@ def decode_record(data: bytes, index: int) -> dict[str, object]:
         "ret_hg_output_scale": complex(floats[8], floats[9]),
         "ret_hg_output_offset": complex(floats[10], floats[11]),
     }
-    if model == MODEL_OSL_MOBIUS_V1:
+    if model in MODEL_OSL_MODELS:
         record.update(
             {
-                "osl_ret_hg_transfer": complex(floats[0], floats[1]),
-                "osl_load_z": complex(floats[2], floats[3]),
+                "osl_effective_hg_transfer": complex(floats[0], floats[1]),
+                "osl_load_reference": complex(floats[2], floats[3]),
                 "osl_t_short": complex(floats[4], floats[5]),
                 "osl_t_open": complex(floats[6], floats[7]),
                 "osl_k": complex(floats[8], floats[9]),
+                "osl_hg_observed": "yes" if (flags & FLAG_HG_OBSERVED) else "no",
+                "qualified": "yes" if (flags & FLAG_QUALIFIED) else "no",
             }
         )
     return record
@@ -119,10 +125,12 @@ def inspect(path: Path) -> int:
             "type={record_type} temp_mC={temperature_mC} condition={condition_id} "
             "flags={flags} ret_hg={ret_hg} zref={zref}"
         ).format(**rec)
-        if rec["model_version"] == MODEL_OSL_MOBIUS_V1:
+        if rec["model_version"] in MODEL_OSL_MODELS:
             line += (
                 " osl_t_short={osl_t_short} osl_t_open={osl_t_open} "
-                "osl_k={osl_k} osl_load_z={osl_load_z}"
+                "osl_k={osl_k} osl_load_reference={osl_load_reference} "
+                "effective_hg={osl_effective_hg_transfer} hg_observed={osl_hg_observed} "
+                "qualified={qualified}"
             ).format(**rec)
         print(line)
     return 0

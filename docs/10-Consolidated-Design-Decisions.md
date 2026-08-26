@@ -237,7 +237,7 @@ The persisted calibration substrate uses two independent compatibility versions:
 
 ```text
 schema_version = 2              portable byte/framing schema
-model_version  = 3              OSL/Mobius projective correction model
+model_version  = 4              OSL/Mobius model with effective HG normalization
 hardware_rev   = 0x00010001     Rev.1 STM32F103C8T6 firmware/hardware contract
 ```
 
@@ -269,22 +269,24 @@ write cannot make an incomplete candidate look valid.
 Floating correction coefficients are serialized as explicit IEEE754 binary32 fields.
 Temperature metadata is stored as signed integer millidegrees C.
 
-Model version 2 represented direct complex output correction. Model version 3 keeps
-the same portable schema but reinterprets the condition payload as the Rev.1
-OSL/Mobius model:
+Model version 2 represented direct complex output correction. Model version 3 introduced
+the first OSL/Mobius payload interpretation. Model version 4 keeps the same portable
+schema and supersedes v3 by defining persisted HG normalization as an effective
+normalized transfer:
 
 ```text
 volts = raw * code_to_volts + offset_volts       global per ADC stream
-RET = VMID + (RET_HG - VMID) / H_HG              complex high-gain transfer
+H_HG_effective = (RET_HG_raw / VEXC_2) / (RET_1X / VEXC_1)
+RET = VMID + (RET_HG - VMID) / H_HG_effective
 t = Vx / Vs
 Z_corrected = K * (t - t_short) / (t - t_open)
 ```
 
-For model 3, the six persisted complex fields are interpreted as:
+For the current OSL model, the six persisted complex fields are interpreted as:
 
 ```text
-ret_hg_transfer      = observed/calibrated H_HG
-zref_ohms            = known LOAD standard used for the solve
+ret_hg_transfer      = effective normalized HG transfer
+zref_ohms            = known LOAD reference used for the solve
 ret_1x_output.scale  = t_short
 ret_1x_output.offset = t_open
 ret_hg_output.scale  = K
@@ -292,10 +294,12 @@ ret_hg_output.offset = reserved zero
 ```
 
 The legacy field names remain in the C struct only to preserve the 80-byte portable
-record layout. Diagnostics and new code should use OSL names. Missing exact calibration
-can still be explicitly resolved to ideal defaults for Lab/debug, but the provenance
-remains `MISSING` and uncalibrated. Product qualification must not treat that fallback
-as calibrated.
+record layout. Diagnostics and new code use OSL names such as `load_reference`,
+`t_short`, `t_open`, `K`, and `effective_hg`. A current OSL record must carry the
+OSL/Mobius flag, load-reference flag, finite nondegenerate coefficients, and no legacy
+direct-output correction flags. Missing exact calibration can still be explicitly
+resolved to ideal defaults for Lab/debug, but the provenance remains `MISSING` and
+uncalibrated. Product qualification must not treat that fallback as calibrated.
 
 Calibration keys include hardware revision, model version, range, frequency, and
 amplitude. RET channel and RET strategy are deliberately excluded from the persistent
@@ -400,6 +404,20 @@ The calibration runtime is application-owned, not Lab-console-owned. The ownersh
 is intentionally split:
 
 ```text
+app_calibration_service_t:
+    product-owned calibration service
+    owns runtime, persistent store scratch, active OSL workflow
+    owns current OSL campaign and explicit candidate lifecycle
+
+app_calibration_session_t:
+    application-level OSL capture controller
+    connects the service workflow to Phase 05 fixed-condition measurements
+    owns capture/cancel events, not raw DMA storage
+
+app_calibration_campaign_t:
+    compact current-condition OSL campaign
+    stores OPEN/SHORT/LOAD summaries and one solved condition
+
 app_calibration_runtime_t:
     active decoded coefficient set
     active slot/provenance
@@ -411,10 +429,16 @@ measurement_cal_store_t:
     async W25Q erase/program/verify metadata
 
 app_lab_console_t:
-    Lab command/dump state
-    a store scratch context
-    pointer to the application calibration runtime
+    Lab command/dump state only
+    pointer to app_calibration_service_t/app_calibration_session_t
+    does not own store scratch or calibration campaign state
 ```
+
+Calibration store terminal states are acknowledged explicitly. After `DONE`, the
+service activates the verified set exactly once, refreshes active-slot diagnostics, and
+acknowledges the store back to `IDLE` before candidate scratch may be reused. After
+`ERROR`, discard/recovery is explicit and the previous active calibration remains
+unchanged.
 
 `measurement_cal_store_write_start()` must not allocate multiple complete
 `measurement_cal_set_t` instances on the stack. It serializes the const candidate into

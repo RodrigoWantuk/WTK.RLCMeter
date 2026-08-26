@@ -373,21 +373,27 @@ static int test_raw_hg_observed_transfer_preserves_nonideal_gain(void)
     const app_cal_workflow_request_t request = request_for(APP_CAL_STANDARD_LOAD);
     hw_metrology_block_t block;
     static uint32_t raw[HW_METROLOGY_RAW_WORD_COUNT];
+    const measurement_complex_t vexc_1 = measurement_complex(0.100f, 0.0f);
+    const measurement_complex_t vexc_2 = measurement_complex(0.083f, 0.006f);
     const measurement_complex_t ret_1x = measurement_complex(0.006f, 0.002f);
     const measurement_complex_t h_hg = measurement_complex(12.0f, 1.5f);
+    measurement_complex_t t_1x = measurement_complex(0.0f, 0.0f);
+    (void)measurement_complex_div(ret_1x, vexc_1, &t_1x);
+    const measurement_complex_t ret_hg_raw =
+        measurement_complex_mul(measurement_complex_mul(t_1x, vexc_2), h_hg);
     make_block(&block,
                raw,
                &request,
-               measurement_complex(0.100f, 0.0f),
+               vexc_1,
                ret_1x,
-               measurement_complex(0.100f, 0.0f),
-               measurement_complex_mul(ret_1x, h_hg));
+               vexc_2,
+               ret_hg_raw);
 
     app_cal_capture_sample_t sample;
     failures += expect_true(app_calibration_workflow_sample_from_block(&block, &request, &sample) == BSP_STATUS_OK,
                             "nonideal HG block should produce evidence");
     failures += expect_true(sample.hg_overlap_valid, "HG overlap should be valid");
-    failures += expect_complex_near(sample.hg_observed_transfer, h_hg, 0.75f, "observed raw HG transfer");
+    failures += expect_complex_near(sample.hg_observed_transfer, h_hg, 0.75f, "observed effective HG transfer");
     return failures;
 }
 
@@ -848,6 +854,21 @@ static bool fake_write_slot_frame(fake_store_t *fake,
     return true;
 }
 
+static bsp_status_t service_commit_to_completion(app_calibration_service_t *service,
+                                                 uint32_t start_ms)
+{
+    bsp_status_t status = BSP_STATUS_BUSY;
+    for (uint32_t i = 0u; i < 160u; i++)
+    {
+        status = app_calibration_service_step(service, start_ms + i);
+        if (status != BSP_STATUS_BUSY)
+        {
+            return status;
+        }
+    }
+    return status;
+}
+
 static bsp_status_t fake_phase05_start(const hw_metrology_measure_request_t *request,
                                        uint32_t now_ms,
                                        void *user)
@@ -1199,6 +1220,28 @@ static int test_service_commit_activates_only_after_verified_store_done(void)
                                 123.0f,
                             0.001f,
                             "activated coefficients are new candidate");
+    const app_calibration_runtime_t *runtime = app_calibration_service_runtime_const(&service);
+    failures += expect_true(app_calibration_runtime_active_slot(runtime) == MEASUREMENT_CAL_STORE_SLOT_B,
+                            "post-commit active slot updates immediately");
+    const measurement_cal_store_slot_info_t *slots = app_calibration_runtime_slots(runtime);
+    failures += expect_true((slots != NULL) &&
+                                slots[(uint8_t)MEASUREMENT_CAL_STORE_SLOT_B].frame_valid &&
+                                (slots[(uint8_t)MEASUREMENT_CAL_STORE_SLOT_B].frame.sequence == 2u),
+                            "post-commit slot diagnostics include new active frame");
+
+    failures += expect_true(app_calibration_service_candidate_begin(&service) == BSP_STATUS_OK,
+                            "candidate C begin after DONE acknowledge");
+    candidate = app_calibration_service_candidate_set(&service);
+    failures += expect_true(candidate != NULL, "candidate C pointer");
+    measurement_cal_set_init(candidate,
+                             MEASUREMENT_CAL_HARDWARE_REV1,
+                             MEASUREMENT_CAL_MODEL_VERSION_CURRENT,
+                             0u);
+    failures += expect_true(app_calibration_service_step(&service, 500u) == BSP_STATUS_OK,
+                            "ordinary service step after C begin");
+    active = app_calibration_service_active_set(&service);
+    failures += expect_true((active != NULL) && (active->sequence == 2u),
+                            "empty candidate C cannot replace active B");
     return failures;
 }
 
@@ -1236,6 +1279,117 @@ static int test_service_commit_failure_preserves_old_active(void)
                             "old active preserved after commit failure");
     failures += expect_true(app_calibration_service_status(&service) == APP_CAL_SERVICE_ERROR,
                             "service reports commit error");
+    fake.fail_program = false;
+    failures += expect_true(app_calibration_service_candidate_discard(&service) == BSP_STATUS_OK,
+                            "explicit discard acknowledges failed store transaction");
+    failures += expect_true(app_calibration_service_candidate_begin(&service) == BSP_STATUS_OK,
+                            "candidate retry begins");
+    candidate = app_calibration_service_candidate_set(&service);
+    *candidate = new_set;
+    failures += expect_true(app_calibration_service_candidate_commit_start(&service) == BSP_STATUS_BUSY,
+                            "retry commit starts");
+    failures += expect_true(service_commit_to_completion(&service, 300u) == BSP_STATUS_OK,
+                            "retry commit completes");
+    active = app_calibration_service_active_set(&service);
+    failures += expect_true((active != NULL) && (active->sequence == 4u),
+                            "retry candidate becomes active");
+    return failures;
+}
+
+static int test_dirty_candidate_blocks_rescan_until_discard(void)
+{
+    int failures = 0;
+    fake_store_t fake = {0};
+    measurement_cal_set_t old_set = full_cal_set(8u, 0.0f);
+    failures += expect_true(fake_write_slot_frame(&fake, MEASUREMENT_CAL_STORE_SLOT_A, &old_set),
+                            "old active fixture writes for dirty rescan");
+
+    app_calibration_service_t service;
+    app_calibration_service_init(&service);
+    measurement_cal_store_io_t io = fake_io(&fake);
+    failures += expect_true(app_calibration_service_load(&service, &io, TEST_CAPACITY_BYTES) == BSP_STATUS_OK,
+                            "service loads active before dirty candidate");
+    failures += expect_true(app_calibration_service_candidate_begin(&service) == BSP_STATUS_OK,
+                            "dirty candidate begin");
+    measurement_cal_set_t *candidate = app_calibration_service_candidate_set(&service);
+    failures += expect_true(candidate != NULL, "dirty candidate pointer");
+    candidate->records[0] = old_set.records[0];
+    candidate->record_count = 1u;
+    failures += expect_true(app_calibration_service_load(&service, &io, TEST_CAPACITY_BYTES) == BSP_STATUS_BUSY,
+                            "dirty candidate blocks rescan");
+    failures += expect_u32(candidate->record_count, 1u, "dirty candidate record preserved");
+    const measurement_cal_set_t *active = app_calibration_service_active_set(&service);
+    failures += expect_true((active != NULL) && (active->sequence == 8u),
+                            "active calibration unchanged while rescan is blocked");
+    failures += expect_true(app_calibration_service_candidate_discard(&service) == BSP_STATUS_OK,
+                            "discard dirty candidate");
+    failures += expect_true(app_calibration_service_load(&service, &io, TEST_CAPACITY_BYTES) == BSP_STATUS_OK,
+                            "rescan succeeds after discard");
+    return failures;
+}
+
+static int test_second_recalibration_alternates_slots_without_aliasing(void)
+{
+    int failures = 0;
+    fake_store_t fake = {0};
+    measurement_cal_set_t active_a = full_cal_set(1u, 0.0f);
+    measurement_cal_set_t candidate_b = full_cal_set(2u, 111.0f);
+    measurement_cal_set_t candidate_c = full_cal_set(3u, 222.0f);
+    failures += expect_true(fake_write_slot_frame(&fake, MEASUREMENT_CAL_STORE_SLOT_A, &active_a),
+                            "initial A fixture writes");
+
+    app_calibration_service_t service;
+    app_calibration_service_init(&service);
+    measurement_cal_store_io_t io = fake_io(&fake);
+    failures += expect_true(app_calibration_service_load(&service, &io, TEST_CAPACITY_BYTES) == BSP_STATUS_OK,
+                            "service loads A");
+    failures += expect_true(app_calibration_service_candidate_begin(&service) == BSP_STATUS_OK,
+                            "candidate B begin");
+    measurement_cal_set_t *candidate = app_calibration_service_candidate_set(&service);
+    *candidate = candidate_b;
+    failures += expect_true(app_calibration_service_candidate_commit_start(&service) == BSP_STATUS_BUSY,
+                            "commit B starts");
+    failures += expect_true(service_commit_to_completion(&service, 100u) == BSP_STATUS_OK,
+                            "commit B completes");
+    const measurement_cal_set_t *active = app_calibration_service_active_set(&service);
+    failures += expect_true((active != NULL) && (active->sequence == 2u),
+                            "B active after first recalibration");
+    failures += expect_true(app_calibration_runtime_active_slot(
+                                app_calibration_service_runtime_const(&service)) ==
+                                MEASUREMENT_CAL_STORE_SLOT_B,
+                            "B is active in alternate slot");
+
+    failures += expect_true(app_calibration_service_candidate_begin(&service) == BSP_STATUS_OK,
+                            "candidate C begin");
+    candidate = app_calibration_service_candidate_set(&service);
+    *candidate = candidate_c;
+    failures += expect_true(app_calibration_service_candidate_commit_start(&service) == BSP_STATUS_BUSY,
+                            "commit C starts");
+    active = app_calibration_service_active_set(&service);
+    failures += expect_true((active != NULL) && (active->sequence == 2u),
+                            "B remains active while C writes");
+    failures += expect_true(service_commit_to_completion(&service, 300u) == BSP_STATUS_OK,
+                            "commit C completes");
+    active = app_calibration_service_active_set(&service);
+    failures += expect_true((active != NULL) && (active->sequence == 3u),
+                            "C active after second recalibration");
+    failures += expect_true(app_calibration_runtime_active_slot(
+                                app_calibration_service_runtime_const(&service)) ==
+                                MEASUREMENT_CAL_STORE_SLOT_A,
+                            "C alternates back to slot A");
+
+    app_calibration_service_t rebooted;
+    app_calibration_service_init(&rebooted);
+    failures += expect_true(app_calibration_service_load(&rebooted, &io, TEST_CAPACITY_BYTES) == BSP_STATUS_OK,
+                            "reboot reloads newest committed C");
+    active = app_calibration_service_active_set(&rebooted);
+    failures += expect_true((active != NULL) && (active->sequence == 3u),
+                            "reboot active matches immediate runtime");
+    failures += expect_true(app_calibration_runtime_active_slot(
+                                app_calibration_service_runtime_const(&rebooted)) ==
+                                app_calibration_runtime_active_slot(
+                                    app_calibration_service_runtime_const(&service)),
+                            "reboot slot diagnostics match immediate runtime");
     return failures;
 }
 
@@ -1245,6 +1399,7 @@ static app_cal_evidence_t campaign_evidence(app_cal_standard_type_t type,
                                             measurement_complex_t source,
                                             measurement_complex_t load_z)
 {
+    const measurement_complex_t h_hg = measurement_complex(15.4f, 0.2f);
     measurement_complex_t open_y = t;
     if (type == APP_CAL_STANDARD_OPEN)
     {
@@ -1278,12 +1433,14 @@ static app_cal_evidence_t campaign_evidence(app_cal_standard_type_t type,
         .source_2 = {.count = APP_CAL_WORKFLOW_REQUIRED_ACCEPTED, .mean = source},
         .ret_1x = {.count = APP_CAL_WORKFLOW_REQUIRED_ACCEPTED,
                    .mean = measurement_complex_mul(source, t)},
+        .ret_hg_raw = {.count = APP_CAL_WORKFLOW_REQUIRED_ACCEPTED,
+                       .mean = measurement_complex_mul(measurement_complex_mul(source, t), h_hg)},
         .ret_hg_reconstructed = {.count = APP_CAL_WORKFLOW_REQUIRED_ACCEPTED,
                                  .mean = measurement_complex_mul(source, t)},
         .open_y_1x = {.count = APP_CAL_WORKFLOW_REQUIRED_ACCEPTED, .mean = open_y},
         .open_y_hg = {.count = APP_CAL_WORKFLOW_REQUIRED_ACCEPTED, .mean = open_y},
         .hg_observed_transfer = {.count = APP_CAL_WORKFLOW_REQUIRED_ACCEPTED,
-                                 .mean = measurement_complex(15.4f, 0.2f)},
+                                 .mean = h_hg},
     };
     evidence.ret_1x_path.stable = true;
     evidence.ret_hg_path.stable = true;
@@ -1393,6 +1550,8 @@ int main(int argc, char **argv)
     failures += test_product_service_owns_store_and_blocks_rescan_while_busy();
     failures += test_service_commit_activates_only_after_verified_store_done();
     failures += test_service_commit_failure_preserves_old_active();
+    failures += test_dirty_candidate_blocks_rescan_until_discard();
+    failures += test_second_recalibration_alternates_slots_without_aliasing();
     failures += test_campaign_solves_condition_and_inserts_candidate_record();
     failures += test_session_runs_open_capture_end_to_end();
     failures += test_session_phase05_safety_abort_fails_safely();

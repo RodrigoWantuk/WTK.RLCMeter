@@ -30,7 +30,7 @@ static bool finite_standard(const measurement_cal_solver_standard_t *standard)
 {
     return (standard != NULL) &&
            finite_complex(standard->t_1x) &&
-           finite_complex(standard->t_hg) &&
+           finite_complex(standard->t_hg_raw) &&
            finite_complex(standard->hg_observed_transfer) &&
            finite_complex(standard->standard_z_ohms);
 }
@@ -69,7 +69,7 @@ static measurement_cal_solver_status_t input_shape_status(const measurement_cal_
     {
         return MEASUREMENT_CAL_SOLVER_KEY_MISMATCH;
     }
-    if (input->open.key.model_version != MEASUREMENT_CAL_MODEL_VERSION_OSL_MOBIUS_V1)
+    if (input->open.key.model_version != MEASUREMENT_CAL_MODEL_VERSION_CURRENT)
     {
         return MEASUREMENT_CAL_SOLVER_UNSUPPORTED_MODEL;
     }
@@ -150,10 +150,16 @@ static bool mean_hg_transfer(const measurement_cal_solver_input_t *input,
     };
     for (uint8_t i = 0u; i < OSL_STANDARD_COUNT; i++)
     {
+        measurement_complex_t observed = measurement_complex(0.0f, 0.0f);
         if (standards[i]->hg_observed_valid &&
-            finite_complex(standards[i]->hg_observed_transfer))
+            finite_complex(standards[i]->t_hg_raw) &&
+            finite_complex(standards[i]->t_1x) &&
+            !measurement_complex_near_zero(standards[i]->t_1x, OSL_MIN_SEPARATION) &&
+            (measurement_complex_div(standards[i]->t_hg_raw, standards[i]->t_1x, &observed) ==
+             MEASUREMENT_STATUS_OK) &&
+            finite_complex(observed))
         {
-            sum = measurement_complex_add(sum, standards[i]->hg_observed_transfer);
+            sum = measurement_complex_add(sum, observed);
             count++;
         }
     }
@@ -163,6 +169,18 @@ static bool mean_hg_transfer(const measurement_cal_solver_input_t *input,
     }
     *transfer = measurement_complex(sum.re / (float)count, sum.im / (float)count);
     return finite_complex(*transfer) && !measurement_complex_near_zero(*transfer, OSL_MIN_SEPARATION);
+}
+
+static bool canonical_hg_t(const measurement_cal_solver_standard_t *standard,
+                           measurement_complex_t h_hg,
+                           measurement_complex_t *t)
+{
+    return (standard != NULL) && (t != NULL) &&
+           standard->ret_hg_valid &&
+           finite_complex(standard->t_hg_raw) &&
+           !measurement_complex_near_zero(h_hg, OSL_MIN_SEPARATION) &&
+           (measurement_complex_div(standard->t_hg_raw, h_hg, t) == MEASUREMENT_STATUS_OK) &&
+           finite_complex(*t);
 }
 
 static measurement_cal_solver_status_t solve_path(measurement_complex_t t_open,
@@ -253,9 +271,18 @@ measurement_cal_solver_status_t measurement_cal_solver_solve(
         {
             return MEASUREMENT_CAL_SOLVER_HG_MISSING;
         }
-        status = solve_path(input->open.t_hg,
-                            input->shorted.t_hg,
-                            input->load.t_hg,
+        measurement_complex_t t_open_hg = measurement_complex(0.0f, 0.0f);
+        measurement_complex_t t_short_hg = measurement_complex(0.0f, 0.0f);
+        measurement_complex_t t_load_hg = measurement_complex(0.0f, 0.0f);
+        if (!canonical_hg_t(&input->open, h_hg, &t_open_hg) ||
+            !canonical_hg_t(&input->shorted, h_hg, &t_short_hg) ||
+            !canonical_hg_t(&input->load, h_hg, &t_load_hg))
+        {
+            return MEASUREMENT_CAL_SOLVER_HG_MISSING;
+        }
+        status = solve_path(t_open_hg,
+                            t_short_hg,
+                            t_load_hg,
                             input->load.standard_z_ohms,
                             &coefficients);
         channel = MEASUREMENT_RETURN_HG;

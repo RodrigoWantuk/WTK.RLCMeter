@@ -568,7 +568,13 @@ static app_cal_capture_sample_t make_sample_from_phasors(const hw_metrology_bloc
     measurement_complex_t z_hg = {0.0f, 0.0f};
     const bool open_y_1x_valid = compute_ratio(denominator_1x, ret_1x, &open_y_1x);
     const bool open_y_hg_valid = compute_ratio(denominator_hg, ret_hg_reconstructed, &open_y_hg);
-    const bool raw_hg_ratio_valid = compute_ratio(ret_hg_raw, ret_1x, &h_hg);
+    measurement_complex_t t_1x = {0.0f, 0.0f};
+    measurement_complex_t t_hg_raw = {0.0f, 0.0f};
+    const bool t_1x_valid = compute_ratio(ret_1x, vexc_1, &t_1x);
+    const bool t_hg_raw_valid = compute_ratio(ret_hg_raw, vexc_2, &t_hg_raw);
+    const bool raw_hg_ratio_valid = t_1x_valid &&
+                                    t_hg_raw_valid &&
+                                    compute_ratio(t_hg_raw, t_1x, &h_hg);
     const bool z_1x_valid = compute_provisional_z(ret_1x,
                                                   denominator_1x,
                                                   config->zref_ohms,

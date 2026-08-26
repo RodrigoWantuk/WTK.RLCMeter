@@ -29,6 +29,9 @@ STATUS: IMPLEMENTED_REQUIRES_BENCH_VALIDATION
 Stage 2B.2 — OSL coefficient solving / calibration-set replacement:
 STATUS: IMPLEMENTED_REQUIRES_BENCH_VALIDATION
 
+Stage 2B.2.1 — Calibration model integrity / HG canonicalization / lifecycle hardening:
+STATUS: IMPLEMENTED
+
 ## Goal
 
 Turn the fixed-condition impedance engine into a robust instrument measurement engine that chooses appropriate ranges/channels/amplitudes/frequencies, evaluates result quality, automatically interprets the dominant component/model, applies calibration, and persists calibration/settings safely.
@@ -222,7 +225,7 @@ The active persistent schema is:
 
 ```text
 MEASUREMENT_CAL_SCHEMA_VERSION = 2
-MEASUREMENT_CAL_MODEL_VERSION_OSL_MOBIUS_V1 = 3
+MEASUREMENT_CAL_MODEL_VERSION_OSL_MOBIUS_EFFECTIVE_HG_V1 = 4
 MEASUREMENT_CAL_HARDWARE_REV1 = 0x00010001
 ```
 
@@ -632,7 +635,7 @@ MEASUREMENT_CAL_SCHEMA_VERSION = 2
 The active mathematical model is now:
 
 ```text
-MEASUREMENT_CAL_MODEL_VERSION_OSL_MOBIUS_V1 = 3
+MEASUREMENT_CAL_MODEL_VERSION_OSL_MOBIUS_EFFECTIVE_HG_V1 = 4
 ```
 
 For each exact Rev.1 condition, the solver uses stable OPEN/SHORT/LOAD evidence in
@@ -648,12 +651,12 @@ This maps SHORT to 0 ohm, LOAD to the known complex standard, and OPEN to a runt
 singularity. Runtime processing detects `t` near `t_open` as OPEN-like rather than
 depending on NaN/Inf propagation.
 
-The 80-byte condition-record payload is unchanged, but model version 3 gives the
+The 80-byte condition-record payload is unchanged, but model version 4 gives the
 existing complex fields OSL semantics:
 
 ```text
-ret_hg_transfer      = observed/calibrated H_HG
-zref_ohms            = known LOAD standard for the solve
+ret_hg_transfer      = effective normalized HG transfer
+zref_ohms            = known LOAD reference for the solve
 ret_1x_output.scale  = t_short
 ret_1x_output.offset = t_open
 ret_hg_output.scale  = K
@@ -661,13 +664,23 @@ ret_hg_output.offset = reserved zero
 ```
 
 The legacy member names remain only to avoid a schema change. New diagnostics and
-documentation use OSL names.
+documentation use OSL names. `H_HG` is not a physical op-amp gain in this model; it is
+the effective normalized path gain `(RET_HG_raw / VEXC_2) / (RET_1X / VEXC_1)`.
+Persisted records without `HG_OBSERVED` cannot select HG as a calibrated runtime path.
+Current OSL records must carry OSL/load-reference semantics and finite nondegenerate
+`t_short`, `t_open`, and `K`; malformed current-model records cannot fall back to the
+legacy direct path.
 
 The product service reuses the existing calibration-store scratch set as the candidate
 set to avoid another permanent multi-kilobyte SRAM allocation. A complete candidate is
 written to the inactive W25Q slot, the commit marker is programmed last, and activation
 occurs only after the store verifies the written frame. The previous active set remains
 the active set if candidate serialization, erase, program, commit, or verify fails.
+Stage 2B.2.1 adds an explicit service-owned candidate lifecycle
+`NONE/BUILDING/PARTIAL/COMPLETE/COMMITTING/ACTIVATED/FAILED`. Store `DONE` activates
+exactly once and is acknowledged back to `IDLE`; store `ERROR` requires explicit discard
+or recovery. Dirty candidates block rescan/load until discarded. Lab is now a controller
+of the product service and no longer owns `app_calibration_campaign_t`.
 
 Lab diagnostics added for Stage 2B.2:
 

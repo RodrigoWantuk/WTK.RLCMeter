@@ -87,6 +87,14 @@ bsp_status_t measurement_cal_store_write_start(measurement_cal_store_t *store,
                                                const measurement_cal_set_t *candidate,
                                                const measurement_cal_requirements_t *requirements);
 bsp_status_t measurement_cal_store_step(measurement_cal_store_t *store, uint32_t now_ms);
+bsp_status_t measurement_cal_store_acknowledge(measurement_cal_store_t *store);
+bsp_status_t measurement_cal_store_refresh_diagnostics(
+    measurement_cal_store_t *store,
+    const measurement_cal_requirements_t *requirements,
+    uint32_t hardware_revision,
+    uint16_t model_version,
+    measurement_cal_store_slot_info_t diagnostics[2]);
+measurement_cal_store_slot_t measurement_cal_store_target_slot(const measurement_cal_store_t *store);
 measurement_cal_store_state_t measurement_cal_store_state(const measurement_cal_store_t *store);
 uint32_t measurement_cal_store_context_size_bytes(void);
 bool measurement_cal_store_sequence_newer(uint32_t a, uint32_t b);

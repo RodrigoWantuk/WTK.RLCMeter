@@ -25,6 +25,15 @@ RANGE_ZREF = {
     "1M": complex(1_000_000.0, 0.0),
 }
 
+COMPACT_METADATA_KEYS = {
+    "f": "frequency_hz",
+    "a": "amplitude_mvrms",
+    "r": "range",
+    "sr": "sample_rate_hz",
+    "n": "samples",
+    "wps": "words_per_sample",
+}
+
 
 @dataclass(frozen=True)
 class RawCapture:
@@ -52,20 +61,23 @@ def parse_raw_dump(text: str) -> RawCapture:
         line = raw_line.strip()
         if not line:
             continue
-        if line.startswith("METROLOGY_RAW_BEGIN"):
+        if line.startswith("METROLOGY_RAW_BEGIN") or line.startswith("RAW_BEGIN"):
             in_capture = True
             continue
-        if line.startswith("METROLOGY_RAW_END"):
+        if line.startswith("METROLOGY_RAW_END") or line.startswith("RAW_END"):
             break
         if not in_capture:
             continue
-        if line == "index,vexc1,ret1x,vexc2,rethg,vmid_adc1,vmid_adc2":
+        if line in {
+            "index,vexc1,ret1x,vexc2,rethg,vmid_adc1,vmid_adc2",
+            "i,v1,r1,v2,rh,vm1,vm2",
+        }:
             in_rows = True
             continue
         if not in_rows:
             if "=" in line:
                 key, value = line.split("=", 1)
-                metadata[key] = value
+                metadata[COMPACT_METADATA_KEYS.get(key, key)] = value
             continue
 
         fields = next(csv.reader([line]))

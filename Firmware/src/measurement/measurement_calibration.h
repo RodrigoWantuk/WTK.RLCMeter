@@ -16,7 +16,8 @@ enum
     MEASUREMENT_CAL_MODEL_VERSION_DIRECT_V1 = 1u,
     MEASUREMENT_CAL_MODEL_VERSION_DIRECT_V2 = 2u,
     MEASUREMENT_CAL_MODEL_VERSION_OSL_MOBIUS_V1 = 3u,
-    MEASUREMENT_CAL_MODEL_VERSION_CURRENT = MEASUREMENT_CAL_MODEL_VERSION_OSL_MOBIUS_V1,
+    MEASUREMENT_CAL_MODEL_VERSION_OSL_MOBIUS_EFFECTIVE_HG_V1 = 4u,
+    MEASUREMENT_CAL_MODEL_VERSION_CURRENT = MEASUREMENT_CAL_MODEL_VERSION_OSL_MOBIUS_EFFECTIVE_HG_V1,
     MEASUREMENT_CAL_HARDWARE_REV1 = 0x00010001u,
     MEASUREMENT_CAL_FRAME_MAGIC = 0x434C4157u,
     MEASUREMENT_CAL_FRAME_HEADER_BYTES = 64u,
@@ -46,6 +47,7 @@ typedef enum
     MEASUREMENT_CAL_FLAG_TEMPERATURE_VALID = 1u << 6,
     MEASUREMENT_CAL_FLAG_HG_OBSERVED = 1u << 7,
     MEASUREMENT_CAL_FLAG_QUALIFIED = 1u << 8,
+    MEASUREMENT_CAL_FLAG_LOAD_REFERENCE = 1u << 9,
 } measurement_cal_flags_t;
 
 typedef enum
@@ -218,6 +220,7 @@ measurement_cal_correction_t measurement_cal_make_osl_correction(
     bool hg_observed);
 bool measurement_cal_get_osl_coefficients(const measurement_cal_correction_t *correction,
                                           measurement_cal_osl_coefficients_t *coefficients);
+bool measurement_cal_validate_osl_correction(const measurement_cal_correction_t *correction);
 bool measurement_cal_set_add_record(measurement_cal_set_t *set, const measurement_cal_record_t *record);
 bool measurement_cal_set_replace_record(measurement_cal_set_t *set, const measurement_cal_record_t *record);
 measurement_cal_requirements_t measurement_cal_requirements_empty(void);

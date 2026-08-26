@@ -76,10 +76,18 @@ RET = VMID + (RET_HG - VMID) / H_HG(f)
 
 where `H_HG(f)` is a calibrated complex transfer response. The current nominal DC gain is approximately 15.47×, but firmware must not treat it as exact or frequency independent.
 
-The Stage 2B.2 solver records an observed complex `H_HG` from RET_HG/RET_1X overlap
-evidence when available. The present Rev.1 assumption stores one transfer in the exact
-condition record; whether temperature/frequency/amplitude/range need denser HG
-modeling remains `REQUIRES_BENCH_VALIDATION`.
+Stage 2B.2.1 defines persisted `H_HG` as an effective normalized path gain, not a
+standalone physical op-amp gain:
+
+```text
+H_HG_effective = (RET_HG_raw / VEXC_2) / (RET_1X / VEXC_1)
+```
+
+This aligns the HG transfer plane with the 1X transfer plane and absorbs systematic
+VEXC1/VEXC2 path mismatch visible in calibration evidence. The current OSL model
+normalizes raw HG evidence with the same effective transfer during fitting and runtime.
+A persisted condition without observed HG overlap keeps HG unavailable for calibrated
+runtime channel selection; Lab/debug ideal fallback remains explicitly uncalibrated.
 
 The measurement engine chooses the channel with the best useful SNR while rejecting clipping and invalid calibration regions.
 

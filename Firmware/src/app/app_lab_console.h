@@ -6,7 +6,6 @@
 
 #include "app/app_calibration_service.h"
 #include "app/app_calibration_session.h"
-#include "app/app_calibration_campaign.h"
 #include "app/app_safety_fault.h"
 #include "app/app_measurement_session.h"
 #include "drivers/ili9341.h"
@@ -64,7 +63,6 @@ typedef struct
     hw_metrology_measure_t measure;
     app_measurement_session_t auto_measure;
     app_calibration_session_t cal_session;
-    app_calibration_campaign_t cal_campaign;
     measurement_auto_hint_t auto_hint;
     app_calibration_service_t *cal_service;
     uint32_t auto_sequence;

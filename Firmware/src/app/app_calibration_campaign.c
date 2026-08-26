@@ -54,7 +54,7 @@ static measurement_cal_solver_standard_t make_solver_standard(const app_cal_evid
         .standard_z_ohms = evidence->standard.z_ohms,
         .standard_z_valid = evidence->standard.z_valid,
         .t_1x = measurement_complex(0.0f, 0.0f),
-        .t_hg = measurement_complex(0.0f, 0.0f),
+        .t_hg_raw = measurement_complex(0.0f, 0.0f),
         .hg_observed_transfer = transfer_mean_or_zero(evidence),
         .temperature_mC = evidence->temperature.valid ? evidence->temperature.mean_mC : 0,
         .ret_1x_valid = evidence->ret_1x_evidence_valid,
@@ -70,7 +70,9 @@ static measurement_cal_solver_standard_t make_solver_standard(const app_cal_evid
         {
             standard.ret_1x_valid = false;
         }
-        if (!open_y_to_t(evidence->open_y_hg.mean, &standard.t_hg))
+        if (measurement_complex_div(evidence->ret_hg_raw.mean,
+                                    evidence->source_2.mean,
+                                    &standard.t_hg_raw) != MEASUREMENT_STATUS_OK)
         {
             standard.ret_hg_valid = false;
         }
@@ -78,7 +80,7 @@ static measurement_cal_solver_standard_t make_solver_standard(const app_cal_evid
     else
     {
         measurement_complex_t t_1x = measurement_complex(0.0f, 0.0f);
-        measurement_complex_t t_hg = measurement_complex(0.0f, 0.0f);
+        measurement_complex_t t_hg_raw = measurement_complex(0.0f, 0.0f);
         if (measurement_complex_div(evidence->ret_1x.mean,
                                     evidence->source_1.mean,
                                     &t_1x) == MEASUREMENT_STATUS_OK)
@@ -89,11 +91,11 @@ static measurement_cal_solver_standard_t make_solver_standard(const app_cal_evid
         {
             standard.ret_1x_valid = false;
         }
-        if (measurement_complex_div(evidence->ret_hg_reconstructed.mean,
+        if (measurement_complex_div(evidence->ret_hg_raw.mean,
                                     evidence->source_2.mean,
-                                    &t_hg) == MEASUREMENT_STATUS_OK)
+                                    &t_hg_raw) == MEASUREMENT_STATUS_OK)
         {
-            standard.t_hg = t_hg;
+            standard.t_hg_raw = t_hg_raw;
         }
         else
         {

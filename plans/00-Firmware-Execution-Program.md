@@ -26,7 +26,8 @@ Phase 07:
     session orchestration implemented with synthetic host validation; Stage 2A
     calibration data model/resolver/redundant persistence substrate implemented; Stage
     2B.1 OPEN-SHORT-LOAD evidence acquisition implemented; Stage 2B.2 OSL/Mobius
-    coefficient solving and transactional candidate activation implemented; physical
+    coefficient solving and transactional candidate activation implemented; Stage
+    2B.2.1 calibration lifecycle/HG canonicalization hardening implemented; physical
     qualification remains
     REQUIRES_BENCH_VALIDATION
 
@@ -380,8 +381,10 @@ A Rev.1 firmware release should ultimately produce:
 
 ## Immediate next action
 
-Continue Phase 07 with Stage 2B OPEN-SHORT-LOAD calibration acquisition workflows and
-later product boot/UI integration. Stage 2A now provides schema v1, direct model v1,
-exact-key resolution, validity semantics, W25Q layout, CRC framing, and redundant
-two-slot persistence. Phase 03A virtual execution remains pending external Wokwi
-constraints and must not be treated as bench validation for analog/metrology behavior.
+Continue Phase 07 toward calibration product gates and Phase 08 UI integration only
+after consuming the Stage 2B.2.1 handoff. The current calibration substrate uses schema
+2 and model 4 OSL/Mobius effective-HG semantics, exact-key resolution, validity
+semantics, W25Q CRC framing, redundant two-slot persistence, explicit candidate
+lifecycle, and single-activation store terminal acknowledgement. Phase 03A virtual
+execution remains pending external Wokwi constraints and must not be treated as bench
+validation for analog/metrology behavior.

@@ -40,7 +40,7 @@ typedef struct
     measurement_complex_t standard_z_ohms;
     bool standard_z_valid;
     measurement_complex_t t_1x;
-    measurement_complex_t t_hg;
+    measurement_complex_t t_hg_raw;
     measurement_complex_t hg_observed_transfer;
     int32_t temperature_mC;
     bool ret_1x_valid;

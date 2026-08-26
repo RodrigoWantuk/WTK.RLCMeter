@@ -791,11 +791,15 @@ use per-path provisional impedance observables. Missing path evidence is not cou
 stable.
 
 Stage 2B.2 adds the pure `measurement_calibration_solver` and the compact
-`app_calibration_campaign` layer. The active model is `OSL_MOBIUS_V1`: the solver uses
-`t = Vx / Vs` and stores `t_short`, `t_open`, and `K` in the existing 80-byte condition
-record payload. The service reuses `measurement_cal_store_t.scan_set` as the candidate
-set and activates it only after the inactive W25Q slot has been programmed and verified.
-No Lab/application calibration path owns GPIO, K1, range switching, or raw DMA storage.
+`app_calibration_campaign` layer. Stage 2B.2.1 makes the service the campaign owner and
+the active model is `OSL_MOBIUS_EFFECTIVE_HG_V1`: the solver uses `t = Vx / Vs`, stores
+`t_short`, `t_open`, and `K` in the existing 80-byte condition record payload, and fits
+HG from raw normalized `t_hg_raw = RET_HG_raw / VEXC_2` after deriving
+`H_HG_effective = t_hg_raw / t_1x`. The service reuses
+`measurement_cal_store_t.scan_set` as the candidate set and activates it only once,
+after the inactive W25Q slot has been programmed and verified. `DONE`/`ERROR` store
+states require explicit acknowledgement before scratch reuse. No Lab/application
+calibration path owns GPIO, K1, range switching, raw DMA storage, or campaign state.
 
 ## Calibration boot gate
 

@@ -19,7 +19,8 @@ Implemented:
 - derived R/X/|Z|/phase, series C/L, Q and D validity;
 - single-condition interpretation primitive;
 - Lab post-capture DSP summary emitted only after the acquisition/measure FSM reaches a dumpable state;
-- independent Python reference/replay helper for `METROLOGY_RAW_BEGIN` dumps;
+- independent Python reference/replay helper for legacy `METROLOGY_RAW_BEGIN` dumps and the
+  compact current Lab `RAW_BEGIN` dump;
 - deterministic host tests for synthetic R/C/L/mixed/error vectors.
 
 Still pending physical evidence:

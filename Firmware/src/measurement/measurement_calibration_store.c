@@ -639,6 +639,52 @@ bsp_status_t measurement_cal_store_step(measurement_cal_store_t *store, uint32_t
     }
 }
 
+bsp_status_t measurement_cal_store_acknowledge(measurement_cal_store_t *store)
+{
+    if (store == NULL)
+    {
+        return BSP_STATUS_INVALID_ARG;
+    }
+    if ((store->state != MEASUREMENT_CAL_STORE_IDLE) &&
+        (store->state != MEASUREMENT_CAL_STORE_DONE) &&
+        (store->state != MEASUREMENT_CAL_STORE_ERROR))
+    {
+        return BSP_STATUS_BUSY;
+    }
+    store->state = MEASUREMENT_CAL_STORE_IDLE;
+    store->last_status = BSP_STATUS_OK;
+    return BSP_STATUS_OK;
+}
+
+bsp_status_t measurement_cal_store_refresh_diagnostics(
+    measurement_cal_store_t *store,
+    const measurement_cal_requirements_t *requirements,
+    uint32_t hardware_revision,
+    uint16_t model_version,
+    measurement_cal_store_slot_info_t diagnostics[2])
+{
+    if ((store == NULL) || (diagnostics == NULL))
+    {
+        return BSP_STATUS_INVALID_ARG;
+    }
+    for (uint8_t i = 0u; i < 2u; i++)
+    {
+        (void)read_slot_info(store,
+                             (measurement_cal_store_slot_t)i,
+                             &store->scan_set,
+                             &diagnostics[i],
+                             requirements,
+                             hardware_revision,
+                             model_version);
+    }
+    return BSP_STATUS_OK;
+}
+
+measurement_cal_store_slot_t measurement_cal_store_target_slot(const measurement_cal_store_t *store)
+{
+    return (store == NULL) ? MEASUREMENT_CAL_STORE_SLOT_A : store->target_slot;
+}
+
 measurement_cal_store_state_t measurement_cal_store_state(const measurement_cal_store_t *store)
 {
     return (store == NULL) ? MEASUREMENT_CAL_STORE_ERROR : store->state;

@@ -76,6 +76,21 @@ exact range/frequency/amplitude condition, and `ZL` is the known complex LOAD st
 This maps SHORT to 0 ohm, LOAD to `ZL`, and OPEN to a singularity. Coefficients are
 computed from stable OSL evidence and stored as a projective/Möbius condition record.
 
+Stage 2B.2.1 canonicalizes HG fitting from raw HG evidence:
+
+```text
+t_1x     = RET_1X / VEXC_1
+t_hg_raw = RET_HG_raw / VEXC_2
+H_HG_effective = t_hg_raw / t_1x
+t_hg_canonical = t_hg_raw / H_HG_effective
+```
+
+Persisted `H_HG_effective` is an effective normalized path gain. It must not be
+reported as the physical return amplifier gain because it also absorbs source-path
+gain/phase mismatch. If no valid HG overlap was observed, the persisted condition may
+carry a nominal fallback value for diagnostics, but runtime calibrated processing must
+not select HG unless `HG_OBSERVED` is present.
+
 The solver and model are software-implemented and synthetically host-tested. Physical
 accuracy, model residuals, leakage behavior, and temperature drift remain
 `REQUIRES_BENCH_VALIDATION`.

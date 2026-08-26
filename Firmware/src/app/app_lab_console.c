@@ -214,29 +214,29 @@ static void write_flash_info(const w25q_device_t *flash)
 
 static void write_auto_policy(void)
 {
-    write_text("auto policy: INITIAL range=");
+    write_text("AP init r=");
     write_text(hw_range_id_string(HW_RANGE_ID_1K));
-    write_text(" freq=");
+    write_text(" f=");
     write_text(hw_excitation_freq_token(HW_EXCITATION_FREQ_1KHZ));
-    write_text(" amp=");
+    write_text(" a=");
     write_text(hw_excitation_amp_token(HW_EXCITATION_AMP_100MVRMS));
     write_text("\r\n");
-    write_text("auto policy: limits attempts=");
+    write_text("AP lim att=");
     write_u32(MEASUREMENT_AUTO_MAX_ATTEMPTS);
-    write_text(" range_transitions=");
+    write_text(" rt=");
     write_u32(MEASUREMENT_AUTO_MAX_RANGE_TRANSITIONS);
-    write_text(" frequency_refinements=");
+    write_text(" fr=");
     write_u32(MEASUREMENT_AUTO_MAX_FREQUENCY_REFINEMENTS);
     write_text("\r\n");
-    write_text("auto policy: forbidden_10r_500mv=");
+    write_text("AP no10r500=");
     write_text(measurement_auto_condition_allowed(HW_RANGE_ID_10R,
                                                  HW_EXCITATION_FREQ_1KHZ,
                                                  HW_EXCITATION_AMP_500MVRMS)
                    ? "0\r\n"
                    : "1\r\n");
-    write_text("auto policy: unqualified_clean_confidence=");
+    write_text("AP unq_conf=");
     write_text(measurement_confidence_string(MEASUREMENT_CONFIDENCE_LOW_CONFIDENCE));
-    write_text(" qualification=");
+    write_text(" q=");
     write_text(measurement_qualification_string(MEASUREMENT_QUALIFICATION_UNQUALIFIED));
     write_text("\r\n");
 }
@@ -262,23 +262,23 @@ static const measurement_cal_set_t *active_calibration_set(const app_lab_console
 
 static void write_slot_status(const measurement_cal_store_slot_info_t *slot)
 {
-    write_text("CAL_SLOT ");
+    write_text("CAL_S ");
     write_text((slot->slot == MEASUREMENT_CAL_STORE_SLOT_A) ? "A" : "B");
-    write_text(" frame=");
+    write_text(" fr=");
     write_text(slot->frame_valid ? "VALID" : "INVALID");
-    write_text(" sequence=");
+    write_text(" seq=");
     write_u32(slot->frame.sequence);
-    write_text(" schema=");
+    write_text(" sch=");
     write_u32(slot->frame.schema_version);
     write_text(" hw=");
     write_hex8(slot->frame.hardware_revision);
     write_text(" model=");
     write_u32(slot->frame.model_version);
-    write_text(" validity=");
+    write_text(" val=");
     write_text(measurement_cal_validity_status_string(slot->validity.status));
-    write_text(" flags=");
+    write_text(" fl=");
     write_hex8(slot->validity.flags);
-    write_text(" records=");
+    write_text(" rec=");
     write_u32(slot->record_count);
     write_text("\r\n");
 }
@@ -287,16 +287,16 @@ static void write_calibration_status(app_lab_console_t *console, w25q_device_t *
 {
     const app_calibration_runtime_t *runtime =
         (console != NULL) ? app_calibration_service_runtime_const(console->cal_service) : NULL;
-    write_text("CAL_SET schema=");
+    write_text("CAL sch=");
     write_u32(MEASUREMENT_CAL_SCHEMA_VERSION);
     write_text(" model=");
     write_u32(MEASUREMENT_CAL_MODEL_VERSION_CURRENT);
     write_text(" hw=");
     write_hex8(MEASUREMENT_CAL_HARDWARE_REV1);
-    write_text(" service=");
+    write_text(" svc=");
     write_text(app_calibration_service_status_string(app_calibration_service_status(
         (console != NULL) ? console->cal_service : NULL)));
-    write_text(" active=");
+    write_text(" act=");
     write_text(((runtime != NULL) && app_calibration_runtime_active_valid(runtime)) ? "1" : "0");
     if ((runtime != NULL) && app_calibration_runtime_active_valid(runtime))
     {
@@ -305,27 +305,27 @@ static void write_calibration_status(app_lab_console_t *console, w25q_device_t *
         write_text((app_calibration_runtime_active_slot(runtime) == MEASUREMENT_CAL_STORE_SLOT_A) ?
                        "A" :
                        "B");
-        write_text(" sequence=");
+        write_text(" seq=");
         write_u32(active->sequence);
-        write_text(" records=");
+        write_text(" rec=");
         write_u32(active->record_count);
     }
     write_text("\r\n");
-    write_text("CAL_STORE frame_max=");
+    write_text("CALST max=");
     write_u32(MEASUREMENT_CAL_MAX_FRAME_BYTES);
-    write_text(" context=");
+    write_text(" ctx=");
     write_u32(measurement_cal_store_context_size_bytes());
-    write_text(" runtime=");
+    write_text(" rt=");
     write_u32(app_calibration_runtime_context_size_bytes());
-    write_text(" service=");
+    write_text(" svc=");
     write_u32(app_calibration_service_context_size_bytes());
     write_text(" lab=");
     write_u32(app_lab_console_context_size_bytes());
     write_text("\r\n");
-    write_text("CAL_WORKFLOW state=");
+    write_text("CALWF st=");
     write_text(app_cal_workflow_state_string(app_calibration_workflow_state(
         app_calibration_service_workflow_const((console != NULL) ? console->cal_service : NULL))));
-    write_text(" result=");
+    write_text(" res=");
     write_text(app_cal_workflow_result_string(app_calibration_workflow_result(
         app_calibration_service_workflow_const((console != NULL) ? console->cal_service : NULL))));
     write_text("\r\n");
@@ -1854,35 +1854,35 @@ static void lab_dump_metrology_dsp_summary(const app_lab_console_t *console, con
 
 static void lab_dump_metrology_header(const app_lab_console_t *console, const hw_metrology_block_t *block)
 {
-    write_text("METROLOGY_RAW_BEGIN v=1\r\n");
-    write_text("mode=");
+    write_text("RAW_BEGIN v=1\r\n");
+    write_text("m=");
     write_text(lab_metrology_mode_string(block->mode));
-    write_text("\r\nfrequency_hz=");
+    write_text("\r\nf=");
     write_u32(block->excitation_frequency_hz);
-    write_text("\r\namplitude_mvrms=");
+    write_text("\r\na=");
     write_u32(block->requested_amplitude_mvrms);
-    write_text("\r\nrange=");
+    write_text("\r\nr=");
     write_text(lab_range_dump_token(block->range_id));
-    write_text("\r\nsample_rate_hz=");
+    write_text("\r\nsr=");
     write_u32(block->sample_rate_hz);
-    write_text("\r\nsamples=");
+    write_text("\r\nn=");
     write_u32(block->sample_count);
-    write_text("\r\nwords_per_sample=");
+    write_text("\r\nwps=");
     write_u32(block->words_per_sample);
     if (block->dut_measure)
     {
-        write_text("\r\npermit_issue_ms=");
+        write_text("\r\npi=");
         write_u32(block->permit_issue_ms);
-        write_text("\r\npermit_validate_ms=");
+        write_text("\r\npv=");
         write_u32(block->permit_validate_ms);
-        write_text("\r\nk1_operate_guard_ms=");
+        write_text("\r\nk1op=");
         write_u32(block->k1_operate_guard_ms);
-        write_text("\r\nk1_release_guard_ms=");
+        write_text("\r\nk1rel=");
         write_u32(block->k1_release_guard_ms);
     }
     write_text("\r\n");
     lab_dump_metrology_dsp_summary(console, block);
-    write_text("index,vexc1,ret1x,vexc2,rethg,vmid_adc1,vmid_adc2\r\n");
+    write_text("i,v1,r1,v2,rh,vm1,vm2\r\n");
 }
 
 static void lab_dump_raw_row(const hw_metrology_block_t *block, uint16_t row)
@@ -1954,7 +1954,7 @@ static void lab_step_metrology_dump(app_lab_console_t *console)
     {
         if (console->dump_row >= block->sample_count)
         {
-            write_text("METROLOGY_RAW_END status=OK\r\n");
+            write_text("RAW_END st=OK\r\n");
             lab_metrology_dump_acknowledge(console);
             return;
         }
@@ -2079,38 +2079,38 @@ static void lab_write_cal_evidence(const app_cal_evidence_t *evidence)
     {
         return;
     }
-    write_text("CAL_EVIDENCE standard=");
+    write_text("CAL_EV std=");
     write_text(app_cal_standard_type_string(evidence->standard.type));
-    write_text(" condition=");
+    write_text(" cond=");
     write_hex8(measurement_cal_condition_id(&evidence->key));
-    write_text(" range=");
+    write_text(" rng=");
     write_text(lab_range_dump_token(evidence->key.range_id));
-    write_text(" frequency=");
+    write_text(" f=");
     write_text(hw_excitation_freq_token(evidence->key.frequency));
-    write_text(" amplitude=");
+    write_text(" a=");
     write_text(hw_excitation_amp_token(evidence->key.amplitude));
-    write_text(" accepted=");
+    write_text(" acc=");
     write_u32(evidence->accepted);
-    write_text(" rejected=");
+    write_text(" rej=");
     write_u32(evidence->rejected);
-    write_text(" attempts=");
+    write_text(" att=");
     write_u32(evidence->attempts);
-    write_text(" stable=");
+    write_text(" st=");
     write_text(evidence->stable ? "1" : "0");
-    write_text(" ret_1x_valid=");
+    write_text(" r1=");
     write_text(evidence->ret_1x_evidence_valid ? "1" : "0");
-    write_text(" ret_hg_valid=");
+    write_text(" rh=");
     write_text(evidence->ret_hg_evidence_valid ? "1" : "0");
-    write_text(" hg_overlap=");
+    write_text(" hgo=");
     write_text(evidence->hg_overlap_valid ? "1" : "0");
-    write_text(" temperature_valid=");
+    write_text(" tv=");
     write_text(evidence->temperature.valid ? "1" : "0");
     if (evidence->temperature.valid)
     {
-        write_text(" temperature_mean_mC=");
+        write_text(" tmC=");
         write_i32(evidence->temperature.mean_mC);
     }
-    write_text(" flags=");
+    write_text(" fl=");
     write_hex8(evidence->reject_flags);
     write_text("\r\n");
 }
@@ -2131,20 +2131,21 @@ static void lab_cal_write_terminal(app_lab_console_t *console)
         return;
     }
     lab_write_cal_evidence(app_calibration_workflow_evidence(workflow));
-    write_text("CAL_ACQUIRE_END result=");
+    write_text("CAL_ACQ_END res=");
     write_text(app_cal_workflow_result_string(app_calibration_workflow_result(workflow)));
-    write_text(" state=");
+    write_text(" st=");
     write_text(app_cal_workflow_state_string(state));
     write_text("\r\n");
     if (app_calibration_workflow_result(workflow) == APP_CAL_WORKFLOW_RESULT_OK)
     {
         const bsp_status_t campaign_status =
-            app_calibration_campaign_submit_evidence(&console->cal_campaign,
-                                                     app_calibration_workflow_evidence(workflow));
-        write_text("CAL_CAMPAIGN_EVIDENCE status=");
+            app_calibration_service_campaign_submit_evidence(console->cal_service,
+                                                             app_calibration_workflow_evidence(workflow));
+        write_text("CAL_CMP_EV st=");
         write_text(bsp_status_string(campaign_status));
-        write_text(" missing=");
-        write_hex8(app_calibration_campaign_missing_mask(&console->cal_campaign));
+        write_text(" miss=");
+        write_hex8(app_calibration_campaign_missing_mask(
+            app_calibration_service_campaign_const(console->cal_service)));
         write_text("\r\n");
     }
 }
@@ -2153,24 +2154,30 @@ static void lab_cal_campaign_status(app_lab_console_t *console)
 {
     if (console == NULL)
     {
-        write_text("CAL_CAMPAIGN status=ERROR\r\n");
+        write_text("CAL_CMP st=ERROR\r\n");
         return;
     }
     const measurement_cal_set_t *candidate =
         app_calibration_service_candidate_set_const(console->cal_service);
     const measurement_cal_validity_t validity =
         app_calibration_service_candidate_validity(console->cal_service);
-    write_text("CAL_CAMPAIGN state=");
-    write_text(app_cal_campaign_state_string(console->cal_campaign.state));
-    write_text(" missing=");
-    write_hex8(app_calibration_campaign_missing_mask(&console->cal_campaign));
-    write_text(" records=");
+    const app_calibration_campaign_t *campaign =
+        app_calibration_service_campaign_const(console->cal_service);
+    write_text("CAL_CMP st=");
+    write_text(app_cal_campaign_state_string((campaign != NULL) ? campaign->state :
+                                                               APP_CAL_CAMPAIGN_EMPTY));
+    write_text(" cand=");
+    write_text(app_calibration_candidate_state_string(
+        app_calibration_service_candidate_state(console->cal_service)));
+    write_text(" miss=");
+    write_hex8(app_calibration_campaign_missing_mask(campaign));
+    write_text(" rec=");
     write_u32((candidate != NULL) ? candidate->record_count : 0u);
-    write_text(" required=");
+    write_text(" req=");
     write_u32(MEASUREMENT_CONDITION_REV1_MAX_SUPPORTED);
-    write_text(" validity=");
+    write_text(" val=");
     write_text(measurement_cal_validity_status_string(validity.status));
-    write_text(" flags=");
+    write_text(" fl=");
     write_hex8(validity.flags);
     write_text("\r\n");
 }
@@ -2179,48 +2186,50 @@ static void lab_cal_campaign_solve(app_lab_console_t *console)
 {
     if ((console == NULL) || (console->cal_service == NULL))
     {
-        write_text("CAL_CAMPAIGN_SOLVE status=ERROR\r\n");
+        write_text("CAL_CMP_SOLVE st=ERROR\r\n");
         return;
     }
     measurement_cal_record_t record;
     const measurement_cal_solver_status_t solve =
-        app_calibration_campaign_solve_condition(&console->cal_campaign, &record);
+        app_calibration_service_campaign_solve_condition(console->cal_service, &record);
     if (solve != MEASUREMENT_CAL_SOLVER_OK)
     {
-        write_text("CAL_CAMPAIGN_SOLVE status=");
+        write_text("CAL_CMP_SOLVE st=");
         write_text(measurement_cal_solver_status_string(solve));
         write_text("\r\n");
         return;
     }
-    measurement_cal_set_t *candidate = app_calibration_service_candidate_set(console->cal_service);
-    const bsp_status_t inserted = app_calibration_campaign_insert_record(&record, candidate);
-    write_text("CAL_CAMPAIGN_SOLVE status=");
+    const bsp_status_t inserted =
+        app_calibration_service_candidate_insert_record(console->cal_service, &record);
+    const measurement_cal_set_t *candidate =
+        app_calibration_service_candidate_set_const(console->cal_service);
+    write_text("CAL_CMP_SOLVE st=");
     write_text((inserted == BSP_STATUS_OK) ? "OK" : bsp_status_string(inserted));
-    write_text(" condition=");
+    write_text(" cond=");
     write_hex8(record.condition_id);
-    write_text(" flags=");
+    write_text(" fl=");
     write_hex8(record.correction.flags);
-    write_text(" records=");
+    write_text(" rec=");
     write_u32((candidate != NULL) ? candidate->record_count : 0u);
     write_text("\r\n");
     measurement_cal_osl_coefficients_t coefficients;
     if (measurement_cal_get_osl_coefficients(&record.correction, &coefficients))
     {
-        write_text("CAL_OSL condition=");
+        write_text("CAL_OSL cond=");
         write_hex8(record.condition_id);
-        write_text(" t_short_milli=");
+        write_text(" ts_m=");
         write_complex_milli(coefficients.t_short);
-        write_text(" t_open_milli=");
+        write_text(" to_m=");
         write_complex_milli(coefficients.t_open);
-        write_text(" k_mohm=");
+        write_text(" k_m=");
         write_complex_milli(coefficients.k);
-        write_text(" h_hg_milli=");
+        write_text(" h_m=");
         write_complex_milli(coefficients.ret_hg_transfer);
-        write_text(" temperature_valid=");
+        write_text(" tv=");
         write_text((record.correction.flags & MEASUREMENT_CAL_FLAG_TEMPERATURE_VALID) != 0u ? "1" : "0");
         if ((record.correction.flags & MEASUREMENT_CAL_FLAG_TEMPERATURE_VALID) != 0u)
         {
-            write_text(" temperature_mC=");
+            write_text(" tmC=");
             write_i32(record.temperature_mC);
         }
         write_text("\r\n");
@@ -2231,12 +2240,12 @@ static void lab_cal_campaign_commit(app_lab_console_t *console)
 {
     if ((console == NULL) || (console->cal_service == NULL))
     {
-        write_text("CAL_CAMPAIGN_COMMIT status=ERROR\r\n");
+        write_text("CAL_CMP_COMMIT st=ERROR\r\n");
         return;
     }
     const bsp_status_t status =
         app_calibration_service_candidate_commit_start(console->cal_service);
-    write_text("CAL_CAMPAIGN_COMMIT status=");
+    write_text("CAL_CMP_COMMIT st=");
     write_text((status == BSP_STATUS_BUSY) ? "START" : bsp_status_string(status));
     write_text("\r\n");
 }
@@ -2495,25 +2504,24 @@ static void run_command(app_lab_console_t *console,
     {
         if ((console == NULL) || (console->cal_service == NULL))
         {
-            write_text("CAL_CAMPAIGN_BEGIN status=ERROR\r\n");
+            write_text("CAL_CMP_BEGIN st=ERROR\r\n");
             return;
         }
-        const measurement_cal_set_t *candidate =
-            app_calibration_service_candidate_set_const(console->cal_service);
-        const bool candidate_uninitialized =
-            (candidate == NULL) ||
-            (candidate->hardware_revision != MEASUREMENT_CAL_HARDWARE_REV1) ||
-            (candidate->model_version != MEASUREMENT_CAL_MODEL_VERSION_CURRENT) ||
-            (candidate->schema_version != MEASUREMENT_CAL_SCHEMA_VERSION);
-        const bsp_status_t candidate_status = candidate_uninitialized ?
+        const app_cal_candidate_state_t candidate_state =
+            app_calibration_service_candidate_state(console->cal_service);
+        const bool needs_candidate =
+            (candidate_state == APP_CAL_CANDIDATE_NONE) ||
+            (candidate_state == APP_CAL_CANDIDATE_ACTIVATED) ||
+            (candidate_state == APP_CAL_CANDIDATE_FAILED);
+        const bsp_status_t candidate_status = needs_candidate ?
             app_calibration_service_candidate_begin(console->cal_service) :
             BSP_STATUS_OK;
         const bsp_status_t campaign_status =
-            app_calibration_campaign_begin_condition(&console->cal_campaign, &cal_campaign_key);
-        write_text("CAL_CAMPAIGN_BEGIN status=");
+            app_calibration_service_campaign_begin_condition(console->cal_service, &cal_campaign_key);
+        write_text("CAL_CMP_BEGIN st=");
         write_text((candidate_status == BSP_STATUS_OK) ? bsp_status_string(campaign_status) :
                                                         bsp_status_string(candidate_status));
-        write_text(" condition=");
+        write_text(" cond=");
         write_hex8(measurement_cal_condition_id(&cal_campaign_key));
         write_text("\r\n");
     }
@@ -2527,12 +2535,11 @@ static void run_command(app_lab_console_t *console,
     }
     else if (text_equals(line, "lab cal campaign discard"))
     {
-        app_calibration_campaign_init((console != NULL) ? &console->cal_campaign : NULL);
-        if ((console != NULL) && (console->cal_service != NULL))
-        {
-            (void)app_calibration_service_candidate_begin(console->cal_service);
-        }
-        write_text("CAL_CAMPAIGN_DISCARD status=OK\r\n");
+        const bsp_status_t status =
+            app_calibration_service_candidate_discard((console != NULL) ? console->cal_service : NULL);
+        write_text("CAL_CMP_DISCARD st=");
+        write_text(bsp_status_string(status));
+        write_text("\r\n");
     }
     else if (text_equals(line, "lab cal campaign commit"))
     {
@@ -2623,7 +2630,6 @@ void app_lab_console_init(app_lab_console_t *console)
     console->dump_source = APP_LAB_METROLOGY_DUMP_NONE;
     console->auto_hint = (measurement_auto_hint_t){0};
     console->cal_session = (app_calibration_session_t){0};
-    app_calibration_campaign_init(&console->cal_campaign);
     console->auto_sequence = 0u;
     console->cal_service = NULL;
     console->range_ref = NULL;
