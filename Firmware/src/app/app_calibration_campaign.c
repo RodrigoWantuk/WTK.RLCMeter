@@ -36,6 +36,15 @@ static measurement_complex_t transfer_mean_or_zero(const app_cal_evidence_t *evi
                measurement_complex(0.0f, 0.0f);
 }
 
+static bool open_y_to_t(measurement_complex_t open_y, measurement_complex_t *t)
+{
+    return (t != NULL) &&
+           (measurement_complex_div(measurement_complex(1.0f, 0.0f),
+                                    measurement_complex_add(open_y,
+                                                            measurement_complex(1.0f, 0.0f)),
+                                    t) == MEASUREMENT_STATUS_OK);
+}
+
 static measurement_cal_solver_standard_t make_solver_standard(const app_cal_evidence_t *evidence)
 {
     const bool open = evidence->standard.type == APP_CAL_STANDARD_OPEN;
@@ -44,8 +53,8 @@ static measurement_cal_solver_standard_t make_solver_standard(const app_cal_evid
         .standard = convert_standard(evidence->standard.type),
         .standard_z_ohms = evidence->standard.z_ohms,
         .standard_z_valid = evidence->standard.z_valid,
-        .t_1x = open ? evidence->open_y_1x.mean : measurement_complex(0.0f, 0.0f),
-        .t_hg = open ? evidence->open_y_hg.mean : measurement_complex(0.0f, 0.0f),
+        .t_1x = measurement_complex(0.0f, 0.0f),
+        .t_hg = measurement_complex(0.0f, 0.0f),
         .hg_observed_transfer = transfer_mean_or_zero(evidence),
         .temperature_mC = evidence->temperature.valid ? evidence->temperature.mean_mC : 0,
         .ret_1x_valid = evidence->ret_1x_evidence_valid,
@@ -53,8 +62,20 @@ static measurement_cal_solver_standard_t make_solver_standard(const app_cal_evid
         .hg_observed_valid = evidence->hg_overlap_valid,
         .stable = evidence->stable,
         .temperature_valid = evidence->temperature.valid,
+        .present = true,
     };
-    if (!open)
+    if (open)
+    {
+        if (!open_y_to_t(evidence->open_y_1x.mean, &standard.t_1x))
+        {
+            standard.ret_1x_valid = false;
+        }
+        if (!open_y_to_t(evidence->open_y_hg.mean, &standard.t_hg))
+        {
+            standard.ret_hg_valid = false;
+        }
+    }
+    else
     {
         measurement_complex_t t_1x = measurement_complex(0.0f, 0.0f);
         measurement_complex_t t_hg = measurement_complex(0.0f, 0.0f);

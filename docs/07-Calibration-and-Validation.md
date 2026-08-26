@@ -36,6 +36,10 @@ Calibration temperature should also be recorded with an explicit validity flag. 
 valid NTC temperature is available for a capture, firmware must not substitute a
 synthetic ambient value.
 
+Stage 2B.2 treats this temperature as calibration provenance for the OSL acquisition.
+It is not six independent thermal samples and it is not an input to runtime
+temperature compensation.
+
 ## OPEN / SHORT / LOAD
 
 ### OPEN
@@ -75,6 +79,15 @@ computed from stable OSL evidence and stored as a projective/Möbius condition r
 The solver and model are software-implemented and synthetically host-tested. Physical
 accuracy, model residuals, leakage behavior, and temperature drift remain
 `REQUIRES_BENCH_VALIDATION`.
+
+The Stage 2B.2 host comparison deliberately injects complex gain/phase error, residual
+series impedance, and shunt leakage/admittance, then validates impedances that were not
+used as OPEN/SHORT/LOAD fit standards. In that deterministic model the previous
+two-complex affine correction fitted at SHORT/LOAD leaves substantially larger
+intermediate residuals, especially near high impedance and with complex reactance,
+while the OSL/Mobius transfer maps the synthetic DUTs back to the true impedance within
+the configured float tolerances. This justifies replacing the mathematical
+`model_version`; it does not qualify the real PCB.
 
 ## Range validation
 

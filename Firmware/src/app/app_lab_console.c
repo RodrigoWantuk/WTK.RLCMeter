@@ -85,6 +85,13 @@ static int32_t milli_from_float(float value)
     return (int32_t)((scaled >= 0.0f) ? (scaled + 0.5f) : (scaled - 0.5f));
 }
 
+static void write_complex_milli(measurement_complex_t value)
+{
+    write_i32(milli_from_float(value.re));
+    write_text(",");
+    write_i32(milli_from_float(value.im));
+}
+
 static void write_hex8(uint32_t value)
 {
     static const char digits[] = "0123456789ABCDEF";
@@ -2196,6 +2203,28 @@ static void lab_cal_campaign_solve(app_lab_console_t *console)
     write_text(" records=");
     write_u32((candidate != NULL) ? candidate->record_count : 0u);
     write_text("\r\n");
+    measurement_cal_osl_coefficients_t coefficients;
+    if (measurement_cal_get_osl_coefficients(&record.correction, &coefficients))
+    {
+        write_text("CAL_OSL condition=");
+        write_hex8(record.condition_id);
+        write_text(" t_short_milli=");
+        write_complex_milli(coefficients.t_short);
+        write_text(" t_open_milli=");
+        write_complex_milli(coefficients.t_open);
+        write_text(" k_mohm=");
+        write_complex_milli(coefficients.k);
+        write_text(" h_hg_milli=");
+        write_complex_milli(coefficients.ret_hg_transfer);
+        write_text(" temperature_valid=");
+        write_text((record.correction.flags & MEASUREMENT_CAL_FLAG_TEMPERATURE_VALID) != 0u ? "1" : "0");
+        if ((record.correction.flags & MEASUREMENT_CAL_FLAG_TEMPERATURE_VALID) != 0u)
+        {
+            write_text(" temperature_mC=");
+            write_i32(record.temperature_mC);
+        }
+        write_text("\r\n");
+    }
 }
 
 static void lab_cal_campaign_commit(app_lab_console_t *console)

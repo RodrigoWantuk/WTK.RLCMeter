@@ -24,12 +24,15 @@ Phase 06:
 Phase 07:
     Stage 1A automatic measurement policy implemented; Stage 1B end-to-end automatic
     session orchestration implemented with synthetic host validation; Stage 2A
-    calibration data model/resolver/redundant persistence substrate implemented;
-    OPEN-SHORT-LOAD workflows remain NOT_STARTED; physical qualification remains
+    calibration data model/resolver/redundant persistence substrate implemented; Stage
+    2B.1 OPEN-SHORT-LOAD evidence acquisition implemented; Stage 2B.2 OSL/Mobius
+    coefficient solving and transactional candidate activation implemented; physical
+    qualification remains
     REQUIRES_BENCH_VALIDATION
 
 Immediate next software phase after physical/software handoff:
-    Phase 07 Stage 2B — OPEN-SHORT-LOAD workflows and product calibration integration
+    Phase 07 Stage 2C/Stage 3 — calibration workflow completion gates, UX integration,
+    and later persistence/qualification refinements as specified by the next assignment
 ```
 
 ## Program objectives

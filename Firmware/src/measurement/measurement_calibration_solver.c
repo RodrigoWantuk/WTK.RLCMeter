@@ -18,7 +18,7 @@ static bool finite_complex(measurement_complex_t value)
 static bool standard_type_matches(const measurement_cal_solver_standard_t *standard,
                                   measurement_cal_standard_type_t expected)
 {
-    return (standard != NULL) && (standard->standard == expected);
+    return (standard != NULL) && standard->present && (standard->standard == expected);
 }
 
 static bool keys_match(const measurement_cal_key_t *a, const measurement_cal_key_t *b)
@@ -43,29 +43,75 @@ static bool load_valid(const measurement_cal_solver_standard_t *load)
            !measurement_complex_near_zero(load->standard_z_ohms, OSL_MIN_SEPARATION);
 }
 
-static bool input_shape_valid(const measurement_cal_solver_input_t *input)
+static measurement_cal_solver_status_t input_shape_status(const measurement_cal_solver_input_t *input)
 {
-    return (input != NULL) &&
-           standard_type_matches(&input->open, MEASUREMENT_CAL_STANDARD_OPEN) &&
-           standard_type_matches(&input->shorted, MEASUREMENT_CAL_STANDARD_SHORT) &&
-           standard_type_matches(&input->load, MEASUREMENT_CAL_STANDARD_LOAD) &&
-           keys_match(&input->open.key, &input->shorted.key) &&
-           keys_match(&input->open.key, &input->load.key) &&
-           (input->open.key.model_version == MEASUREMENT_CAL_MODEL_VERSION_OSL_MOBIUS_V1) &&
-           load_valid(&input->load);
+    if (input == NULL)
+    {
+        return MEASUREMENT_CAL_SOLVER_INVALID_ARG;
+    }
+    if (!input->open.present)
+    {
+        return MEASUREMENT_CAL_SOLVER_MISSING_OPEN;
+    }
+    if (!input->shorted.present)
+    {
+        return MEASUREMENT_CAL_SOLVER_MISSING_SHORT;
+    }
+    if (!input->load.present)
+    {
+        return MEASUREMENT_CAL_SOLVER_MISSING_LOAD;
+    }
+    if (!standard_type_matches(&input->open, MEASUREMENT_CAL_STANDARD_OPEN) ||
+        !standard_type_matches(&input->shorted, MEASUREMENT_CAL_STANDARD_SHORT) ||
+        !standard_type_matches(&input->load, MEASUREMENT_CAL_STANDARD_LOAD) ||
+        !keys_match(&input->open.key, &input->shorted.key) ||
+        !keys_match(&input->open.key, &input->load.key))
+    {
+        return MEASUREMENT_CAL_SOLVER_KEY_MISMATCH;
+    }
+    if (input->open.key.model_version != MEASUREMENT_CAL_MODEL_VERSION_OSL_MOBIUS_V1)
+    {
+        return MEASUREMENT_CAL_SOLVER_UNSUPPORTED_MODEL;
+    }
+    if (!load_valid(&input->load))
+    {
+        return MEASUREMENT_CAL_SOLVER_MISSING_LOAD;
+    }
+    return MEASUREMENT_CAL_SOLVER_OK;
 }
 
-static bool stable_triplet(const measurement_cal_solver_input_t *input)
+static measurement_cal_solver_status_t stable_triplet_status(const measurement_cal_solver_input_t *input)
 {
-    return input->open.stable && input->shorted.stable && input->load.stable;
+    if (!input->open.stable)
+    {
+        return MEASUREMENT_CAL_SOLVER_UNSTABLE_OPEN;
+    }
+    if (!input->shorted.stable)
+    {
+        return MEASUREMENT_CAL_SOLVER_UNSTABLE_SHORT;
+    }
+    if (!input->load.stable)
+    {
+        return MEASUREMENT_CAL_SOLVER_UNSTABLE_LOAD;
+    }
+    return MEASUREMENT_CAL_SOLVER_OK;
 }
 
 static uint8_t temperature_count(const measurement_cal_solver_input_t *input)
 {
     uint8_t count = 0u;
-    count += input->open.temperature_valid ? 1u : 0u;
-    count += input->shorted.temperature_valid ? 1u : 0u;
-    count += input->load.temperature_valid ? 1u : 0u;
+    if (input->open.temperature_valid)
+    {
+        count++;
+    }
+    if (input->shorted.temperature_valid)
+    {
+        count++;
+    }
+    if (input->load.temperature_valid)
+    {
+        count++;
+    }
     return count;
 }
 
@@ -135,6 +181,7 @@ static measurement_cal_solver_status_t solve_path(measurement_complex_t t_open,
         return MEASUREMENT_CAL_SOLVER_NONFINITE;
     }
     if (measurement_complex_near_zero(measurement_complex_sub(t_load, t_short), OSL_MIN_SEPARATION) ||
+        measurement_complex_near_zero(measurement_complex_sub(t_load, t_open), OSL_MIN_SEPARATION) ||
         measurement_complex_near_zero(measurement_complex_sub(t_open, t_short), OSL_MIN_SEPARATION))
     {
         return MEASUREMENT_CAL_SOLVER_ILL_CONDITIONED;
@@ -167,9 +214,10 @@ measurement_cal_solver_status_t measurement_cal_solver_solve(
         return MEASUREMENT_CAL_SOLVER_INVALID_ARG;
     }
     *solution = (measurement_cal_solver_solution_t){0};
-    if (!input_shape_valid(input))
+    const measurement_cal_solver_status_t shape_status = input_shape_status(input);
+    if (shape_status != MEASUREMENT_CAL_SOLVER_OK)
     {
-        return MEASUREMENT_CAL_SOLVER_KEY_MISMATCH;
+        return shape_status;
     }
     if (!finite_standard(&input->open) ||
         !finite_standard(&input->shorted) ||
@@ -177,9 +225,10 @@ measurement_cal_solver_status_t measurement_cal_solver_solve(
     {
         return MEASUREMENT_CAL_SOLVER_NONFINITE;
     }
-    if (!stable_triplet(input))
+    const measurement_cal_solver_status_t stability_status = stable_triplet_status(input);
+    if (stability_status != MEASUREMENT_CAL_SOLVER_OK)
     {
-        return MEASUREMENT_CAL_SOLVER_UNSTABLE;
+        return stability_status;
     }
 
     measurement_complex_t h_hg = measurement_complex(0.0f, 0.0f);
@@ -288,8 +337,20 @@ const char *measurement_cal_solver_status_string(measurement_cal_solver_status_t
         return "KEY_MISMATCH";
     case MEASUREMENT_CAL_SOLVER_MISSING_STANDARDS:
         return "MISSING_STANDARDS";
+    case MEASUREMENT_CAL_SOLVER_MISSING_OPEN:
+        return "MISSING_OPEN";
+    case MEASUREMENT_CAL_SOLVER_MISSING_SHORT:
+        return "MISSING_SHORT";
+    case MEASUREMENT_CAL_SOLVER_MISSING_LOAD:
+        return "MISSING_LOAD";
     case MEASUREMENT_CAL_SOLVER_UNSTABLE:
         return "UNSTABLE";
+    case MEASUREMENT_CAL_SOLVER_UNSTABLE_OPEN:
+        return "UNSTABLE_OPEN";
+    case MEASUREMENT_CAL_SOLVER_UNSTABLE_SHORT:
+        return "UNSTABLE_SHORT";
+    case MEASUREMENT_CAL_SOLVER_UNSTABLE_LOAD:
+        return "UNSTABLE_LOAD";
     case MEASUREMENT_CAL_SOLVER_NO_VALID_PATH:
         return "NO_VALID_PATH";
     case MEASUREMENT_CAL_SOLVER_HG_MISSING:

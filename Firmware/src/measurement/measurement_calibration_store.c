@@ -91,35 +91,42 @@ static bool set_matches_expected_mask(const measurement_cal_set_t *set, uint64_t
     return set_key_mask(set, &actual_mask) && (actual_mask == expected_mask);
 }
 
-static bool find_newest_decoded_slot(measurement_cal_store_t *store,
-                                     const measurement_cal_requirements_t *requirements,
-                                     measurement_cal_store_slot_t *slot,
-                                     uint32_t *sequence)
+static bool find_newest_committed_frame(measurement_cal_store_t *store,
+                                        measurement_cal_store_slot_t *slot,
+                                        uint32_t *sequence)
 {
+    if (store == NULL)
+    {
+        return false;
+    }
+
     bool have_best = false;
     uint32_t best_sequence = 0u;
     measurement_cal_store_slot_t best_slot = MEASUREMENT_CAL_STORE_SLOT_A;
-    measurement_cal_set_t *candidate = &store->scan_set;
 
     for (uint8_t i = 0u; i < 2u; i++)
     {
         const measurement_cal_store_slot_t current_slot = (measurement_cal_store_slot_t)i;
-        const bool decoded = read_slot_info(store,
-                                            current_slot,
-                                            candidate,
-                                            NULL,
-                                            requirements,
-                                            MEASUREMENT_CAL_HARDWARE_REV1,
-                                            MEASUREMENT_CAL_MODEL_VERSION_CURRENT);
-        const measurement_cal_validity_t validity =
-            measurement_cal_validate_set(decoded ? candidate : NULL,
-                                         requirements,
-                                         MEASUREMENT_CAL_HARDWARE_REV1,
-                                         MEASUREMENT_CAL_MODEL_VERSION_CURRENT);
-        if (decoded && (validity.status == MEASUREMENT_CAL_VALIDITY_VALID) &&
-            (!have_best || measurement_cal_store_sequence_newer(candidate->sequence, best_sequence)))
+        const storage_partition_t *partition = &store->slots[i];
+        if (store->io.read(partition->start,
+                           store->image,
+                           MEASUREMENT_CAL_MAX_FRAME_BYTES,
+                           store->io.user) != BSP_STATUS_OK)
         {
-            best_sequence = candidate->sequence;
+            continue;
+        }
+
+        measurement_cal_frame_info_t frame = {0};
+        const measurement_cal_validity_t validity =
+            measurement_cal_inspect_frame(store->image,
+                                          MEASUREMENT_CAL_MAX_FRAME_BYTES,
+                                          MEASUREMENT_CAL_HARDWARE_REV1,
+                                          MEASUREMENT_CAL_MODEL_VERSION_CURRENT,
+                                          &frame);
+        if ((validity.status == MEASUREMENT_CAL_VALIDITY_VALID) &&
+            (!have_best || measurement_cal_store_sequence_newer(frame.sequence, best_sequence)))
+        {
+            best_sequence = frame.sequence;
             best_slot = current_slot;
             have_best = true;
         }
@@ -353,7 +360,7 @@ bsp_status_t measurement_cal_store_write_start(measurement_cal_store_t *store,
     measurement_cal_store_slot_t target_slot = MEASUREMENT_CAL_STORE_SLOT_A;
     uint32_t next_sequence = candidate->sequence;
     uint32_t newest_sequence = 0u;
-    if (find_newest_decoded_slot(store, NULL, NULL, &newest_sequence))
+    if (find_newest_committed_frame(store, NULL, &newest_sequence))
     {
         next_sequence = newest_sequence + 1u;
     }
@@ -361,7 +368,7 @@ bsp_status_t measurement_cal_store_write_start(measurement_cal_store_t *store,
     {
         next_sequence = 1u;
     }
-    if (find_newest_decoded_slot(store, requirements, &newest_slot, NULL))
+    if (find_newest_committed_frame(store, &newest_slot, NULL))
     {
         target_slot = (newest_slot == MEASUREMENT_CAL_STORE_SLOT_A) ? MEASUREMENT_CAL_STORE_SLOT_B :
                                                                       MEASUREMENT_CAL_STORE_SLOT_A;

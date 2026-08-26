@@ -1,18 +1,35 @@
 #include "app/app_calibration_service.h"
 #include "app/app_calibration_session.h"
 #include "app/app_calibration_campaign.h"
+#include "storage/storage_layout.h"
 
+#include <stddef.h>
 #include <stdio.h>
 #include <string.h>
 
 #define TEST_CAPACITY_BYTES (2u * 1024u * 1024u)
+#define TEST_MUTABLE_BASE (TEST_CAPACITY_BYTES - STORAGE_LAYOUT_MUTABLE_RESERVED_BYTES)
+#define TEST_FLASH_BYTES STORAGE_LAYOUT_MUTABLE_RESERVED_BYTES
 #define TEST_MID_V (1.65f)
 #define TEST_ADC_SCALE (3.3f / 4095.0f)
 #define TEST_HG_NOMINAL (15.4680851064f)
 
 typedef struct
 {
+    uint8_t flash[TEST_FLASH_BYTES];
+    uint8_t pending[256];
+    uint32_t pending_address;
+    size_t pending_size;
     uint8_t read_count;
+    uint8_t busy_polls;
+    bool initialized;
+    bool fail_program;
+    enum
+    {
+        FAKE_STORE_IDLE = 0,
+        FAKE_STORE_ERASE_BUSY,
+        FAKE_STORE_PROGRAM_BUSY,
+    } state;
 } fake_store_t;
 
 typedef struct
@@ -611,22 +628,52 @@ static int test_cancel_during_capture_discards_evidence(void)
 
 static bsp_status_t fake_read(uint32_t address, void *dst, size_t size, void *user)
 {
-    (void)address;
     fake_store_t *fake = (fake_store_t *)user;
     if ((fake == NULL) || (dst == NULL))
     {
         return BSP_STATUS_INVALID_ARG;
     }
+    if (!fake->initialized)
+    {
+        (void)memset(fake->flash, 0xFF, sizeof(fake->flash));
+        fake->initialized = true;
+    }
+    if (address < TEST_MUTABLE_BASE)
+    {
+        return BSP_STATUS_INVALID_ARG;
+    }
+    const uint32_t local = address - TEST_MUTABLE_BASE;
+    if ((local >= TEST_FLASH_BYTES) || (size > ((size_t)TEST_FLASH_BYTES - (size_t)local)))
+    {
+        return BSP_STATUS_INVALID_ARG;
+    }
     fake->read_count++;
-    (void)memset(dst, 0xFF, size);
+    (void)memcpy(dst, &fake->flash[local], size);
     return BSP_STATUS_OK;
 }
 
 static bsp_status_t fake_start(uint32_t address, uint32_t now_ms, void *user)
 {
-    (void)address;
     (void)now_ms;
-    (void)user;
+    fake_store_t *fake = (fake_store_t *)user;
+    if (fake == NULL)
+    {
+        return BSP_STATUS_INVALID_ARG;
+    }
+    if (!fake->initialized)
+    {
+        (void)memset(fake->flash, 0xFF, sizeof(fake->flash));
+        fake->initialized = true;
+    }
+    if ((address < TEST_MUTABLE_BASE) || ((address % STORAGE_LAYOUT_W25Q_SECTOR_SIZE) != 0u) ||
+        (fake->state != FAKE_STORE_IDLE))
+    {
+        return BSP_STATUS_INVALID_ARG;
+    }
+    fake->pending_address = address;
+    fake->pending_size = STORAGE_LAYOUT_W25Q_SECTOR_SIZE;
+    fake->busy_polls = 1u;
+    fake->state = FAKE_STORE_ERASE_BUSY;
     return BSP_STATUS_BUSY;
 }
 
@@ -636,18 +683,65 @@ static bsp_status_t fake_program(uint32_t address,
                                  uint32_t now_ms,
                                  void *user)
 {
-    (void)address;
-    (void)src;
-    (void)size;
     (void)now_ms;
-    (void)user;
+    fake_store_t *fake = (fake_store_t *)user;
+    const uint8_t *bytes = (const uint8_t *)src;
+    if ((fake == NULL) || (bytes == NULL) || fake->fail_program ||
+        (address < TEST_MUTABLE_BASE) || (size == 0u) || (size > sizeof(fake->pending)) ||
+        (size > (256u - (address % 256u))) || (fake->state != FAKE_STORE_IDLE))
+    {
+        return BSP_STATUS_INVALID_ARG;
+    }
+    const uint32_t local = address - TEST_MUTABLE_BASE;
+    if ((local >= TEST_FLASH_BYTES) || (size > ((size_t)TEST_FLASH_BYTES - (size_t)local)))
+    {
+        return BSP_STATUS_INVALID_ARG;
+    }
+    for (size_t i = 0u; i < size; i++)
+    {
+        if ((uint8_t)(fake->flash[local + i] & bytes[i]) != bytes[i])
+        {
+            return BSP_STATUS_ERROR;
+        }
+    }
+    (void)memcpy(fake->pending, bytes, size);
+    fake->pending_address = address;
+    fake->pending_size = size;
+    fake->busy_polls = 1u;
+    fake->state = FAKE_STORE_PROGRAM_BUSY;
     return BSP_STATUS_BUSY;
 }
 
 static bsp_status_t fake_poll(uint32_t now_ms, void *user)
 {
     (void)now_ms;
-    (void)user;
+    fake_store_t *fake = (fake_store_t *)user;
+    if (fake == NULL)
+    {
+        return BSP_STATUS_INVALID_ARG;
+    }
+    if (fake->state == FAKE_STORE_IDLE)
+    {
+        return BSP_STATUS_OK;
+    }
+    if (fake->busy_polls != 0u)
+    {
+        fake->busy_polls--;
+        return BSP_STATUS_BUSY;
+    }
+    const uint32_t local = fake->pending_address - TEST_MUTABLE_BASE;
+    if (fake->state == FAKE_STORE_ERASE_BUSY)
+    {
+        (void)memset(&fake->flash[local], 0xFF, fake->pending_size);
+    }
+    else
+    {
+        for (size_t i = 0u; i < fake->pending_size; i++)
+        {
+            fake->flash[local + i] &= fake->pending[i];
+        }
+    }
+    fake->state = FAKE_STORE_IDLE;
     return BSP_STATUS_OK;
 }
 
@@ -661,6 +755,97 @@ static measurement_cal_store_io_t fake_io(fake_store_t *fake)
         .user = fake,
     };
     return io;
+}
+
+static measurement_cal_set_t full_cal_set(uint32_t sequence, float marker)
+{
+    measurement_cal_set_t set;
+    measurement_cal_set_init(&set,
+                             MEASUREMENT_CAL_HARDWARE_REV1,
+                             MEASUREMENT_CAL_MODEL_VERSION_CURRENT,
+                             sequence);
+    for (hw_range_id_t range = HW_RANGE_ID_10R; range <= HW_RANGE_ID_1M; range++)
+    {
+        for (hw_excitation_freq_t freq = HW_EXCITATION_FREQ_100HZ;
+             freq <= HW_EXCITATION_FREQ_10KHZ;
+             freq++)
+        {
+            for (hw_excitation_amp_t amp = HW_EXCITATION_AMP_100MVRMS;
+                 amp <= HW_EXCITATION_AMP_500MVRMS;
+                 amp++)
+            {
+                if (measurement_cal_condition_allowed(range, freq, amp))
+                {
+                    const measurement_cal_key_t key =
+                        measurement_cal_key(MEASUREMENT_CAL_HARDWARE_REV1,
+                                            MEASUREMENT_CAL_MODEL_VERSION_CURRENT,
+                                            range,
+                                            freq,
+                                            amp);
+                    measurement_cal_record_t record = measurement_cal_make_ideal_record(&key);
+                    record.correction.ret_hg_output.scale.re += marker;
+                    record.correction.flags |= MEASUREMENT_CAL_FLAG_QUALIFIED;
+                    (void)measurement_cal_set_add_record(&set, &record);
+                }
+            }
+        }
+    }
+    return set;
+}
+
+static const measurement_cal_record_t *find_test_record(const measurement_cal_set_t *set,
+                                                        const measurement_cal_key_t *key)
+{
+    if ((set == NULL) || (key == NULL))
+    {
+        return NULL;
+    }
+    for (uint8_t i = 0u; i < set->record_count; i++)
+    {
+        if (measurement_cal_key_equal(&set->records[i].key, key))
+        {
+            return &set->records[i];
+        }
+    }
+    return NULL;
+}
+
+static bool fake_write_slot_frame(fake_store_t *fake,
+                                  measurement_cal_store_slot_t slot,
+                                  const measurement_cal_set_t *set)
+{
+    if ((fake == NULL) || (set == NULL))
+    {
+        return false;
+    }
+    if (!fake->initialized)
+    {
+        (void)memset(fake->flash, 0xFF, sizeof(fake->flash));
+        fake->initialized = true;
+    }
+    uint8_t bytes[MEASUREMENT_CAL_MAX_FRAME_BYTES];
+    size_t written = 0u;
+    if (!measurement_cal_serialize_set(set, bytes, sizeof(bytes), &written))
+    {
+        return false;
+    }
+    storage_partition_t partition;
+    if (!storage_layout_partition(TEST_CAPACITY_BYTES,
+                                  (slot == MEASUREMENT_CAL_STORE_SLOT_A) ?
+                                      STORAGE_PARTITION_CALIBRATION_A :
+                                      STORAGE_PARTITION_CALIBRATION_B,
+                                  &partition))
+    {
+        return false;
+    }
+    const uint32_t local = partition.start - TEST_MUTABLE_BASE;
+    if ((local >= TEST_FLASH_BYTES) || (written > partition.size))
+    {
+        return false;
+    }
+    (void)memset(&fake->flash[local], 0xFF, partition.size);
+    (void)memcpy(&fake->flash[local], bytes, written);
+    return true;
 }
 
 static bsp_status_t fake_phase05_start(const hw_metrology_measure_request_t *request,
@@ -961,12 +1146,112 @@ static int test_product_service_owns_store_and_blocks_rescan_while_busy(void)
     return failures;
 }
 
+static int test_service_commit_activates_only_after_verified_store_done(void)
+{
+    int failures = 0;
+    fake_store_t fake = {0};
+    measurement_cal_set_t old_set = full_cal_set(1u, 0.0f);
+    measurement_cal_set_t new_set = full_cal_set(2u, 123.0f);
+    failures += expect_true(fake_write_slot_frame(&fake, MEASUREMENT_CAL_STORE_SLOT_A, &old_set),
+                            "old active fixture writes");
+
+    app_calibration_service_t service;
+    app_calibration_service_init(&service);
+    measurement_cal_store_io_t io = fake_io(&fake);
+    failures += expect_true(app_calibration_service_load(&service, &io, TEST_CAPACITY_BYTES) == BSP_STATUS_OK,
+                            "service loads old active set");
+    const measurement_cal_set_t *active = app_calibration_service_active_set(&service);
+    failures += expect_true((active != NULL) && (active->sequence == 1u), "old active visible");
+
+    failures += expect_true(app_calibration_service_candidate_begin(&service) == BSP_STATUS_OK,
+                            "candidate begin");
+    measurement_cal_set_t *candidate = app_calibration_service_candidate_set(&service);
+    failures += expect_true(candidate != NULL, "candidate pointer");
+    *candidate = new_set;
+    failures += expect_true(app_calibration_service_candidate_commit_start(&service) == BSP_STATUS_BUSY,
+                            "commit starts asynchronously");
+    active = app_calibration_service_active_set(&service);
+    failures += expect_true((active != NULL) && (active->sequence == 1u),
+                            "old active remains during commit");
+
+    for (uint32_t i = 0u; i < 120u; i++)
+    {
+        if (app_calibration_service_step(&service, 100u + i) == BSP_STATUS_OK)
+        {
+            break;
+        }
+    }
+    active = app_calibration_service_active_set(&service);
+    failures += expect_true((active != NULL) && (active->sequence == 2u),
+                            "new active only after verify");
+    const measurement_cal_key_t marker_key =
+        measurement_cal_key(MEASUREMENT_CAL_HARDWARE_REV1,
+                            MEASUREMENT_CAL_MODEL_VERSION_CURRENT,
+                            HW_RANGE_ID_1K,
+                            HW_EXCITATION_FREQ_1KHZ,
+                            HW_EXCITATION_AMP_100MVRMS);
+    const measurement_cal_record_t *old_record = find_test_record(&old_set, &marker_key);
+    const measurement_cal_record_t *active_record = find_test_record(active, &marker_key);
+    failures += expect_true((old_record != NULL) && (active_record != NULL),
+                            "marker condition remains present");
+    failures += expect_near((active_record != NULL) ? active_record->correction.ret_hg_output.scale.re : 0.0f,
+                            ((old_record != NULL) ? old_record->correction.ret_hg_output.scale.re : 0.0f) +
+                                123.0f,
+                            0.001f,
+                            "activated coefficients are new candidate");
+    return failures;
+}
+
+static int test_service_commit_failure_preserves_old_active(void)
+{
+    int failures = 0;
+    fake_store_t fake = {0};
+    measurement_cal_set_t old_set = full_cal_set(3u, 0.0f);
+    measurement_cal_set_t new_set = full_cal_set(4u, 456.0f);
+    failures += expect_true(fake_write_slot_frame(&fake, MEASUREMENT_CAL_STORE_SLOT_A, &old_set),
+                            "old active fixture writes for failure");
+
+    app_calibration_service_t service;
+    app_calibration_service_init(&service);
+    measurement_cal_store_io_t io = fake_io(&fake);
+    failures += expect_true(app_calibration_service_load(&service, &io, TEST_CAPACITY_BYTES) == BSP_STATUS_OK,
+                            "service loads old active before failure");
+    failures += expect_true(app_calibration_service_candidate_begin(&service) == BSP_STATUS_OK,
+                            "candidate begin before failure");
+    measurement_cal_set_t *candidate = app_calibration_service_candidate_set(&service);
+    *candidate = new_set;
+    fake.fail_program = true;
+    failures += expect_true(app_calibration_service_candidate_commit_start(&service) == BSP_STATUS_BUSY,
+                            "failing commit starts");
+    for (uint32_t i = 0u; i < 12u; i++)
+    {
+        const bsp_status_t status = app_calibration_service_step(&service, 200u + i);
+        if ((status != BSP_STATUS_BUSY) && (status != BSP_STATUS_OK))
+        {
+            break;
+        }
+    }
+    const measurement_cal_set_t *active = app_calibration_service_active_set(&service);
+    failures += expect_true((active != NULL) && (active->sequence == 3u),
+                            "old active preserved after commit failure");
+    failures += expect_true(app_calibration_service_status(&service) == APP_CAL_SERVICE_ERROR,
+                            "service reports commit error");
+    return failures;
+}
+
 static app_cal_evidence_t campaign_evidence(app_cal_standard_type_t type,
                                             measurement_cal_key_t key,
                                             measurement_complex_t t,
                                             measurement_complex_t source,
                                             measurement_complex_t load_z)
 {
+    measurement_complex_t open_y = t;
+    if (type == APP_CAL_STANDARD_OPEN)
+    {
+        (void)measurement_complex_div(measurement_complex_sub(measurement_complex(1.0f, 0.0f), t),
+                                      t,
+                                      &open_y);
+    }
     app_cal_evidence_t evidence = {
         .key = key,
         .standard = {
@@ -995,8 +1280,8 @@ static app_cal_evidence_t campaign_evidence(app_cal_standard_type_t type,
                    .mean = measurement_complex_mul(source, t)},
         .ret_hg_reconstructed = {.count = APP_CAL_WORKFLOW_REQUIRED_ACCEPTED,
                                  .mean = measurement_complex_mul(source, t)},
-        .open_y_1x = {.count = APP_CAL_WORKFLOW_REQUIRED_ACCEPTED, .mean = t},
-        .open_y_hg = {.count = APP_CAL_WORKFLOW_REQUIRED_ACCEPTED, .mean = t},
+        .open_y_1x = {.count = APP_CAL_WORKFLOW_REQUIRED_ACCEPTED, .mean = open_y},
+        .open_y_hg = {.count = APP_CAL_WORKFLOW_REQUIRED_ACCEPTED, .mean = open_y},
         .hg_observed_transfer = {.count = APP_CAL_WORKFLOW_REQUIRED_ACCEPTED,
                                  .mean = measurement_complex(15.4f, 0.2f)},
     };
@@ -1046,6 +1331,10 @@ static int test_campaign_solves_condition_and_inserts_candidate_record(void)
                             "campaign record is OSL");
     failures += expect_true((record.correction.flags & MEASUREMENT_CAL_FLAG_TEMPERATURE_VALID) != 0u,
                             "campaign preserves temperature validity");
+    measurement_cal_osl_coefficients_t coefficients;
+    failures += expect_true(measurement_cal_get_osl_coefficients(&record.correction, &coefficients),
+                            "campaign OSL coefficients decode");
+    failures += expect_complex_near(coefficients.t_open, open_t, 0.0001f, "campaign converts open_y to t_open");
 
     measurement_cal_set_t candidate;
     measurement_cal_set_init(&candidate,
@@ -1102,6 +1391,8 @@ int main(int argc, char **argv)
     failures += test_safety_abort_fails_immediately();
     failures += test_cancel_during_capture_discards_evidence();
     failures += test_product_service_owns_store_and_blocks_rescan_while_busy();
+    failures += test_service_commit_activates_only_after_verified_store_done();
+    failures += test_service_commit_failure_preserves_old_active();
     failures += test_campaign_solves_condition_and_inserts_candidate_record();
     failures += test_session_runs_open_capture_end_to_end();
     failures += test_session_phase05_safety_abort_fails_safely();

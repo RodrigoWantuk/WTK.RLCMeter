@@ -85,6 +85,11 @@ static measurement_complex_t cdiv_test(measurement_complex_t a, measurement_comp
     return out;
 }
 
+static float complex_error_mag(measurement_complex_t actual, measurement_complex_t expected)
+{
+    return measurement_complex_mag(csub(actual, expected));
+}
+
 static void fake_nor_init(fake_nor_t *nor)
 {
     (void)memset(nor->flash, 0xFF, sizeof(nor->flash));
@@ -346,6 +351,52 @@ static measurement_complex_t t_for_z(measurement_complex_t z,
     return cdiv_test(numerator, denominator);
 }
 
+static measurement_complex_t synthetic_effective_z(measurement_complex_t z_true,
+                                                   measurement_complex_t z_series,
+                                                   measurement_complex_t y_leak)
+{
+    if (measurement_complex_near_zero(y_leak, 1.0e-12f))
+    {
+        return cadd(z_series, z_true);
+    }
+    measurement_complex_t y_dut = cdiv_test(measurement_complex(1.0f, 0.0f), z_true);
+    measurement_complex_t parallel = cdiv_test(measurement_complex(1.0f, 0.0f),
+                                               cadd(y_dut, y_leak));
+    return cadd(z_series, parallel);
+}
+
+static measurement_complex_t synthetic_open_effective_z(measurement_complex_t z_series,
+                                                        measurement_complex_t y_leak)
+{
+    return cadd(z_series,
+                cdiv_test(measurement_complex(1.0f, 0.0f), y_leak));
+}
+
+static measurement_complex_t synthetic_measured_t(measurement_complex_t z_effective,
+                                                  measurement_complex_t zref,
+                                                  measurement_complex_t gain,
+                                                  measurement_complex_t offset)
+{
+    const measurement_complex_t ideal_t = cdiv_test(z_effective, cadd(zref, z_effective));
+    return cadd(cmul(gain, ideal_t), offset);
+}
+
+static measurement_complex_t raw_z_from_t(measurement_complex_t t, measurement_complex_t zref)
+{
+    return cmul(zref, cdiv_test(t, csub(measurement_complex(1.0f, 0.0f), t)));
+}
+
+static void affine_fit_short_load(measurement_complex_t raw_short,
+                                  measurement_complex_t raw_load,
+                                  measurement_complex_t true_load,
+                                  measurement_complex_t *scale,
+                                  measurement_complex_t *offset)
+{
+    *scale = cdiv_test(true_load, csub(raw_load, raw_short));
+    *offset = measurement_complex(-cmul(raw_short, *scale).re,
+                                  -cmul(raw_short, *scale).im);
+}
+
 static measurement_cal_solver_standard_t solver_standard(measurement_cal_key_t key,
                                                          measurement_cal_standard_type_t type,
                                                          measurement_complex_t z,
@@ -366,6 +417,7 @@ static measurement_cal_solver_standard_t solver_standard(measurement_cal_key_t k
         .hg_observed_valid = true,
         .stable = true,
         .temperature_valid = true,
+        .present = true,
     };
     return standard;
 }
@@ -587,6 +639,14 @@ static int test_full_supported_matrix_capacity(void)
                                                                   &resolved) ==
                                     MEASUREMENT_CAL_RESOLVE_FOUND,
                                 "full matrix condition resolves");
+        failures += expect_true(resolved.provenance.model_version ==
+                                    MEASUREMENT_CAL_MODEL_VERSION_OSL_MOBIUS_V1,
+                                "full matrix model v3");
+        failures += expect_true((resolved.correction.flags & MEASUREMENT_CAL_FLAG_OSL_MOBIUS) != 0u,
+                                "full matrix record is OSL");
+        measurement_cal_osl_coefficients_t coefficients;
+        failures += expect_true(measurement_cal_get_osl_coefficients(&resolved.correction, &coefficients),
+                                "full matrix OSL coefficients decode");
     }
     return failures;
 }
@@ -1199,6 +1259,140 @@ static int test_osl_mobius_solver_recovers_systematic_model(void)
     return failures;
 }
 
+static int test_osl_ideal_reduces_to_divider_equation(void)
+{
+    int failures = 0;
+    const measurement_cal_key_t key = key_for(HW_RANGE_ID_1K, HW_EXCITATION_FREQ_1KHZ);
+    const measurement_complex_t zref = measurement_complex(1000.0f, 0.0f);
+    const measurement_complex_t zload = measurement_complex(1000.0f, 0.0f);
+    const measurement_cal_solver_input_t input = {
+        .open = solver_standard(key,
+                                MEASUREMENT_CAL_STANDARD_OPEN,
+                                measurement_complex(0.0f, 0.0f),
+                                measurement_complex(1.0f, 0.0f),
+                                true),
+        .shorted = solver_standard(key,
+                                   MEASUREMENT_CAL_STANDARD_SHORT,
+                                   measurement_complex(0.0f, 0.0f),
+                                   measurement_complex(0.0f, 0.0f),
+                                   true),
+        .load = solver_standard(key,
+                                MEASUREMENT_CAL_STANDARD_LOAD,
+                                zload,
+                                cdiv_test(zload, cadd(zref, zload)),
+                                true),
+    };
+    measurement_cal_solver_solution_t solution;
+    failures += expect_true(measurement_cal_solver_solve(&input, &solution) == MEASUREMENT_CAL_SOLVER_OK,
+                            "ideal OSL solves");
+    const measurement_complex_t dut = measurement_complex(3300.0f, -470.0f);
+    const measurement_complex_t t = cdiv_test(dut, cadd(zref, dut));
+    measurement_complex_t corrected = measurement_complex(0.0f, 0.0f);
+    failures += expect_true(measurement_cal_solver_apply_osl(&solution.coefficients,
+                                                             t,
+                                                             &corrected) == MEASUREMENT_CAL_SOLVER_OK,
+                            "ideal OSL applies");
+    failures += expect_complex_near(corrected, dut, 0.8f, "ideal OSL equals divider equation");
+    return failures;
+}
+
+static int test_osl_outperforms_affine_for_series_shunt_complex_error(void)
+{
+    int failures = 0;
+    const measurement_cal_key_t key = key_for(HW_RANGE_ID_1K, HW_EXCITATION_FREQ_1KHZ);
+    const measurement_complex_t zref = measurement_complex(1000.0f, 0.0f);
+    const measurement_complex_t z_series = measurement_complex(7.0f, 2.5f);
+    const measurement_complex_t y_leak = measurement_complex(0.0000050f, -0.0000010f);
+    const measurement_complex_t gain = measurement_complex(1.025f, 0.035f);
+    const measurement_complex_t offset = measurement_complex(-0.006f, 0.004f);
+    const measurement_complex_t z_short = measurement_complex(0.001f, 0.0f);
+    const measurement_complex_t z_load = measurement_complex(1000.0f, 0.0f);
+    const measurement_complex_t t_short =
+        synthetic_measured_t(synthetic_effective_z(z_short, z_series, y_leak),
+                             zref,
+                             gain,
+                             offset);
+    const measurement_complex_t t_open =
+        synthetic_measured_t(synthetic_open_effective_z(z_series, y_leak),
+                             zref,
+                             gain,
+                             offset);
+    const measurement_complex_t t_load =
+        synthetic_measured_t(synthetic_effective_z(z_load, z_series, y_leak),
+                             zref,
+                             gain,
+                             offset);
+    const measurement_cal_solver_input_t input = {
+        .open = solver_standard(key,
+                                MEASUREMENT_CAL_STANDARD_OPEN,
+                                measurement_complex(0.0f, 0.0f),
+                                t_open,
+                                true),
+        .shorted = solver_standard(key,
+                                   MEASUREMENT_CAL_STANDARD_SHORT,
+                                   measurement_complex(0.0f, 0.0f),
+                                   t_short,
+                                   true),
+        .load = solver_standard(key,
+                                MEASUREMENT_CAL_STANDARD_LOAD,
+                                z_load,
+                                t_load,
+                                true),
+    };
+    measurement_cal_solver_solution_t solution;
+    const measurement_cal_solver_status_t solve_status =
+        measurement_cal_solver_solve(&input, &solution);
+    if (solve_status != MEASUREMENT_CAL_SOLVER_OK)
+    {
+        (void)fprintf(stderr,
+                      "solver status: %s\n",
+                      measurement_cal_solver_status_string(solve_status));
+    }
+    failures += expect_true(solve_status == MEASUREMENT_CAL_SOLVER_OK,
+                            "systematic OSL solves");
+
+    const measurement_complex_t raw_short = raw_z_from_t(t_short, zref);
+    const measurement_complex_t raw_load = raw_z_from_t(t_load, zref);
+    measurement_complex_t affine_scale = measurement_complex(0.0f, 0.0f);
+    measurement_complex_t affine_offset = measurement_complex(0.0f, 0.0f);
+    affine_fit_short_load(raw_short, raw_load, z_load, &affine_scale, &affine_offset);
+
+    const measurement_complex_t dut_values[] = {
+        measurement_complex(100.0f, 0.0f),
+        measurement_complex(300.0f, 0.0f),
+        measurement_complex(3000.0f, 0.0f),
+        measurement_complex(10000.0f, 0.0f),
+        measurement_complex(1000.0f, -500.0f),
+        measurement_complex(1000.0f, 500.0f),
+    };
+    float affine_error_sum = 0.0f;
+    float osl_error_sum = 0.0f;
+    for (size_t i = 0u; i < (sizeof(dut_values) / sizeof(dut_values[0])); i++)
+    {
+        const measurement_complex_t t =
+            synthetic_measured_t(synthetic_effective_z(dut_values[i], z_series, y_leak),
+                                 zref,
+                                 gain,
+                                 offset);
+        const measurement_complex_t raw_z = raw_z_from_t(t, zref);
+        const measurement_complex_t affine =
+            cadd(cmul(raw_z, affine_scale), affine_offset);
+        measurement_complex_t osl = measurement_complex(0.0f, 0.0f);
+        failures += expect_true(measurement_cal_solver_apply_osl(&solution.coefficients,
+                                                                 t,
+                                                                 &osl) == MEASUREMENT_CAL_SOLVER_OK,
+                                "OSL applies to validation DUT");
+        affine_error_sum += complex_error_mag(affine, dut_values[i]);
+        osl_error_sum += complex_error_mag(osl, dut_values[i]);
+        failures += expect_true(complex_error_mag(osl, dut_values[i]) <
+                                    complex_error_mag(affine, dut_values[i]),
+                                "OSL improves each validation DUT");
+    }
+    failures += expect_true(osl_error_sum * 10.0f < affine_error_sum,
+                            "OSL residual beats affine residual by wide margin");
+    return failures;
+}
+
 static int test_osl_solver_errors_and_hg_fallback(void)
 {
     int failures = 0;
@@ -1234,7 +1428,7 @@ static int test_osl_solver_errors_and_hg_fallback(void)
     input = solver_input_from_model(key, &model, measurement_complex(1000.0f, 0.0f), true);
     input.load.stable = false;
     failures += expect_true(measurement_cal_solver_solve(&input, &solution) ==
-                                MEASUREMENT_CAL_SOLVER_UNSTABLE,
+                                MEASUREMENT_CAL_SOLVER_UNSTABLE_LOAD,
                             "unstable evidence rejected");
 
     input = solver_input_from_model(key, &model, measurement_complex(1000.0f, 0.0f), true);
@@ -1243,6 +1437,28 @@ static int test_osl_solver_errors_and_hg_fallback(void)
     failures += expect_true(measurement_cal_solver_solve(&input, &solution) ==
                                 MEASUREMENT_CAL_SOLVER_ILL_CONDITIONED,
                             "ill-conditioned triplet rejected");
+    input = solver_input_from_model(key, &model, measurement_complex(1000.0f, 0.0f), true);
+    input.load.t_1x = input.open.t_1x;
+    input.load.t_hg = input.open.t_hg;
+    failures += expect_true(measurement_cal_solver_solve(&input, &solution) ==
+                                MEASUREMENT_CAL_SOLVER_ILL_CONDITIONED,
+                            "load near open rejected");
+
+    input = solver_input_from_model(key, &model, measurement_complex(1000.0f, 0.0f), true);
+    input.open.present = false;
+    failures += expect_true(measurement_cal_solver_solve(&input, &solution) ==
+                                MEASUREMENT_CAL_SOLVER_MISSING_OPEN,
+                            "missing open distinguished");
+    input = solver_input_from_model(key, &model, measurement_complex(1000.0f, 0.0f), true);
+    input.shorted.present = false;
+    failures += expect_true(measurement_cal_solver_solve(&input, &solution) ==
+                                MEASUREMENT_CAL_SOLVER_MISSING_SHORT,
+                            "missing short distinguished");
+    input = solver_input_from_model(key, &model, measurement_complex(1000.0f, 0.0f), true);
+    input.load.present = false;
+    failures += expect_true(measurement_cal_solver_solve(&input, &solution) ==
+                                MEASUREMENT_CAL_SOLVER_MISSING_LOAD,
+                            "missing load distinguished");
     return failures;
 }
 
@@ -1315,6 +1531,10 @@ int main(int argc, char **argv)
                      (unsigned long)measurement_cal_requirements_size_bytes());
         (void)printf("measurement_cal_store_t=%lu\n",
                      (unsigned long)measurement_cal_store_context_size_bytes());
+        (void)printf("measurement_cal_solver_standard_t=%lu\n",
+                     (unsigned long)sizeof(measurement_cal_solver_standard_t));
+        (void)printf("measurement_cal_solver_solution_t=%lu\n",
+                     (unsigned long)measurement_cal_solver_solution_size_bytes());
         (void)printf("app_calibration_runtime_t=%lu\n",
                      (unsigned long)app_calibration_runtime_context_size_bytes());
         return 0;
@@ -1334,7 +1554,9 @@ int main(int argc, char **argv)
     failures += test_slot_compatibility_diagnostics();
     failures += test_dsp_uses_calibrated_hg_transfer();
     failures += test_osl_process_block_updates_result_and_derivatives();
+    failures += test_osl_ideal_reduces_to_divider_equation();
     failures += test_osl_mobius_solver_recovers_systematic_model();
+    failures += test_osl_outperforms_affine_for_series_shunt_complex_error();
     failures += test_osl_solver_errors_and_hg_fallback();
     failures += test_osl_record_serializes_and_resolves();
     return (failures == 0) ? 0 : 1;
