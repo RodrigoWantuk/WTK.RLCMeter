@@ -32,8 +32,8 @@ Phase 07:
     REQUIRES_BENCH_VALIDATION
 
 Immediate next software phase after physical/software handoff:
-    Phase 07 Stage 2C/Stage 3 — calibration workflow completion gates, UX integration,
-    and later persistence/qualification refinements as specified by the next assignment
+    Phase 08 continuation — complete product UI/menu/settings/resource-pack/calibration
+    wizard integration on top of the Stage 1 product controller and calibration gate.
 ```
 
 ## Program objectives
@@ -381,10 +381,11 @@ A Rev.1 firmware release should ultimately produce:
 
 ## Immediate next action
 
-Continue Phase 07 toward calibration product gates and Phase 08 UI integration only
-after consuming the Stage 2B.2.1 handoff. The current calibration substrate uses schema
-2 and model 4 OSL/Mobius effective-HG semantics, exact-key resolution, validity
-semantics, W25Q CRC framing, redundant two-slot persistence, explicit candidate
-lifecycle, and single-activation store terminal acknowledgement. Phase 03A virtual
-execution remains pending external Wokwi constraints and must not be treated as bench
-validation for analog/metrology behavior.
+Continue Phase 08 from the Stage 1 product controller. The product profile now has a
+mandatory calibration gate, click-measurement integration through Phase 05/06/07, a
+minimal TFT fallback UI, mandatory STM32 Release/Bringup size gates, and linked-symbol
+profile-composition checks. Remaining Phase 08 work includes the calibration wizard UI,
+settings persistence, external resources/localization, menus, graph/detail pages beyond
+the initial primary/details pair, and bench validation. Phase 03A virtual execution
+remains pending external Wokwi constraints and must not be treated as bench validation
+for analog/metrology behavior.

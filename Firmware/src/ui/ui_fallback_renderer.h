@@ -18,5 +18,12 @@ bsp_status_t ui_fallback_draw_text(const ili9341_t *display,
                                    const char *text,
                                    uint16_t fg_rgb565,
                                    uint16_t bg_rgb565);
+bsp_status_t ui_fallback_draw_text_scaled(const ili9341_t *display,
+                                          uint16_t x,
+                                          uint16_t y,
+                                          const char *text,
+                                          uint8_t scale,
+                                          uint16_t fg_rgb565,
+                                          uint16_t bg_rgb565);
 
 #endif

@@ -570,26 +570,20 @@ static int test_serialization_resolution_and_validity(void)
     failures += expect_true(validity.status == MEASUREMENT_CAL_VALIDITY_INCOMPATIBLE_HARDWARE,
                             "hardware mismatch");
 
-    measurement_adc_calibration_t adc;
-    measurement_dsp_config_t config;
-    measurement_calibration_provenance_t provenance;
-    failures += expect_true(measurement_cal_resolve(&decoded,
-                                                    &present,
-                                                    false,
-                                                    &adc,
-                                                    &config,
-                                                    &provenance) == MEASUREMENT_CAL_RESOLVE_FOUND,
+    measurement_cal_resolved_t resolved;
+    failures += expect_true(measurement_cal_resolve_condition(&decoded,
+                                                              &present,
+                                                              false,
+                                                              &resolved) == MEASUREMENT_CAL_RESOLVE_FOUND,
                             "resolve exact");
-    failures += expect_near(config.zref_ohms.re, 10.0f, 0.01f, "resolved direct-equation zref");
-    failures += expect_true(measurement_cal_resolve(&decoded,
-                                                    &missing,
-                                                    true,
-                                                    &adc,
-                                                    &config,
-                                                    &provenance) == MEASUREMENT_CAL_RESOLVE_MISSING,
+    failures += expect_near(resolved.config.zref_ohms.re, 10.0f, 0.01f, "resolved direct-equation zref");
+    failures += expect_true(measurement_cal_resolve_condition(&decoded,
+                                                              &missing,
+                                                              true,
+                                                              &resolved) == MEASUREMENT_CAL_RESOLVE_MISSING,
                             "ideal fallback reported missing");
-    failures += expect_true(provenance.source == MEASUREMENT_CAL_SOURCE_IDEAL &&
-                                provenance.uncalibrated,
+    failures += expect_true(resolved.provenance.source == MEASUREMENT_CAL_SOURCE_IDEAL &&
+                                resolved.provenance.uncalibrated,
                             "fallback provenance");
 
     bytes[MEASUREMENT_CAL_FRAME_HEADER_BYTES + 6u] ^= 0x01u;
@@ -1138,15 +1132,11 @@ static int test_dsp_uses_calibrated_hg_transfer(void)
     record.correction.flags |= MEASUREMENT_CAL_FLAG_QUALIFIED;
     (void)measurement_cal_set_add_record(&set, &record);
 
-    measurement_adc_calibration_t adc;
-    measurement_dsp_config_t config;
-    measurement_calibration_provenance_t provenance;
-    failures += expect_true(measurement_cal_resolve(&set,
-                                                    &key,
-                                                    false,
-                                                    &adc,
-                                                    &config,
-                                                    &provenance) == MEASUREMENT_CAL_RESOLVE_FOUND,
+    measurement_cal_resolved_t resolved;
+    failures += expect_true(measurement_cal_resolve_condition(&set,
+                                                              &key,
+                                                              false,
+                                                              &resolved) == MEASUREMENT_CAL_RESOLVE_FOUND,
                             "calibrated HG resolve");
 
     hw_metrology_block_t block = {0};
@@ -1181,7 +1171,8 @@ static int test_dsp_uses_calibrated_hg_transfer(void)
     hw_metrology_analyze_block(raw, HW_METROLOGY_SAMPLES_PER_BLOCK, &block);
 
     measurement_phasor_set_t phasors = {0};
-    failures += expect_true(measurement_extract_phasors(&block, &adc, &config, &phasors) == BSP_STATUS_OK,
+    failures += expect_true(measurement_extract_phasors(&block, &resolved.adc, &resolved.config, &phasors) ==
+                                BSP_STATUS_OK,
                             "extract with calibrated transfer");
     const measurement_complex_t reconstructed =
         measurement_complex_sub(phasors.ret_hg_reconstructed, phasors.vmid);

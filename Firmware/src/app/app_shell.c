@@ -2,12 +2,14 @@
 
 #include "app/app_bringup_console.h"
 #include "app/app_calibration_service.h"
+#include "app/app_product.h"
 #include "app/app_safety_fault.h"
 #include "bsp/bsp_adc.h"
 #include "bsp/bsp_clock.h"
 #include "bsp/bsp_diagnostics.h"
 #include "bsp/bsp_excitation.h"
 #include "bsp/bsp_gpio.h"
+#include "bsp/bsp_metrology_adc.h"
 #include "bsp/bsp_quiet.h"
 #include "bsp/bsp_reset.h"
 #include "bsp/bsp_status.h"
@@ -22,12 +24,15 @@
 #include "hardware/hw_aux_sensors.h"
 #include "hardware/hw_buzzer.h"
 #include "hardware/hw_charger.h"
+#include "hardware/hw_excitation.h"
 #include "hardware/hw_metrology_measure.h"
 #include "hardware/hw_k2.h"
 #include "hardware/hw_metrology_clock.h"
+#include "hardware/hw_peripherals.h"
 #include "hardware/hw_range.h"
 #include "hardware/hw_safety.h"
 #include "ui/ui_fallback_renderer.h"
+#include "ui/ui_product.h"
 #include "storage/measurement_cal_w25q_adapter.h"
 #include "wtk_build_config.h"
 
@@ -52,13 +57,22 @@ static app_calibration_service_t g_calibration_service;
 #if WTK_ENABLE_BRINGUP_CONSOLE
 static app_bringup_console_t g_bringup_console;
 static bool g_display_ready_reported = false;
+#else
+static app_product_t g_product;
+static ui_product_t g_product_ui;
+static hw_metrology_measure_t g_product_measure;
+static uint16_t g_product_ccr_table[HW_EXCITATION_LUT_POINTS];
+static bool g_product_display_fault = false;
 #endif
 static bool g_flash_fallback_drawn = false;
 static bool g_safety_transition_reported = false;
 static app_safety_state_t g_reported_safety_state = APP_SAFETY_SAFE_CHECK;
 static hw_safety_primary_blocker_t g_reported_primary_blocker = HW_SAFETY_BLOCKED_SENSOR_INVALID;
+static bsp_status_t g_clock_status = BSP_STATUS_ERROR;
 
 static app_safety_state_t g_safety_state = APP_SAFETY_SAFE_CHECK;
+
+static void app_latch_fault(uint32_t fault_mask);
 
 static bsp_status_t app_write_k1_cmd(bool high, void *user_data)
 {
@@ -117,6 +131,395 @@ static void app_adc_cancel(void *user_data)
     (void)user_data;
     bsp_adc_cancel();
 }
+
+#if !WTK_ENABLE_BRINGUP_CONSOLE
+static hw_excitation_mode_t app_bsp_excitation_mode(void)
+{
+    switch (bsp_excitation_mode())
+    {
+    case BSP_EXCITATION_MODE_NEUTRAL:
+        return HW_EXCITATION_MODE_NEUTRAL;
+    case BSP_EXCITATION_MODE_SINE:
+        return HW_EXCITATION_MODE_SINE;
+    case BSP_EXCITATION_MODE_OFF:
+    default:
+        return HW_EXCITATION_MODE_OFF;
+    }
+}
+
+static bsp_status_t product_k1_force_safe(void *user)
+{
+    (void)user;
+    return hw_k1_force_safe(&g_k1);
+}
+
+static bsp_status_t product_k1_request_measure(const hw_safety_result_t *permission, void *user)
+{
+    (void)user;
+    return hw_k1_request_measure(&g_k1, permission);
+}
+
+static hw_k1_state_t product_k1_commanded_state(void *user)
+{
+    (void)user;
+    return hw_k1_commanded_state(&g_k1);
+}
+
+static bsp_status_t product_range_request(hw_range_id_t id, uint32_t now_ms, void *user)
+{
+    (void)user;
+    return hw_range_request(&g_range, id, now_ms);
+}
+
+static bsp_status_t product_range_step(uint32_t now_ms, void *user)
+{
+    (void)user;
+    return hw_range_step(&g_range, now_ms);
+}
+
+static bool product_range_is_ready(void *user)
+{
+    (void)user;
+    return hw_range_is_ready(&g_range);
+}
+
+static hw_range_id_t product_range_current_id(void *user)
+{
+    (void)user;
+    return hw_range_get_current(&g_range);
+}
+
+static hw_safety_range_state_t product_range_safety_state(void *user)
+{
+    (void)user;
+    return hw_range_safety_state(&g_range);
+}
+
+static bsp_status_t product_range_force_disabled(void *user)
+{
+    (void)user;
+    return hw_range_force_disabled(&g_range);
+}
+
+static void product_quiet_request(bool requested, void *user)
+{
+    (void)user;
+    hw_peripherals_request_quiet(requested);
+}
+
+static void product_aux_pause(void *user)
+{
+    (void)user;
+    hw_aux_sensors_pause(&g_aux_sensors);
+}
+
+static void product_aux_resume(uint32_t now_ms, void *user)
+{
+    (void)user;
+    hw_aux_sensors_resume(&g_aux_sensors, now_ms);
+}
+
+static bsp_status_t product_adc_acquire(uint32_t now_ms, void *user)
+{
+    (void)user;
+    return bsp_metrology_adc_acquire(now_ms);
+}
+
+static bsp_status_t product_adc_start_capture(uint32_t *raw_words,
+                                              uint32_t word_count,
+                                              const hw_metrology_adc_profile_t *profile,
+                                              void *user)
+{
+    (void)user;
+    if (profile == NULL)
+    {
+        return BSP_STATUS_INVALID_ARG;
+    }
+    return bsp_metrology_adc_start_capture(raw_words, word_count, profile->tim2_arr, profile->tim2_ccr2);
+}
+
+static void product_adc_stop(void *user)
+{
+    (void)user;
+    bsp_metrology_adc_stop();
+}
+
+static bsp_status_t product_adc_restore(uint32_t now_ms, void *user)
+{
+    (void)user;
+    return bsp_metrology_adc_restore(now_ms);
+}
+
+static bool product_adc_dma_complete(void *user)
+{
+    (void)user;
+    return bsp_metrology_adc_dma_complete();
+}
+
+static bool product_adc_dma_error(void *user)
+{
+    (void)user;
+    return bsp_metrology_adc_dma_error();
+}
+
+static bsp_status_t product_excitation_off(void *user)
+{
+    (void)user;
+    return bsp_excitation_off();
+}
+
+static bsp_status_t product_excitation_neutral(void *user)
+{
+    (void)user;
+    return bsp_excitation_neutral();
+}
+
+static bsp_status_t product_excitation_sine(hw_excitation_freq_t frequency,
+                                            hw_excitation_amp_t amplitude,
+                                            void *user)
+{
+    (void)user;
+    hw_excitation_freq_profile_t profile;
+    if (hw_excitation_freq_profile(frequency, &profile) != BSP_STATUS_OK)
+    {
+        return BSP_STATUS_INVALID_ARG;
+    }
+    if (hw_excitation_fill_ccr_table(g_product_ccr_table, HW_EXCITATION_LUT_POINTS, amplitude) != BSP_STATUS_OK)
+    {
+        return BSP_STATUS_ERROR;
+    }
+    return bsp_excitation_sine(profile.rcr, g_product_ccr_table, HW_EXCITATION_LUT_POINTS);
+}
+
+static hw_excitation_mode_t product_excitation_mode(void *user)
+{
+    (void)user;
+    return app_bsp_excitation_mode();
+}
+
+static bool product_excitation_dma_error(void *user)
+{
+    (void)user;
+    return bsp_excitation_dma_error();
+}
+
+static hw_charger_state_t product_charger_state(void *user)
+{
+    (void)user;
+    return hw_charger_get_state(&g_charger);
+}
+
+static uint32_t product_safety_fault_mask(void *user)
+{
+    (void)user;
+    return app_safety_fault_mask(&g_safety_faults);
+}
+
+static bsp_status_t product_permit_issue_input(hw_measure_permit_issue_input_t *input, void *user)
+{
+    (void)user;
+    if (input == NULL)
+    {
+        return BSP_STATUS_INVALID_ARG;
+    }
+    hw_aux_sensors_snapshot_t snapshot;
+    const uint32_t now_ms = bsp_time_now_ms();
+    hw_aux_sensors_snapshot(&g_aux_sensors, now_ms, &snapshot);
+    input->charger = hw_charger_get_state(&g_charger);
+    input->residual = snapshot.residual_state;
+    input->residual_age_ms = snapshot.residual_age_ms;
+    input->battery = snapshot.battery_state;
+    input->battery_age_ms = snapshot.battery_age_ms;
+    input->range = hw_range_safety_state(&g_range);
+    input->range_id = hw_range_get_current(&g_range);
+    input->k1_state = hw_k1_commanded_state(&g_k1);
+    input->safety_fault_mask = app_safety_fault_mask(&g_safety_faults);
+    return BSP_STATUS_OK;
+}
+
+static bsp_status_t product_permit_validate_input(hw_measure_permit_validate_input_t *input, void *user)
+{
+    (void)user;
+    if (input == NULL)
+    {
+        return BSP_STATUS_INVALID_ARG;
+    }
+    input->charger = hw_charger_get_state(&g_charger);
+    input->range = hw_range_safety_state(&g_range);
+    input->range_id = hw_range_get_current(&g_range);
+    input->k1_state = hw_k1_commanded_state(&g_k1);
+    input->safety_fault_mask = app_safety_fault_mask(&g_safety_faults);
+    return BSP_STATUS_OK;
+}
+
+static void product_latch_k1_io_fault(void *user)
+{
+    (void)user;
+    app_latch_fault(APP_SAFETY_FAULT_K1_IO);
+}
+
+static void product_latch_range_io_fault(void *user)
+{
+    (void)user;
+    app_latch_fault(APP_SAFETY_FAULT_RANGE_IO);
+}
+
+static void product_latch_adc_runtime_fault(void *user)
+{
+    (void)user;
+    app_latch_fault(APP_SAFETY_FAULT_ADC_RUNTIME);
+}
+
+static void product_latch_metrology_runtime_fault(void *user)
+{
+    (void)user;
+    app_latch_fault(APP_SAFETY_FAULT_METROLOGY_RUNTIME);
+}
+
+static bsp_status_t product_init_metrology_measure(void)
+{
+    const hw_metrology_measure_io_t io = {
+        .k1_force_safe = product_k1_force_safe,
+        .k1_request_measure = product_k1_request_measure,
+        .k1_commanded_state = product_k1_commanded_state,
+        .range_request = product_range_request,
+        .range_step = product_range_step,
+        .range_is_ready = product_range_is_ready,
+        .range_current_id = product_range_current_id,
+        .range_safety_state = product_range_safety_state,
+        .range_force_disabled = product_range_force_disabled,
+        .quiet_request = product_quiet_request,
+        .aux_pause = product_aux_pause,
+        .aux_resume = product_aux_resume,
+        .adc_acquire = product_adc_acquire,
+        .adc_start_capture = product_adc_start_capture,
+        .adc_stop = product_adc_stop,
+        .adc_restore = product_adc_restore,
+        .adc_dma_complete = product_adc_dma_complete,
+        .adc_dma_error = product_adc_dma_error,
+        .excitation_off = product_excitation_off,
+        .excitation_neutral = product_excitation_neutral,
+        .excitation_sine = product_excitation_sine,
+        .excitation_mode = product_excitation_mode,
+        .excitation_dma_error = product_excitation_dma_error,
+        .charger_state = product_charger_state,
+        .safety_fault_mask = product_safety_fault_mask,
+        .permit_issue_input = product_permit_issue_input,
+        .permit_validate_input = product_permit_validate_input,
+        .latch_k1_io_fault = product_latch_k1_io_fault,
+        .latch_range_io_fault = product_latch_range_io_fault,
+        .latch_adc_runtime_fault = product_latch_adc_runtime_fault,
+        .latch_metrology_runtime_fault = product_latch_metrology_runtime_fault,
+        .user = NULL,
+    };
+    return hw_metrology_measure_init(&g_product_measure,
+                                     &io,
+                                     bsp_metrology_adc_raw_words(),
+                                     HW_METROLOGY_RAW_WORD_COUNT);
+}
+
+static bsp_status_t product_auto_start_attempt(const hw_metrology_measure_request_t *request,
+                                               uint32_t now_ms,
+                                               void *user)
+{
+    (void)user;
+    return hw_metrology_measure_start(&g_product_measure, request, now_ms);
+}
+
+static bsp_status_t product_auto_step_attempt(uint32_t now_ms, void *user)
+{
+    (void)user;
+    return hw_metrology_measure_step(&g_product_measure, now_ms);
+}
+
+static bool product_auto_attempt_active(void *user)
+{
+    (void)user;
+    return hw_metrology_measure_active(&g_product_measure);
+}
+
+static bool product_auto_attempt_done(void *user)
+{
+    (void)user;
+    return hw_metrology_measure_state(&g_product_measure) == HW_METROLOGY_MEASURE_DONE;
+}
+
+static bool product_auto_attempt_dumpable(void *user)
+{
+    (void)user;
+    return hw_metrology_measure_dumpable(&g_product_measure);
+}
+
+static const hw_metrology_block_t *product_auto_attempt_block(void *user)
+{
+    (void)user;
+    return hw_metrology_measure_block(&g_product_measure);
+}
+
+static hw_metrology_measure_error_t product_auto_attempt_error(void *user)
+{
+    (void)user;
+    return hw_metrology_measure_error(&g_product_measure);
+}
+
+static void product_auto_attempt_acknowledge(void *user)
+{
+    (void)user;
+    hw_metrology_measure_acknowledge(&g_product_measure);
+}
+
+static bsp_status_t product_auto_attempt_abort(void *user)
+{
+    (void)user;
+    return hw_metrology_measure_abort(&g_product_measure);
+}
+
+static bsp_status_t product_auto_process_block(const hw_metrology_block_t *block,
+                                               const measurement_attempt_config_t *attempt,
+                                               measurement_calibrated_result_t *result,
+                                               void *user)
+{
+    (void)user;
+    if ((attempt == NULL) || (result == NULL))
+    {
+        return BSP_STATUS_INVALID_ARG;
+    }
+    const measurement_cal_key_t key = measurement_cal_key(MEASUREMENT_CAL_HARDWARE_REV1,
+                                                          MEASUREMENT_CAL_MODEL_VERSION_CURRENT,
+                                                          attempt->range_id,
+                                                          attempt->frequency,
+                                                          attempt->amplitude);
+    return measurement_cal_process_block(block,
+                                         app_calibration_service_active_set(&g_calibration_service),
+                                         &key,
+                                         false,
+                                         result);
+}
+
+static bsp_status_t product_init_controller(void)
+{
+    const bsp_status_t measure_status = product_init_metrology_measure();
+    if (measure_status != BSP_STATUS_OK)
+    {
+        return measure_status;
+    }
+    const app_measurement_session_io_t session_io = {
+        .start_attempt = product_auto_start_attempt,
+        .step_attempt = product_auto_step_attempt,
+        .attempt_active = product_auto_attempt_active,
+        .attempt_done = product_auto_attempt_done,
+        .attempt_dumpable = product_auto_attempt_dumpable,
+        .attempt_block = product_auto_attempt_block,
+        .attempt_error = product_auto_attempt_error,
+        .attempt_acknowledge = product_auto_attempt_acknowledge,
+        .attempt_abort = product_auto_attempt_abort,
+        .process_block = product_auto_process_block,
+        .user = NULL,
+    };
+    ui_product_init(&g_product_ui);
+    return app_product_init(&g_product, &session_io);
+}
+#endif
 
 static void app_latch_fault(uint32_t fault_mask)
 {
@@ -270,6 +673,13 @@ static void app_step(void)
     {
         app_latch_fault(APP_SAFETY_FAULT_ADC_RUNTIME);
     }
+#if !WTK_ENABLE_BRINGUP_CONSOLE
+    const bsp_status_t cal_step_status = app_calibration_service_step(&g_calibration_service, now_ms);
+    if ((cal_step_status != BSP_STATUS_OK) && (cal_step_status != BSP_STATUS_BUSY))
+    {
+        bsp_diagnostics_write_key_value_text("calibration_step", bsp_status_string(cal_step_status));
+    }
+#endif
     app_update_safety_state();
 
     buttons_update(&g_buttons, app_read_button_mask(), now_ms);
@@ -278,6 +688,9 @@ static void app_step(void)
     while (buttons_pop_event(&g_buttons, &event))
     {
         app_log_button_event(&event);
+#if !WTK_ENABLE_BRINGUP_CONSOLE
+        app_product_handle_button_event(&g_product, &event);
+#endif
     }
 
     (void)ili9341_init_step(&g_display, now_ms);
@@ -288,16 +701,16 @@ static void app_step(void)
         g_display_ready_reported = true;
     }
 #endif
+#if WTK_ENABLE_BRINGUP_CONSOLE
     if (g_display.ready && !g_flash.detected && !g_flash_fallback_drawn)
     {
         if (ui_fallback_draw_text(&g_display, 8u, 8u, "FLASH ERROR", 0xFFFFu, 0x0000u) == BSP_STATUS_OK)
         {
             g_flash_fallback_drawn = true;
-#if WTK_ENABLE_BRINGUP_CONSOLE
             bsp_uart_write_cstr("fallback_ui: FLASH_ERROR_DRAWN\r\n");
-#endif
         }
     }
+#endif
 
 #if WTK_ENABLE_BRINGUP_CONSOLE
     app_bringup_console_step(&g_bringup_console,
@@ -315,7 +728,32 @@ static void app_step(void)
         (void)w25q_device_poll(&g_flash, now_ms);
     }
 #else
-    (void)w25q_device_poll(&g_flash, now_ms);
+    app_product_inputs_t product_inputs = {
+        .calibration_status = app_calibration_service_status(&g_calibration_service),
+        .safety_result = g_safety_result,
+        .battery_state = hw_aux_sensors_battery_state(&g_aux_sensors, now_ms),
+        .safety_fault_mask = app_safety_fault_mask(&g_safety_faults),
+        .display_ready = g_display.ready,
+        .display_fault = g_product_display_fault || (g_display.init_state == ILI9341_INIT_ERROR),
+    };
+    app_product_step(&g_product,
+                     &product_inputs,
+                     bsp_clock_get_summary(),
+                     g_clock_status,
+                     now_ms);
+    ui_product_view_t product_view;
+    app_product_make_view(&g_product, &product_view);
+    ui_product_request(&g_product_ui, &product_view);
+    const bsp_status_t ui_status =
+        ui_product_step(&g_product_ui, &g_display, hw_peripherals_quiet_requested());
+    if ((ui_status != BSP_STATUS_OK) && (ui_status != BSP_STATUS_BUSY))
+    {
+        g_product_display_fault = true;
+    }
+    if (!app_calibration_service_busy(&g_calibration_service))
+    {
+        (void)w25q_device_poll(&g_flash, now_ms);
+    }
 #endif
     hw_buzzer_step(now_ms);
 }
@@ -329,6 +767,7 @@ void app_shell_run(void)
     const bsp_status_t gpio_status = bsp_gpio_init_safe();
     app_record_status_fault(gpio_status, APP_SAFETY_FAULT_GPIO_INIT);
     const bsp_status_t clock_status = bsp_clock_init();
+    g_clock_status = clock_status;
     (void)bsp_time_init();
     (void)bsp_uart_init(115200u);
 
@@ -393,6 +832,11 @@ void app_shell_run(void)
     app_bringup_console_init(&g_bringup_console);
     app_bringup_console_attach_calibration_service(&g_bringup_console, &g_calibration_service);
     g_display_ready_reported = false;
+#else
+    const bsp_status_t product_status = product_init_controller();
+    app_record_status_fault(product_status, APP_SAFETY_FAULT_METROLOGY_RUNTIME);
+    bsp_diagnostics_write_key_value_text("product", bsp_status_string(product_status));
+    g_product_display_fault = false;
 #endif
     w25q_device_init(&g_flash);
     ili9341_init_context(&g_display);

@@ -64,6 +64,7 @@ add_library(wtk_firmware_common STATIC
     src/app/app_calibration_campaign.c
     src/app/app_calibration_workflow.c
     src/app/app_measurement_session.c
+    src/app/app_product.c
     src/app/app_version.c
     src/bsp/bsp_adc_common.c
     src/bsp/bsp_adc_core.c
@@ -97,6 +98,8 @@ add_library(wtk_firmware_common STATIC
     src/storage/storage_crc32.c
     src/storage/storage_layout.c
     src/ui/ui_fallback_font.c
+    src/ui/ui_format.c
+    src/ui/ui_product.c
     src/ui/ui_resources.c
 )
 target_include_directories(wtk_firmware_common
@@ -127,6 +130,24 @@ elseif(WTK_TARGET_PLATFORM STREQUAL "stm32")
             src/app/app_bringup_console.c
             PROPERTIES COMPILE_OPTIONS "-Os"
         )
+    elseif(WTK_FIRMWARE_PROFILE STREQUAL "PRODUCT")
+        if(WTK_BUILD_TYPE STREQUAL "Release")
+            set_source_files_properties(
+                src/app/app_shell.c
+                src/app/app_product.c
+                src/app/app_measurement_session.c
+                src/app/app_calibration_service.c
+                src/hardware/hw_metrology_measure.c
+                src/hardware/hw_aux_sensors.c
+                src/measurement/measurement_dsp.c
+                src/measurement/measurement_engine.c
+                src/measurement/measurement_calibration.c
+                src/measurement/measurement_calibration_store.c
+                src/ui/ui_product.c
+                src/ui/ui_format.c
+                PROPERTIES COMPILE_OPTIONS "-Os"
+            )
+        endif()
     elseif(NOT WTK_FIRMWARE_PROFILE STREQUAL "PRODUCT")
         message(FATAL_ERROR "Unsupported WTK_FIRMWARE_PROFILE='${WTK_FIRMWARE_PROFILE}'. Use PRODUCT or BRINGUP.")
     endif()
@@ -219,6 +240,10 @@ elseif(WTK_TARGET_PLATFORM STREQUAL "stm32")
             "${WTK_FIRMWARE_BASE}.hex"
         COMMENT "Generating STM32 programming artifacts"
     )
+    if((NOT WTK_SIZE_BUDGET STREQUAL "none") AND NOT Python3_Interpreter_FOUND)
+        message(FATAL_ERROR "Python3 is required to enforce the '${WTK_SIZE_BUDGET}' STM32 firmware size budget.")
+    endif()
+
     if(Python3_Interpreter_FOUND)
         add_custom_command(TARGET wtk_rlcmeter POST_BUILD
             COMMAND ${Python3_EXECUTABLE}
@@ -232,8 +257,16 @@ elseif(WTK_TARGET_PLATFORM STREQUAL "stm32")
             BYPRODUCTS "${WTK_FIRMWARE_BASE}.size.json"
             COMMENT "Checking STM32 firmware size budget"
         )
+        add_custom_command(TARGET wtk_rlcmeter POST_BUILD
+            COMMAND ${Python3_EXECUTABLE}
+                    "${CMAKE_CURRENT_SOURCE_DIR}/tools/check_profile_symbols.py"
+                    $<TARGET_FILE:wtk_rlcmeter>
+                    --profile ${WTK_FIRMWARE_PROFILE}
+                    --nm-tool ${CMAKE_NM}
+            COMMENT "Checking STM32 firmware profile composition"
+        )
     else()
-        message(WARNING "Python3 not found; firmware_size.py budget check will not run automatically.")
+        message(WARNING "Python3 not found; optional STM32 size/profile checks will not run for unbudgeted builds.")
     endif()
 else()
     message(FATAL_ERROR "Unsupported WTK_TARGET_PLATFORM='${WTK_TARGET_PLATFORM}'. Use 'host' or 'stm32'.")

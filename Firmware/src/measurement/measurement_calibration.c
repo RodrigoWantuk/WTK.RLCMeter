@@ -611,32 +611,6 @@ measurement_cal_resolve_status_t measurement_cal_resolve_condition(
     return resolved->provenance.status;
 }
 
-measurement_cal_resolve_status_t measurement_cal_resolve(
-    const measurement_cal_set_t *set,
-    const measurement_cal_key_t *key,
-    bool allow_ideal_fallback,
-    measurement_adc_calibration_t *adc,
-    measurement_dsp_config_t *config,
-    measurement_calibration_provenance_t *provenance)
-{
-    if ((adc == NULL) || (config == NULL) || (provenance == NULL))
-    {
-        return MEASUREMENT_CAL_RESOLVE_INVALID_ARG;
-    }
-    measurement_cal_resolved_t resolved;
-    const measurement_cal_resolve_status_t status =
-        measurement_cal_resolve_condition(set, key, allow_ideal_fallback, &resolved);
-    if ((status == MEASUREMENT_CAL_RESOLVE_FOUND) ||
-        (status == MEASUREMENT_CAL_RESOLVE_UNQUALIFIED) ||
-        (status == MEASUREMENT_CAL_RESOLVE_MISSING))
-    {
-        *adc = resolved.adc;
-        *config = resolved.config;
-    }
-    *provenance = resolved.provenance;
-    return status;
-}
-
 static bool stream_clipped(const hw_metrology_block_t *block, hw_metrology_stream_t stream)
 {
     return (block != NULL) && (stream < HW_METROLOGY_STREAM_COUNT) &&

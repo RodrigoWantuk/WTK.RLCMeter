@@ -412,6 +412,42 @@ endif()
 
 add_test(NAME wtk_app_measurement_session_test COMMAND wtk_app_measurement_session_test)
 
+add_executable(wtk_app_product_test
+    app/test_app_product.c
+)
+target_link_libraries(wtk_app_product_test PRIVATE wtk_firmware_common)
+target_include_directories(wtk_app_product_test PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src
+    ${CMAKE_CURRENT_SOURCE_DIR}
+)
+wtk_configure_c_target(wtk_app_product_test)
+wtk_apply_project_warnings(wtk_app_product_test)
+wtk_apply_common_compile_options(wtk_app_product_test)
+
+if(WTK_WARNINGS_AS_ERRORS_HOST)
+    wtk_treat_warnings_as_errors(wtk_app_product_test)
+endif()
+
+add_test(NAME wtk_app_product_test COMMAND wtk_app_product_test)
+
+add_executable(wtk_ui_format_test
+    ui/test_ui_format.c
+)
+target_link_libraries(wtk_ui_format_test PRIVATE wtk_firmware_common)
+target_include_directories(wtk_ui_format_test PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src
+    ${CMAKE_CURRENT_SOURCE_DIR}
+)
+wtk_configure_c_target(wtk_ui_format_test)
+wtk_apply_project_warnings(wtk_ui_format_test)
+wtk_apply_common_compile_options(wtk_ui_format_test)
+
+if(WTK_WARNINGS_AS_ERRORS_HOST)
+    wtk_treat_warnings_as_errors(wtk_ui_format_test)
+endif()
+
+add_test(NAME wtk_ui_format_test COMMAND wtk_ui_format_test)
+
 add_executable(wtk_app_calibration_workflow_test
     app/test_app_calibration_workflow.c
 )

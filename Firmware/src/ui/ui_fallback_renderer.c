@@ -73,3 +73,58 @@ bsp_status_t ui_fallback_draw_text(const ili9341_t *display,
 
     return BSP_STATUS_OK;
 }
+
+bsp_status_t ui_fallback_draw_text_scaled(const ili9341_t *display,
+                                          uint16_t x,
+                                          uint16_t y,
+                                          const char *text,
+                                          uint8_t scale,
+                                          uint16_t fg_rgb565,
+                                          uint16_t bg_rgb565)
+{
+    if ((text == NULL) || (scale == 0u) || (scale > 3u))
+    {
+        return BSP_STATUS_INVALID_ARG;
+    }
+
+    uint16_t cursor_x = x;
+    uint16_t pixels[UI_FALLBACK_GLYPH_WIDTH * 3u];
+    for (size_t i = 0u; text[i] != '\0'; i++)
+    {
+        uint8_t rows[UI_FALLBACK_GLYPH_HEIGHT] = {0u};
+        (void)ui_fallback_font_get_glyph(text[i], rows);
+        for (uint16_t row = 0u; row < UI_FALLBACK_GLYPH_HEIGHT; row++)
+        {
+            uint16_t width = 0u;
+            for (uint16_t col = 0u; col < UI_FALLBACK_GLYPH_WIDTH; col++)
+            {
+                const uint8_t mask = (uint8_t)(1u << (UI_FALLBACK_GLYPH_WIDTH - 1u - col));
+                const uint16_t color = ((rows[row] & mask) != 0u) ? fg_rgb565 : bg_rgb565;
+                for (uint8_t sx = 0u; sx < scale; sx++)
+                {
+                    pixels[width++] = color;
+                }
+            }
+            for (uint8_t sy = 0u; sy < scale; sy++)
+            {
+                bsp_status_t status =
+                    ili9341_set_window(display,
+                                       cursor_x,
+                                       (uint16_t)(y + (row * scale) + sy),
+                                       width,
+                                       1u);
+                if (status != BSP_STATUS_OK)
+                {
+                    return status;
+                }
+                status = ili9341_write_pixels_rgb565(pixels, width);
+                if (status != BSP_STATUS_OK)
+                {
+                    return status;
+                }
+            }
+        }
+        cursor_x = (uint16_t)(cursor_x + ((UI_FALLBACK_GLYPH_WIDTH + UI_FALLBACK_GLYPH_SPACING) * scale));
+    }
+    return BSP_STATUS_OK;
+}

@@ -2,12 +2,22 @@
 
 Graphical user interface for the ILI9341 display.
 
+## Implemented Phase 08 Stage 1 files
+
+```text
+ui_format.c/.h
+ui_product.c/.h
+```
+
+`ui_format` provides bounded SI/unit formatting for product result views without target
+float `printf`. `ui_product` renders the initial PRODUCT view model with no full
+framebuffer and defers rendering while quiet mode is active.
+
 ## Planned files
 
 ```text
 ui_core.c/.h
 ui_theme.c/.h
-ui_format.c/.h
 ui_navigation.c/.h
 ui_widgets.c/.h
 screen_startup.c/.h

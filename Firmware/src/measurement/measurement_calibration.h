@@ -223,13 +223,6 @@ measurement_cal_resolve_status_t measurement_cal_resolve_condition(
     const measurement_cal_key_t *key,
     bool allow_ideal_fallback,
     measurement_cal_resolved_t *resolved);
-measurement_cal_resolve_status_t measurement_cal_resolve(
-    const measurement_cal_set_t *set,
-    const measurement_cal_key_t *key,
-    bool allow_ideal_fallback,
-    measurement_adc_calibration_t *adc,
-    measurement_dsp_config_t *config,
-    measurement_calibration_provenance_t *provenance);
 
 bsp_status_t measurement_cal_process_block(const hw_metrology_block_t *block,
                                            const measurement_cal_set_t *set,

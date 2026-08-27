@@ -1,6 +1,53 @@
 # 08 — UI, Storage, and Product Integration
 
-STATUS: NOT_STARTED
+STATUS: IN_PROGRESS
+
+## Stage 1 — Product controller, calibration gate, click measurement, and minimal TFT UI
+
+STATUS: IMPLEMENTED_REQUIRES_BENCH_VALIDATION
+
+Implemented software boundary:
+
+- PRODUCT profile has a cooperative product application controller with explicit states:
+  `STARTUP`, `SELF_TEST`, `CALIBRATION_CHECK`, `CALIBRATION_REQUIRED`, `READY`,
+  `MEASURING`, `RESULT`, `SAFETY_BLOCKED`, and `FAULT`.
+- The controller consumes debounced button events and never drives K1, K2, range GPIO,
+  excitation, ADC, storage, or display hardware directly.
+- Calibration is a mandatory product gate. Only `APP_CAL_SERVICE_ACTIVE_VALID` permits
+  `READY`; missing, unavailable, incompatible, corrupt, or incomplete calibration remains
+  in `CALIBRATION_REQUIRED`/storage-error presentation.
+- PRODUCT click measurement uses the existing Phase 05 fixed-condition measurement
+  transaction through `app_measurement_session_t`. Each attempt traverses the Phase 05
+  safety/permit/range/excitation/K1/ADC/DMA teardown contract independently.
+- PRODUCT DSP processing uses `measurement_cal_process_block()` with the active
+  calibration set and `allow_ideal_fallback=false`; the UI cannot manufacture an ideal
+  calibration fallback.
+- OK press arms, OK release emits one short-click measurement request, OK long emits a
+  menu-not-implemented no-op and suppresses the short click.
+- UP/DOWN currently browse the bounded primary/details result pages. Full menus,
+  settings, calibration wizard screens, localization, resource pack, and graph pages
+  remain later Phase 08 work.
+- A minimal no-framebuffer TFT renderer consumes a UI view-model snapshot, defers while
+  quiet mode is active, redraws only on generation changes, and uses the built-in 5x7
+  fallback font.
+- The fallback font now covers A-Z, digits, and minimal punctuation; lowercase unit text
+  maps to uppercase glyphs.
+- SI/unit formatting is a pure host-tested helper and does not use target float `printf`.
+- PRODUCT and BRINGUP profile composition is checked from the linked ELF with
+  `tools/check_profile_symbols.py`; PRODUCT must not link bringup-console symbols and
+  BRINGUP must not link product UI/controller symbols.
+- STM32 Release and Bringup size gates are mandatory for budgeted profiles; missing
+  Python is now a configuration error for those gates.
+
+Remaining Phase 08 work:
+
+- complete menu tree and normal calibration wizard UI;
+- persistent settings schema;
+- external resource/font pack and localization resources;
+- dynamic graph/result pages beyond the primary/details pair;
+- display/sound/debug/about menus;
+- TFT debug console page;
+- physical UI timing and quiet-mode validation.
 
 ## Goal
 
