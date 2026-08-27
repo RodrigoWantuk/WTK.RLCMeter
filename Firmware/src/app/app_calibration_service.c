@@ -42,6 +42,40 @@ static void update_candidate_completeness(app_calibration_service_t *service)
     service->status = APP_CAL_SERVICE_CANDIDATE_DIRTY;
 }
 
+static bsp_status_t acquire_store_workspace(app_calibration_service_t *service)
+{
+    if ((service == NULL) || (service->workspace == NULL))
+    {
+        return BSP_STATUS_INVALID_ARG;
+    }
+    if (service->store_workspace_held)
+    {
+        return BSP_STATUS_OK;
+    }
+    const bsp_status_t status =
+        app_io_workspace_acquire(service->workspace, APP_IO_WORKSPACE_OWNER_CALIBRATION_STORE);
+    if (status == BSP_STATUS_OK)
+    {
+        service->store_workspace_held = true;
+    }
+    return status;
+}
+
+static bsp_status_t release_store_workspace(app_calibration_service_t *service)
+{
+    if ((service == NULL) || !service->store_workspace_held)
+    {
+        return BSP_STATUS_OK;
+    }
+    const bsp_status_t status =
+        app_io_workspace_release(service->workspace, APP_IO_WORKSPACE_OWNER_CALIBRATION_STORE);
+    if (status == BSP_STATUS_OK)
+    {
+        service->store_workspace_held = false;
+    }
+    return status;
+}
+
 void app_calibration_service_init(app_calibration_service_t *service)
 {
     if (service == NULL)
@@ -56,6 +90,15 @@ void app_calibration_service_init(app_calibration_service_t *service)
     service->candidate_state = APP_CAL_CANDIDATE_NONE;
     service->last_store_status = BSP_STATUS_OK;
     service->initialized = true;
+}
+
+void app_calibration_service_attach_workspace(app_calibration_service_t *service,
+                                              app_io_workspace_t *workspace)
+{
+    if (service != NULL)
+    {
+        service->workspace = workspace;
+    }
 }
 
 bsp_status_t app_calibration_service_load(app_calibration_service_t *service,
@@ -89,11 +132,31 @@ bsp_status_t app_calibration_service_load(app_calibration_service_t *service,
         return BSP_STATUS_INVALID_ARG;
     }
 
+    bsp_status_t workspace_status = acquire_store_workspace(service);
+    if (workspace_status != BSP_STATUS_OK)
+    {
+        service->status = APP_CAL_SERVICE_STORE_BUSY;
+        service->last_store_status = workspace_status;
+        return workspace_status;
+    }
+
     service->capacity_bytes = capacity_bytes;
     const bsp_status_t status =
-        app_calibration_runtime_refresh(&service->runtime, &service->store, io, capacity_bytes);
+        app_calibration_runtime_refresh(&service->runtime,
+                                        &service->store,
+                                        io,
+                                        capacity_bytes,
+                                        app_io_workspace_calibration_frame(service->workspace),
+                                        app_io_workspace_calibration_frame_bytes());
+    workspace_status = release_store_workspace(service);
     service->last_store_status = status;
     service->storage_available = app_calibration_runtime_store_ready(&service->runtime);
+    if ((status == BSP_STATUS_OK) && (workspace_status != BSP_STATUS_OK))
+    {
+        service->status = APP_CAL_SERVICE_ERROR;
+        service->last_store_status = workspace_status;
+        return workspace_status;
+    }
     if (!service->storage_available)
     {
         service->status = APP_CAL_SERVICE_STORAGE_UNAVAILABLE;
@@ -115,6 +178,7 @@ void app_calibration_service_mark_storage_unavailable(app_calibration_service_t 
     {
         app_calibration_service_init(service);
     }
+    (void)release_store_workspace(service);
     app_calibration_runtime_init(&service->runtime);
     service->storage_available = false;
     service->status = APP_CAL_SERVICE_STORAGE_UNAVAILABLE;
@@ -266,6 +330,13 @@ bsp_status_t app_calibration_service_candidate_discard(app_calibration_service_t
             service->last_store_status = status;
             service->status = APP_CAL_SERVICE_ERROR;
             return status;
+        }
+        const bsp_status_t release = release_store_workspace(service);
+        if (release != BSP_STATUS_OK)
+        {
+            service->last_store_status = release;
+            service->status = APP_CAL_SERVICE_ERROR;
+            return release;
         }
     }
     app_calibration_campaign_init(&service->campaign);
@@ -426,6 +497,15 @@ bsp_status_t app_calibration_service_candidate_commit_start(app_calibration_serv
         service->last_store_status = BSP_STATUS_INVALID_ARG;
         return BSP_STATUS_INVALID_ARG;
     }
+    const bsp_status_t workspace_status = acquire_store_workspace(service);
+    if (workspace_status != BSP_STATUS_OK)
+    {
+        service->status = APP_CAL_SERVICE_STORE_BUSY;
+        service->last_store_status = workspace_status;
+        return workspace_status;
+    }
+    service->store.image = app_io_workspace_calibration_frame(service->workspace);
+    service->store.image_capacity = app_io_workspace_calibration_frame_bytes();
     const bsp_status_t status =
         measurement_cal_store_write_start(&service->store, &service->store.scan_set, &requirements);
     service->last_store_status = status;
@@ -436,6 +516,7 @@ bsp_status_t app_calibration_service_candidate_commit_start(app_calibration_serv
     }
     else
     {
+        (void)release_store_workspace(service);
         service->candidate_state = APP_CAL_CANDIDATE_FAILED;
         service->status = APP_CAL_SERVICE_ERROR;
     }
@@ -459,9 +540,10 @@ static bsp_status_t activate_verified_commit(app_calibration_service_t *service)
                                                     MEASUREMENT_CAL_MODEL_VERSION_CURRENT,
                                                     service->runtime.slots);
     const bsp_status_t ack = measurement_cal_store_acknowledge(&service->store);
+    const bsp_status_t release = release_store_workspace(service);
     service->candidate_state = (ack == BSP_STATUS_OK) ? APP_CAL_CANDIDATE_ACTIVATED :
                                                         APP_CAL_CANDIDATE_FAILED;
-    return ack;
+    return (ack == BSP_STATUS_OK) ? release : ack;
 }
 
 bsp_status_t app_calibration_service_step(app_calibration_service_t *service, uint32_t now_ms)

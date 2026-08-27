@@ -2,6 +2,7 @@
 #define WTK_APP_CALIBRATION_RUNTIME_H
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 #include "bsp/bsp_status.h"
@@ -22,7 +23,9 @@ void app_calibration_runtime_init(app_calibration_runtime_t *runtime);
 bsp_status_t app_calibration_runtime_refresh(app_calibration_runtime_t *runtime,
                                              measurement_cal_store_t *store_scratch,
                                              const measurement_cal_store_io_t *io,
-                                             uint32_t capacity_bytes);
+                                             uint32_t capacity_bytes,
+                                             uint8_t *frame_scratch,
+                                             size_t frame_scratch_size);
 const measurement_cal_set_t *app_calibration_runtime_active_set(const app_calibration_runtime_t *runtime);
 const measurement_cal_store_slot_info_t *app_calibration_runtime_slots(
     const app_calibration_runtime_t *runtime);

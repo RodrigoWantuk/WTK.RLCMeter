@@ -34,6 +34,18 @@ typedef struct
     bool fail_program;
 } fake_nor_t;
 
+static uint8_t g_store_image_scratch[MEASUREMENT_CAL_MAX_FRAME_BYTES];
+
+static bsp_status_t init_test_store(measurement_cal_store_t *store,
+                                    const measurement_cal_store_io_t *io)
+{
+    return measurement_cal_store_init(store,
+                                      io,
+                                      TEST_CAPACITY_BYTES,
+                                      g_store_image_scratch,
+                                      sizeof(g_store_image_scratch));
+}
+
 static int expect_true(bool condition, const char *message)
 {
     if (!condition)
@@ -791,14 +803,14 @@ static int test_store_power_loss(void)
         fake_nor_init(&nor);
         measurement_cal_store_t store;
         measurement_cal_store_io_t io = fake_io(&nor);
-        failures += expect_true(measurement_cal_store_init(&store, &io, TEST_CAPACITY_BYTES) == BSP_STATUS_OK,
+        failures += expect_true(init_test_store(&store, &io) == BSP_STATUS_OK,
                                 "store init");
         measurement_cal_set_t old_set = set_with_records(0u, 1u);
         failures += write_to_completion(&store, &old_set);
         failures += expect_loaded_sequence(&store, 1u, "old sequence loaded");
 
         measurement_cal_store_t torn;
-        failures += expect_true(measurement_cal_store_init(&torn, &io, TEST_CAPACITY_BYTES) == BSP_STATUS_OK,
+        failures += expect_true(init_test_store(&torn, &io) == BSP_STATUS_OK,
                                 "torn store init");
         measurement_cal_set_t candidate = set_with_records(0u, 5u);
         failures += expect_true(measurement_cal_store_write_start(&torn, &candidate, NULL) == BSP_STATUS_BUSY,
@@ -808,7 +820,7 @@ static int test_store_power_loss(void)
             (void)measurement_cal_store_step(&torn, step);
         }
         measurement_cal_store_t rebooted;
-        failures += expect_true(measurement_cal_store_init(&rebooted, &io, TEST_CAPACITY_BYTES) == BSP_STATUS_OK,
+        failures += expect_true(init_test_store(&rebooted, &io) == BSP_STATUS_OK,
                                 "rebooted init");
         const measurement_cal_store_state_t torn_state = measurement_cal_store_state(&torn);
         const uint32_t expected =
@@ -831,7 +843,7 @@ static int test_store_write_header_override_does_not_mutate_candidate(void)
     fake_nor_init(&nor);
     measurement_cal_store_t store;
     measurement_cal_store_io_t io = fake_io(&nor);
-    failures += expect_true(measurement_cal_store_init(&store, &io, TEST_CAPACITY_BYTES) == BSP_STATUS_OK,
+    failures += expect_true(init_test_store(&store, &io) == BSP_STATUS_OK,
                             "store init for header override");
 
     measurement_cal_set_t candidate;
@@ -896,7 +908,7 @@ static int test_store_selects_newest_usable(void)
     measurement_cal_store_t store;
     measurement_cal_store_io_t io = fake_io(&nor);
     const measurement_cal_requirements_t req = measurement_cal_requirements_rev1_full();
-    failures += expect_true(measurement_cal_store_init(&store, &io, TEST_CAPACITY_BYTES) == BSP_STATUS_OK,
+    failures += expect_true(init_test_store(&store, &io) == BSP_STATUS_OK,
                             "usable store init");
 
     measurement_cal_set_t full = full_supported_set(0u);
@@ -954,7 +966,7 @@ static int exercise_incompatible_newer_slot(measurement_cal_set_t newer,
 
     measurement_cal_store_t store;
     measurement_cal_store_io_t io = fake_io(&nor);
-    failures += expect_true(measurement_cal_store_init(&store, &io, TEST_CAPACITY_BYTES) == BSP_STATUS_OK,
+    failures += expect_true(init_test_store(&store, &io) == BSP_STATUS_OK,
                             "compat store init");
     measurement_cal_set_t loaded;
     measurement_cal_store_slot_t slot = MEASUREMENT_CAL_STORE_SLOT_B;
@@ -1022,7 +1034,9 @@ static int test_app_calibration_runtime_loads_active_set(void)
     failures += expect_true(app_calibration_runtime_refresh(&runtime,
                                                             &store_scratch,
                                                             &io,
-                                                            TEST_CAPACITY_BYTES) == BSP_STATUS_OK,
+                                                            TEST_CAPACITY_BYTES,
+                                                            g_store_image_scratch,
+                                                            sizeof(g_store_image_scratch)) == BSP_STATUS_OK,
                             "runtime refresh loads active calibration");
     failures += expect_true(app_calibration_runtime_store_ready(&runtime), "runtime store ready");
     failures += expect_true(app_calibration_runtime_active_valid(&runtime), "runtime active valid");
@@ -1073,7 +1087,7 @@ static int test_slot_compatibility_diagnostics(void)
 
     measurement_cal_store_t store;
     measurement_cal_store_io_t io = fake_io(&nor);
-    failures += expect_true(measurement_cal_store_init(&store, &io, TEST_CAPACITY_BYTES) == BSP_STATUS_OK,
+    failures += expect_true(init_test_store(&store, &io) == BSP_STATUS_OK,
                             "corrupt store init");
     measurement_cal_set_t loaded;
     measurement_cal_store_slot_info_t info[2];

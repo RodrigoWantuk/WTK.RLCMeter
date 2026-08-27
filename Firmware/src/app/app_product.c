@@ -64,8 +64,7 @@ static void mark_dirty(app_product_t *product)
 {
     if (product != NULL)
     {
-        product->generation++;
-        product->view.generation = product->generation;
+        product->view.generation++;
     }
 }
 
@@ -80,9 +79,8 @@ static void set_state(app_product_t *product, ui_product_state_t state)
 
 static void set_page(app_product_t *product, ui_product_page_t page)
 {
-    if ((product != NULL) && (product->page != page))
+    if ((product != NULL) && (product->view.page != page))
     {
-        product->page = page;
         product->view.page = page;
         mark_dirty(product);
     }
@@ -98,6 +96,34 @@ static bool state_accepts_measurement_request(ui_product_state_t state)
     return (state == UI_PRODUCT_STATE_READY) || (state == UI_PRODUCT_STATE_RESULT);
 }
 
+static ui_product_measurement_t ui_measurement_from_result(const measurement_session_result_t *result)
+{
+    ui_product_measurement_t out = {0};
+    if (result == NULL)
+    {
+        return out;
+    }
+    out.status = result->status;
+    out.interpretation = result->classification.interpretation;
+    out.confidence = result->confidence.publication_confidence;
+    out.quality = result->confidence.measurement_quality;
+    out.qualification = result->confidence.qualification;
+    out.frequency = result->primary_attempt.config.frequency;
+    out.amplitude = result->primary_attempt.config.amplitude;
+    out.resistance_ohms = result->primary_attempt.derived.resistance_ohms;
+    out.reactance_ohms = result->primary_attempt.derived.reactance_ohms;
+    out.magnitude_ohms = result->primary_attempt.derived.magnitude_ohms;
+    out.phase_rad = result->primary_attempt.derived.phase_rad;
+    out.capacitance_f = result->primary_attempt.derived.capacitance_f;
+    out.inductance_h = result->primary_attempt.derived.inductance_h;
+    out.attempt_count = result->attempt_count;
+    out.primary_attempt_index = result->primary_attempt_index;
+    out.derived_valid = result->primary_attempt.derived.valid;
+    out.capacitance_valid = result->primary_attempt.derived.capacitance_valid;
+    out.inductance_valid = result->primary_attempt.derived.inductance_valid;
+    return out;
+}
+
 static void update_measurement_result(app_product_t *product, app_measurement_event_t event)
 {
     if (product == NULL)
@@ -109,10 +135,9 @@ static void update_measurement_result(app_product_t *product, app_measurement_ev
         const measurement_session_result_t *partial = app_measurement_session_partial(&product->measurement);
         if (partial != NULL)
         {
-            product->view.measurement_result = *partial;
+            product->view.measurement_result = ui_measurement_from_result(partial);
             product->view.has_measurement_result = true;
             product->view.measurement_result_partial = true;
-            product->have_partial = true;
             mark_dirty(product);
         }
     }
@@ -121,11 +146,9 @@ static void update_measurement_result(app_product_t *product, app_measurement_ev
         const measurement_session_result_t *final = app_measurement_session_final(&product->measurement);
         if (final != NULL)
         {
-            product->view.measurement_result = *final;
+            product->view.measurement_result = ui_measurement_from_result(final);
             product->view.has_measurement_result = true;
             product->view.measurement_result_partial = false;
-            product->have_final = true;
-            product->have_partial = false;
             product->next_hint = measurement_auto_make_hint(final);
             mark_dirty(product);
         }
@@ -144,7 +167,6 @@ bsp_status_t app_product_init(app_product_t *product, const app_measurement_sess
     {
         return status;
     }
-    product->page = UI_PRODUCT_PAGE_PRIMARY;
     product->view = (ui_product_view_t){
         .state = UI_PRODUCT_STATE_STARTUP,
         .page = UI_PRODUCT_PAGE_PRIMARY,
@@ -153,7 +175,6 @@ bsp_status_t app_product_init(app_product_t *product, const app_measurement_sess
         .battery_state = UI_PRODUCT_BATTERY_UNKNOWN,
         .generation = 1u,
     };
-    product->generation = 1u;
     product->initialized = true;
     return BSP_STATUS_OK;
 }
@@ -306,19 +327,20 @@ void app_product_step(app_product_t *product,
         product->request_menu = false;
     }
 
-    if (product->have_final && product->view.state == UI_PRODUCT_STATE_RESULT)
+    if (product->view.has_measurement_result && !product->view.measurement_result_partial &&
+        (product->view.state == UI_PRODUCT_STATE_RESULT))
     {
         if (product->request_page_next)
         {
             set_page(product,
-                     (product->page == UI_PRODUCT_PAGE_PRIMARY) ? UI_PRODUCT_PAGE_DETAILS :
-                                                                  UI_PRODUCT_PAGE_PRIMARY);
+                     (product->view.page == UI_PRODUCT_PAGE_PRIMARY) ? UI_PRODUCT_PAGE_DETAILS :
+                                                                       UI_PRODUCT_PAGE_PRIMARY);
         }
         if (product->request_page_prev)
         {
             set_page(product,
-                     (product->page == UI_PRODUCT_PAGE_PRIMARY) ? UI_PRODUCT_PAGE_DETAILS :
-                                                                  UI_PRODUCT_PAGE_PRIMARY);
+                     (product->view.page == UI_PRODUCT_PAGE_PRIMARY) ? UI_PRODUCT_PAGE_DETAILS :
+                                                                       UI_PRODUCT_PAGE_PRIMARY);
         }
     }
     product->request_page_next = false;
@@ -338,7 +360,6 @@ void app_product_step(app_product_t *product,
                                           now_ms);
         if ((start_status == BSP_STATUS_BUSY) || (start_status == BSP_STATUS_OK))
         {
-            product->have_partial = false;
             product->view.measurement_result_partial = false;
             set_state(product, UI_PRODUCT_STATE_MEASURING);
         }
@@ -347,7 +368,10 @@ void app_product_step(app_product_t *product,
     else
     {
         product->request_click = false;
-        set_state(product, product->have_final ? UI_PRODUCT_STATE_RESULT : UI_PRODUCT_STATE_READY);
+        set_state(product,
+                  (product->view.has_measurement_result && !product->view.measurement_result_partial) ?
+                      UI_PRODUCT_STATE_RESULT :
+                      UI_PRODUCT_STATE_READY);
     }
     product->view.session_sequence = product->session_sequence;
 }

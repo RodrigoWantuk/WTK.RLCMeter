@@ -14,6 +14,9 @@ FLASH_SILICON_BYTES = 64 * 1024
 RAM_SILICON_BYTES = 20 * 1024
 PROJECT_FLASH_SOFT_BYTES = 48 * 1024
 PROJECT_FLASH_HARD_BYTES = 56 * 1024
+PRODUCT_RAM_PREFERRED_BYTES = 16 * 1024
+PRODUCT_RAM_HARD_BYTES = 17 * 1024
+BRINGUP_RAM_HARD_BYTES = 18 * 1024
 
 
 def run_tool(argv: list[str]) -> str:
@@ -85,10 +88,23 @@ def percent(value: int, total: int) -> float:
     return (100.0 * float(value)) / float(total)
 
 
+def normalized_budget_name(budget: str) -> str:
+    return "product" if budget == "release" else budget
+
+
+def ram_limits_for_budget(budget: str) -> tuple[int | None, int | None]:
+    budget_name = normalized_budget_name(budget)
+    if budget_name == "product":
+        return PRODUCT_RAM_PREFERRED_BYTES, PRODUCT_RAM_HARD_BYTES
+    if budget_name == "bringup":
+        return None, BRINGUP_RAM_HARD_BYTES
+    return None, None
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("elf", type=Path)
-    parser.add_argument("--budget", choices=("none", "release", "bringup"), default="none")
+    parser.add_argument("--budget", choices=("none", "product", "release", "bringup"), default="none")
     parser.add_argument("--json-out", type=Path)
     parser.add_argument("--size-tool")
     parser.add_argument("--objdump-tool")
@@ -110,14 +126,18 @@ def main() -> int:
     reserved_stack_bytes = sections.get("._user_heap_stack", 0)
     noinit_bytes = sections.get(".noinit", 0)
     ram_accounted_bytes = size["ram_static_bytes"] + noinit_bytes + reserved_stack_bytes
+    ram_remaining_bytes = RAM_SILICON_BYTES - ram_accounted_bytes
+    budget_name = normalized_budget_name(args.budget)
+    ram_preferred_bytes, ram_hard_bytes = ram_limits_for_budget(budget_name)
     report = {
         "elf": str(args.elf),
-        "budget": args.budget,
+        "budget": budget_name,
         **size,
         "flash_percent": percent(size["flash_bytes"], FLASH_SILICON_BYTES),
         "ram_static_percent": percent(size["ram_static_bytes"], RAM_SILICON_BYTES),
         "ram_accounted_bytes": ram_accounted_bytes,
         "ram_accounted_percent": percent(ram_accounted_bytes, RAM_SILICON_BYTES),
+        "ram_remaining_bytes": ram_remaining_bytes,
         "reserved_stack_bytes": reserved_stack_bytes,
         "noinit_bytes": noinit_bytes,
         "sections": sections,
@@ -127,6 +147,16 @@ def main() -> int:
             "flash_hard_bytes": PROJECT_FLASH_HARD_BYTES,
             "flash_silicon_bytes": FLASH_SILICON_BYTES,
             "ram_silicon_bytes": RAM_SILICON_BYTES,
+            "product_ram_preferred_bytes": PRODUCT_RAM_PREFERRED_BYTES,
+            "product_ram_hard_bytes": PRODUCT_RAM_HARD_BYTES,
+            "bringup_ram_hard_bytes": BRINGUP_RAM_HARD_BYTES,
+        },
+        "gates": {
+            "flash_hard_ok": size["flash_bytes"] <= PROJECT_FLASH_HARD_BYTES,
+            "flash_soft_ok": size["flash_bytes"] <= PROJECT_FLASH_SOFT_BYTES,
+            "ram_silicon_ok": ram_accounted_bytes <= RAM_SILICON_BYTES,
+            "ram_preferred_ok": True if ram_preferred_bytes is None else ram_accounted_bytes <= ram_preferred_bytes,
+            "ram_hard_ok": True if ram_hard_bytes is None else ram_accounted_bytes <= ram_hard_bytes,
         },
     }
 
@@ -144,6 +174,7 @@ def main() -> int:
         f"  RAM accounted: {ram_accounted_bytes} B / {RAM_SILICON_BYTES} B "
         f"({report['ram_accounted_percent']:.2f}%)"
     )
+    print(f"  RAM remaining after reserved stack/heap: {ram_remaining_bytes} B")
     if nm:
         print("  Largest symbols:")
         for item in nm[: min(len(nm), args.nm_limit)]:
@@ -154,7 +185,7 @@ def main() -> int:
         args.json_out.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
     failed = False
-    if args.budget in {"release", "bringup"}:
+    if budget_name in {"product", "bringup"}:
         if size["flash_bytes"] > PROJECT_FLASH_HARD_BYTES:
             print(
                 f"error: Flash {size['flash_bytes']} B exceeds project hard gate "
@@ -168,6 +199,19 @@ def main() -> int:
                 f"{PROJECT_FLASH_SOFT_BYTES} B",
                 file=sys.stderr,
             )
+        if (ram_preferred_bytes is not None) and (ram_accounted_bytes > ram_preferred_bytes):
+            print(
+                f"warning: accounted RAM {ram_accounted_bytes} B exceeds preferred product target "
+                f"{ram_preferred_bytes} B",
+                file=sys.stderr,
+            )
+        if (ram_hard_bytes is not None) and (ram_accounted_bytes > ram_hard_bytes):
+            print(
+                f"error: accounted RAM {ram_accounted_bytes} B exceeds profile hard gate "
+                f"{ram_hard_bytes} B",
+                file=sys.stderr,
+            )
+            failed = True
         if ram_accounted_bytes > RAM_SILICON_BYTES:
             print(
                 f"error: accounted RAM {ram_accounted_bytes} B exceeds silicon limit "

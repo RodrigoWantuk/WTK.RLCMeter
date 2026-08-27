@@ -86,6 +86,18 @@ static bool append_hex8(char *dst, size_t capacity, size_t *used, uint32_t value
     return true;
 }
 
+static ui_format_status_t write_literal(const char *text, char *dst, size_t capacity)
+{
+    if ((text == NULL) || (dst == NULL) || (capacity == 0u))
+    {
+        return UI_FORMAT_STATUS_INVALID_ARG;
+    }
+    size_t used = 0u;
+    dst[0] = '\0';
+    return append_text(dst, capacity, &used, text) ? UI_FORMAT_STATUS_OK :
+                                                    UI_FORMAT_STATUS_TRUNCATED;
+}
+
 static const char *blocker_text(ui_product_blocker_t blocker)
 {
     switch (blocker)
@@ -108,133 +120,288 @@ static const char *blocker_text(ui_product_blocker_t blocker)
     }
 }
 
-static bsp_status_t draw_line(const ili9341_t *display,
-                              uint16_t x,
-                              uint16_t y,
-                              const char *text,
-                              uint8_t scale,
-                              uint16_t color)
+static ui_format_status_t format_primary_value(const ui_product_measurement_t *result,
+                                               char *dst,
+                                               size_t capacity)
 {
-    return ui_fallback_draw_text_scaled(display, x, y, text, scale, color, UI_COLOR_BLACK);
+    if ((result == NULL) || (dst == NULL) || (capacity == 0u))
+    {
+        return UI_FORMAT_STATUS_INVALID_ARG;
+    }
+    if (result->status == MEASUREMENT_AUTO_STATUS_OPEN_LIKE)
+    {
+        return write_literal("OPEN", dst, capacity);
+    }
+    if (result->status == MEASUREMENT_AUTO_STATUS_SHORT_LIKE)
+    {
+        return write_literal("SHORT", dst, capacity);
+    }
+    if (!result->derived_valid)
+    {
+        return write_literal("n/a", dst, capacity);
+    }
+    switch (result->interpretation)
+    {
+    case MEASUREMENT_INTERPRET_RESISTIVE:
+        return ui_format_resistance(result->resistance_ohms, dst, capacity);
+    case MEASUREMENT_INTERPRET_CAPACITIVE:
+        return result->capacitance_valid ? ui_format_capacitance(result->capacitance_f, dst, capacity) :
+                                           write_literal("n/a", dst, capacity);
+    case MEASUREMENT_INTERPRET_INDUCTIVE:
+        return result->inductance_valid ? ui_format_inductance(result->inductance_h, dst, capacity) :
+                                          write_literal("n/a", dst, capacity);
+    case MEASUREMENT_INTERPRET_MIXED_OR_UNKNOWN:
+    default:
+        return ui_format_resistance(result->magnitude_ohms, dst, capacity);
+    }
 }
 
-static bsp_status_t draw_result_primary(const ili9341_t *display, const measurement_session_result_t *result)
+typedef struct
 {
-    char value[24] = {0};
-    (void)ui_format_primary_value(result, value, sizeof(value));
-    bsp_status_t status = draw_line(display,
-                                    8u,
-                                    24u,
-                                    ui_format_interpretation_token(result->classification.interpretation),
-                                    2u,
-                                    UI_COLOR_CYAN);
-    if (status != BSP_STATUS_OK)
+    uint16_t x;
+    uint16_t y;
+    uint16_t color;
+    uint8_t scale;
+    char text[UI_FALLBACK_TEXT_MAX_CHARS];
+} ui_product_line_t;
+
+static void line_set(ui_product_line_t *line,
+                     uint16_t x,
+                     uint16_t y,
+                     uint8_t scale,
+                     uint16_t color,
+                     const char *text)
+{
+    if (line == NULL)
     {
-        return status;
+        return;
     }
-    status = draw_line(display, 8u, 64u, value, 3u, UI_COLOR_WHITE);
-    if (status != BSP_STATUS_OK)
+    *line = (ui_product_line_t){0};
+    line->x = x;
+    line->y = y;
+    line->scale = scale;
+    line->color = color;
+    if (text != NULL)
     {
-        return status;
+        size_t used = 0u;
+        (void)append_text(line->text, sizeof(line->text), &used, text);
+    }
+}
+
+static bool prepare_result_primary_line(const ui_product_measurement_t *result,
+                                        uint8_t index,
+                                        ui_product_line_t *line)
+{
+    if ((result == NULL) || (line == NULL))
+    {
+        return false;
+    }
+    if (index == 0u)
+    {
+        line_set(line, 8u, 24u, 2u, UI_COLOR_CYAN, ui_format_interpretation_token(result->interpretation));
+        return true;
+    }
+    if (index == 1u)
+    {
+        char value[24] = {0};
+        (void)format_primary_value(result, value, sizeof(value));
+        line_set(line, 8u, 64u, 3u, UI_COLOR_WHITE, value);
+        return true;
+    }
+    if (index != 2u)
+    {
+        return false;
     }
     char footer[32] = {0};
     size_t used = 0u;
-    if (!append_text(footer, sizeof(footer), &used, amp_token(result->primary_attempt.config.amplitude)) ||
+    if (!append_text(footer, sizeof(footer), &used, amp_token(result->amplitude)) ||
         !append_char(footer, sizeof(footer), &used, ' ') ||
-        !append_text(footer, sizeof(footer), &used, freq_token(result->primary_attempt.config.frequency)))
+        !append_text(footer, sizeof(footer), &used, freq_token(result->frequency)))
     {
-        return BSP_STATUS_ERROR;
+        return false;
     }
-    return draw_line(display, 8u, 118u, footer, 1u, UI_COLOR_GREEN);
+    line_set(line, 8u, 118u, 1u, UI_COLOR_GREEN, footer);
+    return true;
 }
 
-static bsp_status_t draw_result_details(const ili9341_t *display, const measurement_session_result_t *result)
+static bool prepare_result_details_line(const ui_product_measurement_t *result,
+                                        uint8_t index,
+                                        ui_product_line_t *line)
 {
+    if ((result == NULL) || (line == NULL))
+    {
+        return false;
+    }
+    if (index == 0u)
+    {
+        line_set(line, 8u, 12u, 2u, UI_COLOR_CYAN, "DETAILS");
+        return true;
+    }
     char text[32] = {0};
-    bsp_status_t status = draw_line(display, 8u, 12u, "DETAILS", 2u, UI_COLOR_CYAN);
-    if (status != BSP_STATUS_OK)
+    size_t used = 0u;
+    if (index == 1u)
     {
-        return status;
+        (void)ui_format_resistance(result->resistance_ohms, text, sizeof(text));
+        char row[32] = {0};
+        (void)append_text(row, sizeof(row), &used, "R ");
+        (void)append_text(row, sizeof(row), &used, text);
+        line_set(line, 8u, 48u, 1u, UI_COLOR_WHITE, row);
+        return true;
     }
-    (void)ui_format_resistance(result->primary_attempt.derived.resistance_ohms, text, sizeof(text));
-    status = draw_line(display, 8u, 48u, "R", 1u, UI_COLOR_AMBER);
-    if (status == BSP_STATUS_OK)
+    if (index == 2u)
     {
-        status = draw_line(display, 38u, 48u, text, 1u, UI_COLOR_WHITE);
+        (void)ui_format_reactance(result->reactance_ohms, text, sizeof(text));
+        char row[32] = {0};
+        (void)append_text(row, sizeof(row), &used, "X ");
+        (void)append_text(row, sizeof(row), &used, text);
+        line_set(line, 8u, 66u, 1u, UI_COLOR_WHITE, row);
+        return true;
     }
-    if (status != BSP_STATUS_OK)
+    if (index == 3u)
     {
-        return status;
+        (void)ui_format_phase_rad(result->phase_rad, text, sizeof(text));
+        char row[32] = {0};
+        (void)append_text(row, sizeof(row), &used, "PHASE ");
+        (void)append_text(row, sizeof(row), &used, text);
+        line_set(line, 8u, 84u, 1u, UI_COLOR_WHITE, row);
+        return true;
     }
-    (void)ui_format_reactance(result->primary_attempt.derived.reactance_ohms, text, sizeof(text));
-    status = draw_line(display, 8u, 66u, "X", 1u, UI_COLOR_AMBER);
-    if (status == BSP_STATUS_OK)
-    {
-        status = draw_line(display, 38u, 66u, text, 1u, UI_COLOR_WHITE);
-    }
-    if (status != BSP_STATUS_OK)
-    {
-        return status;
-    }
-    (void)ui_format_phase_rad(result->primary_attempt.derived.phase_rad, text, sizeof(text));
-    status = draw_line(display, 8u, 84u, "PHASE", 1u, UI_COLOR_AMBER);
-    if (status == BSP_STATUS_OK)
-    {
-        status = draw_line(display, 56u, 84u, text, 1u, UI_COLOR_WHITE);
-    }
-    return status;
+    return false;
 }
 
-static bsp_status_t draw_view(const ili9341_t *display, const ui_product_view_t *view)
+static bool prepare_line(const ui_product_view_t *view, uint8_t index, ui_product_line_t *line)
 {
+    if ((view == NULL) || (line == NULL))
+    {
+        return false;
+    }
     switch (view->state)
     {
     case UI_PRODUCT_STATE_STARTUP:
-        return draw_line(display, 8u, 24u, "WTK RLC", 3u, UI_COLOR_WHITE);
+        if (index == 0u)
+        {
+            line_set(line, 8u, 24u, 3u, UI_COLOR_WHITE, "WTK RLC");
+            return true;
+        }
+        return false;
     case UI_PRODUCT_STATE_SELF_TEST:
-        return draw_line(display, 8u, 24u, "STARTING", 2u, UI_COLOR_WHITE);
+        if (index == 0u)
+        {
+            line_set(line, 8u, 24u, 2u, UI_COLOR_WHITE, "STARTING");
+            return true;
+        }
+        return false;
     case UI_PRODUCT_STATE_CALIBRATION_CHECK:
-        return draw_line(display, 8u, 24u, "CAL CHECK", 2u, UI_COLOR_WHITE);
+        if (index == 0u)
+        {
+            line_set(line, 8u, 24u, 2u, UI_COLOR_WHITE, "CAL CHECK");
+            return true;
+        }
+        return false;
     case UI_PRODUCT_STATE_CALIBRATION_REQUIRED:
-        if (view->storage_unavailable || (view->calibration_status == UI_PRODUCT_CAL_STORAGE_ERROR))
+        if (index == 0u)
         {
-            return draw_line(display, 8u, 24u, "STORAGE ERROR", 2u, UI_COLOR_RED);
+            line_set(line,
+                     8u,
+                     24u,
+                     (view->storage_unavailable ||
+                      (view->calibration_status == UI_PRODUCT_CAL_STORAGE_ERROR)) ? 2u : 1u,
+                     (view->storage_unavailable ||
+                      (view->calibration_status == UI_PRODUCT_CAL_STORAGE_ERROR)) ? UI_COLOR_RED : UI_COLOR_AMBER,
+                     (view->storage_unavailable ||
+                      (view->calibration_status == UI_PRODUCT_CAL_STORAGE_ERROR)) ? "STORAGE ERROR" :
+                                                                                     "CALIBRATION REQUIRED");
+            return true;
         }
-        return draw_line(display, 8u, 24u, "CALIBRATION REQUIRED", 1u, UI_COLOR_AMBER);
+        return false;
     case UI_PRODUCT_STATE_READY:
-        return draw_line(display, 8u, 24u, "READY", 3u, UI_COLOR_GREEN);
-    case UI_PRODUCT_STATE_MEASURING:
-    {
-        bsp_status_t status = draw_line(display, 8u, 24u, "MEASURING", 2u, UI_COLOR_WHITE);
-        if ((status == BSP_STATUS_OK) && view->has_measurement_result)
+        if (index == 0u)
         {
-            status = draw_result_primary(display, &view->measurement_result);
+            line_set(line, 8u, 24u, 3u, UI_COLOR_GREEN, "READY");
+            return true;
         }
-        return status;
-    }
+        return false;
+    case UI_PRODUCT_STATE_MEASURING:
+        if (index == 0u)
+        {
+            line_set(line, 8u, 24u, 2u, UI_COLOR_WHITE, "MEASURING");
+            return true;
+        }
+        return view->has_measurement_result ?
+                   prepare_result_primary_line(&view->measurement_result, (uint8_t)(index - 1u), line) :
+                   false;
     case UI_PRODUCT_STATE_RESULT:
         if (!view->has_measurement_result)
         {
-            return draw_line(display, 8u, 24u, "READY", 3u, UI_COLOR_GREEN);
+            if (index == 0u)
+            {
+                line_set(line, 8u, 24u, 3u, UI_COLOR_GREEN, "READY");
+                return true;
+            }
+            return false;
         }
         return (view->page == UI_PRODUCT_PAGE_DETAILS) ?
-                   draw_result_details(display, &view->measurement_result) :
-                   draw_result_primary(display, &view->measurement_result);
+                   prepare_result_details_line(&view->measurement_result, index, line) :
+                   prepare_result_primary_line(&view->measurement_result, index, line);
     case UI_PRODUCT_STATE_SAFETY_BLOCKED:
-        return draw_line(display, 8u, 24u, blocker_text(view->safety_blocker), 1u, UI_COLOR_RED);
+        if (index == 0u)
+        {
+            line_set(line, 8u, 24u, 1u, UI_COLOR_RED, blocker_text(view->safety_blocker));
+            return true;
+        }
+        return false;
     case UI_PRODUCT_STATE_FAULT:
     default:
-    {
-        char fault[28] = {0};
-        size_t used = 0u;
-        if (!append_text(fault, sizeof(fault), &used, "FAULT ") ||
-            !append_hex8(fault, sizeof(fault), &used, view->safety_fault_mask))
         {
-            return BSP_STATUS_ERROR;
+            if (index != 0u)
+            {
+                return false;
+            }
+            char fault[28] = {0};
+            size_t used = 0u;
+            if (!append_text(fault, sizeof(fault), &used, "FAULT ") ||
+                !append_hex8(fault, sizeof(fault), &used, view->safety_fault_mask))
+            {
+                return false;
+            }
+            line_set(line, 8u, 24u, 1u, UI_COLOR_RED, fault);
+            return true;
         }
-        return draw_line(display, 8u, 24u, fault, 1u, UI_COLOR_RED);
     }
+}
+
+static bool requires_full_clear(const ui_product_t *ui)
+{
+    return (ui == NULL) || !ui->have_rendered ||
+           (ui->pending.state != ui->rendered.state) ||
+           (ui->pending.page != ui->rendered.page);
+}
+
+static void start_render(ui_product_t *ui)
+{
+    if (ui == NULL)
+    {
+        return;
     }
+    ui->rendering = ui->pending;
+    ui->line_index = 0u;
+    ui->text_op.active = false;
+    ui->clear_started = false;
+    ui->render_state = UI_PRODUCT_RENDER_CLEAR;
+    ui->active = true;
+}
+
+static void start_clear_region(ui_product_t *ui)
+{
+    if (requires_full_clear(ui))
+    {
+        ili9341_fill_start(&ui->clear_fill, 0u, 0u, ILI9341_WIDTH, ILI9341_HEIGHT, UI_COLOR_BLACK);
+    }
+    else
+    {
+        ili9341_fill_start(&ui->clear_fill, 0u, 0u, ILI9341_WIDTH, 144u, UI_COLOR_BLACK);
+    }
+    ui->clear_started = true;
 }
 
 void ui_product_init(ui_product_t *ui)
@@ -252,8 +419,10 @@ void ui_product_request(ui_product_t *ui, const ui_product_view_t *view)
         return;
     }
     ui->pending = *view;
-    ui->active = true;
-    ui->clear_started = false;
+    if (!ui->active)
+    {
+        start_render(ui);
+    }
 }
 
 bsp_status_t ui_product_step(ui_product_t *ui, const ili9341_t *display, bool quiet)
@@ -270,28 +439,86 @@ bsp_status_t ui_product_step(ui_product_t *ui, const ili9341_t *display, bool qu
     {
         return BSP_STATUS_BUSY;
     }
-    if (!ui->clear_started)
+    if (ui->render_state == UI_PRODUCT_RENDER_CLEAR)
     {
-        ili9341_fill_start(&ui->clear_fill, 0u, 0u, ILI9341_WIDTH, ILI9341_HEIGHT, UI_COLOR_BLACK);
-        ui->clear_started = true;
-    }
-    const bsp_status_t clear_status = ili9341_fill_step(display, &ui->clear_fill, ILI9341_FILL_CHUNK_PIXELS);
-    if (clear_status == BSP_STATUS_BUSY)
-    {
+        if (!ui->clear_started)
+        {
+            start_clear_region(ui);
+        }
+        const bsp_status_t clear_status = ili9341_fill_step(display,
+                                                            &ui->clear_fill,
+                                                            ILI9341_FILL_CHUNK_PIXELS);
+        if (clear_status != BSP_STATUS_OK)
+        {
+            ui->active = false;
+            ui->render_state = UI_PRODUCT_RENDER_IDLE;
+            return clear_status;
+        }
+        if (ui->clear_fill.active)
+        {
+            return BSP_STATUS_BUSY;
+        }
+        ui->render_state = UI_PRODUCT_RENDER_TEXT;
         return BSP_STATUS_BUSY;
     }
-    if (clear_status != BSP_STATUS_OK)
+
+    if (ui->render_state != UI_PRODUCT_RENDER_TEXT)
     {
         ui->active = false;
-        return clear_status;
+        ui->render_state = UI_PRODUCT_RENDER_IDLE;
+        return BSP_STATUS_ERROR;
     }
-    const bsp_status_t draw_status = draw_view(display, &ui->pending);
-    if (draw_status == BSP_STATUS_OK)
+
+    if (ui->text_op.active)
     {
-        ui->rendered_generation = ui->pending.generation;
-        ui->active = false;
+        const bsp_status_t text_status = ui_fallback_text_scaled_step(display, &ui->text_op);
+        if ((text_status != BSP_STATUS_OK) && (text_status != BSP_STATUS_BUSY))
+        {
+            ui->active = false;
+            ui->render_state = UI_PRODUCT_RENDER_IDLE;
+            return text_status;
+        }
+        if (ui->text_op.active || (text_status == BSP_STATUS_BUSY))
+        {
+            return BSP_STATUS_BUSY;
+        }
+        ui->line_index++;
+        return BSP_STATUS_BUSY;
     }
-    return draw_status;
+
+    if (ui->pending.generation != ui->rendering.generation)
+    {
+        start_render(ui);
+        return BSP_STATUS_BUSY;
+    }
+
+    ui_product_line_t line;
+    if (!prepare_line(&ui->rendering, ui->line_index, &line))
+    {
+        ui->rendered = ui->rendering;
+        ui->rendered_generation = ui->rendering.generation;
+        ui->have_rendered = true;
+        ui->active = false;
+        ui->render_state = UI_PRODUCT_RENDER_IDLE;
+        if (ui->pending.generation != ui->rendered_generation)
+        {
+            start_render(ui);
+            return BSP_STATUS_BUSY;
+        }
+        return BSP_STATUS_OK;
+    }
+    ui_fallback_text_scaled_start(&ui->text_op,
+                                  line.x,
+                                  line.y,
+                                  line.text,
+                                  line.scale,
+                                  line.color,
+                                  UI_COLOR_BLACK);
+    if (!ui->text_op.active)
+    {
+        ui->line_index++;
+    }
+    return BSP_STATUS_BUSY;
 }
 
 uint32_t ui_product_context_size_bytes(void)

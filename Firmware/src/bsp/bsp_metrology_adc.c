@@ -11,12 +11,9 @@ enum
     METROLOGY_SAMPLE_SMP_7P5 = 1u, /* SMP=001 -> 7.5 ADC cycles */
 };
 
-static uint32_t g_raw_words[BSP_METROLOGY_RAW_WORD_COUNT];
 static volatile bool g_dma_complete = false;
 static volatile bool g_dma_error = false;
 static bool g_acquired = false;
-
-_Static_assert(sizeof(g_raw_words) == 3072u, "canonical metrology raw buffer");
 
 static bool deadline_reached(uint32_t now_ms, uint32_t deadline_ms)
 {
@@ -104,11 +101,6 @@ void bsp_metrology_adc_stop(void)
 {
     stop_tim2();
     disable_adc_dma();
-}
-
-uint32_t *bsp_metrology_adc_raw_words(void)
-{
-    return g_raw_words;
 }
 
 bool bsp_metrology_adc_dma_complete(void)

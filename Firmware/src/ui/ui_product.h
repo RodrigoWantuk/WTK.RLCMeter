@@ -6,6 +6,7 @@
 
 #include "drivers/ili9341.h"
 #include "measurement/measurement_engine.h"
+#include "ui/ui_fallback_renderer.h"
 
 typedef enum
 {
@@ -26,6 +27,13 @@ typedef enum
     UI_PRODUCT_PAGE_DETAILS,
     UI_PRODUCT_PAGE_COUNT,
 } ui_product_page_t;
+
+typedef enum
+{
+    UI_PRODUCT_RENDER_IDLE = 0,
+    UI_PRODUCT_RENDER_CLEAR,
+    UI_PRODUCT_RENDER_TEXT,
+} ui_product_render_state_t;
 
 typedef enum
 {
@@ -56,13 +64,35 @@ typedef enum
 
 typedef struct
 {
+    measurement_auto_status_t status;
+    measurement_interpretation_t interpretation;
+    measurement_confidence_class_t confidence;
+    measurement_quality_class_t quality;
+    measurement_qualification_t qualification;
+    hw_excitation_freq_t frequency;
+    hw_excitation_amp_t amplitude;
+    float resistance_ohms;
+    float reactance_ohms;
+    float magnitude_ohms;
+    float phase_rad;
+    float capacitance_f;
+    float inductance_h;
+    uint8_t attempt_count;
+    uint8_t primary_attempt_index;
+    bool derived_valid;
+    bool capacitance_valid;
+    bool inductance_valid;
+} ui_product_measurement_t;
+
+typedef struct
+{
     ui_product_state_t state;
     ui_product_page_t page;
     ui_product_calibration_state_t calibration_status;
     ui_product_blocker_t safety_blocker;
     ui_product_battery_t battery_state;
     uint8_t measurement_state;
-    measurement_session_result_t measurement_result;
+    ui_product_measurement_t measurement_result;
     bool has_measurement_result;
     bool measurement_result_partial;
     bool storage_unavailable;
@@ -78,8 +108,14 @@ typedef struct
 {
     ili9341_fill_t clear_fill;
     ui_product_view_t pending;
+    ui_product_view_t rendered;
+    ui_product_view_t rendering;
+    ui_fallback_text_op_t text_op;
     uint32_t rendered_generation;
+    uint8_t line_index;
+    ui_product_render_state_t render_state;
     bool active;
+    bool have_rendered;
     bool clear_started;
 } ui_product_t;
 

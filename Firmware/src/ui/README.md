@@ -11,7 +11,10 @@ ui_product.c/.h
 
 `ui_format` provides bounded SI/unit formatting for product result views without target
 float `printf`. `ui_product` renders the initial PRODUCT view model with no full
-framebuffer and defers rendering while quiet mode is active.
+framebuffer and defers rendering while quiet mode is active. The Phase 08 Stage 1.1
+renderer is cooperative: clears/fills are chunked by the ILI9341 driver, fallback text
+draws one scaled character per step, and newer view generations are coalesced rather
+than queued without bound.
 
 ## Planned files
 
@@ -38,6 +41,11 @@ screen_diagnostics.c/.h
 - UI never controls relays or ranges directly;
 - SI-prefix/unit formatting remains separate from metrology calculations;
 - heavy SPI updates are suspended in quiet mode.
+
+Same-screen product updates clear only the compact result/body region instead of forcing
+a full-screen clear. Full clears remain for state/page transitions and the first render.
+The current pixel chunk size intentionally stays small to preserve SRAM until physical
+SPI/display timing data justifies a larger scratch buffer.
 
 ## Baseline screens
 

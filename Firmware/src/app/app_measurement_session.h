@@ -56,8 +56,6 @@ typedef struct
     measurement_auto_session_t policy;
     measurement_attempt_config_t current_attempt;
     measurement_calibrated_result_t dsp_result;
-    measurement_session_result_t last_partial;
-    measurement_session_result_t last_final;
     const bsp_clock_summary_t *clock_summary;
     bsp_status_t clock_status;
     app_measurement_session_state_t state;

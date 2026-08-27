@@ -48,6 +48,15 @@ typedef struct
     hw_metrology_measure_error_t error;
 } fake_phase05_t;
 
+static app_io_workspace_t g_service_workspace;
+
+static void init_test_service(app_calibration_service_t *service)
+{
+    app_calibration_service_init(service);
+    app_io_workspace_init(&g_service_workspace);
+    app_calibration_service_attach_workspace(service, &g_service_workspace);
+}
+
 static int expect_true(bool condition, const char *message)
 {
     if (!condition)
@@ -1016,7 +1025,7 @@ static int test_session_runs_open_capture_end_to_end(void)
 {
     int failures = 0;
     app_calibration_service_t service;
-    app_calibration_service_init(&service);
+    init_test_service(&service);
     app_calibration_session_t session;
     fake_phase05_t fake = {0};
     app_cal_session_io_t io = fake_phase05_io(&fake);
@@ -1068,7 +1077,7 @@ static int test_session_phase05_safety_abort_fails_safely(void)
 {
     int failures = 0;
     app_calibration_service_t service;
-    app_calibration_service_init(&service);
+    init_test_service(&service);
     app_calibration_session_t session;
     fake_phase05_t fake = {0};
     app_cal_session_io_t io = fake_phase05_io(&fake);
@@ -1113,7 +1122,7 @@ static int test_session_cancel_waits_for_phase05_abort(void)
 {
     int failures = 0;
     app_calibration_service_t service;
-    app_calibration_service_init(&service);
+    init_test_service(&service);
     app_calibration_session_t session;
     fake_phase05_t fake = {0};
     app_cal_session_io_t io = fake_phase05_io(&fake);
@@ -1149,7 +1158,7 @@ static int test_product_service_owns_store_and_blocks_rescan_while_busy(void)
     int failures = 0;
     fake_store_t fake = {0};
     app_calibration_service_t service;
-    app_calibration_service_init(&service);
+    init_test_service(&service);
     measurement_cal_store_io_t io = fake_io(&fake);
     (void)app_calibration_service_load(&service, &io, TEST_CAPACITY_BYTES);
     failures += expect_u32((uint32_t)app_calibration_service_status(&service),
@@ -1157,13 +1166,46 @@ static int test_product_service_owns_store_and_blocks_rescan_while_busy(void)
                            "blank flash should leave no valid calibration");
     failures += expect_true(fake.read_count != 0u, "service store should read slots");
 
+    fake.read_count = 0u;
+    failures += expect_true(app_io_workspace_acquire(&g_service_workspace,
+                                                     APP_IO_WORKSPACE_OWNER_METROLOGY) == BSP_STATUS_OK,
+                            "metrology can own shared workspace");
+    failures += expect_true(app_calibration_service_load(&service, &io, TEST_CAPACITY_BYTES) == BSP_STATUS_BUSY,
+                            "metrology ownership blocks calibration load");
+    failures += expect_u32(fake.read_count, 0u, "workspace-conflict rescan must not touch storage");
+    failures += expect_true(app_io_workspace_release(&g_service_workspace,
+                                                     APP_IO_WORKSPACE_OWNER_METROLOGY) == BSP_STATUS_OK,
+                            "metrology releases workspace");
     const app_cal_workflow_request_t request = request_for(APP_CAL_STANDARD_LOAD);
     failures += expect_true(app_calibration_service_start_workflow(&service, &request) == BSP_STATUS_BUSY,
                             "service workflow should start");
-    fake.read_count = 0u;
     failures += expect_true(app_calibration_service_load(&service, &io, TEST_CAPACITY_BYTES) == BSP_STATUS_BUSY,
                             "busy service should reject rescan");
     failures += expect_u32(fake.read_count, 0u, "busy rescan must not touch storage");
+    return failures;
+}
+
+static int test_boot_load_releases_workspace_for_metrology(void)
+{
+    int failures = 0;
+    fake_store_t fake = {0};
+    measurement_cal_set_t active_set = full_cal_set(10u, 0.0f);
+    failures += expect_true(fake_write_slot_frame(&fake, MEASUREMENT_CAL_STORE_SLOT_A, &active_set),
+                            "boot-load fixture writes active calibration");
+
+    app_calibration_service_t service;
+    init_test_service(&service);
+    measurement_cal_store_io_t io = fake_io(&fake);
+    failures += expect_true(app_calibration_service_load(&service, &io, TEST_CAPACITY_BYTES) == BSP_STATUS_OK,
+                            "boot load succeeds");
+    failures += expect_true(app_io_workspace_owner(&g_service_workspace) == APP_IO_WORKSPACE_OWNER_FREE,
+                            "boot load releases shared workspace");
+    failures += expect_true(app_io_workspace_acquire(&g_service_workspace,
+                                                     APP_IO_WORKSPACE_OWNER_METROLOGY) == BSP_STATUS_OK,
+                            "metrology can acquire after boot load");
+    failures += expect_true(app_io_workspace_release(&g_service_workspace,
+                                                     APP_IO_WORKSPACE_OWNER_METROLOGY) == BSP_STATUS_OK,
+                            "metrology releases after boot-load proof");
     return failures;
 }
 
@@ -1177,7 +1219,7 @@ static int test_service_commit_activates_only_after_verified_store_done(void)
                             "old active fixture writes");
 
     app_calibration_service_t service;
-    app_calibration_service_init(&service);
+    init_test_service(&service);
     measurement_cal_store_io_t io = fake_io(&fake);
     failures += expect_true(app_calibration_service_load(&service, &io, TEST_CAPACITY_BYTES) == BSP_STATUS_OK,
                             "service loads old active set");
@@ -1191,6 +1233,9 @@ static int test_service_commit_activates_only_after_verified_store_done(void)
     *candidate = new_set;
     failures += expect_true(app_calibration_service_candidate_commit_start(&service) == BSP_STATUS_BUSY,
                             "commit starts asynchronously");
+    failures += expect_true(app_io_workspace_owner(&g_service_workspace) ==
+                                APP_IO_WORKSPACE_OWNER_CALIBRATION_STORE,
+                            "commit owns frame workspace while async");
     active = app_calibration_service_active_set(&service);
     failures += expect_true((active != NULL) && (active->sequence == 1u),
                             "old active remains during commit");
@@ -1231,6 +1276,8 @@ static int test_service_commit_activates_only_after_verified_store_done(void)
 
     failures += expect_true(app_calibration_service_candidate_begin(&service) == BSP_STATUS_OK,
                             "candidate C begin after DONE acknowledge");
+    failures += expect_true(app_io_workspace_owner(&g_service_workspace) == APP_IO_WORKSPACE_OWNER_FREE,
+                            "commit releases workspace after terminal activation");
     candidate = app_calibration_service_candidate_set(&service);
     failures += expect_true(candidate != NULL, "candidate C pointer");
     measurement_cal_set_init(candidate,
@@ -1255,7 +1302,7 @@ static int test_service_commit_failure_preserves_old_active(void)
                             "old active fixture writes for failure");
 
     app_calibration_service_t service;
-    app_calibration_service_init(&service);
+    init_test_service(&service);
     measurement_cal_store_io_t io = fake_io(&fake);
     failures += expect_true(app_calibration_service_load(&service, &io, TEST_CAPACITY_BYTES) == BSP_STATUS_OK,
                             "service loads old active before failure");
@@ -1266,6 +1313,9 @@ static int test_service_commit_failure_preserves_old_active(void)
     fake.fail_program = true;
     failures += expect_true(app_calibration_service_candidate_commit_start(&service) == BSP_STATUS_BUSY,
                             "failing commit starts");
+    failures += expect_true(app_io_workspace_owner(&g_service_workspace) ==
+                                APP_IO_WORKSPACE_OWNER_CALIBRATION_STORE,
+                            "failing commit owns workspace until terminal error");
     for (uint32_t i = 0u; i < 12u; i++)
     {
         const bsp_status_t status = app_calibration_service_step(&service, 200u + i);
@@ -1279,9 +1329,14 @@ static int test_service_commit_failure_preserves_old_active(void)
                             "old active preserved after commit failure");
     failures += expect_true(app_calibration_service_status(&service) == APP_CAL_SERVICE_ERROR,
                             "service reports commit error");
+    failures += expect_true(app_io_workspace_owner(&g_service_workspace) ==
+                                APP_IO_WORKSPACE_OWNER_CALIBRATION_STORE,
+                            "commit error keeps workspace until terminal acknowledge");
     fake.fail_program = false;
     failures += expect_true(app_calibration_service_candidate_discard(&service) == BSP_STATUS_OK,
                             "explicit discard acknowledges failed store transaction");
+    failures += expect_true(app_io_workspace_owner(&g_service_workspace) == APP_IO_WORKSPACE_OWNER_FREE,
+                            "discard releases workspace after terminal failure acknowledge");
     failures += expect_true(app_calibration_service_candidate_begin(&service) == BSP_STATUS_OK,
                             "candidate retry begins");
     candidate = app_calibration_service_candidate_set(&service);
@@ -1305,7 +1360,7 @@ static int test_dirty_candidate_blocks_rescan_until_discard(void)
                             "old active fixture writes for dirty rescan");
 
     app_calibration_service_t service;
-    app_calibration_service_init(&service);
+    init_test_service(&service);
     measurement_cal_store_io_t io = fake_io(&fake);
     failures += expect_true(app_calibration_service_load(&service, &io, TEST_CAPACITY_BYTES) == BSP_STATUS_OK,
                             "service loads active before dirty candidate");
@@ -1339,7 +1394,7 @@ static int test_second_recalibration_alternates_slots_without_aliasing(void)
                             "initial A fixture writes");
 
     app_calibration_service_t service;
-    app_calibration_service_init(&service);
+    init_test_service(&service);
     measurement_cal_store_io_t io = fake_io(&fake);
     failures += expect_true(app_calibration_service_load(&service, &io, TEST_CAPACITY_BYTES) == BSP_STATUS_OK,
                             "service loads A");
@@ -1379,7 +1434,7 @@ static int test_second_recalibration_alternates_slots_without_aliasing(void)
                             "C alternates back to slot A");
 
     app_calibration_service_t rebooted;
-    app_calibration_service_init(&rebooted);
+    init_test_service(&rebooted);
     failures += expect_true(app_calibration_service_load(&rebooted, &io, TEST_CAPACITY_BYTES) == BSP_STATUS_OK,
                             "reboot reloads newest committed C");
     active = app_calibration_service_active_set(&rebooted);
@@ -1548,6 +1603,7 @@ int main(int argc, char **argv)
     failures += test_safety_abort_fails_immediately();
     failures += test_cancel_during_capture_discards_evidence();
     failures += test_product_service_owns_store_and_blocks_rescan_while_busy();
+    failures += test_boot_load_releases_workspace_for_metrology();
     failures += test_service_commit_activates_only_after_verified_store_done();
     failures += test_service_commit_failure_preserves_old_active();
     failures += test_dirty_candidate_blocks_rescan_until_discard();

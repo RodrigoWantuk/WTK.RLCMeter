@@ -63,6 +63,7 @@ add_library(wtk_firmware_common STATIC
     src/app/app_calibration_session.c
     src/app/app_calibration_campaign.c
     src/app/app_calibration_workflow.c
+    src/app/app_io_workspace.c
     src/app/app_measurement_session.c
     src/app/app_product.c
     src/app/app_version.c
@@ -217,8 +218,8 @@ elseif(WTK_TARGET_PLATFORM STREQUAL "stm32")
     set(WTK_SIZE_BUDGET "none")
     if(WTK_FIRMWARE_PROFILE STREQUAL "BRINGUP")
         set(WTK_SIZE_BUDGET "bringup")
-    elseif(WTK_BUILD_TYPE STREQUAL "Release")
-        set(WTK_SIZE_BUDGET "release")
+    elseif(WTK_FIRMWARE_PROFILE STREQUAL "PRODUCT")
+        set(WTK_SIZE_BUDGET "product")
     endif()
 
     target_link_options(wtk_rlcmeter PRIVATE

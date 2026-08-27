@@ -1044,6 +1044,29 @@ static void lab_bind_refs(app_bringup_console_t *console,
     console->faults_ref = faults;
 }
 
+static uint32_t *lab_raw_words(app_bringup_console_t *console)
+{
+    return (console == NULL) ? NULL : app_io_workspace_metrology_raw_words(console->workspace);
+}
+
+static bsp_status_t lab_acquire_raw_workspace(app_bringup_console_t *console)
+{
+    if ((console == NULL) || (console->workspace == NULL))
+    {
+        return BSP_STATUS_INVALID_ARG;
+    }
+    return app_io_workspace_acquire(console->workspace, APP_IO_WORKSPACE_OWNER_METROLOGY);
+}
+
+static void lab_release_raw_workspace(app_bringup_console_t *console)
+{
+    if ((console != NULL) && (console->workspace != NULL) &&
+        (app_io_workspace_owner(console->workspace) == APP_IO_WORKSPACE_OWNER_METROLOGY))
+    {
+        (void)app_io_workspace_release(console->workspace, APP_IO_WORKSPACE_OWNER_METROLOGY);
+    }
+}
+
 static bsp_status_t lab_init_metrology_session(app_bringup_console_t *console)
 {
     const hw_metrology_session_io_t io = {
@@ -1076,7 +1099,7 @@ static bsp_status_t lab_init_metrology_session(app_bringup_console_t *console)
     };
     return hw_metrology_session_init(&console->session,
                                      &io,
-                                     bsp_metrology_adc_raw_words(),
+                                     lab_raw_words(console),
                                      HW_METROLOGY_RAW_WORD_COUNT);
 }
 
@@ -1118,7 +1141,7 @@ static bsp_status_t lab_init_metrology_measure(app_bringup_console_t *console)
     };
     return hw_metrology_measure_init(&console->measure,
                                      &io,
-                                     bsp_metrology_adc_raw_words(),
+                                     lab_raw_words(console),
                                      HW_METROLOGY_RAW_WORD_COUNT);
 }
 
@@ -1127,8 +1150,21 @@ static bsp_status_t lab_auto_start_attempt(const hw_metrology_measure_request_t 
                                            void *user)
 {
     app_bringup_console_t *console = (app_bringup_console_t *)user;
-    return (console == NULL) ? BSP_STATUS_INVALID_ARG :
-                               hw_metrology_measure_start(&console->measure, request, now_ms);
+    if (console == NULL)
+    {
+        return BSP_STATUS_INVALID_ARG;
+    }
+    const bsp_status_t workspace_status = lab_acquire_raw_workspace(console);
+    if (workspace_status != BSP_STATUS_OK)
+    {
+        return workspace_status;
+    }
+    const bsp_status_t status = hw_metrology_measure_start(&console->measure, request, now_ms);
+    if ((status != BSP_STATUS_OK) && (status != BSP_STATUS_BUSY))
+    {
+        lab_release_raw_workspace(console);
+    }
+    return status;
 }
 
 static bsp_status_t lab_auto_step_attempt(uint32_t now_ms, void *user)
@@ -1176,6 +1212,7 @@ static void lab_auto_attempt_acknowledge(void *user)
     if (console != NULL)
     {
         hw_metrology_measure_acknowledge(&console->measure);
+        lab_release_raw_workspace(console);
     }
 }
 
@@ -1558,12 +1595,19 @@ static void lab_start_metrology_capture(app_bringup_console_t *console,
         .range_id = range_id,
     };
 
+    const bsp_status_t workspace_status = lab_acquire_raw_workspace(console);
+    if (workspace_status != BSP_STATUS_OK)
+    {
+        write_text("lab metrology: BUSY\r\n");
+        return;
+    }
     const bsp_status_t status = hw_metrology_session_start(&console->session, &request, now_ms);
     if (status == BSP_STATUS_BUSY)
     {
         write_text("lab metrology: START\r\n");
         return;
     }
+    lab_release_raw_workspace(console);
     if (status == BSP_STATUS_NOT_SUPPORTED)
     {
         write_text("lab metrology: FORBIDDEN_AMPLITUDE\r\n");
@@ -1600,12 +1644,19 @@ static void lab_start_metrology_measure(app_bringup_console_t *console,
         .range_id = range_id,
     };
 
+    const bsp_status_t workspace_status = lab_acquire_raw_workspace(console);
+    if (workspace_status != BSP_STATUS_OK)
+    {
+        write_text("lab metrology: BUSY\r\n");
+        return;
+    }
     const bsp_status_t status = hw_metrology_measure_start(&console->measure, &request, now_ms);
     if (status == BSP_STATUS_BUSY)
     {
         write_text("lab metrology: START\r\n");
         return;
     }
+    lab_release_raw_workspace(console);
     if (status == BSP_STATUS_NOT_SUPPORTED)
     {
         write_text("lab metrology: FORBIDDEN_AMPLITUDE\r\n");
@@ -1784,6 +1835,7 @@ static void lab_metrology_dump_acknowledge(app_bringup_console_t *console)
     }
     console->dump_source = APP_BRINGUP_METROLOGY_DUMP_NONE;
     console->dump_active = false;
+    lab_release_raw_workspace(console);
 }
 
 static void lab_step_metrology_dump(app_bringup_console_t *console)
@@ -1838,6 +1890,7 @@ static void lab_step_metrology_capture(app_bringup_console_t *console, uint32_t 
             write_text(hw_metrology_session_error_string(hw_metrology_session_error(&console->session)));
             write_text("\r\n");
             hw_metrology_session_acknowledge(&console->session);
+            lab_release_raw_workspace(console);
         }
         (void)status;
         return;
@@ -1848,6 +1901,7 @@ static void lab_step_metrology_capture(app_bringup_console_t *console, uint32_t 
         write_text("lab metrology: ERROR ");
         write_text(hw_metrology_session_error_string(hw_metrology_session_error(&console->session)));
         write_text("\r\n");
+        lab_release_raw_workspace(console);
     }
 }
 
@@ -1876,6 +1930,7 @@ static void lab_step_metrology_measure(app_bringup_console_t *console, uint32_t 
             write_text(hw_metrology_measure_error_string(hw_metrology_measure_error(&console->measure)));
             write_text("\r\n");
             hw_metrology_measure_acknowledge(&console->measure);
+            lab_release_raw_workspace(console);
         }
         (void)status;
         return;
@@ -1886,6 +1941,7 @@ static void lab_step_metrology_measure(app_bringup_console_t *console, uint32_t 
         write_text("lab metrology: ERROR ");
         write_text(hw_metrology_measure_error_string(hw_metrology_measure_error(&console->measure)));
         write_text("\r\n");
+        lab_release_raw_workspace(console);
     }
 }
 
@@ -2427,6 +2483,7 @@ void app_bringup_console_init(app_bringup_console_t *console)
     console->dump_source = APP_BRINGUP_METROLOGY_DUMP_NONE;
     console->cal_session = (app_calibration_session_t){0};
     console->cal_service = NULL;
+    console->workspace = NULL;
     console->range_ref = NULL;
     console->k1_ref = NULL;
     console->sensors_ref = NULL;
@@ -2436,8 +2493,6 @@ void app_bringup_console_init(app_bringup_console_t *console)
     {
         console->line[i] = '\0';
     }
-    (void)lab_init_metrology_session(console);
-    (void)lab_init_metrology_measure(console);
 #else
     console->unused = 0u;
 #endif
@@ -2455,6 +2510,22 @@ void app_bringup_console_attach_calibration_service(app_bringup_console_t *conso
 #else
     (void)console;
     (void)service;
+#endif
+}
+
+void app_bringup_console_attach_workspace(app_bringup_console_t *console,
+                                          app_io_workspace_t *workspace)
+{
+#if WTK_ENABLE_BRINGUP_CONSOLE
+    if (console != NULL)
+    {
+        console->workspace = workspace;
+        (void)lab_init_metrology_session(console);
+        (void)lab_init_metrology_measure(console);
+    }
+#else
+    (void)console;
+    (void)workspace;
 #endif
 }
 

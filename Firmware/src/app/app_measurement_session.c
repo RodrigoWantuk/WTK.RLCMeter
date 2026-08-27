@@ -57,7 +57,6 @@ static void store_policy_event(app_measurement_session_t *session,
         const measurement_session_result_t *partial = measurement_auto_last_result(&session->policy);
         if (partial != NULL)
         {
-            session->last_partial = *partial;
             session->have_partial = true;
         }
         session->pending_event = APP_MEASUREMENT_EVENT_PARTIAL_RESULT;
@@ -67,7 +66,6 @@ static void store_policy_event(app_measurement_session_t *session,
         const measurement_session_result_t *final = measurement_auto_last_result(&session->policy);
         if (final != NULL)
         {
-            session->last_final = *final;
             session->have_final = true;
         }
         session->state = APP_MEASUREMENT_SESSION_DONE;
@@ -339,13 +337,13 @@ const measurement_attempt_config_t *app_measurement_session_current_attempt(
 const measurement_session_result_t *app_measurement_session_partial(
     const app_measurement_session_t *session)
 {
-    return ((session != NULL) && session->have_partial) ? &session->last_partial : NULL;
+    return ((session != NULL) && session->have_partial) ? measurement_auto_last_result(&session->policy) : NULL;
 }
 
 const measurement_session_result_t *app_measurement_session_final(
     const app_measurement_session_t *session)
 {
-    return ((session != NULL) && session->have_final) ? &session->last_final : NULL;
+    return ((session != NULL) && session->have_final) ? measurement_auto_last_result(&session->policy) : NULL;
 }
 
 app_measurement_session_state_t app_measurement_session_state(

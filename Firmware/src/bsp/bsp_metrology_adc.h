@@ -20,7 +20,6 @@ void bsp_metrology_adc_stop(void);
 bsp_status_t bsp_metrology_adc_restore(uint32_t now_ms);
 bool bsp_metrology_adc_dma_complete(void);
 bool bsp_metrology_adc_dma_error(void);
-uint32_t *bsp_metrology_adc_raw_words(void);
 void DMA1_Channel1_IRQHandler(void);
 
 #endif

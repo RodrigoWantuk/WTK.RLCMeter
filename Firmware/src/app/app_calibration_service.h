@@ -7,6 +7,7 @@
 #include "app/app_calibration_runtime.h"
 #include "app/app_calibration_campaign.h"
 #include "app/app_calibration_workflow.h"
+#include "app/app_io_workspace.h"
 #include "bsp/bsp_status.h"
 #include "measurement/measurement_calibration_store.h"
 
@@ -45,11 +46,15 @@ typedef struct
     bsp_status_t last_store_status;
     uint32_t capacity_bytes;
     uint32_t workflow_sequence;
+    app_io_workspace_t *workspace;
     bool initialized;
     bool storage_available;
+    bool store_workspace_held;
 } app_calibration_service_t;
 
 void app_calibration_service_init(app_calibration_service_t *service);
+void app_calibration_service_attach_workspace(app_calibration_service_t *service,
+                                              app_io_workspace_t *workspace);
 bsp_status_t app_calibration_service_load(app_calibration_service_t *service,
                                           const measurement_cal_store_io_t *io,
                                           uint32_t capacity_bytes);

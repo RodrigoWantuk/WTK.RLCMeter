@@ -374,11 +374,17 @@ int main(int argc, char **argv)
     if ((argc == 2) && (strcmp(argv[1], "--sizes") == 0))
     {
         (void)printf("app_product_t=%lu\n", (unsigned long)app_product_context_size_bytes());
+        (void)printf("ui_product_measurement_t=%lu\n",
+                     (unsigned long)sizeof(ui_product_measurement_t));
         return 0;
     }
     int failures = 0;
     failures += test_boot_calibration_gate();
     failures += test_ok_gestures_and_measurement_flow();
     failures += test_safety_fault_and_pages();
+    failures += expect_true(sizeof(ui_product_measurement_t) < sizeof(measurement_session_result_t),
+                            "compact UI result is smaller than session result");
+    failures += expect_true(sizeof(ui_product_measurement_t) < 128u,
+                            "compact UI result remains under target size");
     return failures == 0 ? 0 : 1;
 }

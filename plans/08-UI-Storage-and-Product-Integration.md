@@ -39,6 +39,46 @@ Implemented software boundary:
 - STM32 Release and Bringup size gates are mandatory for budgeted profiles; missing
   Python is now a configuration error for those gates.
 
+## Stage 1.1 — SRAM reclamation and cooperative renderer hardening
+
+STATUS: IMPLEMENTED_REQUIRES_BENCH_VALIDATION
+
+Implemented software boundary:
+
+- The hidden BSP-owned Phase 05 raw ADC buffer was removed. Metrology raw capture now
+  receives its 3072-byte buffer from the application layer.
+- `app_io_workspace_t` provides one explicitly owned 3072-byte scratch arena shared
+  between metrology raw capture and calibration-store serialization/verification. It
+  is never borrowed by both at once.
+- Calibration load/commit paths acquire the workspace as `CALIBRATION_STORE`. A commit
+  keeps ownership through asynchronous erase/program/verify and releases it only after
+  the terminal store state has been acknowledged.
+- Metrology session paths acquire the workspace as `METROLOGY` before starting Phase 05
+  capture and release it after the raw block is acknowledged.
+- Product and Bringup profiles both use the same shared workspace. Bringup diagnostics
+  no longer own independent raw or calibration-frame storage.
+- Product UI state stores a compact `ui_product_measurement_t` snapshot instead of a
+  full `measurement_session_result_t`. The product application reuses the Phase 07
+  policy result as the authoritative partial/final measurement.
+- The fallback TFT renderer now has a cooperative text operation that draws at most one
+  scaled character per step. `ui_product_step()` coalesces pending view generations,
+  pauses during quiet mode, avoids full-screen clear on same-page updates, and only
+  starts text drawing after the current clear/fill primitive has completed.
+- `tools/firmware_size.py` now distinguishes PRODUCT and BRINGUP RAM gates. PRODUCT has
+  a 16 KiB preferred accounted-RAM target and a 17 KiB hard gate; BRINGUP has an 18 KiB
+  hard gate. The legacy `release` budget name remains an alias for PRODUCT.
+
+Measured software evidence:
+
+- PRODUCT Release accounted RAM was reduced from 19924 B to 16348 B, with the 2048 B
+  reserved stack/heap floor included.
+- PRODUCT Debug accounted RAM was reduced from 19932 B to 16336 B.
+- BRINGUP accounted RAM was reduced from 18164 B to 15116 B.
+- The largest remaining RAM objects are the 6048-byte calibration service, the
+  3076-byte shared I/O workspace, and the 1560-byte product controller.
+- The cooperative renderer keeps the existing small SPI pixel chunk buffer rather than
+  increasing display scratch RAM before physical timing data is available.
+
 Remaining Phase 08 work:
 
 - complete menu tree and normal calibration wizard UI;

@@ -456,6 +456,37 @@ DMA buffer; Stage 2B must consume raw captures in place, derive compact coeffici
 and discard transient acquisition evidence unless an explicit future diagnostic storage
 path is specified.
 
+### Shared metrology/storage workspace
+
+Phase 08 Stage 1.1 makes large transient application storage explicit. The firmware owns
+one 3072-byte `app_io_workspace_t` arena shared by Phase 05 raw metrology capture and
+calibration-store frame serialization/verification. Ownership is tagged as `METROLOGY`
+or `CALIBRATION_STORE`; a second borrower receives `BSP_STATUS_BUSY`. Calibration
+commits keep the workspace until the terminal store state is acknowledged, and metrology
+releases it when the raw block is acknowledged.
+
+The BSP no longer owns hidden raw sample storage, and the calibration store no longer
+contains an internal frame image. This saves one full 3072-byte buffer in PRODUCT builds
+without changing the Phase 05 raw data format or the persistent calibration schema.
+
+PRODUCT builds have a 16 KiB preferred accounted-RAM target and a 17 KiB hard gate.
+BRINGUP builds have an 18 KiB accounted-RAM hard gate. These gates include static
+`.data/.bss/.noinit` plus the linker-reserved stack/heap floor and are enforced by
+`Firmware/tools/firmware_size.py`.
+
+### Compact product rendering state
+
+The Phase 08 product UI stores a compact `ui_product_measurement_t` presentation
+snapshot instead of embedding a complete `measurement_session_result_t`. The Phase 07
+policy result remains the authoritative measurement record; UI state holds only the
+fields needed to render the current page.
+
+The fallback TFT renderer is cooperative and quiet-aware. It chunks fills through the
+ILI9341 driver, draws at most one scaled fallback-font character per step, coalesces
+newer product view generations, and performs partial same-page body clears instead of
+full-screen clears when possible. The current pixel chunk size remains intentionally
+small until physical SPI/display timing validates a larger scratch buffer.
+
 ## Localization
 
 Initial planned UI languages are Portuguese and English.

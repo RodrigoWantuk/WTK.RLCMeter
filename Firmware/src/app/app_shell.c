@@ -2,6 +2,7 @@
 
 #include "app/app_bringup_console.h"
 #include "app/app_calibration_service.h"
+#include "app/app_io_workspace.h"
 #include "app/app_product.h"
 #include "app/app_safety_fault.h"
 #include "bsp/bsp_adc.h"
@@ -54,6 +55,7 @@ static hw_aux_sensors_t g_aux_sensors;
 static app_safety_fault_latch_t g_safety_faults;
 static hw_safety_result_t g_safety_result;
 static app_calibration_service_t g_calibration_service;
+static app_io_workspace_t g_io_workspace;
 #if WTK_ENABLE_BRINGUP_CONSOLE
 static app_bringup_console_t g_bringup_console;
 static bool g_display_ready_reported = false;
@@ -414,7 +416,7 @@ static bsp_status_t product_init_metrology_measure(void)
     };
     return hw_metrology_measure_init(&g_product_measure,
                                      &io,
-                                     bsp_metrology_adc_raw_words(),
+                                     app_io_workspace_metrology_raw_words(&g_io_workspace),
                                      HW_METROLOGY_RAW_WORD_COUNT);
 }
 
@@ -423,7 +425,18 @@ static bsp_status_t product_auto_start_attempt(const hw_metrology_measure_reques
                                                void *user)
 {
     (void)user;
-    return hw_metrology_measure_start(&g_product_measure, request, now_ms);
+    const bsp_status_t workspace_status =
+        app_io_workspace_acquire(&g_io_workspace, APP_IO_WORKSPACE_OWNER_METROLOGY);
+    if (workspace_status != BSP_STATUS_OK)
+    {
+        return workspace_status;
+    }
+    const bsp_status_t status = hw_metrology_measure_start(&g_product_measure, request, now_ms);
+    if ((status != BSP_STATUS_OK) && (status != BSP_STATUS_BUSY))
+    {
+        (void)app_io_workspace_release(&g_io_workspace, APP_IO_WORKSPACE_OWNER_METROLOGY);
+    }
+    return status;
 }
 
 static bsp_status_t product_auto_step_attempt(uint32_t now_ms, void *user)
@@ -466,6 +479,10 @@ static void product_auto_attempt_acknowledge(void *user)
 {
     (void)user;
     hw_metrology_measure_acknowledge(&g_product_measure);
+    if (app_io_workspace_owner(&g_io_workspace) == APP_IO_WORKSPACE_OWNER_METROLOGY)
+    {
+        (void)app_io_workspace_release(&g_io_workspace, APP_IO_WORKSPACE_OWNER_METROLOGY);
+    }
 }
 
 static bsp_status_t product_auto_attempt_abort(void *user)
@@ -764,6 +781,8 @@ void app_shell_run(void)
 
     app_safety_fault_init(&g_safety_faults);
     app_calibration_service_init(&g_calibration_service);
+    app_io_workspace_init(&g_io_workspace);
+    app_calibration_service_attach_workspace(&g_calibration_service, &g_io_workspace);
     const bsp_status_t gpio_status = bsp_gpio_init_safe();
     app_record_status_fault(gpio_status, APP_SAFETY_FAULT_GPIO_INIT);
     const bsp_status_t clock_status = bsp_clock_init();
@@ -831,6 +850,7 @@ void app_shell_run(void)
 #if WTK_ENABLE_BRINGUP_CONSOLE
     app_bringup_console_init(&g_bringup_console);
     app_bringup_console_attach_calibration_service(&g_bringup_console, &g_calibration_service);
+    app_bringup_console_attach_workspace(&g_bringup_console, &g_io_workspace);
     g_display_ready_reported = false;
 #else
     const bsp_status_t product_status = product_init_controller();

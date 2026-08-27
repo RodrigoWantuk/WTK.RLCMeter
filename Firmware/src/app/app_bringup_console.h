@@ -6,6 +6,7 @@
 
 #include "app/app_calibration_service.h"
 #include "app/app_calibration_session.h"
+#include "app/app_io_workspace.h"
 #include "app/app_safety_fault.h"
 #include "drivers/ili9341.h"
 #include "drivers/w25q.h"
@@ -62,6 +63,7 @@ typedef struct
     hw_metrology_measure_t measure;
     app_calibration_session_t cal_session;
     app_calibration_service_t *cal_service;
+    app_io_workspace_t *workspace;
     app_bringup_metrology_dump_source_t dump_source;
     uint16_t dump_row;
     bool dump_active;
@@ -79,6 +81,8 @@ typedef struct
 void app_bringup_console_init(app_bringup_console_t *console);
 void app_bringup_console_attach_calibration_service(app_bringup_console_t *console,
                                                 app_calibration_service_t *service);
+void app_bringup_console_attach_workspace(app_bringup_console_t *console,
+                                          app_io_workspace_t *workspace);
 void app_bringup_console_step(app_bringup_console_t *console,
                           w25q_device_t *flash,
                           ili9341_t *display,

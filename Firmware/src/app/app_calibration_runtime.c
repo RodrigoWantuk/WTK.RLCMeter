@@ -14,7 +14,9 @@ void app_calibration_runtime_init(app_calibration_runtime_t *runtime)
 bsp_status_t app_calibration_runtime_refresh(app_calibration_runtime_t *runtime,
                                              measurement_cal_store_t *store_scratch,
                                              const measurement_cal_store_io_t *io,
-                                             uint32_t capacity_bytes)
+                                             uint32_t capacity_bytes,
+                                             uint8_t *frame_scratch,
+                                             size_t frame_scratch_size)
 {
     if ((runtime == NULL) || (store_scratch == NULL))
     {
@@ -30,7 +32,8 @@ bsp_status_t app_calibration_runtime_refresh(app_calibration_runtime_t *runtime,
         return BSP_STATUS_INVALID_ARG;
     }
 
-    bsp_status_t status = measurement_cal_store_init(store_scratch, io, capacity_bytes);
+    bsp_status_t status =
+        measurement_cal_store_init(store_scratch, io, capacity_bytes, frame_scratch, frame_scratch_size);
     runtime->store_ready = status == BSP_STATUS_OK;
     runtime->last_status = status;
     if (status != BSP_STATUS_OK)

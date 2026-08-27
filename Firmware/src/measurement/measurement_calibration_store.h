@@ -53,7 +53,8 @@ typedef struct
 {
     measurement_cal_store_io_t io;
     storage_partition_t slots[2];
-    uint8_t image[MEASUREMENT_CAL_MAX_FRAME_BYTES];
+    uint8_t *image;
+    size_t image_capacity;
     size_t image_size;
     size_t program_offset;
     size_t current_chunk;
@@ -71,7 +72,9 @@ typedef struct
 
 bsp_status_t measurement_cal_store_init(measurement_cal_store_t *store,
                                         const measurement_cal_store_io_t *io,
-                                        uint32_t capacity_bytes);
+                                        uint32_t capacity_bytes,
+                                        uint8_t *image_scratch,
+                                        size_t image_scratch_size);
 bsp_status_t measurement_cal_store_load_newest(measurement_cal_store_t *store,
                                                measurement_cal_set_t *set,
                                                measurement_cal_store_slot_t *slot);

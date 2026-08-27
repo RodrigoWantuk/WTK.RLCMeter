@@ -760,13 +760,17 @@ app_calibration_runtime_t:
     active decoded calibration coefficients and compact provenance
 
 measurement_cal_store_t:
-    one persisted-frame image buffer
+    one borrowed persisted-frame image buffer
     one decoded scan/verify scratch set
     asynchronous W25Q write state
 
 Phase 05 raw ADC buffer:
-    owned by metrology transport/BSP
+    borrowed from app_io_workspace_t during active capture
     never copied into calibration runtime or Bringup console state
+
+app_io_workspace_t:
+    one 3072-byte arena shared by metrology raw capture and calibration-store frames
+    owner tag prevents simultaneous METROLOGY and CALIBRATION_STORE borrowers
 
 app_bringup_console_t:
     owns bring-up command state only
@@ -778,6 +782,13 @@ The normal calibration store write path must not place multiple complete
 `measurement_cal_set_t` objects on stack. Stage 2B OPEN/SHORT/LOAD work should consume
 raw captures as transient evidence, derive compact condition coefficients, and keep any
 future raw-evidence persistence separate from the active coefficient set.
+
+Phase 08 Stage 1.1 removes the hidden BSP raw-buffer allocation and the internal
+calibration-store frame image. Calibration load/commit acquires the shared workspace as
+`CALIBRATION_STORE`; Phase 05 capture acquires it as `METROLOGY`. Asynchronous
+calibration commits retain the workspace until the terminal store state is acknowledged.
+PRODUCT Release accounted RAM is expected to remain near or below the 16 KiB preferred
+target and must stay below the 17 KiB hard gate.
 
 Stage 2B.1 implements evidence acquisition only. It does not replace the active
 persisted calibration set and does not solve or commit new coefficients.
@@ -805,6 +816,19 @@ calibration path owns GPIO, K1, range switching, raw DMA storage, or campaign st
 Pre-Phase 08 cleanup removed embedded execution for development-era direct/affine
 calibration models. `schema_version` remains 2 because the portable byte layout did not
 change, but current C identifiers now describe the model-4 OSL payload directly.
+
+## Phase 08 compact product UI state
+
+The product application exposes a compact `ui_product_view_t` to the TFT layer. The view
+contains a bounded `ui_product_measurement_t` presentation snapshot instead of a full
+Phase 07 `measurement_session_result_t`; the measurement policy remains authoritative
+for partial/final result data.
+
+The fallback renderer is cooperative and quiet-aware. It performs full clears only on
+first render or state/page transitions, uses a smaller same-page result/body clear for
+measurement updates, and draws fallback text one scaled character per step after the
+current fill primitive has completed. Newer view generations are coalesced rather than
+stored in an unbounded queue.
 
 ## Calibration boot gate
 

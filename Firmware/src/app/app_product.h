@@ -27,17 +27,13 @@ typedef struct
     app_measurement_session_t measurement;
     measurement_auto_hint_t next_hint;
     ui_product_view_t view;
-    ui_product_page_t page;
     uint32_t session_sequence;
-    uint32_t generation;
     bool ok_armed;
     bool ok_long_seen;
     bool request_click;
     bool request_menu;
     bool request_page_next;
     bool request_page_prev;
-    bool have_final;
-    bool have_partial;
     bool initialized;
 } app_product_t;
 

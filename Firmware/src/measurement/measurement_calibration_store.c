@@ -9,7 +9,7 @@ enum
     PAGE_BYTES = 256u,
     KEY_BITS_PER_RANGE = 6u,
     KEY_BITS_PER_FREQ = 2u,
-    MEASUREMENT_CAL_STORE_CONTEXT_BUDGET_BYTES = 6400u,
+    MEASUREMENT_CAL_STORE_CONTEXT_BUDGET_BYTES = 3400u,
 };
 
 _Static_assert(sizeof(measurement_cal_set_t) <= MEASUREMENT_CAL_MAX_FRAME_BYTES,
@@ -149,14 +149,19 @@ static bool find_newest_committed_frame(measurement_cal_store_t *store,
 
 bsp_status_t measurement_cal_store_init(measurement_cal_store_t *store,
                                         const measurement_cal_store_io_t *io,
-                                        uint32_t capacity_bytes)
+                                        uint32_t capacity_bytes,
+                                        uint8_t *image_scratch,
+                                        size_t image_scratch_size)
 {
-    if ((store == NULL) || !io_valid(io))
+    if ((store == NULL) || !io_valid(io) || (image_scratch == NULL) ||
+        (image_scratch_size < MEASUREMENT_CAL_MAX_FRAME_BYTES))
     {
         return BSP_STATUS_INVALID_ARG;
     }
     *store = (measurement_cal_store_t){0};
     store->io = *io;
+    store->image = image_scratch;
+    store->image_capacity = image_scratch_size;
     if (!storage_layout_partition(capacity_bytes, STORAGE_PARTITION_CALIBRATION_A, &store->slots[0]) ||
         !storage_layout_partition(capacity_bytes, STORAGE_PARTITION_CALIBRATION_B, &store->slots[1]))
     {
@@ -380,7 +385,7 @@ bsp_status_t measurement_cal_store_write_start(measurement_cal_store_t *store,
                                                    MEASUREMENT_CAL_MODEL_VERSION_CURRENT,
                                                    next_sequence,
                                                    store->image,
-                                                   sizeof(store->image),
+                                                   store->image_capacity,
                                                    &written))
     {
         store->state = MEASUREMENT_CAL_STORE_ERROR;

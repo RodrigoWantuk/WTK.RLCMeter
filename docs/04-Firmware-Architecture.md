@@ -164,6 +164,9 @@ backlight_set(percent)
 ## Acquisition
 
 The acquisition module delivers synchronized raw sample blocks. It does not compute impedance.
+The raw block storage is supplied by the application-owned I/O workspace so that the
+same 3072-byte arena can be reused by calibration-store serialization when no capture is
+active.
 
 DSP consumes buffers plus metadata such as:
 
@@ -268,7 +271,9 @@ limited by the 64 KiB MCU Flash budget.
 STM32 Release and Bringup builds report Flash/RAM budgets after linking. The project
 hard gate is 56 KiB Flash, with a 48 KiB soft target and the silicon limit remaining
 64 KiB. RAM reports distinguish static `.data/.bss/.noinit` from the linker-reserved
-stack/heap floor.
+stack/heap floor. PRODUCT builds use a 16 KiB preferred accounted-RAM target and a
+17 KiB hard gate; BRINGUP uses an 18 KiB hard gate. Accounted RAM includes the
+linker-reserved stack/heap floor.
 
 ## Build and editor policy
 

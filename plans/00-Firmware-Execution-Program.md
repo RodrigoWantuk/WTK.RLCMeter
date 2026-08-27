@@ -381,9 +381,10 @@ A Rev.1 firmware release should ultimately produce:
 
 ## Immediate next action
 
-Continue Phase 08 from the Stage 1 product controller. The product profile now has a
-mandatory calibration gate, click-measurement integration through Phase 05/06/07, a
-minimal TFT fallback UI, mandatory STM32 Release/Bringup size gates, and linked-symbol
+Continue Phase 08 after Stage 1.1. The product profile now has a mandatory calibration
+gate, click-measurement integration through Phase 05/06/07, a minimal cooperative TFT
+fallback UI, compact product view-model snapshots, shared metrology/storage scratch
+ownership, PRODUCT/BRINGUP RAM gates, mandatory STM32 size gates, and linked-symbol
 profile-composition checks. Remaining Phase 08 work includes the calibration wizard UI,
 settings persistence, external resources/localization, menus, graph/detail pages beyond
 the initial primary/details pair, and bench validation. Phase 03A virtual execution
