@@ -13,9 +13,12 @@ include(CompilerWarnings)
 include(STM32CubeF1)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+find_package(Python3 COMPONENTS Interpreter QUIET)
 
 set(WTK_TARGET_PLATFORM "host" CACHE STRING "Build target platform: host or stm32")
 set_property(CACHE WTK_TARGET_PLATFORM PROPERTY STRINGS host stm32)
+set(WTK_FIRMWARE_PROFILE "PRODUCT" CACHE STRING "Firmware feature profile: PRODUCT or BRINGUP")
+set_property(CACHE WTK_FIRMWARE_PROFILE PROPERTY STRINGS PRODUCT BRINGUP)
 
 option(WTK_WARNINGS_AS_ERRORS_HOST "Treat warnings as errors for host project targets" ON)
 option(WTK_WARNINGS_AS_ERRORS_STM32 "Treat warnings as errors for STM32 project targets" OFF)
@@ -30,16 +33,21 @@ set(WTK_BUILD_TYPE "${CMAKE_BUILD_TYPE}")
 if(NOT WTK_BUILD_TYPE)
     set(WTK_BUILD_TYPE "MultiConfig")
 endif()
+string(TOUPPER "${WTK_FIRMWARE_PROFILE}" WTK_FIRMWARE_PROFILE)
 
 if(WTK_BUILD_TYPE STREQUAL "Lab")
+    message(FATAL_ERROR "CMAKE_BUILD_TYPE=Lab is obsolete. Use a standard build type plus WTK_FIRMWARE_PROFILE=BRINGUP.")
+endif()
+
+if(WTK_FIRMWARE_PROFILE STREQUAL "BRINGUP")
     set(WTK_DIAGNOSTIC_LOG_LEVEL_DEFAULT 5)
-    set(WTK_ENABLE_LAB_DIAGNOSTICS 1)
+    set(WTK_ENABLE_BRINGUP_CONSOLE 1)
 elseif(WTK_BUILD_TYPE STREQUAL "Release")
     set(WTK_DIAGNOSTIC_LOG_LEVEL_DEFAULT 2)
-    set(WTK_ENABLE_LAB_DIAGNOSTICS 0)
+    set(WTK_ENABLE_BRINGUP_CONSOLE 0)
 else()
     set(WTK_DIAGNOSTIC_LOG_LEVEL_DEFAULT 4)
-    set(WTK_ENABLE_LAB_DIAGNOSTICS 0)
+    set(WTK_ENABLE_BRINGUP_CONSOLE 0)
 endif()
 
 configure_file(
@@ -108,17 +116,19 @@ if(WTK_TARGET_PLATFORM STREQUAL "host")
     enable_testing()
     add_subdirectory(tests)
 elseif(WTK_TARGET_PLATFORM STREQUAL "stm32")
-    if(WTK_BUILD_TYPE STREQUAL "Lab")
-        # Lab diagnostics are intentionally rich but Rev.1 still guarantees only 64 KiB
-        # of Flash. Keep the largest Lab/calibration orchestration units size-optimized.
+    if(WTK_FIRMWARE_PROFILE STREQUAL "BRINGUP")
+        # Bringup diagnostics must fit the same Rev.1 64 KiB Flash as product code.
+        # Keep the hardware-console orchestration units size-optimized.
         set_source_files_properties(
             src/app/app_calibration_session.c
             src/app/app_calibration_campaign.c
             src/app/app_calibration_workflow.c
             src/measurement/measurement_calibration_solver.c
-            src/app/app_lab_console.c
+            src/app/app_bringup_console.c
             PROPERTIES COMPILE_OPTIONS "-Os"
         )
+    elseif(NOT WTK_FIRMWARE_PROFILE STREQUAL "PRODUCT")
+        message(FATAL_ERROR "Unsupported WTK_FIRMWARE_PROFILE='${WTK_FIRMWARE_PROFILE}'. Use PRODUCT or BRINGUP.")
     endif()
 
     if(CMAKE_C_COMPILER_ID MATCHES "GNU")
@@ -127,7 +137,6 @@ elseif(WTK_TARGET_PLATFORM STREQUAL "stm32")
 
     add_executable(wtk_rlcmeter
         src/app/app_shell.c
-        src/app/app_lab_console.c
         src/app/main.c
         src/bsp/bsp_clock.c
         src/bsp/bsp_adc.c
@@ -150,10 +159,12 @@ elseif(WTK_TARGET_PLATFORM STREQUAL "stm32")
         src/hardware/hw_buzzer.c
         src/hardware/hw_peripherals.c
         src/ui/ui_fallback_renderer.c
-        src/bsp/stm32_dependency_probe.c
         src/bsp/startup_stm32f103c8tx.c
         src/bsp/system_stm32f1xx.c
     )
+    if(WTK_FIRMWARE_PROFILE STREQUAL "BRINGUP")
+        target_sources(wtk_rlcmeter PRIVATE src/app/app_bringup_console.c)
+    endif()
     set_target_properties(wtk_rlcmeter PROPERTIES
         OUTPUT_NAME "WTK.RLCMeter"
         SUFFIX ".elf"
@@ -182,6 +193,12 @@ elseif(WTK_TARGET_PLATFORM STREQUAL "stm32")
     set(WTK_LINKER_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/cmake/stm32/STM32F103C8Tx_FLASH.ld")
     set(WTK_FIRMWARE_BASE "${CMAKE_CURRENT_BINARY_DIR}/WTK.RLCMeter")
     set(WTK_FIRMWARE_MAP "${WTK_FIRMWARE_BASE}.map")
+    set(WTK_SIZE_BUDGET "none")
+    if(WTK_FIRMWARE_PROFILE STREQUAL "BRINGUP")
+        set(WTK_SIZE_BUDGET "bringup")
+    elseif(WTK_BUILD_TYPE STREQUAL "Release")
+        set(WTK_SIZE_BUDGET "release")
+    endif()
 
     target_link_options(wtk_rlcmeter PRIVATE
         "-T${WTK_LINKER_SCRIPT}"
@@ -202,6 +219,22 @@ elseif(WTK_TARGET_PLATFORM STREQUAL "stm32")
             "${WTK_FIRMWARE_BASE}.hex"
         COMMENT "Generating STM32 programming artifacts"
     )
+    if(Python3_Interpreter_FOUND)
+        add_custom_command(TARGET wtk_rlcmeter POST_BUILD
+            COMMAND ${Python3_EXECUTABLE}
+                    "${CMAKE_CURRENT_SOURCE_DIR}/tools/firmware_size.py"
+                    $<TARGET_FILE:wtk_rlcmeter>
+                    --budget ${WTK_SIZE_BUDGET}
+                    --size-tool ${CMAKE_SIZE}
+                    --objdump-tool ${CMAKE_OBJDUMP}
+                    --nm-tool ${CMAKE_NM}
+                    --json-out "${WTK_FIRMWARE_BASE}.size.json"
+            BYPRODUCTS "${WTK_FIRMWARE_BASE}.size.json"
+            COMMENT "Checking STM32 firmware size budget"
+        )
+    else()
+        message(WARNING "Python3 not found; firmware_size.py budget check will not run automatically.")
+    endif()
 else()
     message(FATAL_ERROR "Unsupported WTK_TARGET_PLATFORM='${WTK_TARGET_PLATFORM}'. Use 'host' or 'stm32'.")
 endif()

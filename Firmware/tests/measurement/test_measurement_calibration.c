@@ -286,7 +286,7 @@ static measurement_cal_record_t record_for(hw_range_id_t range, uint32_t zref_oh
 {
     const measurement_cal_key_t key = key_for(range, HW_EXCITATION_FREQ_1KHZ);
     measurement_cal_record_t record = measurement_cal_make_ideal_record(&key);
-    record.correction.zref_ohms = measurement_complex((float)zref_ohms, 0.0f);
+    record.correction.load_z_ohms = measurement_complex((float)zref_ohms, 0.0f);
     record.correction.flags |= MEASUREMENT_CAL_FLAG_QUALIFIED;
     return record;
 }
@@ -294,7 +294,7 @@ static measurement_cal_record_t record_for(hw_range_id_t range, uint32_t zref_oh
 static measurement_cal_record_t osl_record_for_key(measurement_cal_key_t key)
 {
     const measurement_cal_osl_coefficients_t coefficients = {
-        .ret_hg_transfer = measurement_complex(15.5f, 0.1f),
+        .effective_hg_transfer = measurement_complex(15.5f, 0.1f),
         .load_z_ohms = measurement_complex(1000.0f, 0.0f),
         .t_short = measurement_complex(0.02f, 0.001f),
         .t_open = measurement_complex(0.98f, -0.003f),
@@ -376,7 +376,7 @@ static measurement_cal_set_t full_supported_set(uint32_t sequence)
                                             freq,
                                             amp);
                     measurement_cal_record_t record = measurement_cal_make_ideal_record(&key);
-                    record.correction.zref_ohms = measurement_dsp_config_ideal(range).zref_ohms;
+                    record.correction.load_z_ohms = measurement_dsp_config_ideal(range).zref_ohms;
                     record.correction.flags |= MEASUREMENT_CAL_FLAG_QUALIFIED;
                     (void)measurement_cal_set_add_record(&set, &record);
                 }
@@ -610,7 +610,7 @@ static int test_duplicate_and_replace_semantics(void)
     measurement_cal_record_t rec_100r = record_for(HW_RANGE_ID_100R, 100u);
     failures += expect_true(measurement_cal_set_add_record(&set, &rec_10r), "unique add succeeds");
     failures += expect_true(!measurement_cal_set_add_record(&set, &rec_10r), "duplicate add fails");
-    rec_10r.correction.zref_ohms = measurement_complex(11.0f, 0.0f);
+    rec_10r.correction.load_z_ohms = measurement_complex(11.0f, 0.0f);
     failures += expect_true(measurement_cal_set_replace_record(&set, &rec_10r), "replace existing succeeds");
     measurement_cal_resolved_t resolved;
     failures += expect_true(measurement_cal_resolve_condition(&set,
@@ -687,7 +687,7 @@ static int test_full_supported_matrix_capacity(void)
         failures += expect_true(resolved.provenance.model_version ==
                                     MEASUREMENT_CAL_MODEL_VERSION_CURRENT,
                                 "full matrix current OSL model");
-        failures += expect_true((resolved.correction.flags & MEASUREMENT_CAL_FLAG_OSL_MOBIUS) != 0u,
+        failures += expect_true((resolved.correction.flags & MEASUREMENT_CAL_FLAG_OSL_MODEL) != 0u,
                                 "full matrix record is OSL");
         measurement_cal_osl_coefficients_t coefficients;
         failures += expect_true(measurement_cal_get_osl_coefficients(&resolved.correction, &coefficients),
@@ -850,11 +850,11 @@ static int test_store_write_header_override_does_not_mutate_candidate(void)
     failures += expect_true(measurement_cal_set_add_record(&candidate, &record),
                             "header override candidate record");
     candidate.schema_version = 1u;
-    candidate.model_version = MEASUREMENT_CAL_MODEL_VERSION_DIRECT_V1;
+    candidate.model_version = ((uint16_t)1u);
     failures += expect_true(write_to_completion(&store, &candidate) == 0, "header override write");
     failures += expect_true(candidate.sequence == 0u, "candidate sequence not mutated");
     failures += expect_true(candidate.schema_version == 1u, "candidate schema not mutated");
-    failures += expect_true(candidate.model_version == MEASUREMENT_CAL_MODEL_VERSION_DIRECT_V1,
+    failures += expect_true(candidate.model_version == ((uint16_t)1u),
                             "candidate model not mutated");
 
     measurement_cal_set_t loaded;
@@ -1058,7 +1058,7 @@ static int test_slot_compatibility_diagnostics(void)
                                                  "wrong hardware diagnosed");
 
     newer = set_with_records(11u, 1u);
-    newer.model_version = MEASUREMENT_CAL_MODEL_VERSION_DIRECT_V1;
+    newer.model_version = ((uint16_t)1u);
     failures += exercise_incompatible_newer_slot(newer,
                                                  MEASUREMENT_CAL_VALIDITY_INCOMPATIBLE_MODEL,
                                                  "wrong model diagnosed");
@@ -1134,7 +1134,7 @@ static int test_dsp_uses_calibrated_hg_transfer(void)
                              3u);
     const measurement_cal_key_t key = key_for(HW_RANGE_ID_1K, HW_EXCITATION_FREQ_1KHZ);
     measurement_cal_record_t record = measurement_cal_make_ideal_record(&key);
-    record.correction.ret_hg_transfer = measurement_complex(10.0f, 1.0f);
+    record.correction.effective_hg_transfer = measurement_complex(10.0f, 1.0f);
     record.correction.flags |= MEASUREMENT_CAL_FLAG_QUALIFIED;
     (void)measurement_cal_set_add_record(&set, &record);
 
@@ -1164,7 +1164,7 @@ static int test_dsp_uses_calibrated_hg_transfer(void)
 
     const measurement_complex_t source = measurement_complex(0.05f, 0.0f);
     const measurement_complex_t ret = measurement_complex(0.005f, -0.002f);
-    const measurement_complex_t ret_hg = measurement_complex_mul(ret, record.correction.ret_hg_transfer);
+    const measurement_complex_t ret_hg = measurement_complex_mul(ret, record.correction.effective_hg_transfer);
     float cos_ref = 1.0f;
     float sin_ref = 0.0f;
     for (uint32_t n = 0u; n < HW_METROLOGY_SAMPLES_PER_BLOCK; n++)
@@ -1200,7 +1200,7 @@ static int test_osl_process_block_updates_result_and_derivatives(void)
                              4u);
     const measurement_cal_key_t key = key_for(HW_RANGE_ID_1K, HW_EXCITATION_FREQ_1KHZ);
     const measurement_cal_osl_coefficients_t coefficients = {
-        .ret_hg_transfer = measurement_dsp_config_ideal(HW_RANGE_ID_1K).ret_hg_transfer,
+        .effective_hg_transfer = measurement_dsp_config_ideal(HW_RANGE_ID_1K).ret_hg_transfer,
         .load_z_ohms = measurement_complex(1000.0f, 0.0f),
         .t_short = measurement_complex(0.010f, 0.0f),
         .t_open = measurement_complex(0.980f, 0.0f),
@@ -1227,7 +1227,7 @@ static int test_osl_process_block_updates_result_and_derivatives(void)
 
     const measurement_complex_t source = measurement_complex(0.05f, 0.0f);
     const measurement_complex_t ret = measurement_complex(0.005f, 0.0f);
-    const measurement_complex_t ret_hg = measurement_complex_mul(ret, record.correction.ret_hg_transfer);
+    const measurement_complex_t ret_hg = measurement_complex_mul(ret, record.correction.effective_hg_transfer);
     float cos_ref = 1.0f;
     float sin_ref = 0.0f;
     for (uint32_t n = 0u; n < HW_METROLOGY_SAMPLES_PER_BLOCK; n++)
@@ -1299,7 +1299,7 @@ static int test_persisted_osl_without_observed_hg_does_not_select_hg(void)
 
     const measurement_complex_t source = measurement_complex(0.05f, 0.0f);
     const measurement_complex_t ret = measurement_complex(0.004f, 0.0f);
-    const measurement_complex_t ret_hg = measurement_complex_mul(ret, record.correction.ret_hg_transfer);
+    const measurement_complex_t ret_hg = measurement_complex_mul(ret, record.correction.effective_hg_transfer);
     float cos_ref = 1.0f;
     float sin_ref = 0.0f;
     for (uint32_t n = 0u; n < HW_METROLOGY_SAMPLES_PER_BLOCK; n++)
@@ -1339,7 +1339,7 @@ static int test_osl_mobius_solver_recovers_systematic_model(void)
     int failures = 0;
     const measurement_cal_key_t key = key_for(HW_RANGE_ID_1K, HW_EXCITATION_FREQ_1KHZ);
     const measurement_cal_osl_coefficients_t model = {
-        .ret_hg_transfer = measurement_complex(15.5f, 0.1f),
+        .effective_hg_transfer = measurement_complex(15.5f, 0.1f),
         .load_z_ohms = measurement_complex(1000.0f, 0.0f),
         .t_short = measurement_complex(0.012f, -0.004f),
         .t_open = measurement_complex(0.985f, 0.018f),
@@ -1354,7 +1354,7 @@ static int test_osl_mobius_solver_recovers_systematic_model(void)
     failures += expect_complex_near(solution.coefficients.t_short, model.t_short, 0.00001f, "t_short");
     failures += expect_complex_near(solution.coefficients.t_open, model.t_open, 0.00001f, "t_open");
     failures += expect_complex_near(solution.coefficients.k, model.k, 0.02f, "K");
-    failures += expect_complex_near(solution.coefficients.ret_hg_transfer,
+    failures += expect_complex_near(solution.coefficients.effective_hg_transfer,
                                    measurement_complex(15.5f, 0.1f),
                                    0.00001f,
                                    "HG observed");
@@ -1509,7 +1509,7 @@ static int test_osl_solver_errors_and_hg_fallback(void)
     int failures = 0;
     const measurement_cal_key_t key = key_for(HW_RANGE_ID_1K, HW_EXCITATION_FREQ_1KHZ);
     const measurement_cal_osl_coefficients_t model = {
-        .ret_hg_transfer = measurement_complex(15.5f, 0.0f),
+        .effective_hg_transfer = measurement_complex(15.5f, 0.0f),
         .load_z_ohms = measurement_complex(1000.0f, 0.0f),
         .t_short = measurement_complex(0.01f, 0.0f),
         .t_open = measurement_complex(0.99f, 0.0f),
@@ -1578,7 +1578,7 @@ static int test_osl_record_serializes_and_resolves(void)
     int failures = 0;
     const measurement_cal_key_t key = key_for(HW_RANGE_ID_1K, HW_EXCITATION_FREQ_1KHZ);
     const measurement_cal_osl_coefficients_t model = {
-        .ret_hg_transfer = measurement_complex(15.5f, -0.05f),
+        .effective_hg_transfer = measurement_complex(15.5f, -0.05f),
         .load_z_ohms = measurement_complex(1000.0f, 0.0f),
         .t_short = measurement_complex(0.02f, 0.001f),
         .t_open = measurement_complex(0.98f, -0.003f),
@@ -1589,7 +1589,7 @@ static int test_osl_record_serializes_and_resolves(void)
     measurement_cal_solver_solution_t solution;
     (void)measurement_cal_solver_solve(&input, &solution);
     measurement_cal_record_t record = measurement_cal_solver_make_record(&solution);
-    failures += expect_true((record.correction.flags & MEASUREMENT_CAL_FLAG_OSL_MOBIUS) != 0u,
+    failures += expect_true((record.correction.flags & MEASUREMENT_CAL_FLAG_OSL_MODEL) != 0u,
                             "OSL flag set");
     failures += expect_true((record.correction.flags & MEASUREMENT_CAL_FLAG_TEMPERATURE_VALID) != 0u,
                             "temperature validity flag set");
@@ -1634,29 +1634,27 @@ static int test_osl_model_rejects_malformed_corrections(void)
     const measurement_cal_key_t key = key_for(HW_RANGE_ID_1K, HW_EXCITATION_FREQ_1KHZ);
 
     measurement_cal_record_t record = osl_record_for_key(key);
-    record.correction.flags &= ~MEASUREMENT_CAL_FLAG_OSL_MOBIUS;
+    record.correction.flags &= ~MEASUREMENT_CAL_FLAG_OSL_MODEL;
     failures += expect_osl_record_rejected(record, "OSL record without OSL flag rejected");
 
     record = osl_record_for_key(key);
-    record.correction.ret_1x_output.scale.re = NAN;
+    record.correction.t_short.re = NAN;
     failures += expect_osl_record_rejected(record, "OSL nonfinite t_short rejected");
 
     record = osl_record_for_key(key);
-    record.correction.ret_1x_output.offset_ohms.im = NAN;
+    record.correction.t_open.im = NAN;
     failures += expect_osl_record_rejected(record, "OSL nonfinite t_open rejected");
 
     record = osl_record_for_key(key);
-    record.correction.ret_hg_output.scale.re = NAN;
+    record.correction.k.re = NAN;
     failures += expect_osl_record_rejected(record, "OSL nonfinite K rejected");
 
     record = osl_record_for_key(key);
-    record.correction.ret_1x_output.scale = record.correction.ret_1x_output.offset_ohms;
+    record.correction.t_short = record.correction.t_open;
     failures += expect_osl_record_rejected(record, "OSL degenerate t_short/t_open rejected");
 
     record = osl_record_for_key(key);
-    record.correction.flags |= MEASUREMENT_CAL_FLAG_ZREF |
-                               MEASUREMENT_CAL_FLAG_OUTPUT_CORRECTION_1X |
-                               MEASUREMENT_CAL_FLAG_OUTPUT_CORRECTION_HG;
+    record.correction.flags |= ((uint32_t)1u << 2) | ((uint32_t)1u << 3) | ((uint32_t)1u << 4);
     failures += expect_osl_record_rejected(record, "OSL legacy direct flags rejected");
     return failures;
 }

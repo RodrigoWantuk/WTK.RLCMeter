@@ -296,7 +296,7 @@ Live mode must not repeatedly hammer a blocked safety condition in a tight loop.
 
 ## Diagnostics
 
-Debug/Lab diagnostics should identify the operating mode independently from the metrology transaction mode.
+Debug/Bringup diagnostics should identify the operating mode independently from the metrology transaction mode.
 
 Recommended fields include:
 

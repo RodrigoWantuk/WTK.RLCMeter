@@ -25,6 +25,8 @@ int main(void)
     failures += expect_true(strcmp(version->project_name, "WTK.RLCMeter") == 0, "project name matches");
     failures += expect_true(strlen(version->project_version) > 0u, "project version is populated");
     failures += expect_true(strlen(version->git_commit) > 0u, "git commit fallback is populated");
+    failures += expect_true(strlen(version->build_type) > 0u, "build type is populated");
+    failures += expect_true(strlen(version->firmware_profile) > 0u, "firmware profile is populated");
     failures += expect_true(strcmp(version->hardware_compatibility, "Rev1-STM32F103C8T6-BluePill") == 0,
                             "hardware compatibility label matches");
     failures += expect_true(version->calibration_schema_version == MEASUREMENT_CAL_SCHEMA_VERSION,

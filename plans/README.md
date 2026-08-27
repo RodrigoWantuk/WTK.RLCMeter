@@ -65,7 +65,7 @@ Examples:
 
 - Phase 01 may create a minimal placeholder target needed to prove the toolchain, but it does not implement TFT or measurement logic.
 - Phase 03 may provide basic display test screens, but it does not implement the final product UI.
-- Phase 03A may add simulator-only infrastructure and narrowly scoped Lab diagnostics, but it must not change production behavior to make virtual tests pass.
+- Phase 03A may add simulator-only infrastructure and narrowly scoped Bringup diagnostics, but it must not change production behavior to make virtual tests pass.
 - Phase 05 may stream raw ADC samples for validation, but it does not implement final impedance math.
 - Phase 06 may use fixed synthetic measurement conditions in host tests, but it does not silently implement autorange.
 

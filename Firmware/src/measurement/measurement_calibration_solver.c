@@ -294,9 +294,8 @@ measurement_cal_solver_status_t measurement_cal_solver_solve(
 
     solution->key = input->open.key;
     solution->coefficients = coefficients;
-    solution->coefficients.ret_hg_transfer = hg_observed ?
-                                                 h_hg :
-                                                 measurement_dsp_config_ideal(input->open.key.range_id).ret_hg_transfer;
+    solution->coefficients.effective_hg_transfer =
+        hg_observed ? h_hg : measurement_dsp_config_ideal(input->open.key.range_id).ret_hg_transfer;
     solution->fit_channel = channel;
     solution->temperature_valid = temperature_count(input) != 0u;
     solution->temperature_mC = mean_temperature_mC(input);

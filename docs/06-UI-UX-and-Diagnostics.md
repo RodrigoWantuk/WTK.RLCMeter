@@ -133,7 +133,7 @@ frequencies used for classification/refinement
 number of attempts/retries
 ```
 
-Lab/Debug builds may expose additional acquisition detail.
+Bringup/Debug builds may expose additional acquisition detail.
 
 ### Graph/result pages
 
@@ -357,15 +357,17 @@ DEBUG CONSOLE
 128.401 conf=0.98
 ```
 
-UART remains the higher-volume diagnostic stream. Lab/Debug builds may emit detailed per-measurement dumps including attempt conditions, raw statistics, phasors, complex impedance, calibration IDs/coefficients, confidence reasons, classification, and rerange/retry reasons.
+UART remains the higher-volume diagnostic stream. Bringup and host diagnostic tools may emit detailed per-measurement dumps including attempt conditions, raw statistics, phasors, complex impedance, calibration IDs/coefficients, confidence reasons, classification, and rerange/retry reasons.
 
 Logging must respect quiet mode and must not perform high-volume output inside critical ISR/acquisition paths.
 
-Phase 07 Lab builds provide `lab auto measure` for a Click-style automatic session. It
-emits structured events such as `AUTO_BEGIN`, `ATTEMPT_BEGIN`, `PARTIAL_RESULT`,
-`FINAL_RESULT`, and `AUTO_END` only outside the critical acquisition window. These
-events are diagnostic contracts for future UI work; they are not the final product
-screen implementation.
+Phase 07 automatic-session policy and orchestration are product application services
+with host-tested diagnostics. The STM32 Bringup console is intentionally limited to
+hardware bring-up, raw metrology capture, sensor, storage, and calibration commands so
+Release/Product builds do not carry rich automatic-measurement presentation strings.
+Future Phase 08 UI work may display automatic-session events such as `AUTO_BEGIN`,
+`ATTEMPT_BEGIN`, `PARTIAL_RESULT`, `FINAL_RESULT`, and `AUTO_END` through product UI or
+host-side tooling outside critical acquisition windows.
 
 ## About
 

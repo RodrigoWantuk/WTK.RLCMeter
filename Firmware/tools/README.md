@@ -17,5 +17,7 @@ Host-side tools that support firmware, assets, calibration, and diagnostics.
   replay/reference helper for Phase 06 tests.
 - `inspect_calibration_record.py`: decodes the Phase 07 Stage 2A calibration frame,
   verifies CRC/commit state, and prints record keys and correction coefficients.
+- `firmware_size.py`: reports STM32 ELF Flash/RAM usage, reserved stack/heap floor,
+  largest symbols, optional JSON output, and Release/Bringup size-budget gates.
 
 Tools should be deterministic and should record the format/version used to generate artifacts consumed by firmware.

@@ -336,7 +336,7 @@ Do not design Rev.2 before answering these with Rev.1 data where possible.
 ## Automated acceptance criteria
 
 - all host tests pass;
-- STM32 Release and Lab builds succeed;
+- STM32 Release and Bringup builds succeed;
 - regression dataset passes schema validation;
 - qualification-report tooling runs reproducibly;
 - no `NOMINAL` classification exists without corresponding evidence records.

@@ -4,7 +4,7 @@ author: WTK.RLCMeter
 steps:
   - wait-serial: 'WTK.RLCMeter'
   - wait-serial: 'firmware:'
-  - wait-serial: 'build: Lab'
+  - wait-serial: 'profile: BRINGUP'
   - wait-serial: 'clock_status:'
   - wait-serial: 'clock_source:'
   - wait-serial: 'swd: PRESERVED'

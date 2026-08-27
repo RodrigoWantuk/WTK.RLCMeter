@@ -267,7 +267,7 @@ cmake --preset stm32-debug
 cmake --build --preset stm32-debug
 ```
 
-The virtual-hardware layer is defined by [`03A-Wokwi-Virtual-Hardware-Validation.md`](03A-Wokwi-Virtual-Hardware-Validation.md). It initially uses Wokwi to execute the existing STM32 Lab ELF and automate digital GPIO/UART/SPI/TFT/Flash regressions where the simulator supports them.
+The virtual-hardware layer is defined by [`03A-Wokwi-Virtual-Hardware-Validation.md`](03A-Wokwi-Virtual-Hardware-Validation.md). It initially uses Wokwi to execute the existing STM32 Bringup ELF and automate digital GPIO/UART/SPI/TFT/Flash regressions where the simulator supports them.
 
 Host testing should eventually cover pure state-machine transitions, component/model classification, navigation/button semantics, calibration validity decisions, resource parsing, persistence corruption recovery, and the DSP core.
 

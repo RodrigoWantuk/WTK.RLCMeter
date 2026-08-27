@@ -58,7 +58,7 @@ Observed SPI1 RX8: 00 00 00 00
 Observed SPI1 DR16: 0000 0000 0000 0000
 ```
 
-Production Lab ELF + W25Q model (separate `--miso-probe`): PB14 VCD carried `EF 40 17` after command `9F`, while `w25q_device_probe()` still reported `UNSUPPORTED_DEVICE`. That is the line-level SPI2 evidence. This standalone binary proves `SPI_DR` stays zero on SPI2 and SPI1.
+Production Bringup ELF + W25Q model (separate `--miso-probe`): PB14 VCD carried `EF 40 17` after command `9F`, while `w25q_device_probe()` still reported `UNSUPPORTED_DEVICE`. That is the line-level SPI2 evidence. This standalone binary proves `SPI_DR` stays zero on SPI2 and SPI1.
 
 ## Scope of any simulator bug
 

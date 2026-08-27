@@ -46,7 +46,7 @@ Do not add both simulators at this stage. Keep the test architecture backend-neu
 ## Prerequisites
 
 - Phase 01 CMake/Arm GCC build foundation available;
-- STM32 Lab or Debug firmware builds successfully;
+- STM32 Bringup or Debug firmware builds successfully;
 - Phase 02 safe-boot GPIO/UART foundation implemented;
 - Phase 03 digital peripherals implemented at software level;
 - current Rev.1 pinout remains authoritative.
@@ -133,15 +133,15 @@ Simulation must execute the same firmware produced by the normal STM32 build.
 Preferred initial artifact:
 
 ```text
-Firmware/build/stm32-lab/WTK.RLCMeter.elf
+Firmware/build/stm32-bringup/WTK.RLCMeter.elf
 ```
 
 Canonical build:
 
 ```bash
 cd Firmware
-cmake --preset stm32-lab
-cmake --build --preset stm32-lab
+cmake --preset stm32-bringup
+cmake --build --preset stm32-bringup
 ```
 
 `wokwi.toml` must point at the generated ELF rather than maintaining a separate Arduino, PlatformIO, CubeIDE, or simulator-specific firmware project.
@@ -163,7 +163,7 @@ Do not expose internal state solely because it is convenient for simulation when
 
 If a test-only diagnostic hook becomes necessary:
 
-1. keep it behind an explicit Lab/virtual-test compile-time option;
+1. keep it behind an explicit Bringup/virtual-test compile-time option;
 2. do not compile it into Release;
 3. do not bypass safety policy;
 4. document why external observation was insufficient;
@@ -341,7 +341,7 @@ Verify:
 - releasing quiet permits later activity to resume;
 - no safety GPIO changes as a side effect.
 
-Do not implement Phase 05 acquisition merely to trigger quiet mode. A narrow Lab diagnostic command is acceptable if required and explicitly isolated from Release.
+Do not implement Phase 05 acquisition merely to trigger quiet mode. A narrow Bringup diagnostic command is acceptable if required and explicitly isolated from Release.
 
 ## Task 10 — Phase 04 virtual safety scenarios
 
@@ -389,7 +389,7 @@ Add a dedicated virtual-hardware workflow after local CLI validation is stable.
 
 Requirements:
 
-- build `stm32-lab` using the existing CMake flow;
+- build `stm32-bringup` using the existing CMake flow;
 - run a short virtual smoke suite automatically;
 - use `WOKWI_CLI_TOKEN` from GitHub Actions secrets;
 - never print the token;
@@ -436,7 +436,7 @@ Virtual success may remove software uncertainty, but it must never remove a benc
 
 This phase is software-complete when:
 
-1. the standard STM32 Lab ELF boots in the simulator without a simulator-specific firmware fork;
+1. the standard STM32 Bringup ELF boots in the simulator without a simulator-specific firmware fork;
 2. one command runs the complete local virtual suite unattended;
 3. process exit status is nonzero on a deliberately broken expectation;
 4. boot-safe GPIO assertions pass;
@@ -448,7 +448,7 @@ This phase is software-complete when:
 10. W25Q driver behavior is exercised against a deterministic simulated target or an explicitly documented reduced substitute;
 11. quiet-mode regression passes;
 12. no production safety policy is bypassed for simulation;
-13. host tests and normal STM32 Debug/Release/Lab builds remain green;
+13. host tests and normal STM32 Debug/Release/Bringup builds remain green;
 14. README documentation explains install, local execution, CI execution, limitations, and troubleshooting.
 
 ## Bench acceptance impact
@@ -511,7 +511,7 @@ Implemented:
 - GitHub Actions workflow using `WOKWI_CLI_TOKEN`;
 - host-testable quiet-mode buzzer policy regression;
 - host-testable ILI9341 rotation/dimension geometry regression;
-- Lab-only deterministic button UART diagnostics.
+- Bringup-only deterministic button UART diagnostics.
 
 Not yet virtual-hardware-tested:
 
@@ -568,15 +568,15 @@ Implemented:
   - `w25q-bad-jedec`;
   - `w25q-absent`;
   - `quiet-mode`.
-- Lab-only serial command path:
+- Bringup-only serial command path:
   - `lab quiet on`;
   - `lab quiet off`;
   - `lab buzzer <frequency_hz> <duration_ms>`;
   - `lab flash info`;
   - `lab flash selftest`.
-- Lab-only non-blocking W25Q reserved-sector self-test using erase-start/poll, page-program-start/poll, readback, verification, and cleanup erase.
+- Bringup-only non-blocking W25Q reserved-sector self-test using erase-start/poll, page-program-start/poll, readback, verification, and cleanup erase.
 - Quiet-mode API ambiguity reduction: `spi_bus_request_quiet()` was removed from the public SPI bus API. Future acquisition code should use `hw_peripherals_request_quiet()`.
-- Lab-only display diagnostics:
+- Bringup-only display diagnostics:
   - one-shot `display: READY` after ILI9341 initialization reaches ready state;
   - one-shot `fallback_ui: FLASH_ERROR_DRAWN` only after the emergency fallback renderer succeeds.
 - Wokwi CLI 0.26.1 compatibility fixes:
@@ -588,7 +588,7 @@ Validated locally on 2026-08-19:
 
 - host Debug and Release CTest targets remain passing;
 - Python tooling tests pass;
-- STM32 Debug/Release/Lab builds pass;
+- STM32 Debug/Release/Bringup builds pass;
 - runner `--check-only` passes;
 - Wokwi CLI installed via the official Windows PowerShell installer;
 - exact Wokwi CLI version: `0.26.1 (9d71b975b7eb)`;
@@ -597,7 +597,7 @@ Validated locally on 2026-08-19:
 - `wokwi-cli lint` reports `No issues found`;
 - `python tools/run_virtual_tests.py --smoke` compiles/lints successfully and returns exit code 2 because `WOKWI_CLI_TOKEN` is not set;
 - deliberate synthetic VCD failure proof returns exit code 1 with `FLASH_CS and TFT_CS were low at the same time`;
-- Release build remains free of Lab-only strings such as `display: READY`, `fallback_ui`, and `lab flash selftest`.
+- Release build remains free of Bringup-only strings such as `display: READY`, `fallback_ui`, and `lab flash selftest`.
 
 Not yet completed after the first token-backed run on 2026-08-19:
 
@@ -641,7 +641,7 @@ Chronological diagnosis:
    - `["$serialMonitor:TX", "mcu:A10", "", []]`
    Logic-analyzer PA9/PA10 connections were kept. Static JSON validation in `run_virtual_tests.py` requires that directed pair. Unit tests cover: correct wiring; missing PA9 TX; missing PA10 RX; both directions swapped; PA9 connected to `$serialMonitor:TX`; PA10 connected to `$serialMonitor:RX`.
 4. **Result after wiring, before any production clock/UART/watchdog change:**
-   - Lab image emitted `WTK.RLCMeter` on USART1.
+   - Bringup image emitted `WTK.RLCMeter` on USART1.
    - `uart-boot` PASS.
    - PA9 VCD probe: `PA9 toggled: yes`, `Serial Monitor captured text: yes`.
    - Boot continued past `watchdog_policy: IWDG_START_AFTER_UART_BANNER`. IWDG was **not** proven to block simulation. No `stm32-wokwi` profile was added.
@@ -657,7 +657,7 @@ Chronological diagnosis:
 
 Decision tree (Wokwi CLI 0.26.1 / API `1.0.0-20260803-gf69c6c93`):
 
-1. **Stage 4 observation (OBSERVED):** production Lab ELF, full W25Q model, MCU JEDEC `00 00 00`.
+1. **Stage 4 observation (OBSERVED):** production Bringup ELF, full W25Q model, MCU JEDEC `00 00 00`.
 2. **Official SPI Device API MISO correction (FIXED_MODEL_BUG for pin mode, not sufficient):**
    - Before: `pin_init("MISO", OUTPUT)` plus `pin_mode` OUTPUT/INPUT on CS.
    - After: `pin_init("MISO", INPUT)`; SPI Device API owns MISO; no `pin_mode` / `pin_write`.

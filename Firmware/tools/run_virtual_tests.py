@@ -191,8 +191,8 @@ def run_command(command: list[str], cwd: Path, timeout_s: int | None = None) -> 
 
 def build_lab_firmware(fw_root: Path) -> int:
     for command in (
-        ["cmake", "--preset", "stm32-lab"],
-        ["cmake", "--build", "--preset", "stm32-lab"],
+        ["cmake", "--preset", "stm32-bringup"],
+        ["cmake", "--build", "--preset", "stm32-bringup"],
     ):
         print(f"+ {' '.join(command)}")
         result = run_command(command, fw_root, timeout_s=180)
@@ -292,7 +292,7 @@ def verify_static_files(fw_root: Path, project_dir: Path) -> bool:
         print(f"missing: {miso_probe_scenario}")
         ok = False
 
-    elf = fw_root / "build" / "stm32-lab" / "WTK.RLCMeter.elf"
+    elf = fw_root / "build" / "stm32-bringup" / "WTK.RLCMeter.elf"
     if not elf.exists():
         print(f"ELF not found: {elf}")
         ok = False
@@ -939,7 +939,7 @@ def selected_scenarios(args: argparse.Namespace) -> list[str]:
 
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--build", action="store_true", help="configure and build the stm32-lab preset before running")
+    parser.add_argument("--build", action="store_true", help="configure and build the stm32-bringup preset before running")
     parser.add_argument("--smoke", action="store_true", help="run the short smoke suite")
     parser.add_argument("--scenario", action="append", help="run one named scenario; can be repeated")
     parser.add_argument("--keep-artifacts", action="store_true", help="keep previous logs/VCD files")
@@ -952,7 +952,7 @@ def main(argv: list[str]) -> int:
     fw_root = firmware_root()
     project_dir = fw_root / "sim" / "wokwi"
     artifact_dir = fw_root / "build" / "virtual" / "wokwi"
-    elf = fw_root / "build" / "stm32-lab" / "WTK.RLCMeter.elf"
+    elf = fw_root / "build" / "stm32-bringup" / "WTK.RLCMeter.elf"
 
     if args.build:
         build_status = build_lab_firmware(fw_root)

@@ -31,7 +31,7 @@ The current Stage 1 implementation adds host-testable safety and control foundat
 - `hw_charger`: PA15 semantic mapping, LOW absent and HIGH present, with read failures mapped to UNKNOWN;
 - `hw_power`: provisional battery divider/threshold constants and NTC divider resistance helper.
 
-The live application initializes K1/K2/range/charger services and remains fail-closed because residual ADC transport is not yet qualified. Lab range commands may exercise the range bank, but no Lab command can force K1 into MEASURE.
+The live application initializes K1/K2/range/charger services and remains fail-closed because residual ADC transport is not yet qualified. Bringup range commands may exercise the range bank, but no Bringup command can force K1 into MEASURE.
 
 ## Phase 04 Stage 2 services
 
@@ -75,8 +75,8 @@ Stage 1 adds the deterministic metrology transport foundation while K1 remains p
 - `hw_excitation` + `bsp_excitation`: TIM1 450 kHz carrier, 45-point LUT, OFF/NEUTRAL/SINE, DMA1 Ch5;
 - `hw_metrology_raw`: packed dual-ADC layout, unpack, hard-clip scan;
 - `bsp_metrology_adc`: dual ADC1/ADC2, TIM2 internal trigger, DMA1 Ch1, static 768-word buffer;
-- `hw_metrology_session`: host-tested non-blocking Lab capture FSM;
-- Lab command `lab metrology capture` (Lab build only).
+- `hw_metrology_session`: host-tested non-blocking bring-up capture FSM;
+- Bringup-profile command `lab metrology capture`.
 
 No DSP, no production MEASURE, no K1 energization in Stage 1.
 

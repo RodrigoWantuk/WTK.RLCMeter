@@ -18,7 +18,7 @@ measurement_calibration_store.c/.h
 
 `measurement_dsp` is the Phase 06 fixed-condition math core. `measurement_condition`
 is the narrow Rev.1 physical condition-domain contract shared by automatic policy,
-calibration requirements, Lab validation, and future qualification maps.
+calibration requirements, Bringup validation, and future qualification maps.
 `measurement_engine` is the Phase 07 Stage 1 automatic session policy layer. `measurement_calibration` and
 `measurement_calibration_store` are the Phase 07 Stage 2A portable calibration model,
 resolver, and redundant-slot substrate. OPEN/SHORT/LOAD acquisition workflows,
@@ -123,7 +123,7 @@ measurement_dsp_config_t
 measurement_calibrated_result_t
 ```
 
-The DSP does not parse Flash records. Missing exact calibration may use ideal Lab/debug
+The DSP does not parse Flash records. Missing exact calibration may use ideal Bringup/debug
 defaults only with explicit `MISSING/uncalibrated` provenance.
 
 The persisted schema v2 uses a pre-DSP physical condition key:

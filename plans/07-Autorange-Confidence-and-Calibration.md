@@ -83,7 +83,7 @@ terminal OPEN/SHORT/no-valid-condition outcome
 ```
 
 It does not directly touch GPIO, relays, range pins, ADC/DMA registers, TFT, W25Q, or
-Lab UART output during critical acquisition. Phase 05 remains the only owner of the
+Bringup UART output during critical acquisition. Phase 05 remains the only owner of the
 fixed-condition hardware measurement transaction. Phase 06 remains the owner of the
 single-condition DSP and impedance equation.
 
@@ -99,7 +99,7 @@ Phase 07 policy requested attempt
 ```
 
 The application controller owns session lifecycle, cancellation, partial/final result
-publication, and Lab diagnostic events. It does not directly energize K1, switch range
+publication, and diagnostic events. It does not directly energize K1, switch range
 GPIO, issue bypass permits, configure ADC/DMA, or keep hardware active between attempts.
 Every attempt is a fresh Phase 05 safety transaction.
 
@@ -162,8 +162,8 @@ The primary attempt is selected by explicit quality ordering, not by impedance
 magnitude. Frequency-refinement attempts provide supporting classification/confidence
 evidence unless a future policy explicitly promotes a new primary condition.
 
-Stage 1B Lab diagnostics expose `lab auto measure`, which runs a Click-style automatic
-session and emits structured post-critical-window events:
+Stage 1B originally proved Click-style automatic sessions through host-tested
+application-session events:
 
 ```text
 AUTO_BEGIN
@@ -173,10 +173,12 @@ FINAL_RESULT
 AUTO_END
 ```
 
-Click and Live modes both use the same session engine. Click runs one complete session.
-Live may start another complete session using a previous final result as a starting hint,
-but that hint only carries range/frequency/amplitude/channel preference. It carries no
-safety authorization, no permit, and no active hardware ownership across sessions.
+The STM32 Bringup console no longer carries the rich automatic-session pretty-printer;
+that presentation belongs to host tools and future Phase 08 product UI. Click and Live
+modes both use the same session engine. Click runs one complete session. Live may start
+another complete session using a previous final result as a starting hint, but that hint
+only carries range/frequency/amplitude/channel preference. It carries no safety
+authorization, no permit, and no active hardware ownership across sessions.
 
 Current Rev.1 qualification behavior is intentionally conservative:
 
@@ -225,7 +227,7 @@ The active persistent schema is:
 
 ```text
 MEASUREMENT_CAL_SCHEMA_VERSION = 2
-MEASUREMENT_CAL_MODEL_VERSION_OSL_MOBIUS_EFFECTIVE_HG_V1 = 4
+MEASUREMENT_CAL_MODEL_VERSION_CURRENT = 4
 MEASUREMENT_CAL_HARDWARE_REV1 = 0x00010001
 ```
 
@@ -249,8 +251,10 @@ OSL/Mobius correction:
     Z_corrected = K * (t - t_short) / (t - t_open)
 ```
 
-The record types reserve values for OPEN, SHORT, and LOAD evidence, while the active
-condition records store solved OSL coefficients.
+The persistent frame can diagnose older record kinds, but embedded firmware no longer
+executes legacy direct-affine models or stores standalone OPEN/SHORT/LOAD evidence
+records as runtime calibration records. Active condition records store the current
+OSL/Mobius coefficients only.
 
 Calibration keys intentionally include only the physical pre-DSP condition:
 
@@ -263,15 +267,15 @@ amplitude
 ```
 
 RET channel and RET strategy are not key dimensions. Phase 05 captures both return
-paths and Phase 06 selects the usable channel after DSP; therefore the calibration
-record carries both RET_1X and RET_HG output-correction terms together. This removes
-the circular dependency where persistent lookup previously needed a RET choice before
-the DSP made one.
+paths and Phase 06 selects the usable channel after DSP. The current calibration record
+therefore carries one effective high-gain transfer and OSL/Mobius coefficients for the
+condition, avoiding the circular dependency where persistent lookup previously needed a
+RET choice before the DSP made one.
 
 Resolution is exact-condition only in Stage 2A.1. Missing exact calibration may fall
 back to the ideal DSP defaults only when the caller explicitly allows that behavior;
 the provenance is then reported as `source=IDEAL`, `status=MISSING`, and
-`uncalibrated=true`. This is acceptable for Lab/debug bring-up but is not a product
+`uncalibrated=true`. This is acceptable for Bringup/debug bring-up but is not a product
 qualification claim.
 
 Resolution statuses are explicit:
@@ -361,7 +365,7 @@ raw complex impedance and recomputes derived quantities. Result metadata preserv
 calibration provenance (`IDEAL`, `PERSISTED`, missing/unqualified/found status,
 sequence, model, and condition ID) for later UI/qualification policy.
 
-Lab diagnostics expose `lab cal status` for active/slot validity and `lab cal dump` for
+Bringup diagnostics expose `lab cal status` for active/slot validity and `lab cal dump` for
 a read-only compact listing of the active calibration records.
 
 Stage 2A.1 does not yet add the Phase 08 mandatory calibration boot gate. Missing
@@ -473,15 +477,15 @@ app_calibration_service_t
     owns the product calibration runtime
     owns the single calibration store scratch context
     owns the active OPEN/SHORT/LOAD acquisition workflow
-    is available in Debug, Release, and Lab builds
+    is available in Debug, Release, and Bringup profiles
 
 app_calibration_runtime_t
     owns the active decoded calibration set and active-slot provenance
     owns compact slot diagnostics
     does not own W25Q or raw metrology buffers
 
-app_lab_console_t
-    owns Lab command state only
+app_bringup_console_t
+    owns Bringup command state only
     attaches to app_calibration_service_t through its public API
     does not own the active calibration set
     does not own calibration store scratch storage
@@ -523,8 +527,8 @@ metrology raw DMA buffer:     BSP-owned; never copied by calibration runtime
 
 STM32 builds enable GCC `-fstack-usage` so relevant stack frames can be audited from
 generated `.su` files. A compile-time guard keeps `measurement_cal_store_t` within its
-documented scratch budget. Lab-only diagnostics may retain extra command/dump state, but
-Release must not carry Lab-only console buffers or raw calibration workflow fixtures.
+documented scratch budget. Bringup-only diagnostics may retain extra command/dump state, but
+Release must not carry Bringup-only console buffers or raw calibration workflow fixtures.
 
 Stage 2B must keep raw OPEN/SHORT/LOAD captures as transient acquisition evidence. It
 must reuse the existing Phase 05 raw block ownership, derive compact coefficients, and
@@ -539,14 +543,14 @@ coefficients.
 On boot, after W25Q probing, the application initializes the product calibration
 service. If W25Q is present, the service initializes the calibration store, scans both
 slots, selects the newest usable persisted set, and publishes cached runtime validity.
-If W25Q is absent or rejected, the service records `STORAGE_UNAVAILABLE`. Lab status and
+If W25Q is absent or rejected, the service records `STORAGE_UNAVAILABLE`. Bringup status and
 dump commands read this cached state; they do not rescan or reinitialize storage. A
-manual Lab rescan is rejected while a store transaction or OSL workflow is active.
+manual Bringup rescan is rejected while a store transaction or OSL workflow is active.
 
 The OSL workflow captures one exact condition at a time:
 
 ```text
-Lab/UI intent
+Bringup/UI intent
     -> app_calibration_service_t
     -> app_calibration_session_t
     -> app_calibration_workflow_t
@@ -556,7 +560,7 @@ Lab/UI intent
 ```
 
 `app_calibration_session_t` is the application-layer controller that connects the
-product calibration workflow to Phase 05. The Lab console attaches to this controller
+product calibration workflow to Phase 05. The Bringup console attaches to this controller
 and reports events; it no longer owns the capture/repeat loop itself. Each capture is a
 separate Phase 05 safety transaction. The workflow/session never energizes K1 directly,
 never keeps K1 energized between repeats, never bypasses measurement permits, and never
@@ -583,7 +587,7 @@ Stage 2B.1 standard semantics:
   impedance would be singular or near-singular.
 - `SHORT` preserves compact complex residual impedance evidence for each usable return
   path.
-- `LOAD` records a known complex standard impedance, with the initial Lab command
+- `LOAD` records a known complex standard impedance, with the initial Bringup command
   accepting pure resistance in ohms.
 - VEXC_1, VEXC_2, RET_1X, raw physical RET_HG, reconstructed RET_HG, VMID_ADC1, and
   VMID_ADC2 remain visible in evidence.
@@ -619,7 +623,7 @@ transaction requests the existing safe abort path, waits for the hardware-safe e
 state, then discards incomplete evidence. Active persisted calibration remains
 unchanged throughout Stage 2B.1.
 
-Capture temperature is recorded only when the auxiliary NTC snapshot is valid. Lab
+Capture temperature is recorded only when the auxiliary NTC snapshot is valid. Bringup
 commands must not inject a fixed placeholder temperature. Temperature evidence is
 reported as unavailable when the current sensor snapshot cannot support it.
 
@@ -635,7 +639,7 @@ MEASUREMENT_CAL_SCHEMA_VERSION = 2
 The active mathematical model is now:
 
 ```text
-MEASUREMENT_CAL_MODEL_VERSION_OSL_MOBIUS_EFFECTIVE_HG_V1 = 4
+MEASUREMENT_CAL_MODEL_VERSION_CURRENT = 4
 ```
 
 For each exact Rev.1 condition, the solver uses stable OPEN/SHORT/LOAD evidence in
@@ -651,21 +655,21 @@ This maps SHORT to 0 ohm, LOAD to the known complex standard, and OPEN to a runt
 singularity. Runtime processing detects `t` near `t_open` as OPEN-like rather than
 depending on NaN/Inf propagation.
 
-The 80-byte condition-record payload is unchanged, but model version 4 gives the
-existing complex fields OSL semantics:
+The 80-byte condition-record payload is unchanged, but model version 4 gives the six
+complex coefficient slots OSL semantics:
 
 ```text
-ret_hg_transfer      = effective normalized HG transfer
-zref_ohms            = known LOAD reference for the solve
-ret_1x_output.scale  = t_short
-ret_1x_output.offset = t_open
-ret_hg_output.scale  = K
-ret_hg_output.offset = reserved zero
+effective_hg_transfer = effective normalized HG transfer
+load_z_ohms           = known LOAD reference for the solve
+t_short               = SHORT normalized transfer
+t_open                = OPEN normalized transfer
+k                     = Mobius numerator scale
+reserved              = reserved zero
 ```
 
-The legacy member names remain only to avoid a schema change. New diagnostics and
-documentation use OSL names. `H_HG` is not a physical op-amp gain in this model; it is
-the effective normalized path gain `(RET_HG_raw / VEXC_2) / (RET_1X / VEXC_1)`.
+The field rename is source-level only; schema version remains 2 because the portable
+byte layout is unchanged. `H_HG` is not a physical op-amp gain in this model; it is the
+effective normalized path gain `(RET_HG_raw / VEXC_2) / (RET_1X / VEXC_1)`.
 Persisted records without `HG_OBSERVED` cannot select HG as a calibrated runtime path.
 Current OSL records must carry OSL/load-reference semantics and finite nondegenerate
 `t_short`, `t_open`, and `K`; malformed current-model records cannot fall back to the
@@ -679,10 +683,10 @@ the active set if candidate serialization, erase, program, commit, or verify fai
 Stage 2B.2.1 adds an explicit service-owned candidate lifecycle
 `NONE/BUILDING/PARTIAL/COMPLETE/COMMITTING/ACTIVATED/FAILED`. Store `DONE` activates
 exactly once and is acknowledged back to `IDLE`; store `ERROR` requires explicit discard
-or recovery. Dirty candidates block rescan/load until discarded. Lab is now a controller
+or recovery. Dirty candidates block rescan/load until discarded. Bringup is now a controller
 of the product service and no longer owns `app_calibration_campaign_t`.
 
-Lab diagnostics added for Stage 2B.2:
+Bringup diagnostics added for Stage 2B.2:
 
 ```text
 lab cal campaign begin <freq> <amp> <range>
@@ -693,7 +697,7 @@ lab cal campaign discard
 ```
 
 `lab cal acquire ...` remains the only acquisition command; completed stable
-OPEN/SHORT/LOAD acquisitions feed the active campaign. Lab commands do not bypass the
+OPEN/SHORT/LOAD acquisitions feed the active campaign. Bringup commands do not bypass the
 Phase 05 measurement transaction, K1 ownership, range FSM, measurement permit, or SAFE
 teardown.
 
@@ -1008,7 +1012,7 @@ Requirements:
 
 - enforce SAFE/fixture instructions through app/UI later;
 - reject unstable captures;
-- record raw diagnostic data in Lab mode;
+- record raw diagnostic data in Bringup profile;
 - do not extrapolate OPEN calibration far outside the measured condition without model justification.
 
 ## Task 16 — SHORT workflow
@@ -1058,7 +1062,7 @@ amplitude
 RET channel / strategy
 ```
 
-The map may begin compiled for Lab builds and later become generated from qualification data.
+The map may begin compiled for Bringup profiles and later become generated from qualification data.
 
 ## Task 20 — Autorange/classification termination
 

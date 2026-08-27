@@ -66,15 +66,19 @@ cmake --preset stm32-release
 cmake --build --preset stm32-release
 ```
 
-Embedded lab diagnostics build:
+Embedded Bringup diagnostics build:
 
 ```bash
 cd Firmware
-cmake --preset stm32-lab
-cmake --build --preset stm32-lab
+cmake --preset stm32-bringup
+cmake --build --preset stm32-bringup
 ```
 
 The STM32 presets use `cmake/toolchains/arm-none-eabi-gcc.cmake` and target Cortex-M3 Thumb code for the STM32F103C8T6. The linker script is `cmake/stm32/STM32F103C8Tx_FLASH.ld`, with the Blue Pill baseline memory map of 64 KiB Flash and 20 KiB RAM.
+
+Release and Debug use `WTK_FIRMWARE_PROFILE=PRODUCT`. Bringup uses
+`WTK_FIRMWARE_PROFILE=BRINGUP` with the standard `MinSizeRel` optimization build type;
+feature selection is no longer encoded as a custom CMake build type.
 
 Expected STM32 build artifacts are generated under the selected build directory:
 
@@ -449,7 +453,7 @@ ERROR
 WARN
 INFO
 DEBUG
-TRACE   # laboratory builds only
+TRACE   # bring-up profile only
 ```
 
 Bring-up diagnostics should expose through UART and/or TFT:
@@ -465,12 +469,16 @@ Bring-up diagnostics should expose through UART and/or TFT:
 - clipping/SNR/confidence;
 - fault codes.
 
-## Planned build profiles
+## Build profiles
 
-- `Debug` — assertions, full symbols, development logging.
-- `Lab` — extra instrumentation, TRACE, engineering screens.
-- `Release` — product behavior with reduced logging.
-- `HostTests` — pure modules compiled for the development host without STM32 dependencies.
+- `host-debug` / `host-release` — pure modules and host tests without STM32 hardware dependencies.
+- `stm32-debug` — product firmware profile with debug symbols for SWD/GDB work.
+- `stm32-release` — product firmware profile with reduced diagnostics.
+- `stm32-bringup` — size-optimized physical-board service profile for hardware diagnostics.
+
+Release and Bringup builds run `tools/firmware_size.py` after linking when Python is
+available. Both enforce a 56 KiB project Flash hard gate and report static RAM, reserved
+stack/heap floor, remaining SRAM, and largest symbols. The soft Flash target is 48 KiB.
 
 ## Implementation program
 

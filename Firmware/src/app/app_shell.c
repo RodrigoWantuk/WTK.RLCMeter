@@ -1,6 +1,6 @@
 #include "app/app_shell.h"
 
-#include "app/app_lab_console.h"
+#include "app/app_bringup_console.h"
 #include "app/app_calibration_service.h"
 #include "app/app_safety_fault.h"
 #include "bsp/bsp_adc.h"
@@ -49,8 +49,8 @@ static hw_aux_sensors_t g_aux_sensors;
 static app_safety_fault_latch_t g_safety_faults;
 static hw_safety_result_t g_safety_result;
 static app_calibration_service_t g_calibration_service;
-#if WTK_ENABLE_LAB_DIAGNOSTICS
-static app_lab_console_t g_lab_console;
+#if WTK_ENABLE_BRINGUP_CONSOLE
+static app_bringup_console_t g_bringup_console;
 static bool g_display_ready_reported = false;
 #endif
 static bool g_flash_fallback_drawn = false;
@@ -164,7 +164,7 @@ static void app_log_button_event(const button_event_t *event)
         return;
     }
 
-#if WTK_ENABLE_LAB_DIAGNOSTICS
+#if WTK_ENABLE_BRINGUP_CONSOLE
     const char *button_name = "UNKNOWN";
     switch (event->button)
     {
@@ -281,7 +281,7 @@ static void app_step(void)
     }
 
     (void)ili9341_init_step(&g_display, now_ms);
-#if WTK_ENABLE_LAB_DIAGNOSTICS
+#if WTK_ENABLE_BRINGUP_CONSOLE
     if (g_display.ready && !g_display_ready_reported)
     {
         bsp_uart_write_cstr("display: READY\r\n");
@@ -293,14 +293,14 @@ static void app_step(void)
         if (ui_fallback_draw_text(&g_display, 8u, 8u, "FLASH ERROR", 0xFFFFu, 0x0000u) == BSP_STATUS_OK)
         {
             g_flash_fallback_drawn = true;
-#if WTK_ENABLE_LAB_DIAGNOSTICS
+#if WTK_ENABLE_BRINGUP_CONSOLE
             bsp_uart_write_cstr("fallback_ui: FLASH_ERROR_DRAWN\r\n");
 #endif
         }
     }
 
-#if WTK_ENABLE_LAB_DIAGNOSTICS
-    app_lab_console_step(&g_lab_console,
+#if WTK_ENABLE_BRINGUP_CONSOLE
+    app_bringup_console_step(&g_bringup_console,
                          &g_flash,
                          &g_display,
                          &g_range,
@@ -310,7 +310,7 @@ static void app_step(void)
                          &g_safety_result,
                          &g_safety_faults,
                          now_ms);
-    if (!app_lab_console_flash_busy(&g_lab_console) && !app_lab_console_capture_busy(&g_lab_console))
+    if (!app_bringup_console_flash_busy(&g_bringup_console) && !app_bringup_console_capture_busy(&g_bringup_console))
     {
         (void)w25q_device_poll(&g_flash, now_ms);
     }
@@ -389,9 +389,9 @@ void app_shell_run(void)
     g_safety_transition_reported = false;
     g_reported_safety_state = APP_SAFETY_SAFE_CHECK;
     g_reported_primary_blocker = HW_SAFETY_BLOCKED_SENSOR_INVALID;
-#if WTK_ENABLE_LAB_DIAGNOSTICS
-    app_lab_console_init(&g_lab_console);
-    app_lab_console_attach_calibration_service(&g_lab_console, &g_calibration_service);
+#if WTK_ENABLE_BRINGUP_CONSOLE
+    app_bringup_console_init(&g_bringup_console);
+    app_bringup_console_attach_calibration_service(&g_bringup_console, &g_calibration_service);
     g_display_ready_reported = false;
 #endif
     w25q_device_init(&g_flash);

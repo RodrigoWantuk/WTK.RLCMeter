@@ -334,9 +334,9 @@ DMA1_Channel5_IRQHandler  excitation DMA TE only
 
 No TIM2 per-sample IRQ, no ADC EOC per-rank IRQ, no DSP/UART/TFT in ISRs.
 
-### Lab diagnostic (not product measurement)
+### Bringup diagnostic (not product measurement)
 
-Lab build only:
+Bringup profile only:
 
 ```text
 lab metrology capture <100|1k|10k> <100m|500m> <10r|100r|1k|10k|100k|1m>
@@ -344,13 +344,13 @@ lab metrology capture <100|1k|10k> <100m|500m> <10r|100r|1k|10k|100k|1m>
 
 Non-blocking session FSM; K1 forced SAFE throughout; UART raw dump after excitation OFF and quiet released. Never consumes measurement permit.
 
-Lab build only (Stage 2):
+Bringup profile only (Stage 2):
 
 ```text
 lab metrology measure <100|1k|10k> <100m|500m> <10r|100r|1k|10k|100k|1m>
 ```
 
-Stage 2 module: `hw_metrology_measure`. DUT measure FSM reuses the Stage 1 raw buffer and transport contract but energizes K1 only after single-use permit validate. `app_shell` skips global `hw_k1_force_safe()` while `hw_metrology_measure_k1_owned()`; dynamic blockers inside the measure FSM handle emergency abort during K1 MEASURE. Capture (`hw_metrology_session`) and measure are mutually exclusive in the lab console.
+Stage 2 module: `hw_metrology_measure`. DUT measure FSM reuses the Stage 1 raw buffer and transport contract but energizes K1 only after single-use permit validate. `app_shell` skips global `hw_k1_force_safe()` while `hw_metrology_measure_k1_owned()`; dynamic blockers inside the measure FSM handle emergency abort during K1 MEASURE. Capture (`hw_metrology_session`) and measure are mutually exclusive in the Bringup console.
 
 ### K1 ownership and permit lifecycle (Stage 2)
 
@@ -521,7 +521,7 @@ A component with large parasitics or an ambiguous network must be allowed to ret
 
 Frequency behavior may strengthen classification, for example capacitive reactance tending downward in magnitude with increasing frequency and inductive reactance tending upward, subject to real-component non-idealities and qualified evidence.
 
-Manual component-type selection is not part of the ordinary product UI. A future Lab/Debug measurement tool may request a model/parameter focus, but must not change the underlying impedance computation.
+Manual component-type selection is not part of the ordinary product UI. A future Bringup/Debug measurement tool may request a model/parameter focus, but must not change the underlying impedance computation.
 
 ### Autorange output
 
@@ -736,8 +736,8 @@ The persisted format must support schema evolution without directly serializing 
 
 ## Calibration runtime memory ownership
 
-The active calibration set is application runtime state. Lab diagnostics may inspect it,
-but the Lab console must not be the owner of product calibration validity.
+The active calibration set is application runtime state. Bringup diagnostics may inspect it,
+but the Bringup console must not be the owner of product calibration validity.
 
 Runtime ownership is split to keep the STM32F103C8T6 SRAM budget visible:
 
@@ -766,12 +766,12 @@ measurement_cal_store_t:
 
 Phase 05 raw ADC buffer:
     owned by metrology transport/BSP
-    never copied into calibration runtime or Lab console state
+    never copied into calibration runtime or Bringup console state
 
-app_lab_console_t:
-    owns Lab command state only
+app_bringup_console_t:
+    owns bring-up command state only
     attaches to app_calibration_service_t/app_calibration_session_t
-    does not own calibration store scratch
+    does not own calibration store scratch, calibration campaign state, or automatic session state
 ```
 
 The normal calibration store write path must not place multiple complete
@@ -792,14 +792,19 @@ stable.
 
 Stage 2B.2 adds the pure `measurement_calibration_solver` and the compact
 `app_calibration_campaign` layer. Stage 2B.2.1 makes the service the campaign owner and
-the active model is `OSL_MOBIUS_EFFECTIVE_HG_V1`: the solver uses `t = Vx / Vs`, stores
-`t_short`, `t_open`, and `K` in the existing 80-byte condition record payload, and fits
-HG from raw normalized `t_hg_raw = RET_HG_raw / VEXC_2` after deriving
+the active model is `MEASUREMENT_CAL_MODEL_VERSION_CURRENT = 4`: the solver uses
+`t = Vx / Vs`, stores `effective_hg_transfer`, `load_z_ohms`, `t_short`, `t_open`, `k`,
+and `reserved` in the existing 80-byte condition record payload, and fits HG from raw
+normalized `t_hg_raw = RET_HG_raw / VEXC_2` after deriving
 `H_HG_effective = t_hg_raw / t_1x`. The service reuses
 `measurement_cal_store_t.scan_set` as the candidate set and activates it only once,
 after the inactive W25Q slot has been programmed and verified. `DONE`/`ERROR` store
-states require explicit acknowledgement before scratch reuse. No Lab/application
+states require explicit acknowledgement before scratch reuse. No bring-up/application
 calibration path owns GPIO, K1, range switching, raw DMA storage, or campaign state.
+
+Pre-Phase 08 cleanup removed embedded execution for development-era direct/affine
+calibration models. `schema_version` remains 2 because the portable byte layout did not
+change, but current C identifiers now describe the model-4 OSL payload directly.
 
 ## Calibration boot gate
 
@@ -871,7 +876,7 @@ confidence
 retry/rerange reason
 ```
 
-Release builds may reduce this data; Lab builds should expose it through UART/TFT.
+Release builds may reduce this data; Bringup profiles should expose it through UART/TFT.
 
 When the on-screen debug console is enabled, it becomes an additional page in the normal result-page sequence. The TFT console uses a bounded fixed-size ring buffer for recent events; UART remains the higher-volume stream.
 

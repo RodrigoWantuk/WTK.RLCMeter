@@ -551,7 +551,7 @@ Validation run on 2026-08-19:
 - Python tooling unittest: 13 passed;
 - STM32 Debug build: passed;
 - STM32 Release build: passed, Flash 12900 B, RAM 2496 B;
-- STM32 Lab build: passed, Flash 14484 B, RAM 2680 B;
+- STM32 Bringup build: passed, Flash 14484 B, RAM 2680 B;
 - Wokwi `--lint-only`: passed with Wokwi CLI `0.26.1 (9d71b975b7eb)`;
 - Wokwi smoke scenarios were not executed because `WOKWI_CLI_TOKEN` is not set.
 
@@ -649,7 +649,7 @@ Validation run on 2026-08-19:
 - Python tooling unittest: 13 passed;
 - STM32 Debug build: passed, Flash 14576 B, RAM 2680 B;
 - STM32 Release build: passed, Flash 17456 B, RAM 2688 B;
-- STM32 Lab build: passed, Flash 21204 B, RAM 2872 B;
+- STM32 Bringup build: passed, Flash 21204 B, RAM 2872 B;
 - Wokwi `--lint-only`: passed with Wokwi CLI `0.26.1 (9d71b975b7eb)`;
 - Wokwi smoke/full scenarios were not executed because `WOKWI_CLI_TOKEN` is not set.
 
@@ -727,7 +727,7 @@ Validation run on 2026-08-19:
 - Python tooling unittest: 13 passed;
 - STM32 Debug build: passed, Flash 15344 B, RAM 2688 B;
 - STM32 Release build: passed, Flash 18292 B, RAM 2696 B;
-- STM32 Lab build: passed, Flash 23012 B, RAM 2880 B;
+- STM32 Bringup build: passed, Flash 23012 B, RAM 2880 B;
 - Wokwi `--lint-only`: passed with Wokwi CLI `0.26.1 (9d71b975b7eb)`;
 - Wokwi smoke: executed with a live token on 2026-08-19; 0/4 scenarios passed (all timed out with empty USART logs);
 - Wokwi full suite: not run after smoke failure;

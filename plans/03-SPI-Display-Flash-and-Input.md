@@ -329,8 +329,8 @@ cmake --build --preset stm32-debug
 cmake --preset stm32-release
 cmake --build --preset stm32-release
 
-cmake --preset stm32-lab
-cmake --build --preset stm32-lab
+cmake --preset stm32-bringup
+cmake --build --preset stm32-bringup
 ```
 
 Release memory report from the software-complete Phase 03 firmware:

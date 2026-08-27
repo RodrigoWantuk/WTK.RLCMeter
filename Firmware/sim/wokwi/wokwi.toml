@@ -1,7 +1,7 @@
 [wokwi]
 version = 1
-firmware = "../../build/stm32-lab/WTK.RLCMeter.hex"
-elf = "../../build/stm32-lab/WTK.RLCMeter.elf"
+firmware = "../../build/stm32-bringup/WTK.RLCMeter.hex"
+elf = "../../build/stm32-bringup/WTK.RLCMeter.elf"
 
 [[chip]]
 name = "w25q64"

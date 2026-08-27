@@ -789,7 +789,7 @@ static measurement_cal_set_t full_cal_set(uint32_t sequence, float marker)
                                             freq,
                                             amp);
                     measurement_cal_record_t record = measurement_cal_make_ideal_record(&key);
-                    record.correction.ret_hg_output.scale.re += marker;
+                    record.correction.k.re += marker;
                     record.correction.flags |= MEASUREMENT_CAL_FLAG_QUALIFIED;
                     (void)measurement_cal_set_add_record(&set, &record);
                 }
@@ -1215,8 +1215,8 @@ static int test_service_commit_activates_only_after_verified_store_done(void)
     const measurement_cal_record_t *active_record = find_test_record(active, &marker_key);
     failures += expect_true((old_record != NULL) && (active_record != NULL),
                             "marker condition remains present");
-    failures += expect_near((active_record != NULL) ? active_record->correction.ret_hg_output.scale.re : 0.0f,
-                            ((old_record != NULL) ? old_record->correction.ret_hg_output.scale.re : 0.0f) +
+    failures += expect_near((active_record != NULL) ? active_record->correction.k.re : 0.0f,
+                            ((old_record != NULL) ? old_record->correction.k.re : 0.0f) +
                                 123.0f,
                             0.001f,
                             "activated coefficients are new candidate");
@@ -1484,7 +1484,7 @@ static int test_campaign_solves_condition_and_inserts_candidate_record(void)
     failures += expect_true(app_calibration_campaign_solve_condition(&campaign, &record) ==
                                 MEASUREMENT_CAL_SOLVER_OK,
                             "campaign solves condition");
-    failures += expect_true((record.correction.flags & MEASUREMENT_CAL_FLAG_OSL_MOBIUS) != 0u,
+    failures += expect_true((record.correction.flags & MEASUREMENT_CAL_FLAG_OSL_MODEL) != 0u,
                             "campaign record is OSL");
     failures += expect_true((record.correction.flags & MEASUREMENT_CAL_FLAG_TEMPERATURE_VALID) != 0u,
                             "campaign preserves temperature validity");
@@ -1501,7 +1501,7 @@ static int test_campaign_solves_condition_and_inserts_candidate_record(void)
     failures += expect_true(app_calibration_campaign_insert_record(&record, &candidate) == BSP_STATUS_OK,
                             "candidate insert");
     failures += expect_u32(candidate.record_count, 1u, "candidate count");
-    record.correction.zref_ohms = measurement_complex(999.0f, 1.0f);
+    record.correction.load_z_ohms = measurement_complex(999.0f, 1.0f);
     failures += expect_true(app_calibration_campaign_insert_record(&record, &candidate) == BSP_STATUS_OK,
                             "candidate replace");
     failures += expect_u32(candidate.record_count, 1u, "candidate still one record");

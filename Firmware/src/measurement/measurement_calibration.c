@@ -186,16 +186,9 @@ static bool key_valid(const measurement_cal_key_t *key)
            measurement_cal_condition_allowed(key->range_id, key->frequency, key->amplitude);
 }
 
-static bool model_is_direct(uint16_t model_version)
+static bool model_is_current(uint16_t model_version)
 {
-    return (model_version == MEASUREMENT_CAL_MODEL_VERSION_DIRECT_V1) ||
-           (model_version == MEASUREMENT_CAL_MODEL_VERSION_DIRECT_V2);
-}
-
-static bool model_is_osl(uint16_t model_version)
-{
-    return (model_version == MEASUREMENT_CAL_MODEL_VERSION_OSL_MOBIUS_V1) ||
-           (model_version == MEASUREMENT_CAL_MODEL_VERSION_OSL_MOBIUS_EFFECTIVE_HG_V1);
+    return model_version == MEASUREMENT_CAL_MODEL_VERSION_CURRENT;
 }
 
 static bool scale_finite(measurement_adc_scale_t scale)
@@ -214,20 +207,15 @@ static bool adc_finite(const measurement_adc_calibration_t *adc)
            scale_finite(adc->vmid_adc2);
 }
 
-static bool output_finite(const measurement_cal_output_correction_t *correction)
-{
-    return (correction != NULL) &&
-           measurement_complex_is_finite(correction->scale) &&
-           measurement_complex_is_finite(correction->offset_ohms);
-}
-
 static bool correction_finite(const measurement_cal_correction_t *correction)
 {
     return (correction != NULL) &&
-           measurement_complex_is_finite(correction->ret_hg_transfer) &&
-           measurement_complex_is_finite(correction->zref_ohms) &&
-           output_finite(&correction->ret_1x_output) &&
-           output_finite(&correction->ret_hg_output);
+           measurement_complex_is_finite(correction->effective_hg_transfer) &&
+           measurement_complex_is_finite(correction->load_z_ohms) &&
+           measurement_complex_is_finite(correction->t_short) &&
+           measurement_complex_is_finite(correction->t_open) &&
+           measurement_complex_is_finite(correction->k) &&
+           measurement_complex_is_finite(correction->reserved);
 }
 
 void measurement_cal_set_init(measurement_cal_set_t *set,
@@ -256,29 +244,16 @@ measurement_cal_record_t measurement_cal_make_ideal_record(const measurement_cal
         record.key = *key;
     }
     measurement_dsp_config_t config = measurement_dsp_config_ideal(record.key.range_id);
-    if ((key != NULL) && model_is_osl(key->model_version))
+    if ((key != NULL) && model_is_current(key->model_version))
     {
         const measurement_cal_osl_coefficients_t ideal = {
-            .ret_hg_transfer = config.ret_hg_transfer,
+            .effective_hg_transfer = config.ret_hg_transfer,
             .load_z_ohms = config.zref_ohms,
             .t_short = measurement_complex(0.0f, 0.0f),
             .t_open = measurement_complex(1.0f, 0.0f),
             .k = complex_neg(config.zref_ohms),
         };
         record.correction = measurement_cal_make_osl_correction(&ideal, false, false);
-    }
-    else
-    {
-        record.correction.ret_hg_transfer = config.ret_hg_transfer;
-        record.correction.zref_ohms = config.zref_ohms;
-        record.correction.ret_1x_output.scale = measurement_complex(1.0f, 0.0f);
-        record.correction.ret_1x_output.offset_ohms = measurement_complex(0.0f, 0.0f);
-        record.correction.ret_hg_output.scale = measurement_complex(1.0f, 0.0f);
-        record.correction.ret_hg_output.offset_ohms = measurement_complex(0.0f, 0.0f);
-        record.correction.flags = MEASUREMENT_CAL_FLAG_RET_HG |
-                                  MEASUREMENT_CAL_FLAG_ZREF |
-                                  MEASUREMENT_CAL_FLAG_OUTPUT_CORRECTION_1X |
-                                  MEASUREMENT_CAL_FLAG_OUTPUT_CORRECTION_HG;
     }
     record.record_type = MEASUREMENT_CAL_RECORD_CONDITION;
     record.temperature_mC = 0;
@@ -296,13 +271,13 @@ measurement_cal_correction_t measurement_cal_make_osl_correction(
     {
         return correction;
     }
-    correction.ret_hg_transfer = coefficients->ret_hg_transfer;
-    correction.zref_ohms = coefficients->load_z_ohms;
-    correction.ret_1x_output.scale = coefficients->t_short;
-    correction.ret_1x_output.offset_ohms = coefficients->t_open;
-    correction.ret_hg_output.scale = coefficients->k;
-    correction.ret_hg_output.offset_ohms = measurement_complex(0.0f, 0.0f);
-    correction.flags = MEASUREMENT_CAL_FLAG_OSL_MOBIUS |
+    correction.effective_hg_transfer = coefficients->effective_hg_transfer;
+    correction.load_z_ohms = coefficients->load_z_ohms;
+    correction.t_short = coefficients->t_short;
+    correction.t_open = coefficients->t_open;
+    correction.k = coefficients->k;
+    correction.reserved = measurement_complex(0.0f, 0.0f);
+    correction.flags = MEASUREMENT_CAL_FLAG_OSL_MODEL |
                        MEASUREMENT_CAL_FLAG_LOAD_REFERENCE;
     if (temperature_valid)
     {
@@ -319,19 +294,19 @@ bool measurement_cal_get_osl_coefficients(const measurement_cal_correction_t *co
                                           measurement_cal_osl_coefficients_t *coefficients)
 {
     if ((correction == NULL) || (coefficients == NULL) ||
-        ((correction->flags & MEASUREMENT_CAL_FLAG_OSL_MOBIUS) == 0u) ||
+        ((correction->flags & MEASUREMENT_CAL_FLAG_OSL_MODEL) == 0u) ||
         !correction_finite(correction))
     {
         return false;
     }
     *coefficients = (measurement_cal_osl_coefficients_t){
-        .ret_hg_transfer = correction->ret_hg_transfer,
-        .load_z_ohms = correction->zref_ohms,
-        .t_short = correction->ret_1x_output.scale,
-        .t_open = correction->ret_1x_output.offset_ohms,
-        .k = correction->ret_hg_output.scale,
+        .effective_hg_transfer = correction->effective_hg_transfer,
+        .load_z_ohms = correction->load_z_ohms,
+        .t_short = correction->t_short,
+        .t_open = correction->t_open,
+        .k = correction->k,
     };
-    return measurement_complex_is_finite(coefficients->ret_hg_transfer) &&
+    return measurement_complex_is_finite(coefficients->effective_hg_transfer) &&
            measurement_complex_is_finite(coefficients->load_z_ohms) &&
            measurement_complex_is_finite(coefficients->t_short) &&
            measurement_complex_is_finite(coefficients->t_open) &&
@@ -345,9 +320,7 @@ bool measurement_cal_validate_osl_correction(const measurement_cal_correction_t 
     {
         return false;
     }
-    const uint32_t legacy_direct_flags = MEASUREMENT_CAL_FLAG_ZREF |
-                                         MEASUREMENT_CAL_FLAG_OUTPUT_CORRECTION_1X |
-                                         MEASUREMENT_CAL_FLAG_OUTPUT_CORRECTION_HG;
+    const uint32_t legacy_direct_flags = (1u << 1) | (1u << 2) | (1u << 3) | (1u << 4);
     if ((correction->flags & MEASUREMENT_CAL_FLAG_LOAD_REFERENCE) == 0u)
     {
         return false;
@@ -356,7 +329,7 @@ bool measurement_cal_validate_osl_correction(const measurement_cal_correction_t 
     {
         return false;
     }
-    if (measurement_complex_near_zero(coefficients.ret_hg_transfer, 1.0e-6f) ||
+    if (measurement_complex_near_zero(coefficients.effective_hg_transfer, 1.0e-6f) ||
         measurement_complex_near_zero(coefficients.load_z_ohms, 1.0e-6f) ||
         measurement_complex_near_zero(coefficients.k, 1.0e-6f) ||
         measurement_complex_near_zero(measurement_complex_sub(coefficients.t_open,
@@ -373,7 +346,7 @@ bool measurement_cal_set_add_record(measurement_cal_set_t *set, const measuremen
     if ((set == NULL) || (record == NULL) || (set->record_count >= MEASUREMENT_CAL_MAX_RECORDS) ||
         (record->record_type != MEASUREMENT_CAL_RECORD_CONDITION) || !key_valid(&record->key) ||
         !correction_finite(&record->correction) ||
-        (model_is_osl(record->key.model_version) &&
+        (model_is_current(record->key.model_version) &&
          !measurement_cal_validate_osl_correction(&record->correction)) ||
         (record->condition_id != measurement_cal_condition_id(&record->key)) ||
         (find_record_index(set, &record->key) >= 0))
@@ -390,7 +363,7 @@ bool measurement_cal_set_replace_record(measurement_cal_set_t *set, const measur
     if ((set == NULL) || (record == NULL) ||
         (record->record_type != MEASUREMENT_CAL_RECORD_CONDITION) || !key_valid(&record->key) ||
         !correction_finite(&record->correction) ||
-        (model_is_osl(record->key.model_version) &&
+        (model_is_current(record->key.model_version) &&
          !measurement_cal_validate_osl_correction(&record->correction)) ||
         (record->condition_id != measurement_cal_condition_id(&record->key)))
     {
@@ -525,7 +498,7 @@ measurement_cal_validity_t measurement_cal_validate_set(
         if ((record->record_type != MEASUREMENT_CAL_RECORD_CONDITION) ||
             !key_valid(&record->key) ||
             !correction_finite(&record->correction) ||
-            (model_is_osl(record->key.model_version) &&
+            (model_is_current(record->key.model_version) &&
              !measurement_cal_validate_osl_correction(&record->correction)) ||
             (record->condition_id != measurement_cal_condition_id(&record->key)))
         {
@@ -572,11 +545,7 @@ static void fill_from_record(const measurement_cal_set_t *set,
 {
     resolved->adc = ((set != NULL) && set->adc_valid) ? set->adc : measurement_adc_calibration_ideal();
     resolved->config = measurement_dsp_config_ideal(record->key.range_id);
-    resolved->config.ret_hg_transfer = record->correction.ret_hg_transfer;
-    if (model_is_direct(record->key.model_version))
-    {
-        resolved->config.zref_ohms = record->correction.zref_ohms;
-    }
+    resolved->config.ret_hg_transfer = record->correction.effective_hg_transfer;
     resolved->correction = record->correction;
 }
 
@@ -612,7 +581,7 @@ measurement_cal_resolve_status_t measurement_cal_resolve_condition(
     {
         if (((set != NULL) && (!set->adc_valid || !adc_finite(&set->adc))) ||
             !correction_finite(&record->correction) ||
-            (model_is_osl(record->key.model_version) &&
+            (model_is_current(record->key.model_version) &&
              !measurement_cal_validate_osl_correction(&record->correction)))
         {
             resolved->provenance.status = MEASUREMENT_CAL_RESOLVE_CORRUPT;
@@ -666,37 +635,6 @@ measurement_cal_resolve_status_t measurement_cal_resolve(
     }
     *provenance = resolved.provenance;
     return status;
-}
-
-measurement_complex_t measurement_cal_apply_output_correction(
-    measurement_complex_t z_ohms,
-    const measurement_cal_correction_t *correction,
-    measurement_return_channel_t selected_channel,
-    bool *applied)
-{
-    if (applied != NULL)
-    {
-        *applied = false;
-    }
-    if (correction == NULL)
-    {
-        return z_ohms;
-    }
-    const bool use_hg = selected_channel == MEASUREMENT_RETURN_HG;
-    const uint32_t flag = use_hg ? MEASUREMENT_CAL_FLAG_OUTPUT_CORRECTION_HG :
-                                   MEASUREMENT_CAL_FLAG_OUTPUT_CORRECTION_1X;
-    const measurement_cal_output_correction_t *selected =
-        use_hg ? &correction->ret_hg_output : &correction->ret_1x_output;
-    if ((correction->flags & flag) == 0u)
-    {
-        return z_ohms;
-    }
-    if (applied != NULL)
-    {
-        *applied = true;
-    }
-    return measurement_complex_add(measurement_complex_mul(z_ohms, selected->scale),
-                                   selected->offset_ohms);
 }
 
 static bool stream_clipped(const hw_metrology_block_t *block, hw_metrology_stream_t stream)
@@ -822,8 +760,8 @@ static bsp_status_t process_osl_block(const hw_metrology_block_t *block,
         measurement_channel_quality(&ret_hg_signal,
                                     ret_hg_clipped,
                                     !measurement_complex_near_zero(resolved->config.ret_hg_transfer, 1.0e-6f) &&
-                                        ((resolved->provenance.source == MEASUREMENT_CAL_SOURCE_IDEAL) ||
-                                         ((resolved->correction.flags & MEASUREMENT_CAL_FLAG_HG_OBSERVED) != 0u)),
+                                         ((resolved->provenance.source == MEASUREMENT_CAL_SOURCE_IDEAL) ||
+                                          ((resolved->correction.flags & MEASUREMENT_CAL_FLAG_HG_OBSERVED) != 0u)),
                                     resolved->config.return_min_v_peak);
     result->result.selected_channel = measurement_select_return_channel(&result->result.ret_1x_quality,
                                                                         &result->result.ret_hg_quality);
@@ -888,7 +826,7 @@ bsp_status_t measurement_cal_process_block(const hw_metrology_block_t *block,
     }
 
     result->provenance = resolved.provenance;
-    if (model_is_osl(key->model_version))
+    if (model_is_current(key->model_version))
     {
         if (!measurement_cal_validate_osl_correction(&resolved.correction))
         {
@@ -897,29 +835,7 @@ bsp_status_t measurement_cal_process_block(const hw_metrology_block_t *block,
         }
         return process_osl_block(block, &resolved, key, result);
     }
-
-    const bsp_status_t status =
-        measurement_process_block(block, &resolved.adc, &resolved.config, &result->result);
-    if (status != BSP_STATUS_OK)
-    {
-        return status;
-    }
-    result->raw_z_ohms = result->result.impedance.z_ohms;
-    const measurement_complex_t corrected =
-        measurement_cal_apply_output_correction(result->raw_z_ohms,
-                                                &resolved.correction,
-                                                result->result.selected_channel,
-                                                &result->output_corrected);
-    if (result->output_corrected)
-    {
-        result->result.impedance.z_ohms = corrected;
-        result->result.derived =
-            measurement_derive_quantities(corrected,
-                                          frequency_hz(key->frequency),
-                                          &resolved.config,
-                                          result->result.impedance.status);
-    }
-    return BSP_STATUS_OK;
+    return BSP_STATUS_ERROR;
 }
 
 static void encode_scale(uint8_t **cursor, measurement_adc_scale_t scale)
@@ -995,12 +911,12 @@ static void encode_record(uint8_t *dst, const measurement_cal_record_t *record)
     cursor += sizeof(uint32_t);
     write_u32(cursor, record->correction.flags);
     cursor += sizeof(uint32_t);
-    encode_complex(&cursor, record->correction.ret_hg_transfer);
-    encode_complex(&cursor, record->correction.zref_ohms);
-    encode_complex(&cursor, record->correction.ret_1x_output.scale);
-    encode_complex(&cursor, record->correction.ret_1x_output.offset_ohms);
-    encode_complex(&cursor, record->correction.ret_hg_output.scale);
-    encode_complex(&cursor, record->correction.ret_hg_output.offset_ohms);
+    encode_complex(&cursor, record->correction.effective_hg_transfer);
+    encode_complex(&cursor, record->correction.load_z_ohms);
+    encode_complex(&cursor, record->correction.t_short);
+    encode_complex(&cursor, record->correction.t_open);
+    encode_complex(&cursor, record->correction.k);
+    encode_complex(&cursor, record->correction.reserved);
     while ((uint32_t)(cursor - dst) < CAL_RECORD_BYTES)
     {
         *cursor++ = 0u;
@@ -1024,17 +940,17 @@ static bool decode_record(const uint8_t *src, measurement_cal_record_t *record)
     cursor += sizeof(uint32_t);
     record->correction.flags = read_u32(cursor);
     cursor += sizeof(uint32_t);
-    record->correction.ret_hg_transfer = decode_complex(&cursor);
-    record->correction.zref_ohms = decode_complex(&cursor);
-    record->correction.ret_1x_output.scale = decode_complex(&cursor);
-    record->correction.ret_1x_output.offset_ohms = decode_complex(&cursor);
-    record->correction.ret_hg_output.scale = decode_complex(&cursor);
-    record->correction.ret_hg_output.offset_ohms = decode_complex(&cursor);
+    record->correction.effective_hg_transfer = decode_complex(&cursor);
+    record->correction.load_z_ohms = decode_complex(&cursor);
+    record->correction.t_short = decode_complex(&cursor);
+    record->correction.t_open = decode_complex(&cursor);
+    record->correction.k = decode_complex(&cursor);
+    record->correction.reserved = decode_complex(&cursor);
     return (record->record_type == MEASUREMENT_CAL_RECORD_CONDITION) &&
            key_valid(&record->key) &&
            (record->condition_id == measurement_cal_condition_id(&record->key)) &&
            correction_finite(&record->correction) &&
-           (!model_is_osl(record->key.model_version) ||
+           (!model_is_current(record->key.model_version) ||
             measurement_cal_validate_osl_correction(&record->correction));
 }
 
@@ -1198,7 +1114,7 @@ bool measurement_cal_serialize_set_with_header(const measurement_cal_set_t *set,
         if ((set->records[i].condition_id != measurement_cal_condition_id(&set->records[i].key)) ||
             !key_valid(&set->records[i].key) ||
             !correction_finite(&set->records[i].correction) ||
-            (model_is_osl(set->records[i].key.model_version) &&
+            (model_is_current(set->records[i].key.model_version) &&
              !measurement_cal_validate_osl_correction(&set->records[i].correction)))
         {
             return false;

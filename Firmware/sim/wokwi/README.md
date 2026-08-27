@@ -2,16 +2,16 @@
 
 This directory contains the Phase 03A Wokwi project for WTK.RLCMeter.
 
-The simulation loads the normal STM32 Lab artifact:
+The simulation loads the normal STM32 Bringup artifact:
 
 ```bash
 cd Firmware
-cmake --preset stm32-lab
-cmake --build --preset stm32-lab
+cmake --preset stm32-bringup
+cmake --build --preset stm32-bringup
 python tools/run_virtual_tests.py --smoke
 ```
 
-Use `python tools/run_virtual_tests.py --build --smoke` to configure/build the Lab ELF before running the short suite.
+Use `python tools/run_virtual_tests.py --build --smoke` to configure/build the Bringup ELF before running the short suite.
 Use `python tools/run_virtual_tests.py --lint-only` to compile custom chips and run `wokwi-cli lint` without consuming simulation time.
 Use `python tools/run_virtual_tests.py --uart-probe` to record PA9 VCD activity and Serial Monitor capture without adding that probe to the acceptance suite.
 Use `python tools/run_virtual_tests.py --miso-probe` to promote `logic-spi` first and capture SPI2 SCK/MISO/MOSI/FLASH_CS for JEDEC line-level diagnosis.
@@ -30,7 +30,7 @@ mcu:A9  -> logic-io:D0
 
 - `wokwi-cli` in `PATH`;
 - `WOKWI_CLI_TOKEN` set in the environment;
-- `Firmware/build/stm32-lab/WTK.RLCMeter.elf` built from the repository CMake flow.
+- `Firmware/build/stm32-bringup/WTK.RLCMeter.elf` built from the repository CMake flow.
 
 The runner compiles the W25Q64 custom chip into `Firmware/build/virtual/wokwi/chips/w25q64/` and copies the WASM next to `Firmware/sim/wokwi/chips/w25q64/` (`*.chip.wasm` is gitignored) so `wokwi.toml` can load `chips/w25q64/w25q64.chip.wasm`. The runner checks that `WOKWI_CLI_TOKEN` is present without printing it. Official installation options are documented by Wokwi:
 
@@ -57,18 +57,18 @@ PA13/PA14 remain SWD pins in firmware. The current Wokwi Blue Pill part does not
 ## Scenarios
 
 - `boot-safe`: UART identity plus safe boot pin assertions.
-- `uart-boot`: stable Lab boot diagnostics.
+- `uart-boot`: stable Bringup boot diagnostics.
 - `buttons`: UP/DOWN/OK press/release and OK long press via UART diagnostics.
 - `pwm-backlight`: PB0 PWM capture for VCD post-processing.
 - `spi-display`: ILI9341 transaction smoke with W25Q present.
 - `spi-cs`: VCD post-processing that rejects simultaneous TFT/Flash chip-select assertion.
 - `w25q-detect`: W25Q64 JEDEC/capacity boot diagnostics.
-- `w25q-selftest`: Lab-only non-blocking reserved-sector erase/program/readback test.
+- `w25q-selftest`: Bringup-only non-blocking reserved-sector erase/program/readback test.
 - `w25q-bad-jedec`: generated diagram variant with unsupported JEDEC.
 - `w25q-absent`: generated diagram variant with no Flash response.
-- `quiet-mode`: Lab serial commands exercise buzzer muting and quiet-mode denial of new W25Q work.
+- `quiet-mode`: bring-up serial commands exercise buzzer muting and quiet-mode denial of new W25Q work.
 
-Lab-only serial commands used by scenarios:
+Bringup-only serial commands used by scenarios:
 
 ```text
 lab quiet on

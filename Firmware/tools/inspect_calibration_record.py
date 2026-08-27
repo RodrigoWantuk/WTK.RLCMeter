@@ -16,9 +16,7 @@ from pathlib import Path
 
 MAGIC = 0x434C4157
 SCHEMA_VERSION = 2
-MODEL_OSL_MOBIUS_V1 = 3
-MODEL_OSL_MOBIUS_EFFECTIVE_HG_V1 = 4
-MODEL_OSL_MODELS = {MODEL_OSL_MOBIUS_V1, MODEL_OSL_MOBIUS_EFFECTIVE_HG_V1}
+MODEL_CURRENT = 4
 FLAG_HG_OBSERVED = 1 << 7
 FLAG_QUALIFIED = 1 << 8
 COMMIT_MARKER = 0x54494D43
@@ -55,14 +53,14 @@ def decode_record(data: bytes, index: int) -> dict[str, object]:
         "temperature_mC": temperature_mC,
         "condition_id": f"0x{condition_id:08X}",
         "flags": f"0x{flags:08X}",
-        "ret_hg": complex(floats[0], floats[1]),
-        "zref": complex(floats[2], floats[3]),
-        "ret_1x_output_scale": complex(floats[4], floats[5]),
-        "ret_1x_output_offset": complex(floats[6], floats[7]),
-        "ret_hg_output_scale": complex(floats[8], floats[9]),
-        "ret_hg_output_offset": complex(floats[10], floats[11]),
+        "effective_hg_transfer": complex(floats[0], floats[1]),
+        "load_z_ohms": complex(floats[2], floats[3]),
+        "t_short": complex(floats[4], floats[5]),
+        "t_open": complex(floats[6], floats[7]),
+        "k": complex(floats[8], floats[9]),
+        "reserved": complex(floats[10], floats[11]),
     }
-    if model in MODEL_OSL_MODELS:
+    if model == MODEL_CURRENT:
         record.update(
             {
                 "osl_effective_hg_transfer": complex(floats[0], floats[1]),
@@ -123,9 +121,11 @@ def inspect(path: Path) -> int:
             "record[{index}] hw={hardware_revision} model={model_version} "
             "range={range_id} freq={frequency} amp={amplitude} "
             "type={record_type} temp_mC={temperature_mC} condition={condition_id} "
-            "flags={flags} ret_hg={ret_hg} zref={zref}"
+            "flags={flags} effective_hg_transfer={effective_hg_transfer} "
+            "load_z_ohms={load_z_ohms} t_short={t_short} t_open={t_open} "
+            "k={k} reserved={reserved}"
         ).format(**rec)
-        if rec["model_version"] in MODEL_OSL_MODELS:
+        if rec["model_version"] == MODEL_CURRENT:
             line += (
                 " osl_t_short={osl_t_short} osl_t_open={osl_t_open} "
                 "osl_k={osl_k} osl_load_reference={osl_load_reference} "

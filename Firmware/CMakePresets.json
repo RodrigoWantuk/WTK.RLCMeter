@@ -38,7 +38,8 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
-        "WTK_TARGET_PLATFORM": "stm32"
+        "WTK_TARGET_PLATFORM": "stm32",
+        "WTK_FIRMWARE_PROFILE": "PRODUCT"
       }
     },
     {
@@ -51,20 +52,23 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
         "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
-        "WTK_TARGET_PLATFORM": "stm32"
+        "WTK_TARGET_PLATFORM": "stm32",
+        "WTK_FIRMWARE_PROFILE": "PRODUCT"
       }
     },
     {
-      "name": "stm32-lab",
-      "displayName": "STM32 Lab",
-      "description": "Configure STM32F103C8T6 firmware with extra lab diagnostics.",
+      "name": "stm32-bringup",
+      "displayName": "STM32 Bringup",
+      "description": "Configure the size-optimized STM32F103C8T6 hardware bringup firmware profile.",
       "generator": "Ninja",
-      "binaryDir": "${sourceDir}/build/stm32-lab",
+      "binaryDir": "${sourceDir}/build/stm32-bringup",
       "toolchainFile": "${sourceDir}/cmake/toolchains/arm-none-eabi-gcc.cmake",
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Lab",
+        "CMAKE_BUILD_TYPE": "MinSizeRel",
+        "CMAKE_INTERPROCEDURAL_OPTIMIZATION": "ON",
         "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
-        "WTK_TARGET_PLATFORM": "stm32"
+        "WTK_TARGET_PLATFORM": "stm32",
+        "WTK_FIRMWARE_PROFILE": "BRINGUP"
       }
     }
   ],
@@ -90,9 +94,9 @@
       "configuration": "Release"
     },
     {
-      "name": "stm32-lab",
-      "configurePreset": "stm32-lab",
-      "configuration": "Lab"
+      "name": "stm32-bringup",
+      "configurePreset": "stm32-bringup",
+      "configuration": "MinSizeRel"
     }
   ],
   "testPresets": [

@@ -240,10 +240,35 @@ ERROR
 WARN
 INFO
 DEBUG
-TRACE   # laboratory builds only
+TRACE   # bring-up profile only
 ```
 
 The firmware should remain useful for bring-up without relying on breakpoints.
+
+## Firmware profiles and host tooling
+
+Optimization build type and firmware feature profile are separate concerns:
+
+```text
+CMAKE_BUILD_TYPE      = Debug | Release | MinSizeRel
+WTK_FIRMWARE_PROFILE  = PRODUCT | BRINGUP
+```
+
+`stm32-debug` and `stm32-release` build the PRODUCT profile. `stm32-bringup` builds the
+size-optimized BRINGUP profile for physical-board UART diagnostics. The old
+`CMAKE_BUILD_TYPE=Lab` feature-selection model is obsolete.
+
+The bring-up console exists only for operations that need the STM32 board: safe status,
+charger/sensor/range checks, W25Q/TFT/buzzer/backlight checks, fixed-condition
+metrology capture/measure, and OSL calibration acquisition/solve/commit. Rich
+formatting, calibration-record inspection, synthetic policy analysis, raw-capture
+replay, and coefficient comparison belong in host tools and tests where they are not
+limited by the 64 KiB MCU Flash budget.
+
+STM32 Release and Bringup builds report Flash/RAM budgets after linking. The project
+hard gate is 56 KiB Flash, with a 48 KiB soft target and the silicon limit remaining
+64 KiB. RAM reports distinguish static `.data/.bss/.noinit` from the linker-reserved
+stack/heap floor.
 
 ## Build and editor policy
 

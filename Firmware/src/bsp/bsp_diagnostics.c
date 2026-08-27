@@ -106,6 +106,7 @@ void bsp_diagnostics_boot_banner(bsp_reset_reason_t reset_reason, bsp_status_t c
     bsp_diagnostics_write_key_value_text("firmware", version->project_version);
     bsp_diagnostics_write_key_value_text("git", version->git_commit);
     bsp_diagnostics_write_key_value_text("build", version->build_type);
+    bsp_diagnostics_write_key_value_text("profile", version->firmware_profile);
     bsp_diagnostics_write_key_value_text("hardware", version->hardware_compatibility);
     bsp_diagnostics_write_key_value_text("reset", bsp_reset_reason_string(reset_reason));
     bsp_diagnostics_write_key_value_text("clock_status", bsp_status_string(clock_status));

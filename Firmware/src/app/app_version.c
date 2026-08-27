@@ -7,6 +7,7 @@ static const wtk_app_version_info_t g_wtk_app_version = {
     .project_version = WTK_PROJECT_VERSION,
     .git_commit = WTK_GIT_COMMIT,
     .build_type = WTK_BUILD_TYPE,
+    .firmware_profile = WTK_FIRMWARE_PROFILE,
     .hardware_compatibility = WTK_HARDWARE_COMPATIBILITY,
     .calibration_schema_version = WTK_CALIBRATION_SCHEMA_VERSION,
 };

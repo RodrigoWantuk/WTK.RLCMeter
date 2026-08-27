@@ -176,7 +176,7 @@ The fundamental measurement is complex impedance `Z = R + jX`. Automatic R/C/L/m
 
 The classifier must be able to return mixed/unknown/low-confidence rather than forcing a false R/L/C label.
 
-Manual component/model selection is not part of the normal product menu. A future Lab/Debug tool may expose manual measurement controls without changing the underlying impedance computation.
+Manual component/model selection is not part of the normal product menu. A future Bringup/Debug tool may expose manual measurement controls without changing the underlying impedance computation.
 
 ## Primary user interaction
 
@@ -269,10 +269,13 @@ write cannot make an incomplete candidate look valid.
 Floating correction coefficients are serialized as explicit IEEE754 binary32 fields.
 Temperature metadata is stored as signed integer millidegrees C.
 
-Model version 2 represented direct complex output correction. Model version 3 introduced
-the first OSL/Mobius payload interpretation. Model version 4 keeps the same portable
-schema and supersedes v3 by defining persisted HG normalization as an effective
-normalized transfer:
+Development-era model versions 1/2/3 are not executable firmware models. Current
+firmware only executes model version 4. Older model numbers may still be diagnosed from
+frame headers as `INCOMPATIBLE_MODEL`, but the embedded runtime does not retain direct
+affine correction branches.
+
+Model version 4 keeps the same portable schema and defines persisted HG normalization as
+an effective normalized transfer:
 
 ```text
 volts = raw * code_to_volts + offset_volts       global per ADC stream
@@ -282,24 +285,24 @@ t = Vx / Vs
 Z_corrected = K * (t - t_short) / (t - t_open)
 ```
 
-For the current OSL model, the six persisted complex fields are interpreted as:
+For the current OSL model, the six persisted complex fields are named and interpreted as:
 
 ```text
-ret_hg_transfer      = effective normalized HG transfer
-zref_ohms            = known LOAD reference used for the solve
-ret_1x_output.scale  = t_short
-ret_1x_output.offset = t_open
-ret_hg_output.scale  = K
-ret_hg_output.offset = reserved zero
+effective_hg_transfer = effective normalized HG transfer
+load_z_ohms           = known LOAD reference used for the solve
+t_short               = measured SHORT transfer
+t_open                = measured OPEN transfer
+k                     = projective OSL scale coefficient
+reserved              = reserved zero
 ```
 
-The legacy field names remain in the C struct only to preserve the 80-byte portable
-record layout. Diagnostics and new code use OSL names such as `load_reference`,
-`t_short`, `t_open`, `K`, and `effective_hg`. A current OSL record must carry the
-OSL/Mobius flag, load-reference flag, finite nondegenerate coefficients, and no legacy
-direct-output correction flags. Missing exact calibration can still be explicitly
-resolved to ideal defaults for Lab/debug, but the provenance remains `MISSING` and
-uncalibrated. Product qualification must not treat that fallback as calibrated.
+The C struct now uses the OSL names directly while the portable field-by-field byte
+layout remains 80 bytes, so `schema_version` stays at 2. A current OSL record must carry
+the OSL model flag, load-reference flag, finite nondegenerate coefficients, and no
+legacy direct-output correction flag bits. Missing exact calibration can still be
+explicitly resolved to ideal defaults for bring-up/debug, but the provenance remains
+`MISSING` and uncalibrated. Product qualification must not treat that fallback as
+calibrated.
 
 Calibration keys include hardware revision, model version, range, frequency, and
 amplitude. RET channel and RET strategy are deliberately excluded from the persistent
@@ -347,7 +350,7 @@ qualified/product-enabled condition
 
 `unqualified`, `uncalibrated`, and `unsupported` are different states. The authoritative
 Stage 2A.2 physical support rule is centralized in `measurement_condition.c/.h` and is
-shared by automatic measurement policy, calibration requirements generation, Lab
+shared by automatic measurement policy, calibration requirements generation, Bringup
 fixed-condition validation, and future qualification-map generation.
 
 The Stage 2A.2 Rev.1 hardware-supported domain is:
@@ -400,7 +403,7 @@ than permanently inflating the active `measurement_cal_set_t`.
 
 ### Calibration SRAM and runtime ownership
 
-The calibration runtime is application-owned, not Lab-console-owned. The ownership model
+The calibration runtime is application-owned, not Bringup-console-owned. The ownership model
 is intentionally split:
 
 ```text
@@ -428,10 +431,10 @@ measurement_cal_store_t:
     one decoded scan scratch set
     async W25Q erase/program/verify metadata
 
-app_lab_console_t:
-    Lab command/dump state only
+app_bringup_console_t:
+    bring-up command/dump state only
     pointer to app_calibration_service_t/app_calibration_session_t
-    does not own store scratch or calibration campaign state
+    does not own store scratch, calibration campaign state, or automatic session state
 ```
 
 Calibration store terminal states are acknowledged explicitly. After `DONE`, the
@@ -499,7 +502,7 @@ K1_RELEASE_GUARD_MS = 8    (REQUIRES_BENCH_VALIDATION)
 HW_MEASURE_PERMIT_TTL_MS = 5
 ```
 
-Lab DUT measure (`hw_metrology_measure`) issues the measurement permit after excitation NEUTRAL settle and quiet entry; validate is consumed immediately before `hw_k1_request_measure()`. The application shell continues global safety evaluation but skips `hw_k1_force_safe()` while the measure module owns K1. Successful measure shutdown returns excitation to NEUTRAL for 1 ms before commanding K1 SAFE; emergency abort during K1 MEASURE commands excitation OFF immediately. After K1 returns SAFE, the 8 ms release guard must complete before auxiliary ADC resume when K1 had reached MEASURE.
+Bringup DUT measure (`hw_metrology_measure`) issues the measurement permit after excitation NEUTRAL settle and quiet entry; validate is consumed immediately before `hw_k1_request_measure()`. The application shell continues global safety evaluation but skips `hw_k1_force_safe()` while the measure module owns K1. Successful measure shutdown returns excitation to NEUTRAL for 1 ms before commanding K1 SAFE; emergency abort during K1 MEASURE commands excitation OFF immediately. After K1 returns SAFE, the 8 ms release guard must complete before auxiliary ADC resume when K1 had reached MEASURE.
 
 Raw capture (`hw_metrology_session`, `lab metrology capture`) keeps K1 SAFE and does not consume a permit.
 
@@ -689,11 +692,11 @@ implementation tolerates non-ideal ESR/winding resistance and flags inconsistent
 
 ## Product Calibration Service Ownership
 
-Phase 07 Stage 2B.1 makes calibration storage a product-owned service, not a Lab-console
+Phase 07 Stage 2B.1 makes calibration storage a product-owned service, not a Bringup-console
 scratch object. `app_calibration_service_t` owns the active calibration runtime, the
 single `measurement_cal_store_t` scratch context, and the active OPEN/SHORT/LOAD
 evidence workflow. `app_calibration_session_t` owns the application-level capture
-orchestration between that workflow and Phase 05. The Lab console attaches to the
+orchestration between that workflow and Phase 05. The Bringup console attaches to the
 service/session and reports cached state/events.
 
 Normal `lab cal status`, `lab cal dump`, automatic measurement, and calibration
@@ -722,7 +725,7 @@ per-path impedance evidence. Missing path evidence is never counted as stable.
 
 Calibration capture temperature is valid only when the auxiliary NTC snapshot is valid.
 Firmware must not substitute a fixed placeholder ambient temperature in calibration
-records or Lab acquisition requests.
+records or Bringup acquisition requests.
 
 ## Decision-change rule
 

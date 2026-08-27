@@ -13,11 +13,7 @@
 enum
 {
     MEASUREMENT_CAL_SCHEMA_VERSION = 2u,
-    MEASUREMENT_CAL_MODEL_VERSION_DIRECT_V1 = 1u,
-    MEASUREMENT_CAL_MODEL_VERSION_DIRECT_V2 = 2u,
-    MEASUREMENT_CAL_MODEL_VERSION_OSL_MOBIUS_V1 = 3u,
-    MEASUREMENT_CAL_MODEL_VERSION_OSL_MOBIUS_EFFECTIVE_HG_V1 = 4u,
-    MEASUREMENT_CAL_MODEL_VERSION_CURRENT = MEASUREMENT_CAL_MODEL_VERSION_OSL_MOBIUS_EFFECTIVE_HG_V1,
+    MEASUREMENT_CAL_MODEL_VERSION_CURRENT = 4u,
     MEASUREMENT_CAL_HARDWARE_REV1 = 0x00010001u,
     MEASUREMENT_CAL_FRAME_MAGIC = 0x434C4157u,
     MEASUREMENT_CAL_FRAME_HEADER_BYTES = 64u,
@@ -31,19 +27,12 @@ typedef enum
 {
     MEASUREMENT_CAL_RECORD_SET = 1,
     MEASUREMENT_CAL_RECORD_CONDITION = 2,
-    MEASUREMENT_CAL_RECORD_OPEN_EVIDENCE = 3,
-    MEASUREMENT_CAL_RECORD_SHORT_EVIDENCE = 4,
-    MEASUREMENT_CAL_RECORD_LOAD_EVIDENCE = 5,
 } measurement_cal_record_type_t;
 
 typedef enum
 {
     MEASUREMENT_CAL_FLAG_ADC = 1u << 0,
-    MEASUREMENT_CAL_FLAG_RET_HG = 1u << 1,
-    MEASUREMENT_CAL_FLAG_ZREF = 1u << 2,
-    MEASUREMENT_CAL_FLAG_OUTPUT_CORRECTION_1X = 1u << 3,
-    MEASUREMENT_CAL_FLAG_OUTPUT_CORRECTION_HG = 1u << 4,
-    MEASUREMENT_CAL_FLAG_OSL_MOBIUS = 1u << 5,
+    MEASUREMENT_CAL_FLAG_OSL_MODEL = 1u << 5,
     MEASUREMENT_CAL_FLAG_TEMPERATURE_VALID = 1u << 6,
     MEASUREMENT_CAL_FLAG_HG_OBSERVED = 1u << 7,
     MEASUREMENT_CAL_FLAG_QUALIFIED = 1u << 8,
@@ -101,22 +90,18 @@ typedef struct
 
 typedef struct
 {
-    measurement_complex_t scale;
-    measurement_complex_t offset_ohms;
-} measurement_cal_output_correction_t;
-
-typedef struct
-{
-    measurement_complex_t ret_hg_transfer;
-    measurement_complex_t zref_ohms;
-    measurement_cal_output_correction_t ret_1x_output;
-    measurement_cal_output_correction_t ret_hg_output;
+    measurement_complex_t effective_hg_transfer;
+    measurement_complex_t load_z_ohms;
+    measurement_complex_t t_short;
+    measurement_complex_t t_open;
+    measurement_complex_t k;
+    measurement_complex_t reserved;
     uint32_t flags;
 } measurement_cal_correction_t;
 
 typedef struct
 {
-    measurement_complex_t ret_hg_transfer;
+    measurement_complex_t effective_hg_transfer;
     measurement_complex_t load_z_ohms;
     measurement_complex_t t_short;
     measurement_complex_t t_open;
@@ -246,11 +231,6 @@ measurement_cal_resolve_status_t measurement_cal_resolve(
     measurement_dsp_config_t *config,
     measurement_calibration_provenance_t *provenance);
 
-measurement_complex_t measurement_cal_apply_output_correction(
-    measurement_complex_t z_ohms,
-    const measurement_cal_correction_t *correction,
-    measurement_return_channel_t selected_channel,
-    bool *applied);
 bsp_status_t measurement_cal_process_block(const hw_metrology_block_t *block,
                                            const measurement_cal_set_t *set,
                                            const measurement_cal_key_t *key,
