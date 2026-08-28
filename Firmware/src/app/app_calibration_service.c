@@ -489,6 +489,17 @@ bsp_status_t app_calibration_service_candidate_commit_start(app_calibration_serv
         service->status = APP_CAL_SERVICE_STORE_BUSY;
         return BSP_STATUS_BUSY;
     }
+    if (measurement_cal_store_state(&service->store) == MEASUREMENT_CAL_STORE_ERROR)
+    {
+        const bsp_status_t ack = measurement_cal_store_acknowledge(&service->store);
+        const bsp_status_t release = release_store_workspace(service);
+        if ((ack != BSP_STATUS_OK) || (release != BSP_STATUS_OK))
+        {
+            service->last_store_status = (ack != BSP_STATUS_OK) ? ack : release;
+            service->status = APP_CAL_SERVICE_ERROR;
+            return service->last_store_status;
+        }
+    }
     if ((service->candidate_state != APP_CAL_CANDIDATE_COMPLETE) &&
         (service->candidate_state != APP_CAL_CANDIDATE_PARTIAL) &&
         (service->candidate_state != APP_CAL_CANDIDATE_BUILDING) &&

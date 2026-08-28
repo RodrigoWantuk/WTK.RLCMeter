@@ -76,7 +76,11 @@ cmake --build --preset stm32-bringup
 
 The STM32 presets use `cmake/toolchains/arm-none-eabi-gcc.cmake` and target Cortex-M3 Thumb code for the STM32F103C8T6. The linker script is `cmake/stm32/STM32F103C8Tx_FLASH.ld`, with the Blue Pill baseline memory map of 64 KiB Flash and 20 KiB RAM.
 
-Release and Debug use `WTK_FIRMWARE_PROFILE=PRODUCT`. Bringup uses
+Release and Debug use `WTK_FIRMWARE_PROFILE=PRODUCT`. Product Debug is deliberately
+compiled size-first (`-Os`) while retaining debug symbols; on the guaranteed 64 KiB
+STM32F103C8T6, "Debug" means observable symbols/assertions, not an `-Og` image.
+Product Release additionally enables GCC LTO through its preset to recover internal
+Flash headroom before later Phase 08 menu/settings work. Bringup uses
 `WTK_FIRMWARE_PROFILE=BRINGUP` with the standard `MinSizeRel` optimization build type;
 feature selection is no longer encoded as a custom CMake build type.
 

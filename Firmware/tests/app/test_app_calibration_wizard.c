@@ -1,5 +1,6 @@
 #include "app/app_calibration_wizard.h"
 #include "app/app_io_workspace.h"
+#include "storage/storage_layout.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -7,20 +8,161 @@
 #define TEST_MID_V (1.65f)
 #define TEST_ADC_SCALE (3.3f / 4095.0f)
 #define TEST_HG_NOMINAL (15.4680851064f)
+#define TEST_CAPACITY_BYTES (2u * 1024u * 1024u)
+#define TEST_FLASH_BYTES STORAGE_LAYOUT_MUTABLE_RESERVED_BYTES
 
 typedef struct
 {
     app_calibration_service_t *service;
     hw_metrology_block_t block;
     uint32_t raw[HW_METROLOGY_RAW_WORD_COUNT];
+    app_cal_workflow_request_t requests[256];
     uint32_t start_count;
+    uint32_t ack_count;
+    uint8_t abort_delay_steps;
     bool active;
     bool done;
     bool dumpable;
     bool abort_called;
 } fake_phase05_t;
 
+typedef struct
+{
+    uint8_t flash[TEST_FLASH_BYTES];
+    uint8_t pending[256];
+    uint32_t pending_address;
+    size_t pending_size;
+    uint32_t read_count;
+    uint32_t poll_count;
+    bool fail_program;
+    enum
+    {
+        FAKE_NOR_IDLE = 0,
+        FAKE_NOR_ERASE_BUSY,
+        FAKE_NOR_PROGRAM_BUSY,
+    } state;
+} fake_nor_t;
+
 static app_io_workspace_t g_workspace;
+
+static uint32_t fake_offset(uint32_t address)
+{
+    return address - (TEST_CAPACITY_BYTES - TEST_FLASH_BYTES);
+}
+
+static bsp_status_t fake_nor_read(uint32_t address, void *dst, size_t size, void *user)
+{
+    fake_nor_t *fake = (fake_nor_t *)user;
+    if ((fake == NULL) || (dst == NULL))
+    {
+        return BSP_STATUS_INVALID_ARG;
+    }
+    const uint32_t offset = fake_offset(address);
+    if (((size_t)offset + size) > sizeof(fake->flash))
+    {
+        return BSP_STATUS_INVALID_ARG;
+    }
+    (void)memcpy(dst, &fake->flash[offset], size);
+    fake->read_count++;
+    return BSP_STATUS_OK;
+}
+
+static bsp_status_t fake_nor_erase_start(uint32_t address, uint32_t now_ms, void *user)
+{
+    (void)now_ms;
+    fake_nor_t *fake = (fake_nor_t *)user;
+    if ((fake == NULL) || (fake->state != FAKE_NOR_IDLE))
+    {
+        return BSP_STATUS_BUSY;
+    }
+    fake->pending_address = address;
+    fake->pending_size = STORAGE_LAYOUT_W25Q_SECTOR_SIZE;
+    fake->state = FAKE_NOR_ERASE_BUSY;
+    return BSP_STATUS_BUSY;
+}
+
+static bsp_status_t fake_nor_program_start(uint32_t address,
+                                           const void *src,
+                                           size_t size,
+                                           uint32_t now_ms,
+                                           void *user)
+{
+    (void)now_ms;
+    fake_nor_t *fake = (fake_nor_t *)user;
+    if ((fake == NULL) || (src == NULL) || (size > sizeof(fake->pending)))
+    {
+        return BSP_STATUS_INVALID_ARG;
+    }
+    if (fake->state != FAKE_NOR_IDLE)
+    {
+        return BSP_STATUS_BUSY;
+    }
+    fake->pending_address = address;
+    fake->pending_size = size;
+    (void)memcpy(fake->pending, src, size);
+    fake->state = FAKE_NOR_PROGRAM_BUSY;
+    return BSP_STATUS_BUSY;
+}
+
+static bsp_status_t fake_nor_poll(uint32_t now_ms, void *user)
+{
+    (void)now_ms;
+    fake_nor_t *fake = (fake_nor_t *)user;
+    if (fake == NULL)
+    {
+        return BSP_STATUS_INVALID_ARG;
+    }
+    fake->poll_count++;
+    const uint32_t offset = fake_offset(fake->pending_address);
+    if (fake->state == FAKE_NOR_ERASE_BUSY)
+    {
+        if (((size_t)offset + fake->pending_size) > sizeof(fake->flash))
+        {
+            fake->state = FAKE_NOR_IDLE;
+            return BSP_STATUS_INVALID_ARG;
+        }
+        (void)memset(&fake->flash[offset], 0xFF, fake->pending_size);
+        fake->state = FAKE_NOR_IDLE;
+        return BSP_STATUS_OK;
+    }
+    if (fake->state == FAKE_NOR_PROGRAM_BUSY)
+    {
+        if (fake->fail_program)
+        {
+            fake->state = FAKE_NOR_IDLE;
+            return BSP_STATUS_ERROR;
+        }
+        if (((size_t)offset + fake->pending_size) > sizeof(fake->flash))
+        {
+            fake->state = FAKE_NOR_IDLE;
+            return BSP_STATUS_INVALID_ARG;
+        }
+        for (size_t i = 0u; i < fake->pending_size; i++)
+        {
+            fake->flash[offset + i] &= fake->pending[i];
+        }
+        fake->state = FAKE_NOR_IDLE;
+        return BSP_STATUS_OK;
+    }
+    return BSP_STATUS_OK;
+}
+
+static measurement_cal_store_io_t fake_nor_io(fake_nor_t *fake)
+{
+    return (measurement_cal_store_io_t){
+        .read = fake_nor_read,
+        .erase_sector_start = fake_nor_erase_start,
+        .program_start = fake_nor_program_start,
+        .poll = fake_nor_poll,
+        .user = fake,
+    };
+}
+
+static void init_blank_nor(fake_nor_t *fake)
+{
+    (void)memset(fake, 0, sizeof(*fake));
+    (void)memset(fake->flash, 0xFF, sizeof(fake->flash));
+}
 
 static int expect_true(bool condition, const char *message)
 {
@@ -152,6 +294,10 @@ static bsp_status_t fake_start_capture(const hw_metrology_measure_request_t *req
     const app_calibration_workflow_t *workflow =
         app_calibration_service_workflow_const(fake->service);
     const app_cal_workflow_request_t *cal_request = &workflow->request;
+    if (fake->start_count < (uint32_t)(sizeof(fake->requests) / sizeof(fake->requests[0])))
+    {
+        fake->requests[fake->start_count] = *cal_request;
+    }
     const measurement_complex_t source = measurement_complex(0.100f, 0.0f);
     const measurement_complex_t ret = ret_for_standard(cal_request);
     const measurement_complex_t ret_hg_raw =
@@ -160,6 +306,7 @@ static bsp_status_t fake_start_capture(const hw_metrology_measure_request_t *req
     fake->start_count++;
     fake->active = true;
     fake->done = false;
+    (void)app_io_workspace_acquire(&g_workspace, APP_IO_WORKSPACE_OWNER_METROLOGY);
     fake->dumpable = true;
     return BSP_STATUS_BUSY;
 }
@@ -171,6 +318,18 @@ static bsp_status_t fake_step_capture(uint32_t now_ms, void *user)
     if (fake == NULL)
     {
         return BSP_STATUS_ERROR;
+    }
+    if (fake->abort_called)
+    {
+        if (fake->abort_delay_steps > 0u)
+        {
+            fake->abort_delay_steps--;
+            return BSP_STATUS_BUSY;
+        }
+        fake->active = false;
+        fake->done = true;
+        fake->dumpable = false;
+        return BSP_STATUS_OK;
     }
     fake->active = false;
     fake->done = true;
@@ -206,17 +365,20 @@ static hw_metrology_measure_error_t fake_capture_error(void *user)
 static void fake_capture_acknowledge(void *user)
 {
     fake_phase05_t *fake = (fake_phase05_t *)user;
+    fake->ack_count++;
     fake->active = false;
     fake->done = false;
     fake->dumpable = false;
+    if (app_io_workspace_owner(&g_workspace) == APP_IO_WORKSPACE_OWNER_METROLOGY)
+    {
+        (void)app_io_workspace_release(&g_workspace, APP_IO_WORKSPACE_OWNER_METROLOGY);
+    }
 }
 
 static bsp_status_t fake_capture_abort(void *user)
 {
     fake_phase05_t *fake = (fake_phase05_t *)user;
     fake->abort_called = true;
-    fake->active = false;
-    fake->done = true;
     fake->dumpable = false;
     return BSP_STATUS_BUSY;
 }
@@ -251,6 +413,70 @@ static hw_safety_result_t safety_allowed(void)
         .measure_allowed = true,
         .primary_blocker = HW_SAFETY_MEASURE_ALLOWED,
     };
+}
+
+static int32_t temperature_for_standard(app_cal_standard_type_t standard)
+{
+    switch (standard)
+    {
+    case APP_CAL_STANDARD_OPEN:
+        return 24000;
+    case APP_CAL_STANDARD_SHORT:
+        return 25500;
+    case APP_CAL_STANDARD_LOAD:
+    default:
+        return 27000;
+    }
+}
+
+static void drive_wizard_one_step(app_calibration_wizard_t *wizard,
+                                  const hw_safety_result_t *safety,
+                                  const bsp_clock_summary_t *clock,
+                                  uint32_t now)
+{
+    app_cal_wizard_snapshot_t snapshot;
+    app_calibration_wizard_snapshot(wizard, &snapshot);
+    app_calibration_wizard_step(wizard,
+                                safety,
+                                clock,
+                                BSP_STATUS_OK,
+                                temperature_for_standard(snapshot.standard),
+                                true,
+                                now);
+}
+
+static bool drive_wizard_to_confirm_save(app_calibration_wizard_t *wizard,
+                                         const hw_safety_result_t *safety,
+                                         const bsp_clock_summary_t *clock,
+                                         uint32_t start_ms,
+                                         uint32_t limit_ms)
+{
+    for (uint32_t now = start_ms; now < limit_ms; now++)
+    {
+        drive_wizard_one_step(wizard, safety, clock, now);
+        app_cal_wizard_snapshot_t snapshot;
+        app_calibration_wizard_snapshot(wizard, &snapshot);
+        if ((snapshot.state == APP_CAL_WIZARD_WAIT_OPEN_FIXTURE) ||
+            (snapshot.state == APP_CAL_WIZARD_WAIT_SHORT_FIXTURE) ||
+            (snapshot.state == APP_CAL_WIZARD_WAIT_LOAD_FIXTURE))
+        {
+            app_calibration_wizard_confirm(wizard);
+        }
+        else if (snapshot.state == APP_CAL_WIZARD_RANGE_COMPLETE)
+        {
+            drive_wizard_one_step(wizard, safety, clock, now + 1u);
+        }
+        else if (snapshot.state == APP_CAL_WIZARD_CONFIRM_SAVE)
+        {
+            return true;
+        }
+        else if ((snapshot.state == APP_CAL_WIZARD_FAILED) ||
+                 (snapshot.state == APP_CAL_WIZARD_SAFETY_BLOCKED))
+        {
+            return false;
+        }
+    }
+    return false;
 }
 
 static int test_condition_enumeration(void)
@@ -296,7 +522,7 @@ static int test_safety_blocks_capture_without_starting_phase05(void)
     app_calibration_wizard_confirm(&wizard);
     hw_safety_result_t safety = {.measure_allowed = false, .primary_blocker = HW_SAFETY_BLOCKED_CHARGER};
     app_calibration_wizard_confirm(&wizard);
-    app_calibration_wizard_step(&wizard, &safety, &clock, BSP_STATUS_OK, 2u);
+    app_calibration_wizard_step(&wizard, &safety, &clock, BSP_STATUS_OK, 24000, true, 2u);
     app_cal_wizard_snapshot_t snapshot;
     app_calibration_wizard_snapshot(&wizard, &snapshot);
     failures += expect_u32((uint32_t)snapshot.state, (uint32_t)APP_CAL_WIZARD_SAFETY_BLOCKED,
@@ -327,7 +553,7 @@ static int test_full_wizard_batches_all_conditions_before_save(void)
 
     for (uint32_t now = 3u; now < 2000u; now++)
     {
-        app_calibration_wizard_step(&wizard, &safety, &clock, BSP_STATUS_OK, now);
+        app_calibration_wizard_step(&wizard, &safety, &clock, BSP_STATUS_OK, 25125, true, now);
         app_cal_wizard_snapshot_t snapshot;
         app_calibration_wizard_snapshot(&wizard, &snapshot);
         if ((snapshot.state == APP_CAL_WIZARD_WAIT_OPEN_FIXTURE) ||
@@ -338,7 +564,7 @@ static int test_full_wizard_batches_all_conditions_before_save(void)
         }
         else if (snapshot.state == APP_CAL_WIZARD_RANGE_COMPLETE)
         {
-            app_calibration_wizard_step(&wizard, &safety, &clock, BSP_STATUS_OK, now + 1u);
+            app_calibration_wizard_step(&wizard, &safety, &clock, BSP_STATUS_OK, 25125, true, now + 1u);
         }
         else if (snapshot.state == APP_CAL_WIZARD_CONFIRM_SAVE)
         {
@@ -368,12 +594,400 @@ static int test_full_wizard_batches_all_conditions_before_save(void)
     return failures;
 }
 
+static int test_distinct_standard_temperatures_reach_solver(void)
+{
+    int failures = 0;
+    app_calibration_service_t service;
+    init_service(&service);
+    fake_phase05_t fake = {.service = &service};
+    app_cal_session_io_t io = make_io(&fake);
+    app_calibration_wizard_t wizard;
+    const bsp_clock_summary_t clock = {.source = BSP_CLOCK_SOURCE_HSE_PLL,
+                                       .sysclk_hz = 72000000u,
+                                       .hse_ready = true};
+    hw_safety_result_t safety = safety_allowed();
+    failures += expect_true(app_calibration_wizard_init(&wizard, &service, &io, NULL) == BSP_STATUS_OK,
+                            "wizard init temperature provenance");
+    failures += expect_true(app_calibration_wizard_start(&wizard, APP_CAL_WIZARD_MODE_MANUAL,
+                                                         8u, 23000, true) == BSP_STATUS_OK,
+                            "wizard start temperature provenance");
+    app_calibration_wizard_confirm(&wizard);
+    app_calibration_wizard_confirm(&wizard);
+
+    for (uint32_t now = 3u; now < 1000u; now++)
+    {
+        drive_wizard_one_step(&wizard, &safety, &clock, now);
+        app_cal_wizard_snapshot_t snapshot;
+        app_calibration_wizard_snapshot(&wizard, &snapshot);
+        if ((snapshot.state == APP_CAL_WIZARD_WAIT_OPEN_FIXTURE) ||
+            (snapshot.state == APP_CAL_WIZARD_WAIT_SHORT_FIXTURE) ||
+            (snapshot.state == APP_CAL_WIZARD_WAIT_LOAD_FIXTURE))
+        {
+            app_calibration_wizard_confirm(&wizard);
+        }
+        if (snapshot.solved_count > 0u)
+        {
+            failures += expect_true(snapshot.temperature_span_valid,
+                                    "O/S/L temperature span is valid");
+            failures += expect_u32((uint32_t)snapshot.open_temperature_mC, 24000u,
+                                   "OPEN uses pre-workflow temperature");
+            failures += expect_u32((uint32_t)snapshot.short_temperature_mC, 25500u,
+                                   "SHORT uses pre-workflow temperature");
+            failures += expect_u32((uint32_t)snapshot.load_temperature_mC, 27000u,
+                                   "LOAD uses pre-workflow temperature");
+            failures += expect_u32((uint32_t)snapshot.temperature_span_mC, 3000u,
+                                   "temperature span reports O/S/L spread");
+            return failures;
+        }
+        if (snapshot.state == APP_CAL_WIZARD_FAILED)
+        {
+            break;
+        }
+    }
+    failures += expect_true(false, "wizard should solve at least one condition");
+    return failures;
+}
+
+static bsp_status_t complex_fixture(hw_range_id_t range_id,
+                                    hw_excitation_freq_t frequency,
+                                    measurement_complex_t *z_ohms,
+                                    void *user)
+{
+    (void)range_id;
+    (void)user;
+    if (z_ohms == NULL)
+    {
+        return BSP_STATUS_INVALID_ARG;
+    }
+    if (frequency == HW_EXCITATION_FREQ_1KHZ)
+    {
+        *z_ohms = measurement_complex(1000.0f, 0.25f);
+    }
+    else if (frequency == HW_EXCITATION_FREQ_10KHZ)
+    {
+        *z_ohms = measurement_complex(999.7f, -2.1f);
+    }
+    else
+    {
+        *z_ohms = measurement_complex(1000.0f, 0.0f);
+    }
+    return BSP_STATUS_OK;
+}
+
+static int test_complex_load_profile_reaches_capture_request(void)
+{
+    int failures = 0;
+    app_calibration_service_t service;
+    init_service(&service);
+    fake_phase05_t fake = {.service = &service};
+    app_cal_session_io_t io = make_io(&fake);
+    const app_cal_fixture_profile_t fixture = {.load_z = complex_fixture, .user = NULL};
+    app_calibration_wizard_t wizard;
+    const bsp_clock_summary_t clock = {.source = BSP_CLOCK_SOURCE_HSE_PLL,
+                                       .sysclk_hz = 72000000u,
+                                       .hse_ready = true};
+    hw_safety_result_t safety = safety_allowed();
+    failures += expect_true(app_calibration_wizard_init(&wizard, &service, &io, &fixture) == BSP_STATUS_OK,
+                            "wizard init complex fixture");
+    failures += expect_true(app_calibration_wizard_start(&wizard, APP_CAL_WIZARD_MODE_MANUAL,
+                                                         9u, 25000, true) == BSP_STATUS_OK,
+                            "wizard start complex fixture");
+    app_calibration_wizard_confirm(&wizard);
+    app_calibration_wizard_confirm(&wizard);
+    for (uint32_t now = 3u; now < 1200u; now++)
+    {
+        drive_wizard_one_step(&wizard, &safety, &clock, now);
+        app_cal_wizard_snapshot_t snapshot;
+        app_calibration_wizard_snapshot(&wizard, &snapshot);
+        if ((snapshot.state == APP_CAL_WIZARD_WAIT_OPEN_FIXTURE) ||
+            (snapshot.state == APP_CAL_WIZARD_WAIT_SHORT_FIXTURE) ||
+            (snapshot.state == APP_CAL_WIZARD_WAIT_LOAD_FIXTURE))
+        {
+            app_calibration_wizard_confirm(&wizard);
+        }
+        if ((snapshot.standard == APP_CAL_STANDARD_LOAD) && (snapshot.condition_index >= 3u))
+        {
+            break;
+        }
+    }
+    bool saw_1k = false;
+    bool saw_10k = false;
+    for (uint32_t i = 0u; i < fake.start_count; i++)
+    {
+        if (fake.requests[i].standard.type != APP_CAL_STANDARD_LOAD)
+        {
+            continue;
+        }
+        if (fake.requests[i].key.frequency == HW_EXCITATION_FREQ_1KHZ)
+        {
+            saw_1k = true;
+            failures += expect_true((fake.requests[i].standard.z_ohms.re > 999.9f) &&
+                                        (fake.requests[i].standard.z_ohms.im > 0.24f),
+                                    "1 kHz complex load reaches workflow request");
+        }
+        if (fake.requests[i].key.frequency == HW_EXCITATION_FREQ_10KHZ)
+        {
+            saw_10k = true;
+            failures += expect_true((fake.requests[i].standard.z_ohms.re < 999.8f) &&
+                                        (fake.requests[i].standard.z_ohms.im < -2.0f),
+                                    "10 kHz complex load reaches workflow request");
+        }
+    }
+    failures += expect_true(saw_1k, "complex fixture saw 1 kHz LOAD");
+    failures += expect_true(saw_10k, "complex fixture saw 10 kHz LOAD");
+    return failures;
+}
+
+static bsp_status_t failing_fixture(hw_range_id_t range_id,
+                                    hw_excitation_freq_t frequency,
+                                    measurement_complex_t *z_ohms,
+                                    void *user)
+{
+    (void)range_id;
+    (void)frequency;
+    (void)z_ohms;
+    (void)user;
+    return BSP_STATUS_ERROR;
+}
+
+static int test_fixture_failure_starts_no_load_capture(void)
+{
+    int failures = 0;
+    app_calibration_service_t service;
+    init_service(&service);
+    fake_phase05_t fake = {.service = &service};
+    app_cal_session_io_t io = make_io(&fake);
+    const app_cal_fixture_profile_t fixture = {.load_z = failing_fixture, .user = NULL};
+    app_calibration_wizard_t wizard;
+    const bsp_clock_summary_t clock = {.source = BSP_CLOCK_SOURCE_HSE_PLL,
+                                       .sysclk_hz = 72000000u,
+                                       .hse_ready = true};
+    hw_safety_result_t safety = safety_allowed();
+    failures += expect_true(app_calibration_wizard_init(&wizard, &service, &io, &fixture) == BSP_STATUS_OK,
+                            "wizard init failing fixture");
+    failures += expect_true(app_calibration_wizard_start(&wizard, APP_CAL_WIZARD_MODE_MANUAL,
+                                                         10u, 25000, true) == BSP_STATUS_OK,
+                            "wizard start failing fixture");
+    app_calibration_wizard_confirm(&wizard);
+    app_calibration_wizard_confirm(&wizard);
+    uint32_t starts_before_load = 0u;
+    for (uint32_t now = 3u; now < 1000u; now++)
+    {
+        drive_wizard_one_step(&wizard, &safety, &clock, now);
+        app_cal_wizard_snapshot_t snapshot;
+        app_calibration_wizard_snapshot(&wizard, &snapshot);
+        if (snapshot.state == APP_CAL_WIZARD_WAIT_LOAD_FIXTURE)
+        {
+            starts_before_load = fake.start_count;
+            app_calibration_wizard_confirm(&wizard);
+        }
+        else if ((snapshot.state == APP_CAL_WIZARD_WAIT_OPEN_FIXTURE) ||
+                 (snapshot.state == APP_CAL_WIZARD_WAIT_SHORT_FIXTURE))
+        {
+            app_calibration_wizard_confirm(&wizard);
+        }
+        if (snapshot.state == APP_CAL_WIZARD_FAILED)
+        {
+            failures += expect_u32((uint32_t)snapshot.error,
+                                   (uint32_t)APP_CAL_WIZARD_ERROR_CONDITION,
+                                   "fixture failure is a condition failure");
+            failures += expect_u32(fake.start_count, starts_before_load,
+                                   "fixture failure starts no LOAD capture");
+            return failures;
+        }
+    }
+    failures += expect_true(false, "failing fixture should fail before LOAD capture");
+    return failures;
+}
+
+static int test_candidate_incomplete_retry_does_not_start_invalid_range(void)
+{
+    int failures = 0;
+    app_calibration_service_t service;
+    init_service(&service);
+    fake_phase05_t fake = {.service = &service};
+    app_cal_session_io_t io = make_io(&fake);
+    app_calibration_wizard_t wizard;
+    const bsp_clock_summary_t clock = {.source = BSP_CLOCK_SOURCE_HSE_PLL,
+                                       .sysclk_hz = 72000000u,
+                                       .hse_ready = true};
+    hw_safety_result_t safety = safety_allowed();
+    failures += expect_true(app_calibration_wizard_init(&wizard, &service, &io, NULL) == BSP_STATUS_OK,
+                            "wizard init incomplete retry");
+    failures += expect_true(app_calibration_wizard_start(&wizard, APP_CAL_WIZARD_MODE_MANUAL,
+                                                         11u, 25000, true) == BSP_STATUS_OK,
+                            "wizard start incomplete retry");
+    wizard.state = APP_CAL_WIZARD_FAILED;
+    wizard.error = APP_CAL_WIZARD_ERROR_CANDIDATE_INCOMPLETE;
+    wizard.range_index = APP_CAL_WIZARD_RANGE_COUNT;
+    wizard.condition_index = 0u;
+    app_calibration_wizard_confirm(&wizard);
+    drive_wizard_one_step(&wizard, &safety, &clock, 12u);
+    app_cal_wizard_snapshot_t snapshot;
+    app_calibration_wizard_snapshot(&wizard, &snapshot);
+    failures += expect_u32((uint32_t)snapshot.state, (uint32_t)APP_CAL_WIZARD_FAILED,
+                           "candidate-incomplete retry remains failed");
+    failures += expect_u32(fake.start_count, 0u,
+                           "candidate-incomplete retry starts no invalid range capture");
+    return failures;
+}
+
+static int test_full_wizard_save_activates_with_single_external_service_stepper(void)
+{
+    int failures = 0;
+    fake_nor_t nor;
+    init_blank_nor(&nor);
+    app_calibration_service_t service;
+    init_service(&service);
+    measurement_cal_store_io_t store_io = fake_nor_io(&nor);
+    (void)app_calibration_service_load(&service, &store_io, TEST_CAPACITY_BYTES);
+    service.storage_available = true;
+    failures += expect_true(!app_calibration_service_active_valid(&service),
+                            "blank NOR has no active calibration");
+    fake_phase05_t fake = {.service = &service};
+    app_cal_session_io_t io = make_io(&fake);
+    app_calibration_wizard_t wizard;
+    const bsp_clock_summary_t clock = {.source = BSP_CLOCK_SOURCE_HSE_PLL,
+                                       .sysclk_hz = 72000000u,
+                                       .hse_ready = true};
+    hw_safety_result_t safety = safety_allowed();
+    failures += expect_true(app_calibration_wizard_init(&wizard, &service, &io, NULL) == BSP_STATUS_OK,
+                            "wizard init save");
+    failures += expect_true(app_calibration_wizard_start(&wizard, APP_CAL_WIZARD_MODE_MANDATORY,
+                                                         12u, 25000, true) == BSP_STATUS_OK,
+                            "wizard start save");
+    app_calibration_wizard_confirm(&wizard);
+    app_calibration_wizard_confirm(&wizard);
+    failures += expect_true(drive_wizard_to_confirm_save(&wizard, &safety, &clock, 3u, 3000u),
+                            "wizard reaches save before commit");
+    failures += expect_true(app_calibration_service_active_valid(&service) == false,
+                            "no active set before save");
+
+    app_calibration_wizard_confirm(&wizard);
+    app_cal_wizard_snapshot_t snapshot;
+    app_calibration_wizard_snapshot(&wizard, &snapshot);
+    failures += expect_u32((uint32_t)snapshot.state, (uint32_t)APP_CAL_WIZARD_COMMITTING,
+                           "wizard enters committing");
+    for (uint32_t i = 0u; i < 5u; i++)
+    {
+        drive_wizard_one_step(&wizard, &safety, &clock, 4000u + i);
+    }
+    failures += expect_true(app_calibration_service_active_valid(&service) == false,
+                            "wizard does not step service/store internally");
+    uint32_t external_steps = 0u;
+    for (uint32_t now = 4010u; now < 4300u; now++)
+    {
+        external_steps++;
+        (void)app_calibration_service_step(&service, now);
+        drive_wizard_one_step(&wizard, &safety, &clock, now);
+        if (wizard.state == APP_CAL_WIZARD_COMPLETE)
+        {
+            break;
+        }
+    }
+    failures += expect_true(external_steps != 0u, "external service stepper ran");
+    failures += expect_u32((uint32_t)wizard.state, (uint32_t)APP_CAL_WIZARD_COMPLETE,
+                           "wizard observes activated calibration");
+    const measurement_cal_set_t *active = app_calibration_service_active_set(&service);
+    failures += expect_true((active != NULL) && (active->record_count == 33u),
+                            "active set contains all 33 records");
+    failures += expect_true(app_io_workspace_owner(&g_workspace) == APP_IO_WORKSPACE_OWNER_FREE,
+                            "workspace free after commit activation");
+
+    app_calibration_service_t rebooted;
+    init_service(&rebooted);
+    failures += expect_true(app_calibration_service_load(&rebooted, &store_io, TEST_CAPACITY_BYTES) == BSP_STATUS_OK,
+                            "reboot loads committed wizard calibration");
+    const measurement_cal_set_t *loaded = app_calibration_service_active_set(&rebooted);
+    failures += expect_true((loaded != NULL) && (loaded->record_count == 33u),
+                            "rebooted active set contains all 33 records");
+    return failures;
+}
+
+static int test_commit_failure_can_retry_with_external_service_stepper(void)
+{
+    int failures = 0;
+    fake_nor_t nor;
+    init_blank_nor(&nor);
+    app_calibration_service_t service;
+    init_service(&service);
+    measurement_cal_store_io_t store_io = fake_nor_io(&nor);
+    (void)app_calibration_service_load(&service, &store_io, TEST_CAPACITY_BYTES);
+    service.storage_available = true;
+    fake_phase05_t fake = {.service = &service};
+    app_cal_session_io_t io = make_io(&fake);
+    app_calibration_wizard_t wizard;
+    const bsp_clock_summary_t clock = {.source = BSP_CLOCK_SOURCE_HSE_PLL,
+                                       .sysclk_hz = 72000000u,
+                                       .hse_ready = true};
+    hw_safety_result_t safety = safety_allowed();
+    failures += expect_true(app_calibration_wizard_init(&wizard, &service, &io, NULL) == BSP_STATUS_OK,
+                            "wizard init retrying commit");
+    failures += expect_true(app_calibration_wizard_start(&wizard, APP_CAL_WIZARD_MODE_MANDATORY,
+                                                         13u, 25000, true) == BSP_STATUS_OK,
+                            "wizard start retrying commit");
+    app_calibration_wizard_confirm(&wizard);
+    app_calibration_wizard_confirm(&wizard);
+    failures += expect_true(drive_wizard_to_confirm_save(&wizard, &safety, &clock, 3u, 3000u),
+                            "wizard reaches save before failed commit");
+
+    nor.fail_program = true;
+    app_calibration_wizard_confirm(&wizard);
+    for (uint32_t now = 4000u; now < 4300u; now++)
+    {
+        (void)app_calibration_service_step(&service, now);
+        drive_wizard_one_step(&wizard, &safety, &clock, now);
+        if (wizard.state == APP_CAL_WIZARD_FAILED)
+        {
+            break;
+        }
+    }
+    failures += expect_u32((uint32_t)wizard.state, (uint32_t)APP_CAL_WIZARD_FAILED,
+                           "program failure reaches wizard failed state");
+    failures += expect_u32((uint32_t)wizard.error, (uint32_t)APP_CAL_WIZARD_ERROR_COMMIT,
+                           "program failure is reported as commit failure");
+    failures += expect_true(!app_calibration_service_active_valid(&service),
+                            "failed commit does not activate calibration");
+    failures += expect_u32((uint32_t)app_io_workspace_owner(&g_workspace),
+                           (uint32_t)APP_IO_WORKSPACE_OWNER_CALIBRATION_STORE,
+                           "failed commit holds store workspace until terminal state is acknowledged");
+
+    nor.fail_program = false;
+    app_calibration_wizard_confirm(&wizard);
+    failures += expect_u32((uint32_t)wizard.state, (uint32_t)APP_CAL_WIZARD_COMMITTING,
+                           "commit failure confirm restarts commit");
+    for (uint32_t now = 4310u; now < 4600u; now++)
+    {
+        (void)app_calibration_service_step(&service, now);
+        drive_wizard_one_step(&wizard, &safety, &clock, now);
+        if (wizard.state == APP_CAL_WIZARD_COMPLETE)
+        {
+            break;
+        }
+    }
+    failures += expect_u32((uint32_t)wizard.state, (uint32_t)APP_CAL_WIZARD_COMPLETE,
+                           "retrying commit activates calibration");
+    const measurement_cal_set_t *active = app_calibration_service_active_set(&service);
+    failures += expect_true((active != NULL) && (active->record_count == 33u),
+                            "retry commit active set contains all records");
+    failures += expect_u32((uint32_t)app_io_workspace_owner(&g_workspace),
+                           (uint32_t)APP_IO_WORKSPACE_OWNER_FREE,
+                           "retry commit releases store workspace");
+    return failures;
+}
+
 int main(void)
 {
     int failures = 0;
     failures += test_condition_enumeration();
     failures += test_safety_blocks_capture_without_starting_phase05();
     failures += test_full_wizard_batches_all_conditions_before_save();
+    failures += test_distinct_standard_temperatures_reach_solver();
+    failures += test_complex_load_profile_reaches_capture_request();
+    failures += test_fixture_failure_starts_no_load_capture();
+    failures += test_candidate_incomplete_retry_does_not_start_invalid_range();
+    failures += test_full_wizard_save_activates_with_single_external_service_stepper();
+    failures += test_commit_failure_can_retry_with_external_service_stepper();
     failures += expect_true(app_calibration_wizard_context_size_bytes() < 2048u,
                             "wizard context remains compact");
     return failures == 0 ? 0 : 1;

@@ -73,3 +73,10 @@ font backend lookup/read callbacks -> replaceable glyph source
 Resource streaming uses a tri-state result: `OK`, `DEFERRED`, or `ERROR`. A deferred W25Q/TFT operation preserves the resource offset so quiet mode can pause rendering and resume later instead of aborting the stream.
 
 This keeps the font renderer replaceable. The firmware is not committed to MCUFont or any other library yet. A tiny built-in 5x7 fallback font plus emergency renderer exists only for minimal diagnostic/error rendering if W25Q resources are absent or corrupt.
+
+## Internal text budget
+
+Phase 08 Stage 2A.1 keeps emergency safety, fault, storage, and calibration-gate text
+inside internal Flash. Normal menu/polished product text should move behind stable
+text/resource IDs before the full menu and localization work expands; the fallback
+resolver may remain English-only until the W25Q resource pack exists.

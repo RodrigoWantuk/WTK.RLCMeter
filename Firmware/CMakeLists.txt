@@ -121,49 +121,8 @@ if(WTK_TARGET_PLATFORM STREQUAL "host")
     enable_testing()
     add_subdirectory(tests)
 elseif(WTK_TARGET_PLATFORM STREQUAL "stm32")
-    if(WTK_FIRMWARE_PROFILE STREQUAL "BRINGUP")
-        # Bringup diagnostics must fit the same Rev.1 64 KiB Flash as product code.
-        # Keep the hardware-console orchestration units size-optimized.
-        set_source_files_properties(
-            src/app/app_calibration_session.c
-            src/app/app_calibration_campaign.c
-            src/app/app_calibration_workflow.c
-            src/measurement/measurement_calibration_solver.c
-            src/app/app_bringup_console.c
-            PROPERTIES COMPILE_OPTIONS "-Os"
-        )
-    elseif(WTK_FIRMWARE_PROFILE STREQUAL "PRODUCT")
-        # PRODUCT must link inside the guaranteed Rev.1 64 KiB Flash in both
-        # Debug and Release presets. Keep large orchestration/UI units
-        # size-optimized while preserving target debug symbols globally.
-        set_source_files_properties(
-            src/app/app_shell.c
-            src/app/app_product.c
-            src/app/app_measurement_session.c
-            src/app/app_calibration_wizard.c
-            src/app/app_calibration_service.c
-            src/app/app_calibration_session.c
-            src/app/app_calibration_campaign.c
-            src/app/app_calibration_workflow.c
-            src/hardware/hw_metrology_measure.c
-            src/hardware/hw_aux_sensors.c
-            src/measurement/measurement_dsp.c
-            src/measurement/measurement_engine.c
-            src/measurement/measurement_calibration.c
-            src/measurement/measurement_calibration_solver.c
-            src/measurement/measurement_calibration_store.c
-            src/ui/ui_product.c
-            src/ui/ui_format.c
-            src/ui/ui_fallback_renderer.c
-            src/bsp/bsp_adc.c
-            src/bsp/bsp_gpio.c
-            src/bsp/bsp_timers.c
-            src/drivers/ili9341.c
-            src/drivers/w25q_device.c
-            src/hardware/hw_peripherals.c
-            PROPERTIES COMPILE_OPTIONS "-Os"
-        )
-    elseif(NOT WTK_FIRMWARE_PROFILE STREQUAL "PRODUCT")
+    if((NOT WTK_FIRMWARE_PROFILE STREQUAL "BRINGUP") AND
+       (NOT WTK_FIRMWARE_PROFILE STREQUAL "PRODUCT"))
         message(FATAL_ERROR "Unsupported WTK_FIRMWARE_PROFILE='${WTK_FIRMWARE_PROFILE}'. Use PRODUCT or BRINGUP.")
     endif()
 
@@ -171,6 +130,10 @@ elseif(WTK_TARGET_PLATFORM STREQUAL "stm32")
         target_compile_options(wtk_firmware_common PRIVATE -fstack-usage)
     endif()
     if(WTK_FIRMWARE_PROFILE STREQUAL "PRODUCT")
+        # PRODUCT Debug intentionally uses -Os + debug symbols: the complete
+        # firmware must fit the guaranteed 64 KiB STM32F103C8T6 Flash while
+        # still preserving symbols for SWD/GDB inspection. Release may also
+        # enable preset-level LTO for additional dead-code folding.
         target_compile_options(wtk_firmware_common PRIVATE -Os)
     endif()
 

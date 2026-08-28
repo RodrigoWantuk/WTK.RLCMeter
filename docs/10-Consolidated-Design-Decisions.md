@@ -539,6 +539,30 @@ current Rev.1 calibratable domain contains 33 conditions through
 except the forbidden `10 Ohm + 500 mVrms` combination. Default LOAD standards are
 nominal pure-real RREF values and remain `REQUIRES_BENCH_VALIDATION`.
 
+Phase 08 Stage 2A.1 freezes the asynchronous lifecycle contract for PRODUCT
+calibration:
+
+- `app_shell.c` is the only PRODUCT scheduler that advances
+  `app_calibration_service_step()`; the wizard observes service/candidate state while
+  committing.
+- Showing `FAULT` is not the same as physical teardown completion. Product fault,
+  calibration-gate preemption, and user cancel request abort once and continue stepping
+  the active measurement/calibration runtime until Phase 05 acknowledges cleanup and
+  the shared workspace is free.
+- The product runtime union may switch between measurement and wizard only after the
+  current runtime is terminal/inactive.
+- Wizard cancellation is successful only after candidate discard succeeds. Candidate
+  discard/store errors remain explicit failed states.
+- O/S/L calibration temperature provenance is sampled immediately before each exact
+  workflow starts. One workflow keeps a fixed temperature for its six accepted samples;
+  later workflows may record newer NTC temperatures. Solver standards preserve distinct
+  OPEN, SHORT, and LOAD temperatures and expose min/max/span diagnostics.
+
+Product Release now uses preset-level GCC LTO in addition to size-first compilation.
+Product Debug intentionally remains `-Os` plus symbols because the full product image
+must fit the guaranteed 64 KiB Flash. Emergency text remains internal; normal menu and
+localization growth should move behind resource IDs and W25Q resources where practical.
+
 ## Localization
 
 Initial planned UI languages are Portuguese and English.

@@ -910,6 +910,18 @@ automatic measurement and full calibration are mutually exclusive. Both paths bo
 single 3072-byte `app_io_workspace_t` through their lower-level services rather than
 duplicating the Phase 05 raw DMA buffer.
 
+Phase 08 Stage 2A.1 hardens the lifetime rule: the union member is not reinitialized
+while the active runtime is still running or draining an abort. Fatal presentation can
+change immediately, but measurement/calibration runtime steps continue until Phase 05
+has acknowledged teardown and released the shared workspace. `app_shell.c` remains the
+single PRODUCT owner of `app_calibration_service_step()`; the wizard never advances the
+store FSM from inside its own step.
+
+Calibration workflow temperature is per exact condition, not per whole wizard run. The
+product supplies the latest NTC snapshot to each wizard step, and the wizard freezes
+that value only when it starts the next exact OPEN, SHORT, or LOAD workflow. The compact
+standards sent to the solver retain their individual temperature provenance.
+
 ## Host-side tests
 
 Required focus areas:

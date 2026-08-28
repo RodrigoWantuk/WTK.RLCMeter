@@ -40,6 +40,14 @@ Stage 2B.2 treats this temperature as calibration provenance for the OSL acquisi
 It is not six independent thermal samples and it is not an input to runtime
 temperature compensation.
 
+Phase 08 product calibration freezes temperature per exact workflow rather than once
+for the entire wizard. Immediately before each OPEN, SHORT, or LOAD workflow starts,
+the wizard copies the latest auxiliary NTC snapshot into the workflow request; that
+value then remains fixed for the six accepted samples in that workflow. A condition may
+therefore solve from OPEN, SHORT, and LOAD standards captured at different temperatures.
+Solver inputs preserve those distinct values and diagnostics expose min/max/span, but
+no temperature-span rejection policy is defined before bench evidence.
+
 ## OPEN / SHORT / LOAD
 
 ### OPEN

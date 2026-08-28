@@ -43,6 +43,8 @@ typedef struct
     uint32_t calibration_sequence;
     uint8_t menu_index;
     uint8_t runtime_kind;
+    uint8_t runtime_teardown_kind;
+    uint8_t runtime_teardown_target_state;
     bool ok_armed;
     bool ok_long_seen;
     bool request_click;

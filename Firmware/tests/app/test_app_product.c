@@ -19,6 +19,8 @@ typedef struct
     uint8_t outcome_count;
     uint8_t start_count;
     uint8_t process_count;
+    uint8_t ack_count;
+    uint8_t abort_delay_steps;
     bool active;
     bool done;
     bool dumpable;
@@ -27,6 +29,12 @@ typedef struct
 
 static app_calibration_service_t g_service;
 static app_io_workspace_t g_workspace;
+
+static app_product_inputs_t inputs_ready(void);
+static bsp_status_t init_product(app_product_t *product, fake_io_t *fake);
+static void boot_to_ready(app_product_t *product, const app_product_inputs_t *inputs);
+static void send_button(app_product_t *product, button_id_t button, button_event_type_t type);
+static void click_ok(app_product_t *product);
 
 static int expect_true(bool condition, const char *message)
 {
@@ -86,6 +94,13 @@ static bsp_status_t fake_start_attempt(const hw_metrology_measure_request_t *req
     fake->start_count++;
     fake->active = !fake->outcomes[fake->start_count - 1u].fail_phase05;
     fake->done = fake->outcomes[fake->start_count - 1u].fail_phase05;
+    if (fake->active)
+    {
+        if (app_io_workspace_acquire(&g_workspace, APP_IO_WORKSPACE_OWNER_METROLOGY) != BSP_STATUS_OK)
+        {
+            return BSP_STATUS_BUSY;
+        }
+    }
     return BSP_STATUS_BUSY;
 }
 
@@ -99,6 +114,11 @@ static bsp_status_t fake_step_attempt(uint32_t now_ms, void *user)
     }
     if (fake->abort_called)
     {
+        if (fake->abort_delay_steps > 0u)
+        {
+            fake->abort_delay_steps--;
+            return BSP_STATUS_BUSY;
+        }
         fake->active = false;
         fake->done = true;
         fake->dumpable = false;
@@ -138,9 +158,14 @@ static hw_metrology_measure_error_t fake_attempt_error(void *user)
 static void fake_attempt_acknowledge(void *user)
 {
     fake_io_t *fake = (fake_io_t *)user;
+    fake->ack_count++;
     fake->active = false;
     fake->done = false;
     fake->dumpable = false;
+    if (app_io_workspace_owner(&g_workspace) == APP_IO_WORKSPACE_OWNER_METROLOGY)
+    {
+        (void)app_io_workspace_release(&g_workspace, APP_IO_WORKSPACE_OWNER_METROLOGY);
+    }
 }
 
 static bsp_status_t fake_attempt_abort(void *user)
@@ -234,6 +259,208 @@ static void init_test_cal_service(void)
     app_calibration_service_init(&g_service);
     app_io_workspace_init(&g_workspace);
     app_calibration_service_attach_workspace(&g_service, &g_workspace);
+}
+
+static void step_until_attempt_active(app_product_t *product,
+                                      app_product_inputs_t *inputs,
+                                      const bsp_clock_summary_t *clock,
+                                      uint32_t start_ms,
+                                      fake_io_t *fake)
+{
+    click_ok(product);
+    for (uint32_t now = start_ms; now < (start_ms + 10u); now++)
+    {
+        app_product_step(product, inputs, clock, BSP_STATUS_OK, now);
+        if (fake->active)
+        {
+            return;
+        }
+    }
+}
+
+static int test_fault_during_measurement_capture_drains_runtime(void)
+{
+    int failures = 0;
+    fake_io_t fake = {0};
+    fake.outcome_count = 1u;
+    fake.outcomes[0] = good_outcome(measurement_complex(1000.0f, 0.0f),
+                                    MEASUREMENT_INTERPRET_RESISTIVE);
+    fake.abort_delay_steps = 2u;
+    app_product_t product;
+    app_product_inputs_t inputs = inputs_ready();
+    const bsp_clock_summary_t clock = {.source = BSP_CLOCK_SOURCE_HSE_PLL,
+                                       .sysclk_hz = 72000000u,
+                                       .hse_ready = true};
+    failures += expect_true(init_product(&product, &fake) == BSP_STATUS_OK,
+                            "product init measurement fault drain");
+    boot_to_ready(&product, &inputs);
+    step_until_attempt_active(&product, &inputs, &clock, 3u, &fake);
+    failures += expect_true(fake.active, "measurement capture active before fault");
+    failures += expect_true(app_io_workspace_owner(&g_workspace) == APP_IO_WORKSPACE_OWNER_METROLOGY,
+                            "workspace owned by metrology before fault");
+
+    inputs.safety_fault_mask = APP_SAFETY_FAULT_METROLOGY_RUNTIME;
+    app_product_step(&product, &inputs, &clock, BSP_STATUS_OK, 20u);
+    ui_product_view_t view;
+    app_product_make_view(&product, &view);
+    failures += expect_true(view.state == UI_PRODUCT_STATE_FAULT,
+                            "fault presentation happens immediately");
+    failures += expect_true(fake.abort_called, "measurement abort requested");
+    failures += expect_true(app_io_workspace_owner(&g_workspace) == APP_IO_WORKSPACE_OWNER_METROLOGY,
+                            "workspace not released before abort acknowledgement");
+
+    for (uint32_t now = 21u; now < 30u; now++)
+    {
+        app_product_step(&product, &inputs, &clock, BSP_STATUS_OK, now);
+        if (app_io_workspace_owner(&g_workspace) == APP_IO_WORKSPACE_OWNER_FREE)
+        {
+            break;
+        }
+    }
+    failures += expect_true(app_io_workspace_owner(&g_workspace) == APP_IO_WORKSPACE_OWNER_FREE,
+                            "workspace released after drained measurement abort");
+    failures += expect_true(fake.ack_count != 0u, "measurement abort acknowledged");
+    return failures;
+}
+
+static int test_calibration_validity_loss_drains_measurement(void)
+{
+    int failures = 0;
+    fake_io_t fake = {0};
+    fake.outcome_count = 1u;
+    fake.outcomes[0] = good_outcome(measurement_complex(1000.0f, 0.0f),
+                                    MEASUREMENT_INTERPRET_RESISTIVE);
+    fake.abort_delay_steps = 1u;
+    app_product_t product;
+    app_product_inputs_t inputs = inputs_ready();
+    const bsp_clock_summary_t clock = {.source = BSP_CLOCK_SOURCE_HSE_PLL,
+                                       .sysclk_hz = 72000000u,
+                                       .hse_ready = true};
+    failures += expect_true(init_product(&product, &fake) == BSP_STATUS_OK,
+                            "product init calibration loss drain");
+    boot_to_ready(&product, &inputs);
+    step_until_attempt_active(&product, &inputs, &clock, 3u, &fake);
+    failures += expect_true(fake.active, "measurement active before calibration loss");
+
+    inputs.calibration_active_valid = false;
+    inputs.calibration_status = APP_CAL_SERVICE_NO_VALID_CALIBRATION;
+    app_product_step(&product, &inputs, &clock, BSP_STATUS_OK, 20u);
+    failures += expect_true(fake.abort_called, "calibration validity loss aborts measurement");
+    failures += expect_true(app_io_workspace_owner(&g_workspace) == APP_IO_WORKSPACE_OWNER_METROLOGY,
+                            "workspace held while calibration-loss abort drains");
+    for (uint32_t now = 21u; now < 30u; now++)
+    {
+        app_product_step(&product, &inputs, &clock, BSP_STATUS_OK, now);
+    }
+    ui_product_view_t view;
+    app_product_make_view(&product, &view);
+    failures += expect_true(view.state == UI_PRODUCT_STATE_CALIBRATION_REQUIRED,
+                            "calibration loss reaches required gate after drain");
+    failures += expect_true(app_io_workspace_owner(&g_workspace) == APP_IO_WORKSPACE_OWNER_FREE,
+                            "calibration-loss drain releases workspace");
+    return failures;
+}
+
+static void start_product_wizard_capture(app_product_t *product,
+                                         app_product_inputs_t *inputs,
+                                         const bsp_clock_summary_t *clock,
+                                         fake_io_t *fake)
+{
+    inputs->calibration_status = APP_CAL_SERVICE_NO_VALID_CALIBRATION;
+    inputs->calibration_active_valid = false;
+    inputs->calibration_active_sequence = 0u;
+    boot_to_ready(product, inputs);
+    click_ok(product);
+    app_product_step(product, inputs, clock, BSP_STATUS_OK, 3u);
+    click_ok(product);
+    app_product_step(product, inputs, clock, BSP_STATUS_OK, 4u);
+    click_ok(product);
+    for (uint32_t now = 5u; now < 20u; now++)
+    {
+        app_product_step(product, inputs, clock, BSP_STATUS_OK, now);
+        if (fake->active)
+        {
+            return;
+        }
+    }
+}
+
+static int test_fault_during_calibration_capture_drains_runtime(void)
+{
+    int failures = 0;
+    fake_io_t fake = {0};
+    fake.outcome_count = 20u;
+    fake.abort_delay_steps = 2u;
+    app_product_t product;
+    app_product_inputs_t inputs = inputs_ready();
+    const bsp_clock_summary_t clock = {.source = BSP_CLOCK_SOURCE_HSE_PLL,
+                                       .sysclk_hz = 72000000u,
+                                       .hse_ready = true};
+    failures += expect_true(init_product(&product, &fake) == BSP_STATUS_OK,
+                            "product init calibration fault drain");
+    start_product_wizard_capture(&product, &inputs, &clock, &fake);
+    failures += expect_true(fake.active, "calibration capture active before fault");
+    failures += expect_true(app_io_workspace_owner(&g_workspace) == APP_IO_WORKSPACE_OWNER_METROLOGY,
+                            "calibration owns metrology workspace before fault");
+
+    inputs.safety_fault_mask = APP_SAFETY_FAULT_METROLOGY_RUNTIME;
+    app_product_step(&product, &inputs, &clock, BSP_STATUS_OK, 30u);
+    ui_product_view_t view;
+    app_product_make_view(&product, &view);
+    failures += expect_true(view.state == UI_PRODUCT_STATE_FAULT,
+                            "fault presentation during calibration is immediate");
+    failures += expect_true(fake.abort_called, "calibration capture abort requested");
+    failures += expect_true(app_io_workspace_owner(&g_workspace) == APP_IO_WORKSPACE_OWNER_METROLOGY,
+                            "calibration workspace remains held during abort");
+    for (uint32_t now = 31u; now < 45u; now++)
+    {
+        app_product_step(&product, &inputs, &clock, BSP_STATUS_OK, now);
+        if (app_io_workspace_owner(&g_workspace) == APP_IO_WORKSPACE_OWNER_FREE)
+        {
+            break;
+        }
+    }
+    failures += expect_true(app_io_workspace_owner(&g_workspace) == APP_IO_WORKSPACE_OWNER_FREE,
+                            "calibration abort drain releases workspace");
+    failures += expect_true(fake.ack_count != 0u, "calibration abort acknowledged");
+    return failures;
+}
+
+static int test_user_cancel_during_calibration_capture_drains_runtime(void)
+{
+    int failures = 0;
+    fake_io_t fake = {0};
+    fake.outcome_count = 20u;
+    fake.abort_delay_steps = 1u;
+    app_product_t product;
+    app_product_inputs_t inputs = inputs_ready();
+    const bsp_clock_summary_t clock = {.source = BSP_CLOCK_SOURCE_HSE_PLL,
+                                       .sysclk_hz = 72000000u,
+                                       .hse_ready = true};
+    failures += expect_true(init_product(&product, &fake) == BSP_STATUS_OK,
+                            "product init calibration cancel drain");
+    start_product_wizard_capture(&product, &inputs, &clock, &fake);
+    failures += expect_true(fake.active, "calibration active before user cancel");
+    send_button(&product, BUTTON_ID_OK, BUTTON_EVENT_PRESS);
+    send_button(&product, BUTTON_ID_OK, BUTTON_EVENT_LONG_PRESS);
+    send_button(&product, BUTTON_ID_OK, BUTTON_EVENT_RELEASE);
+    app_product_step(&product, &inputs, &clock, BSP_STATUS_OK, 30u);
+    failures += expect_true(fake.abort_called, "user cancel requests calibration abort");
+    for (uint32_t now = 31u; now < 45u; now++)
+    {
+        app_product_step(&product, &inputs, &clock, BSP_STATUS_OK, now);
+        if (app_io_workspace_owner(&g_workspace) == APP_IO_WORKSPACE_OWNER_FREE)
+        {
+            break;
+        }
+    }
+    ui_product_view_t view;
+    app_product_make_view(&product, &view);
+    failures += expect_true(app_io_workspace_owner(&g_workspace) == APP_IO_WORKSPACE_OWNER_FREE,
+                            "user cancel releases workspace after safe drain");
+    failures += expect_true(view.state == UI_PRODUCT_STATE_CALIBRATION_REQUIRED,
+                            "mandatory canceled wizard returns to calibration gate");
+    return failures;
 }
 
 static bsp_status_t init_product(app_product_t *product, fake_io_t *fake)
@@ -473,6 +700,10 @@ int main(int argc, char **argv)
     failures += test_ok_gestures_and_measurement_flow();
     failures += test_menu_calibration_status_and_dirty_candidate();
     failures += test_safety_fault_and_pages();
+    failures += test_fault_during_measurement_capture_drains_runtime();
+    failures += test_calibration_validity_loss_drains_measurement();
+    failures += test_fault_during_calibration_capture_drains_runtime();
+    failures += test_user_cancel_during_calibration_capture_drains_runtime();
     failures += expect_true(sizeof(ui_product_measurement_t) < sizeof(measurement_session_result_t),
                             "compact UI result is smaller than session result");
     failures += expect_true(sizeof(ui_product_measurement_t) < 128u,

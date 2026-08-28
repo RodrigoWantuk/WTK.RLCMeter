@@ -81,9 +81,16 @@ typedef struct
     uint8_t accepted;
     uint8_t attempts;
     uint32_t reject_flags;
+    int32_t open_temperature_mC;
+    int32_t short_temperature_mC;
+    int32_t load_temperature_mC;
+    int32_t temperature_min_mC;
+    int32_t temperature_max_mC;
+    int32_t temperature_span_mC;
     hw_excitation_freq_t frequency;
     hw_excitation_amp_t amplitude;
     bool mandatory;
+    bool temperature_span_valid;
 } app_cal_wizard_snapshot_t;
 
 typedef struct
@@ -115,8 +122,15 @@ typedef struct
     uint8_t total_conditions;
     uint8_t accepted;
     uint8_t attempts;
-    int32_t temperature_mC;
-    bool temperature_valid;
+    int32_t latest_temperature_mC;
+    int32_t open_temperature_mC;
+    int32_t short_temperature_mC;
+    int32_t load_temperature_mC;
+    int32_t temperature_min_mC;
+    int32_t temperature_max_mC;
+    int32_t temperature_span_mC;
+    bool latest_temperature_valid;
+    bool temperature_span_valid;
     bool initialized;
     bool commit_started;
 } app_calibration_wizard_t;
@@ -148,6 +162,8 @@ void app_calibration_wizard_step(app_calibration_wizard_t *wizard,
                                  const hw_safety_result_t *safety,
                                  const bsp_clock_summary_t *clock_summary,
                                  bsp_status_t clock_status,
+                                 int32_t temperature_mC,
+                                 bool temperature_valid,
                                  uint32_t now_ms);
 bool app_calibration_wizard_active(const app_calibration_wizard_t *wizard);
 bool app_calibration_wizard_terminal(const app_calibration_wizard_t *wizard);

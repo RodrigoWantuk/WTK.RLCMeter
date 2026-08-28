@@ -159,6 +159,80 @@ Remaining Phase 08 work:
 - physical calibration workflow validation on the Rev.1 board;
 - fixture/load-standard value qualification.
 
+## Stage 2A.1 — calibration wizard lifecycle and product Flash hardening
+
+STATUS: IMPLEMENTED
+
+Implemented software boundary:
+
+- PRODUCT has one calibration-service scheduler owner: `app_shell.c` calls
+  `app_calibration_service_step()` once per superloop. The wizard starts candidate
+  commits and observes candidate/service state; it does not step the W25Q store FSM.
+- Product runtime preemption now separates presentation state from teardown ownership.
+  Fatal product faults may show `FAULT` immediately, and calibration-validity loss may
+  show the mandatory gate, but an active measurement/calibration runtime continues to
+  receive cooperative steps until Phase 05 abort/acknowledge cleanup has completed.
+- The product measurement/calibration union is not overwritten while the current
+  runtime is active or draining. Runtime switches occur only after the active session or
+  wizard is terminal/inactive.
+- Wizard cancellation enters `CANCELING` while Phase 05 is still active and reports
+  `CANCELED` only after candidate discard succeeds. Discard `BUSY` remains canceling;
+  discard errors surface as failed storage state.
+- Wizard retry handling is error-specific. Phase 05 and solver failures may retry the
+  current condition. Commit failures retry the commit after the store terminal state is
+  acknowledged by the calibration service. Candidate-incomplete, fixture/condition, and
+  storage/candidate-busy failures do not start a generic capture or advance into an
+  invalid range.
+- Calibration temperature provenance is sampled immediately before each exact
+  OPEN/SHORT/LOAD workflow starts. Temperature remains fixed for that workflow's six
+  accepted samples, while the next condition may use a newer NTC snapshot. The wizard
+  exposes O/S/L min/max/span diagnostics for the last solved condition.
+- Host tests cover measurement and calibration fault preemption, user cancel during
+  calibration capture, workspace ownership during abort, candidate-incomplete retry,
+  complex LOAD fixtures, per-standard temperature provenance, and full 33-condition
+  save/verify/activate/reboot through a fake NOR store.
+- PRODUCT CMake policy was cleaned so size optimization is target-wide instead of a
+  redundant per-source list. Product Debug intentionally uses `-Os` plus symbols.
+  Product Release enables LTO for deterministic Flash recovery.
+
+Flash/RAM evidence from local STM32 builds:
+
+```text
+                       BEFORE      AFTER
+PRODUCT Debug Flash     55096      55756
+PRODUCT Debug RAM       16528      16528
+PRODUCT Release Flash   55096      51132
+PRODUCT Release RAM     16528      16508
+BRINGUP Flash           53564      53648
+BRINGUP RAM             15116      15116
+```
+
+The Release image recovered 3964 B of Flash relative to the Stage 2A baseline, leaving
+6212 B below the 56 KiB project hard gate. `.rodata` is about 2976 B after LTO; the
+largest remaining internal text data are the fallback glyph table and small metrology
+lookup tables, not a full localization/resource pack.
+
+Phase 08 code-only Flash forecast before Stage 2B:
+
+```text
+Current PRODUCT Release:        51132 B
+Settings store/controller:    +  900..1400 B
+Display menu:                +  500..900 B
+Sound menu:                  +  300..600 B
+Language/resource resolver:  +  700..1200 B
+About/debug page skeleton:   +  500..1000 B
+Graph primitives:            +  900..1600 B
+Projected code image:          53932..57832 B
+```
+
+Stage 2B should therefore add resource/text IDs and keep normal menu strings/assets in
+W25Q where practical. Emergency fault, storage, calibration gate, and safety text must
+remain internally available.
+
+## Stage 2B — settings and normal menu expansion
+
+STATUS: NOT_STARTED
+
 ## Goal
 
 Turn the validated measurement engine and peripheral foundations into a coherent Rev.1 product experience without allowing UI/storage activity to compromise acquisition determinism, calibration validity, or safety.

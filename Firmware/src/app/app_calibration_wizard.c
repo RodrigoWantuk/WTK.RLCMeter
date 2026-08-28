@@ -89,6 +89,17 @@ static void enter_failure(app_calibration_wizard_t *wizard, app_cal_wizard_error
     }
 }
 
+static void update_latest_temperature(app_calibration_wizard_t *wizard,
+                                      int32_t temperature_mC,
+                                      bool temperature_valid)
+{
+    if (wizard != NULL)
+    {
+        wizard->latest_temperature_mC = temperature_mC;
+        wizard->latest_temperature_valid = temperature_valid;
+    }
+}
+
 static bool current_key(const app_calibration_wizard_t *wizard, measurement_cal_key_t *key)
 {
     if ((wizard == NULL) || (key == NULL))
@@ -99,6 +110,8 @@ static bool current_key(const app_calibration_wizard_t *wizard, measurement_cal_
                                                 wizard->condition_index,
                                                 key) == BSP_STATUS_OK;
 }
+
+static bsp_status_t discard_candidate_for_cancel(app_calibration_wizard_t *wizard);
 
 static app_cal_workflow_request_t make_request(app_calibration_wizard_t *wizard)
 {
@@ -111,8 +124,8 @@ static app_cal_workflow_request_t make_request(app_calibration_wizard_t *wizard)
             .z_ohms = measurement_complex(0.0f, 0.0f),
             .z_valid = false,
         },
-        .temperature_mC = wizard->temperature_mC,
-        .temperature_valid = wizard->temperature_valid,
+        .temperature_mC = wizard->latest_temperature_mC,
+        .temperature_valid = wizard->latest_temperature_valid,
     };
     if (wizard->standard == APP_CAL_STANDARD_SHORT)
     {
@@ -232,6 +245,31 @@ static bsp_status_t solve_load_condition(app_calibration_wizard_t *wizard,
     {
         return status;
     }
+    wizard->open_temperature_mC = open->standard.temperature_mC;
+    wizard->short_temperature_mC = shorted->standard.temperature_mC;
+    wizard->load_temperature_mC = load->temperature_mC;
+    wizard->temperature_min_mC = wizard->open_temperature_mC;
+    wizard->temperature_max_mC = wizard->open_temperature_mC;
+    if (wizard->short_temperature_mC < wizard->temperature_min_mC)
+    {
+        wizard->temperature_min_mC = wizard->short_temperature_mC;
+    }
+    if (wizard->load_temperature_mC < wizard->temperature_min_mC)
+    {
+        wizard->temperature_min_mC = wizard->load_temperature_mC;
+    }
+    if (wizard->short_temperature_mC > wizard->temperature_max_mC)
+    {
+        wizard->temperature_max_mC = wizard->short_temperature_mC;
+    }
+    if (wizard->load_temperature_mC > wizard->temperature_max_mC)
+    {
+        wizard->temperature_max_mC = wizard->load_temperature_mC;
+    }
+    wizard->temperature_span_mC = wizard->temperature_max_mC - wizard->temperature_min_mC;
+    wizard->temperature_span_valid = open->standard.temperature_valid &&
+                                     shorted->standard.temperature_valid &&
+                                     load->temperature_valid;
     wizard->solver_status = app_calibration_campaign_solve_condition(campaign, &record);
     if (wizard->solver_status != MEASUREMENT_CAL_SOLVER_OK)
     {
@@ -451,8 +489,15 @@ bsp_status_t app_calibration_wizard_start(app_calibration_wizard_t *wizard,
     }
     wizard->mode = mode;
     wizard->sequence = sequence;
-    wizard->temperature_mC = temperature_mC;
-    wizard->temperature_valid = temperature_valid;
+    wizard->latest_temperature_mC = temperature_mC;
+    wizard->latest_temperature_valid = temperature_valid;
+    wizard->open_temperature_mC = 0;
+    wizard->short_temperature_mC = 0;
+    wizard->load_temperature_mC = 0;
+    wizard->temperature_min_mC = 0;
+    wizard->temperature_max_mC = 0;
+    wizard->temperature_span_mC = 0;
+    wizard->temperature_span_valid = false;
     wizard->range_index = 0u;
     wizard->condition_index = 0u;
     wizard->condition_count = 0u;
@@ -502,9 +547,23 @@ void app_calibration_wizard_confirm(app_calibration_wizard_t *wizard)
                 wizard->state = APP_CAL_WIZARD_COMMITTING;
             }
         }
+        else if ((wizard->error == APP_CAL_WIZARD_ERROR_PHASE05) ||
+                 (wizard->error == APP_CAL_WIZARD_ERROR_SOLVER))
+        {
+            measurement_cal_key_t key = {0};
+            if (current_key(wizard, &key))
+            {
+                wizard->state = capture_state_for_standard(wizard->standard);
+            }
+        }
+        else if ((wizard->error == APP_CAL_WIZARD_ERROR_STORAGE) ||
+                 (wizard->error == APP_CAL_WIZARD_ERROR_CANCELED))
+        {
+            (void)discard_candidate_for_cancel(wizard);
+        }
         else
         {
-            wizard->state = capture_state_for_standard(wizard->standard);
+            /* Candidate/fixture consistency failures require an explicit restart. */
         }
         break;
     default:
@@ -528,11 +587,27 @@ bsp_status_t app_calibration_wizard_cancel(app_calibration_wizard_t *wizard)
         wizard->state = APP_CAL_WIZARD_CANCELING;
         return status;
     }
+    return discard_candidate_for_cancel(wizard);
+}
+
+static bsp_status_t discard_candidate_for_cancel(app_calibration_wizard_t *wizard)
+{
     const bsp_status_t discard = app_calibration_service_candidate_discard(wizard->service);
-    wizard->error = (discard == BSP_STATUS_OK) ? APP_CAL_WIZARD_ERROR_CANCELED :
-                                                 APP_CAL_WIZARD_ERROR_STORAGE;
-    wizard->state = (discard == BSP_STATUS_OK) ? APP_CAL_WIZARD_CANCELED :
-                                                 APP_CAL_WIZARD_FAILED;
+    if (discard == BSP_STATUS_OK)
+    {
+        wizard->error = APP_CAL_WIZARD_ERROR_CANCELED;
+        wizard->state = APP_CAL_WIZARD_CANCELED;
+    }
+    else if (discard == BSP_STATUS_BUSY)
+    {
+        wizard->error = APP_CAL_WIZARD_ERROR_STORAGE;
+        wizard->state = APP_CAL_WIZARD_CANCELING;
+    }
+    else
+    {
+        wizard->error = APP_CAL_WIZARD_ERROR_STORAGE;
+        wizard->state = APP_CAL_WIZARD_FAILED;
+    }
     return discard;
 }
 
@@ -540,12 +615,15 @@ void app_calibration_wizard_step(app_calibration_wizard_t *wizard,
                                  const hw_safety_result_t *safety,
                                  const bsp_clock_summary_t *clock_summary,
                                  bsp_status_t clock_status,
+                                 int32_t temperature_mC,
+                                 bool temperature_valid,
                                  uint32_t now_ms)
 {
     if ((wizard == NULL) || !wizard->initialized)
     {
         return;
     }
+    update_latest_temperature(wizard, temperature_mC, temperature_valid);
     if (wizard->state == APP_CAL_WIZARD_SAFETY_BLOCKED)
     {
         if (safety_allows_capture(safety))
@@ -578,16 +656,14 @@ void app_calibration_wizard_step(app_calibration_wizard_t *wizard,
     }
     if (wizard->state == APP_CAL_WIZARD_COMMITTING)
     {
-        const bsp_status_t status = app_calibration_service_step(wizard->service, now_ms);
-        if ((status != BSP_STATUS_OK) && (status != BSP_STATUS_BUSY))
-        {
-            enter_failure(wizard, APP_CAL_WIZARD_ERROR_COMMIT);
-            return;
-        }
         if (app_calibration_service_active_valid(wizard->service) &&
             (app_calibration_service_candidate_state(wizard->service) == APP_CAL_CANDIDATE_ACTIVATED))
         {
             wizard->state = APP_CAL_WIZARD_COMPLETE;
+        }
+        else if (app_calibration_service_candidate_state(wizard->service) == APP_CAL_CANDIDATE_FAILED)
+        {
+            enter_failure(wizard, APP_CAL_WIZARD_ERROR_COMMIT);
         }
         return;
     }
@@ -597,9 +673,7 @@ void app_calibration_wizard_step(app_calibration_wizard_t *wizard,
         if ((event == APP_CAL_SESSION_EVENT_CANCELED) ||
             !app_calibration_session_active(&wizard->session))
         {
-            (void)app_calibration_service_candidate_discard(wizard->service);
-            wizard->state = APP_CAL_WIZARD_CANCELED;
-            wizard->error = APP_CAL_WIZARD_ERROR_CANCELED;
+            (void)discard_candidate_for_cancel(wizard);
         }
         return;
     }
@@ -700,6 +774,13 @@ void app_calibration_wizard_snapshot(const app_calibration_wizard_t *wizard,
     snapshot->accepted = wizard->accepted;
     snapshot->attempts = wizard->attempts;
     snapshot->reject_flags = app_calibration_session_last_reject_flags(&wizard->session);
+    snapshot->open_temperature_mC = wizard->open_temperature_mC;
+    snapshot->short_temperature_mC = wizard->short_temperature_mC;
+    snapshot->load_temperature_mC = wizard->load_temperature_mC;
+    snapshot->temperature_min_mC = wizard->temperature_min_mC;
+    snapshot->temperature_max_mC = wizard->temperature_max_mC;
+    snapshot->temperature_span_mC = wizard->temperature_span_mC;
+    snapshot->temperature_span_valid = wizard->temperature_span_valid;
     snapshot->frequency = key.frequency;
     snapshot->amplitude = key.amplitude;
     snapshot->mandatory = wizard->mode == APP_CAL_WIZARD_MODE_MANDATORY;

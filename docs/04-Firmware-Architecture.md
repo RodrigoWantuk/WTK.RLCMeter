@@ -232,6 +232,12 @@ payload
 
 Settings/calibration must use redundant slots or a small journal strategy to survive interrupted writes.
 
+Asynchronous services have one scheduler owner. In PRODUCT, `app_shell.c` advances the
+calibration service/store FSM exactly once per superloop; higher-level flows such as the
+product calibration wizard start operations and observe state rather than stepping the
+same W25Q transaction internally. Fatal application presentation must not stop stepping
+the runtime that is returning hardware to SAFE.
+
 ## Diagnostics
 
 A compact ring buffer may be displayed on TFT and streamed through UART.
@@ -274,6 +280,11 @@ hard gate is 56 KiB Flash, with a 48 KiB soft target and the silicon limit remai
 stack/heap floor. PRODUCT builds use a 16 KiB preferred accounted-RAM target and a
 17 KiB hard gate; BRINGUP uses an 18 KiB hard gate. Accounted RAM includes the
 linker-reserved stack/heap floor.
+
+Product Debug is intentionally size-first (`-Os` plus debug symbols) because the full
+product profile must fit the guaranteed C8 Flash. Product Release also enables GCC LTO
+from its preset to recover dead-code headroom before the remaining Phase 08 UI/settings
+features are added.
 
 ## Build and editor policy
 

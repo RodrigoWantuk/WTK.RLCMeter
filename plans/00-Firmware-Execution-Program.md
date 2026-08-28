@@ -32,8 +32,9 @@ Phase 07:
     REQUIRES_BENCH_VALIDATION
 
 Immediate next software phase after physical/software handoff:
-    Phase 08 continuation — complete product UI/menu/settings/resource-pack/calibration
-    wizard integration on top of the Stage 1 product controller and calibration gate.
+    Phase 08 continuation — Stage 2A.1 lifecycle/Flash hardening is implemented;
+    next software work is Stage 2B settings/menu/resource-ID expansion without
+    spending emergency internal-Flash headroom blindly.
 ```
 
 ## Program objectives

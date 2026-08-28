@@ -297,6 +297,17 @@ fixture capture, the wizard waits in a safety-blocked state and no Phase 05 tran
 is requested. Manual recalibration keeps the previous valid active set until the new
 candidate has been committed and verified.
 
+Fault presentation is intentionally decoupled from physical teardown. The PRODUCT UI may
+show `FAULT`, `CALIBRATION_REQUIRED`, `CANCELING`, or storage-error states immediately,
+but the application keeps stepping the active measurement or calibration runtime until
+Phase 05 has stopped ADC/DMA/excitation, returned K1 SAFE through its owner, acknowledged
+the transaction, and released the shared workspace. UI state must not cause the runtime
+union or raw workspace to be reused early.
+
+Calibration wizard diagnostics expose the latest solved condition's OPEN, SHORT, and
+LOAD temperatures plus min/max/span. These values are provenance only; no temperature
+span rejection threshold is implemented before bench evidence.
+
 ## Mandatory calibration gate
 
 On every boot the application validates persisted calibration before entering normal measurement-ready state.

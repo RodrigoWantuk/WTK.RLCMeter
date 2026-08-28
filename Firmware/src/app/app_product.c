@@ -7,6 +7,9 @@ enum
     APP_PRODUCT_RUNTIME_NONE = 0,
     APP_PRODUCT_RUNTIME_MEASUREMENT,
     APP_PRODUCT_RUNTIME_CALIBRATION,
+    APP_PRODUCT_RUNTIME_TEARDOWN_NONE = 0,
+    APP_PRODUCT_RUNTIME_TEARDOWN_MEASUREMENT,
+    APP_PRODUCT_RUNTIME_TEARDOWN_CALIBRATION,
     APP_PRODUCT_MENU_CALIBRATION = 0,
     APP_PRODUCT_MENU_BACK = 1,
     APP_PRODUCT_MENU_COUNT = 2,
@@ -121,6 +124,8 @@ static app_calibration_wizard_t *wizard_runtime(app_product_t *product)
     return (product == NULL) ? NULL : &product->runtime.calibration;
 }
 
+static void update_wizard_view(app_product_t *product);
+
 static bsp_status_t activate_measurement_runtime(app_product_t *product)
 {
     if (product == NULL)
@@ -130,6 +135,11 @@ static bsp_status_t activate_measurement_runtime(app_product_t *product)
     if (product->runtime_kind == APP_PRODUCT_RUNTIME_MEASUREMENT)
     {
         return BSP_STATUS_OK;
+    }
+    if ((product->runtime_kind == APP_PRODUCT_RUNTIME_CALIBRATION) &&
+        app_calibration_wizard_active(wizard_runtime(product)))
+    {
+        return BSP_STATUS_BUSY;
     }
     const bsp_status_t status =
         app_measurement_session_init(&product->runtime.measurement, &product->measurement_io);
@@ -150,6 +160,11 @@ static bsp_status_t activate_wizard_runtime(app_product_t *product)
     {
         return BSP_STATUS_OK;
     }
+    if ((product->runtime_kind == APP_PRODUCT_RUNTIME_MEASUREMENT) &&
+        app_measurement_session_active(measurement_runtime(product)))
+    {
+        return BSP_STATUS_BUSY;
+    }
     const app_cal_fixture_profile_t fixture = {
         .load_z = app_calibration_fixture_profile_default_load,
         .user = NULL,
@@ -163,6 +178,98 @@ static bsp_status_t activate_wizard_runtime(app_product_t *product)
         product->runtime_kind = APP_PRODUCT_RUNTIME_CALIBRATION;
     }
     return status;
+}
+
+static void clear_requests(app_product_t *product)
+{
+    if (product != NULL)
+    {
+        product->request_click = false;
+        product->request_menu = false;
+        product->request_page_next = false;
+        product->request_page_prev = false;
+    }
+}
+
+static bool runtime_active(const app_product_t *product)
+{
+    if (product == NULL)
+    {
+        return false;
+    }
+    if (product->runtime_kind == APP_PRODUCT_RUNTIME_MEASUREMENT)
+    {
+        return app_measurement_session_active(measurement_runtime_const(product));
+    }
+    if (product->runtime_kind == APP_PRODUCT_RUNTIME_CALIBRATION)
+    {
+        return app_calibration_wizard_active(&product->runtime.calibration);
+    }
+    return false;
+}
+
+static void begin_runtime_teardown(app_product_t *product, ui_product_state_t target_state)
+{
+    if ((product == NULL) || (product->runtime_teardown_kind != APP_PRODUCT_RUNTIME_TEARDOWN_NONE))
+    {
+        return;
+    }
+    product->runtime_teardown_target_state = (uint8_t)target_state;
+    if (product->runtime_kind == APP_PRODUCT_RUNTIME_MEASUREMENT)
+    {
+        product->runtime_teardown_kind = APP_PRODUCT_RUNTIME_TEARDOWN_MEASUREMENT;
+        (void)app_measurement_session_cancel(measurement_runtime(product));
+    }
+    else if (product->runtime_kind == APP_PRODUCT_RUNTIME_CALIBRATION)
+    {
+        product->runtime_teardown_kind = APP_PRODUCT_RUNTIME_TEARDOWN_CALIBRATION;
+        (void)app_calibration_wizard_cancel(wizard_runtime(product));
+    }
+}
+
+static bool drain_runtime_teardown(app_product_t *product,
+                                   const hw_safety_result_t *safety,
+                                   const bsp_clock_summary_t *clock_summary,
+                                   bsp_status_t clock_status,
+                                   int32_t temperature_mC,
+                                   bool temperature_valid,
+                                   uint32_t now_ms)
+{
+    if ((product == NULL) ||
+        (product->runtime_teardown_kind == APP_PRODUCT_RUNTIME_TEARDOWN_NONE))
+    {
+        return false;
+    }
+
+    if (product->runtime_teardown_kind == APP_PRODUCT_RUNTIME_TEARDOWN_MEASUREMENT)
+    {
+        if (app_measurement_session_active(measurement_runtime(product)))
+        {
+            (void)app_measurement_session_step(measurement_runtime(product), now_ms);
+            return true;
+        }
+    }
+    else if (product->runtime_teardown_kind == APP_PRODUCT_RUNTIME_TEARDOWN_CALIBRATION)
+    {
+        if (app_calibration_wizard_active(wizard_runtime(product)))
+        {
+            app_calibration_wizard_step(wizard_runtime(product),
+                                        safety,
+                                        clock_summary,
+                                        clock_status,
+                                        temperature_mC,
+                                        temperature_valid,
+                                        now_ms);
+            update_wizard_view(product);
+            return true;
+        }
+    }
+
+    product->runtime_teardown_kind = APP_PRODUCT_RUNTIME_TEARDOWN_NONE;
+    const ui_product_state_t target = (ui_product_state_t)product->runtime_teardown_target_state;
+    (void)activate_measurement_runtime(product);
+    set_state(product, target);
+    return false;
 }
 
 static ui_product_measurement_t ui_measurement_from_result(const measurement_session_result_t *result)
@@ -434,21 +541,31 @@ void app_product_step(app_product_t *product,
 
     if ((inputs->safety_fault_mask != 0u) || inputs->display_fault)
     {
-        if ((product->runtime_kind == APP_PRODUCT_RUNTIME_MEASUREMENT) &&
-            app_measurement_session_active(measurement_runtime(product)))
-        {
-            (void)app_measurement_session_cancel(measurement_runtime(product));
-        }
-        if ((product->runtime_kind == APP_PRODUCT_RUNTIME_CALIBRATION) &&
-            app_calibration_wizard_active(wizard_runtime(product)))
-        {
-            (void)app_calibration_wizard_cancel(wizard_runtime(product));
-        }
         set_state(product, UI_PRODUCT_STATE_FAULT);
-        product->request_click = false;
-        product->request_menu = false;
-        product->request_page_next = false;
-        product->request_page_prev = false;
+        if (runtime_active(product))
+        {
+            begin_runtime_teardown(product, UI_PRODUCT_STATE_FAULT);
+            (void)drain_runtime_teardown(product,
+                                         &inputs->safety_result,
+                                         clock_summary,
+                                         clock_status,
+                                         inputs->temperature_mC,
+                                         inputs->temperature_valid,
+                                         now_ms);
+        }
+        clear_requests(product);
+        return;
+    }
+
+    if (drain_runtime_teardown(product,
+                               &inputs->safety_result,
+                               clock_summary,
+                               clock_status,
+                               inputs->temperature_mC,
+                               inputs->temperature_valid,
+                               now_ms))
+    {
+        clear_requests(product);
         return;
     }
 
@@ -551,6 +668,8 @@ void app_product_step(app_product_t *product,
                                     &inputs->safety_result,
                                     clock_summary,
                                     clock_status,
+                                    inputs->temperature_mC,
+                                    inputs->temperature_valid,
                                     now_ms);
         update_wizard_view(product);
         if (app_calibration_wizard_terminal(wizard_runtime(product)))
@@ -586,7 +705,16 @@ void app_product_step(app_product_t *product,
         if ((product->runtime_kind == APP_PRODUCT_RUNTIME_MEASUREMENT) &&
             app_measurement_session_active(measurement_runtime(product)))
         {
-            (void)app_measurement_session_cancel(measurement_runtime(product));
+            begin_runtime_teardown(product, UI_PRODUCT_STATE_CALIBRATION_REQUIRED);
+            (void)drain_runtime_teardown(product,
+                                         &inputs->safety_result,
+                                         clock_summary,
+                                         clock_status,
+                                         inputs->temperature_mC,
+                                         inputs->temperature_valid,
+                                         now_ms);
+            clear_requests(product);
+            return;
         }
         if ((inputs->calibration_status != APP_CAL_SERVICE_STORAGE_UNAVAILABLE) &&
             product->request_click)
