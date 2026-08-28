@@ -115,6 +115,18 @@ static measurement_cal_solver_standard_t make_solver_standard(const app_cal_evid
     return standard;
 }
 
+bsp_status_t app_calibration_standard_from_evidence(
+    const app_cal_evidence_t *evidence,
+    measurement_cal_solver_standard_t *standard)
+{
+    if ((evidence == NULL) || (standard == NULL) || !evidence->stable)
+    {
+        return BSP_STATUS_INVALID_ARG;
+    }
+    *standard = make_solver_standard(evidence);
+    return BSP_STATUS_OK;
+}
+
 void app_calibration_campaign_init(app_calibration_campaign_t *campaign)
 {
     if (campaign != NULL)
@@ -150,19 +162,40 @@ bsp_status_t app_calibration_campaign_submit_evidence(app_calibration_campaign_t
         return BSP_STATUS_INVALID_ARG;
     }
 
-    const measurement_cal_solver_standard_t standard = make_solver_standard(evidence);
-    switch (evidence->standard.type)
+    measurement_cal_solver_standard_t standard;
+    const bsp_status_t status = app_calibration_standard_from_evidence(evidence, &standard);
+    if (status != BSP_STATUS_OK)
     {
-    case APP_CAL_STANDARD_OPEN:
-        campaign->open = standard;
+        return status;
+    }
+    return app_calibration_campaign_submit_standard(campaign, &standard);
+}
+
+bsp_status_t app_calibration_campaign_submit_standard(
+    app_calibration_campaign_t *campaign,
+    const measurement_cal_solver_standard_t *standard)
+{
+    if ((campaign == NULL) || (standard == NULL) ||
+        (campaign->state == APP_CAL_CAMPAIGN_EMPTY) ||
+        !key_matches(campaign, &standard->key) ||
+        !standard->stable ||
+        !standard->present)
+    {
+        return BSP_STATUS_INVALID_ARG;
+    }
+
+    switch (standard->standard)
+    {
+    case MEASUREMENT_CAL_STANDARD_OPEN:
+        campaign->open = *standard;
         campaign->have_open = true;
         break;
-    case APP_CAL_STANDARD_SHORT:
-        campaign->shorted = standard;
+    case MEASUREMENT_CAL_STANDARD_SHORT:
+        campaign->shorted = *standard;
         campaign->have_short = true;
         break;
-    case APP_CAL_STANDARD_LOAD:
-        campaign->load = standard;
+    case MEASUREMENT_CAL_STANDARD_LOAD:
+        campaign->load = *standard;
         campaign->have_load = true;
         break;
     default:

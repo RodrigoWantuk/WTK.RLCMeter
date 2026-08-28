@@ -86,6 +86,26 @@ static bool append_hex8(char *dst, size_t capacity, size_t *used, uint32_t value
     return true;
 }
 
+static bool append_u32(char *dst, size_t capacity, size_t *used, uint32_t value)
+{
+    char tmp[10];
+    uint8_t count = 0u;
+    do
+    {
+        tmp[count++] = (char)('0' + (value % 10u));
+        value /= 10u;
+    } while ((value != 0u) && (count < (uint8_t)sizeof(tmp)));
+    while (count != 0u)
+    {
+        count--;
+        if (!append_char(dst, capacity, used, tmp[count]))
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
 static ui_format_status_t write_literal(const char *text, char *dst, size_t capacity)
 {
     if ((text == NULL) || (dst == NULL) || (capacity == 0u))
@@ -96,6 +116,42 @@ static ui_format_status_t write_literal(const char *text, char *dst, size_t capa
     dst[0] = '\0';
     return append_text(dst, capacity, &used, text) ? UI_FORMAT_STATUS_OK :
                                                     UI_FORMAT_STATUS_TRUNCATED;
+}
+
+static const char *wizard_standard_text(uint8_t standard)
+{
+    switch ((ui_product_wizard_standard_t)standard)
+    {
+    case UI_PRODUCT_WIZARD_STANDARD_OPEN:
+        return "OPEN";
+    case UI_PRODUCT_WIZARD_STANDARD_SHORT:
+        return "SHORT";
+    case UI_PRODUCT_WIZARD_STANDARD_LOAD:
+    default:
+        return "LOAD";
+    }
+}
+
+static const char *range_prompt_text(hw_range_id_t range_id)
+{
+    switch (range_id)
+    {
+    case HW_RANGE_ID_10R:
+        return "10R";
+    case HW_RANGE_ID_100R:
+        return "100R";
+    case HW_RANGE_ID_1K:
+        return "1K";
+    case HW_RANGE_ID_10K:
+        return "10K";
+    case HW_RANGE_ID_100K:
+        return "100K";
+    case HW_RANGE_ID_1M:
+        return "1M";
+    case HW_RANGE_ID_INVALID:
+    default:
+        return "RANGE?";
+    }
 }
 
 static const char *blocker_text(ui_product_blocker_t blocker)
@@ -269,6 +325,272 @@ static bool prepare_result_details_line(const ui_product_measurement_t *result,
     return false;
 }
 
+static bool prepare_menu_line(const ui_product_view_t *view, uint8_t index, ui_product_line_t *line)
+{
+    if ((view == NULL) || (line == NULL))
+    {
+        return false;
+    }
+    if (index == 0u)
+    {
+        line_set(line, 8u, 16u, 2u, UI_COLOR_CYAN, "MENU");
+        return true;
+    }
+    if (index == 1u)
+    {
+        line_set(line,
+                 8u,
+                 54u,
+                 1u,
+                 (view->menu.selected_index == 0u) ? UI_COLOR_GREEN : UI_COLOR_WHITE,
+                 "CALIBRATION");
+        return true;
+    }
+    if (index == 2u)
+    {
+        line_set(line,
+                 8u,
+                 74u,
+                 1u,
+                 (view->menu.selected_index == 1u) ? UI_COLOR_GREEN : UI_COLOR_WHITE,
+                 "BACK");
+        return true;
+    }
+    return false;
+}
+
+static bool prepare_calibration_status_line(const ui_product_view_t *view,
+                                            uint8_t index,
+                                            ui_product_line_t *line)
+{
+    if ((view == NULL) || (line == NULL))
+    {
+        return false;
+    }
+    if (index == 0u)
+    {
+        line_set(line, 8u, 16u, 2u, UI_COLOR_CYAN, "CALIBRATION");
+        return true;
+    }
+    if (index == 1u)
+    {
+        line_set(line,
+                 8u,
+                 54u,
+                 1u,
+                 view->calibration_active_valid ? UI_COLOR_GREEN : UI_COLOR_AMBER,
+                 view->calibration_active_valid ? "ACTIVE" : "REQUIRED");
+        return true;
+    }
+    if (index == 2u)
+    {
+        char text[24] = {0};
+        size_t used = 0u;
+        (void)append_text(text, sizeof(text), &used, "SEQ ");
+        (void)append_u32(text, sizeof(text), &used, view->calibration_sequence);
+        line_set(line, 8u, 74u, 1u, UI_COLOR_WHITE, text);
+        return true;
+    }
+    if (index == 3u)
+    {
+        line_set(line, 8u, 104u, 1u, UI_COLOR_GREEN, "FULL CALIBRATION");
+        return true;
+    }
+    return false;
+}
+
+static bool progress_line(char *dst, size_t capacity, uint8_t a, uint8_t b)
+{
+    size_t used = 0u;
+    return append_u32(dst, capacity, &used, a) &&
+           append_text(dst, capacity, &used, " / ") &&
+           append_u32(dst, capacity, &used, b);
+}
+
+static bool condition_line(const ui_product_wizard_t *wizard, char *dst, size_t capacity)
+{
+    size_t used = 0u;
+    return append_text(dst, capacity, &used, freq_token(wizard->frequency)) &&
+           append_char(dst, capacity, &used, ' ') &&
+           append_text(dst, capacity, &used, amp_token(wizard->amplitude));
+}
+
+static bool prepare_wizard_line(const ui_product_wizard_t *wizard,
+                                uint8_t index,
+                                ui_product_line_t *line)
+{
+    if ((wizard == NULL) || (line == NULL))
+    {
+        return false;
+    }
+    switch ((ui_product_wizard_state_t)wizard->state)
+    {
+    case UI_PRODUCT_WIZARD_INTRO:
+        if (index == 0u)
+        {
+            line_set(line, 8u, 20u, 2u, UI_COLOR_CYAN, "CALIBRATION");
+            return true;
+        }
+        if (index == 1u)
+        {
+            line_set(line, 8u, 58u, 1u, UI_COLOR_WHITE, "REFERENCE KIT REQUIRED");
+            return true;
+        }
+        return false;
+    case UI_PRODUCT_WIZARD_WAIT_OPEN:
+    case UI_PRODUCT_WIZARD_WAIT_SHORT:
+    case UI_PRODUCT_WIZARD_WAIT_LOAD:
+        if (index == 0u)
+        {
+            char text[24] = {0};
+            size_t used = 0u;
+            (void)append_text(text, sizeof(text), &used, "RANGE ");
+            (void)append_text(text, sizeof(text), &used, range_prompt_text(wizard->range_id));
+            line_set(line, 8u, 16u, 2u, UI_COLOR_CYAN, text);
+            return true;
+        }
+        if (index == 1u)
+        {
+            const char *text = "CONNECT REF";
+            if ((ui_product_wizard_state_t)wizard->state == UI_PRODUCT_WIZARD_WAIT_OPEN)
+            {
+                text = "OPEN TERMINALS";
+            }
+            else if ((ui_product_wizard_state_t)wizard->state == UI_PRODUCT_WIZARD_WAIT_SHORT)
+            {
+                text = "SHORT TERMINALS";
+            }
+            else
+            {
+                char row[28] = {0};
+                size_t used = 0u;
+                (void)append_text(row, sizeof(row), &used, "CONNECT ");
+                (void)append_text(row, sizeof(row), &used, range_prompt_text(wizard->range_id));
+                (void)append_text(row, sizeof(row), &used, " REF");
+                line_set(line, 8u, 56u, 1u, UI_COLOR_WHITE, row);
+                return true;
+            }
+            line_set(line, 8u, 56u, 1u, UI_COLOR_WHITE, text);
+            return true;
+        }
+        if (index == 2u)
+        {
+            line_set(line, 8u, 92u, 1u, UI_COLOR_GREEN, "OK TO START");
+            return true;
+        }
+        return false;
+    case UI_PRODUCT_WIZARD_CAPTURE_OPEN:
+    case UI_PRODUCT_WIZARD_CAPTURE_SHORT:
+    case UI_PRODUCT_WIZARD_CAPTURE_LOAD:
+        if (index == 0u)
+        {
+            line_set(line, 8u, 14u, 2u, UI_COLOR_WHITE, "CALIBRATING");
+            return true;
+        }
+        if (index == 1u)
+        {
+            char text[24] = {0};
+            size_t used = 0u;
+            (void)append_text(text, sizeof(text), &used, range_prompt_text(wizard->range_id));
+            (void)append_char(text, sizeof(text), &used, ' ');
+            (void)append_text(text, sizeof(text), &used, wizard_standard_text(wizard->standard));
+            line_set(line, 8u, 52u, 1u, UI_COLOR_CYAN, text);
+            return true;
+        }
+        if (index == 2u)
+        {
+            char text[24] = {0};
+            (void)condition_line(wizard, text, sizeof(text));
+            line_set(line, 8u, 72u, 1u, UI_COLOR_WHITE, text);
+            return true;
+        }
+        if (index == 3u)
+        {
+            char text[24] = {0};
+            (void)progress_line(text,
+                                sizeof(text),
+                                (uint8_t)(wizard->condition_index + 1u),
+                                wizard->condition_count);
+            line_set(line, 8u, 92u, 1u, UI_COLOR_GREEN, text);
+            return true;
+        }
+        return false;
+    case UI_PRODUCT_WIZARD_RANGE_COMPLETE:
+        if (index == 0u)
+        {
+            char text[24] = {0};
+            size_t used = 0u;
+            (void)append_text(text, sizeof(text), &used, "RANGE ");
+            (void)append_text(text, sizeof(text), &used, range_prompt_text(wizard->range_id));
+            line_set(line, 8u, 24u, 2u, UI_COLOR_CYAN, text);
+            return true;
+        }
+        if (index == 1u)
+        {
+            line_set(line, 8u, 62u, 2u, UI_COLOR_GREEN, "COMPLETE");
+            return true;
+        }
+        return false;
+    case UI_PRODUCT_WIZARD_CONFIRM_SAVE:
+        if (index == 0u)
+        {
+            char text[24] = {0};
+            (void)progress_line(text, sizeof(text), wizard->solved_count, wizard->total_conditions);
+            line_set(line, 8u, 20u, 2u, UI_COLOR_GREEN, text);
+            return true;
+        }
+        if (index == 1u)
+        {
+            line_set(line, 8u, 60u, 1u, UI_COLOR_WHITE, "SAVE CALIBRATION?");
+            return true;
+        }
+        return false;
+    case UI_PRODUCT_WIZARD_COMMITTING:
+        if (index == 0u)
+        {
+            line_set(line, 8u, 24u, 2u, UI_COLOR_WHITE, "SAVING CALIBRATION");
+            return true;
+        }
+        return false;
+    case UI_PRODUCT_WIZARD_COMPLETE:
+        if (index == 0u)
+        {
+            line_set(line, 8u, 24u, 2u, UI_COLOR_GREEN, "CALIBRATION SAVED");
+            return true;
+        }
+        return false;
+    case UI_PRODUCT_WIZARD_SAFETY_BLOCKED:
+        if (index == 0u)
+        {
+            line_set(line, 8u, 24u, 1u, UI_COLOR_AMBER, "SAFETY BLOCKED");
+            return true;
+        }
+        return false;
+    case UI_PRODUCT_WIZARD_CANCELING:
+        if (index == 0u)
+        {
+            line_set(line, 8u, 24u, 2u, UI_COLOR_AMBER, "CANCELING");
+            return true;
+        }
+        return false;
+    case UI_PRODUCT_WIZARD_FAILED:
+    case UI_PRODUCT_WIZARD_CANCELED:
+    case UI_PRODUCT_WIZARD_IDLE:
+    default:
+        if (index == 0u)
+        {
+            line_set(line, 8u, 24u, 2u, UI_COLOR_RED, "CALIBRATION FAILED");
+            return true;
+        }
+        if (index == 1u)
+        {
+            line_set(line, 8u, 62u, 1u, UI_COLOR_WHITE, "OK RETRY  LONG BACK");
+            return true;
+        }
+        return false;
+    }
+}
+
 static bool prepare_line(const ui_product_view_t *view, uint8_t index, ui_product_line_t *line)
 {
     if ((view == NULL) || (line == NULL))
@@ -321,6 +643,12 @@ static bool prepare_line(const ui_product_view_t *view, uint8_t index, ui_produc
             return true;
         }
         return false;
+    case UI_PRODUCT_STATE_MENU:
+        return prepare_menu_line(view, index, line);
+    case UI_PRODUCT_STATE_CALIBRATION_STATUS:
+        return prepare_calibration_status_line(view, index, line);
+    case UI_PRODUCT_STATE_CALIBRATION_WIZARD:
+        return prepare_wizard_line(&view->wizard, index, line);
     case UI_PRODUCT_STATE_MEASURING:
         if (index == 0u)
         {
@@ -540,6 +868,12 @@ const char *ui_product_state_string(ui_product_state_t state)
         return "CALIBRATION_REQUIRED";
     case UI_PRODUCT_STATE_READY:
         return "READY";
+    case UI_PRODUCT_STATE_MENU:
+        return "MENU";
+    case UI_PRODUCT_STATE_CALIBRATION_STATUS:
+        return "CALIBRATION_STATUS";
+    case UI_PRODUCT_STATE_CALIBRATION_WIZARD:
+        return "CALIBRATION_WIZARD";
     case UI_PRODUCT_STATE_MEASURING:
         return "MEASURING";
     case UI_PRODUCT_STATE_RESULT:

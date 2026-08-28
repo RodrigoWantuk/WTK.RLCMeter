@@ -858,6 +858,58 @@ Manual recalibration after a valid boot uses candidate/previous-valid semantics:
 
 Calibration is persisted through the W25Q storage layer. Do not refer to STM32F103C8T6 calibration persistence as internal EEPROM; the MCU has no native EEPROM.
 
+Phase 08 Stage 2A implements the first product full-calibration wizard:
+
+```text
+STARTUP
+SELF_TEST
+CALIBRATION_CHECK
+  ├─ active valid -> READY
+  └─ no active valid -> CALIBRATION_REQUIRED
+       └─ short OK -> CALIBRATION_WIZARD (mandatory, when storage is available)
+```
+
+Long OK does not bypass unresolved mandatory calibration. When an active valid set
+exists, long OK from READY/RESULT opens the current Stage 2A menu subset:
+
+```text
+Calibration
+Back
+```
+
+Selecting Calibration enters a status screen and then a manual full-calibration wizard.
+If a previous manual candidate is still dirty, a new manual wizard does not overwrite it.
+
+`app_calibration_wizard_t` owns the product wizard state and embeds
+`app_calibration_session_t`, but it does not own GPIO, K1, range pins, excitation,
+ADC/DMA, W25Q primitives, or OSL math. Every condition capture still uses the existing
+Phase 05 fixed-condition measurement transaction through the session/service boundary.
+The wizard reuses the calibration campaign/solver/store services:
+
+```text
+wizard condition request
+    -> app_calibration_session_t
+    -> Phase 05 measurement capture
+    -> app_calibration_workflow_t evidence
+    -> compact measurement_cal_solver_standard_t
+    -> app_calibration_campaign_t solve
+    -> candidate measurement_cal_set_t
+    -> explicit user save
+    -> async W25Q commit/verify
+    -> active calibration runtime
+```
+
+The wizard batches work by range and fixture. For each range it asks for OPEN once,
+captures all calibratable conditions for that range, asks for SHORT once, captures all
+conditions, then asks for LOAD once and solves each condition. Only compact OPEN/SHORT
+standards for the current range are cached. The full Rev.1 candidate contains 33 solved
+conditions, dynamically enumerated by `measurement_condition_calibratable()`.
+
+The product controller stores measurement and calibration runtimes in a union because
+automatic measurement and full calibration are mutually exclusive. Both paths borrow the
+single 3072-byte `app_io_workspace_t` through their lower-level services rather than
+duplicating the Phase 05 raw DMA buffer.
+
 ## Host-side tests
 
 Required focus areas:

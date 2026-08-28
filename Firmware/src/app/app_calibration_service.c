@@ -233,6 +233,17 @@ const app_calibration_runtime_t *app_calibration_service_runtime_const(
     return (service == NULL) ? NULL : &service->runtime;
 }
 
+bool app_calibration_service_active_valid(const app_calibration_service_t *service)
+{
+    return (service != NULL) && app_calibration_runtime_active_valid(&service->runtime);
+}
+
+uint32_t app_calibration_service_active_sequence(const app_calibration_service_t *service)
+{
+    const measurement_cal_set_t *active = app_calibration_service_active_set(service);
+    return (active == NULL) ? 0u : active->sequence;
+}
+
 const measurement_cal_set_t *app_calibration_service_active_set(
     const app_calibration_service_t *service)
 {
@@ -480,7 +491,8 @@ bsp_status_t app_calibration_service_candidate_commit_start(app_calibration_serv
     }
     if ((service->candidate_state != APP_CAL_CANDIDATE_COMPLETE) &&
         (service->candidate_state != APP_CAL_CANDIDATE_PARTIAL) &&
-        (service->candidate_state != APP_CAL_CANDIDATE_BUILDING))
+        (service->candidate_state != APP_CAL_CANDIDATE_BUILDING) &&
+        (service->candidate_state != APP_CAL_CANDIDATE_FAILED))
     {
         service->last_store_status = BSP_STATUS_INVALID_ARG;
         return BSP_STATUS_INVALID_ARG;

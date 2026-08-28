@@ -487,6 +487,58 @@ newer product view generations, and performs partial same-page body clears inste
 full-screen clears when possible. The current pixel chunk size remains intentionally
 small until physical SPI/display timing validates a larger scratch buffer.
 
+### Product calibration wizard and active validity
+
+Phase 08 Stage 2A separates active calibration validity from calibration-service
+operational state:
+
+```text
+active calibration validity:
+    whether a previously verified persisted set may be used for product measurement
+
+service status:
+    current storage/workflow/candidate activity or error state
+```
+
+A manual recalibration candidate may be dirty, incomplete, failed, or still committing
+without invalidating the previous active calibration. The active set changes only after
+the replacement candidate has been written to the inactive W25Q slot, read back,
+validated for the complete Rev.1 requirements, and activated by the service.
+
+If no active calibration is valid, normal measurement remains blocked in
+`CALIBRATION_REQUIRED`. Short OK enters the mandatory full-calibration wizard when
+storage is available; long OK cannot bypass the gate. If calibration storage is
+unavailable, acquisition cannot start and the UI remains in a storage-error
+calibration-required state.
+
+The Stage 2A product menu intentionally implements only:
+
+```text
+Calibration
+Back
+```
+
+until Display/Sound/Language/Debug/About settings are implemented. This is an
+intermediate product subset, not a reversal of the final Rev.1 menu plan.
+
+The product full-calibration wizard reuses the existing Phase 05 measurement
+transaction, Phase 07 calibration workflow/campaign/solver, and W25Q store service. It
+does not duplicate OSL math or persistent-storage code. It batches by range:
+
+```text
+for each range:
+    prompt OPEN once, capture all calibratable conditions for that range
+    prompt SHORT once, capture all calibratable conditions for that range
+    prompt LOAD once, capture all calibratable conditions for that range and solve
+```
+
+Only compact OPEN and SHORT standards for the current range are cached, with a maximum
+of six per range. The wizard does not retain all raw evidence for all conditions. The
+current Rev.1 calibratable domain contains 33 conditions through
+`measurement_condition_calibratable()`: all supported ranges/frequencies/amplitudes
+except the forbidden `10 Ohm + 500 mVrms` combination. Default LOAD standards are
+nominal pure-real RREF values and remain `REQUIRES_BENCH_VALIDATION`.
+
 ## Localization
 
 Initial planned UI languages are Portuguese and English.

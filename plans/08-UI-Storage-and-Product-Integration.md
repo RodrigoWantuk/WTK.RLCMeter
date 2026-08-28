@@ -89,6 +89,76 @@ Remaining Phase 08 work:
 - TFT debug console page;
 - physical UI timing and quiet-mode validation.
 
+## Stage 2A — product calibration wizard and active-calibration gate
+
+STATUS: IMPLEMENTED_REQUIRES_BENCH_VALIDATION
+
+Implemented software boundary:
+
+- Product calibration validity is now split between active calibration validity and
+  calibration-service operational status. A dirty manual candidate, active workflow, or
+  store-busy status no longer invalidates a previously active verified calibration.
+- Missing active calibration remains a mandatory gate: short OK from
+  `CALIBRATION_REQUIRED` enters the mandatory calibration wizard, while long OK cannot
+  bypass the gate into normal measurement.
+- Storage-unavailable calibration status blocks wizard acquisition start and remains a
+  storage-error calibration-required presentation.
+- The product application now has explicit `MENU`, `CALIBRATION_STATUS`, and
+  `CALIBRATION_WIZARD` states. The implemented Stage 2A product menu is intentionally
+  narrow: `Calibration` and `Back` only. Display/Sound/Language/Debug/About remain
+  later Phase 08 work.
+- Product runtime storage is a union of measurement session and calibration wizard
+  contexts because automatic measurement and product calibration are mutually exclusive.
+  Both reuse the existing Phase 05 capture path and the single 3072-byte shared
+  metrology/storage workspace.
+- `app_calibration_wizard_t` owns the product full-calibration campaign. It prompts once
+  per fixture per range (`OPEN`, `SHORT`, `LOAD`), then auto-advances through all
+  calibratable conditions for that fixture/range.
+- The wizard enumerates calibratable keys dynamically through
+  `measurement_condition_calibratable()`. The current Rev.1 domain is exactly 33
+  conditions: all six ranges, three frequencies, and two amplitudes except the forbidden
+  `10 Ohm + 500 mVrms` combination.
+- The wizard batches one range at a time and caches only compact OPEN and SHORT
+  standards for the current range, up to six per range. It does not retain all raw
+  evidence for all 33 conditions.
+- LOAD fixture values are supplied through a fixture profile callback. The default
+  Stage 2A profile uses nominal pure-real RREF values and remains
+  `REQUIRES_BENCH_VALIDATION`; there is no numeric-entry UI in this stage.
+- Evidence-to-solver-standard conversion is reusable outside the bring-up campaign
+  path. The campaign can now accept compact OPEN/SHORT/LOAD standards directly, letting
+  the product wizard solve each condition without duplicating solver math.
+- Candidate creation starts at wizard start. Save is explicit; the candidate is not
+  committed to W25Q until the user confirms `CONFIRM_SAVE`. Commit success activates the
+  verified set; commit failure preserves the previous active calibration and leaves the
+  candidate retry/discard path visible.
+- Calibration wizard UI state is a compact snapshot rendered by the existing fallback
+  product UI. Implemented screens cover intro, OPEN/SHORT/LOAD prompts, capture
+  progress, range complete, save confirmation, committing, complete, safety-blocked,
+  canceling/canceled, and failed states.
+
+Software evidence:
+
+- Host tests cover dynamic 33-condition enumeration, safety-blocked wizard acquisition,
+  full range-batched wizard progression through 33 solved conditions before explicit
+  save, active-calibration validity separate from dirty candidate state, mandatory gate
+  entry, and the Stage 2A menu/status flow.
+- Final STM32 PRODUCT Debug/Release builds use the PRODUCT size-first compile policy
+  for large application/UI/metrology units and report 55096 B Flash, 14480 B static RAM,
+  and 16528 B accounted RAM. This is below the project hard gates but above the soft
+  Flash target and preferred PRODUCT accounted-RAM target.
+- Final STM32 BRINGUP reports 53564 B Flash, 13068 B static RAM, and 15116 B accounted
+  RAM with the BRINGUP profile symbol check passing; product wizard/UI symbols are not
+  linked into the bring-up profile.
+
+Remaining Phase 08 work:
+
+- complete full menu tree beyond Calibration/Back;
+- persistent settings;
+- localization/resource text IDs and external fonts;
+- graph pages and debug console page;
+- physical calibration workflow validation on the Rev.1 board;
+- fixture/load-standard value qualification.
+
 ## Goal
 
 Turn the validated measurement engine and peripheral foundations into a coherent Rev.1 product experience without allowing UI/storage activity to compromise acquisition determinism, calibration validity, or safety.

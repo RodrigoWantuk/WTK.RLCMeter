@@ -258,6 +258,45 @@ The Calibration menu/wizard provides OPEN/SHORT/LOAD procedures and calibration 
 
 A manually started recalibration must not destroy the currently valid calibration before the replacement has been completely written and verified.
 
+Phase 08 Stage 2A implements the first product calibration path with a deliberately
+narrow menu subset:
+
+```text
+Calibration
+Back
+```
+
+The full Display/Sound/Language/Debug/About menu remains planned, but is not part of
+the Stage 2A executable product menu. The Calibration entry shows active/required
+status and starts the full range-batched OSL wizard.
+
+The wizard flow is:
+
+```text
+intro
+for each range:
+    connect OPEN fixture once
+    capture all calibratable conditions for that range
+    connect SHORT fixture once
+    capture all calibratable conditions for that range
+    connect LOAD fixture once
+    capture all calibratable conditions for that range
+    solve records for the range
+confirm save
+commit/verify W25Q candidate
+activate
+complete
+```
+
+There is no OK confirmation per frequency/amplitude condition. Progress screens expose
+the current range, fixture, condition index, frequency, amplitude, accepted sample count,
+and save/commit state.
+
+If storage is unavailable, calibration acquisition does not start. If safety blocks a
+fixture capture, the wizard waits in a safety-blocked state and no Phase 05 transaction
+is requested. Manual recalibration keeps the previous valid active set until the new
+candidate has been committed and verified.
+
 ## Mandatory calibration gate
 
 On every boot the application validates persisted calibration before entering normal measurement-ready state.

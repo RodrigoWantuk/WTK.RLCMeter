@@ -34,6 +34,12 @@ bsp_status_t app_calibration_campaign_begin_condition(app_calibration_campaign_t
                                                       const measurement_cal_key_t *key);
 bsp_status_t app_calibration_campaign_submit_evidence(app_calibration_campaign_t *campaign,
                                                       const app_cal_evidence_t *evidence);
+bsp_status_t app_calibration_standard_from_evidence(
+    const app_cal_evidence_t *evidence,
+    measurement_cal_solver_standard_t *standard);
+bsp_status_t app_calibration_campaign_submit_standard(
+    app_calibration_campaign_t *campaign,
+    const measurement_cal_solver_standard_t *standard);
 measurement_cal_solver_status_t app_calibration_campaign_solve_condition(
     app_calibration_campaign_t *campaign,
     measurement_cal_record_t *record);

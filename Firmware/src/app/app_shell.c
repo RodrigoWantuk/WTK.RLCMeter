@@ -533,8 +533,20 @@ static bsp_status_t product_init_controller(void)
         .process_block = product_auto_process_block,
         .user = NULL,
     };
+    const app_cal_session_io_t calibration_io = {
+        .start_capture = product_auto_start_attempt,
+        .step_capture = product_auto_step_attempt,
+        .capture_active = product_auto_attempt_active,
+        .capture_done = product_auto_attempt_done,
+        .capture_dumpable = product_auto_attempt_dumpable,
+        .capture_block = product_auto_attempt_block,
+        .capture_error = product_auto_attempt_error,
+        .capture_acknowledge = product_auto_attempt_acknowledge,
+        .capture_abort = product_auto_attempt_abort,
+        .user = NULL,
+    };
     ui_product_init(&g_product_ui);
-    return app_product_init(&g_product, &session_io);
+    return app_product_init(&g_product, &g_calibration_service, &session_io, &calibration_io);
 }
 #endif
 
@@ -745,10 +757,20 @@ static void app_step(void)
         (void)w25q_device_poll(&g_flash, now_ms);
     }
 #else
+    hw_aux_sensors_snapshot_t product_sensor_snapshot;
+    hw_aux_sensors_snapshot(&g_aux_sensors, now_ms, &product_sensor_snapshot);
+    const int32_t ntc_temperature_mC =
+        product_sensor_snapshot.ntc_temperature_valid ?
+            (int32_t)(product_sensor_snapshot.ntc_temperature_c * 1000.0f) :
+            0;
     app_product_inputs_t product_inputs = {
         .calibration_status = app_calibration_service_status(&g_calibration_service),
+        .calibration_active_valid = app_calibration_service_active_valid(&g_calibration_service),
+        .calibration_active_sequence = app_calibration_service_active_sequence(&g_calibration_service),
+        .temperature_mC = ntc_temperature_mC,
+        .temperature_valid = product_sensor_snapshot.ntc_temperature_valid,
         .safety_result = g_safety_result,
-        .battery_state = hw_aux_sensors_battery_state(&g_aux_sensors, now_ms),
+        .battery_state = product_sensor_snapshot.battery_state,
         .safety_fault_mask = app_safety_fault_mask(&g_safety_faults),
         .display_ready = g_display.ready,
         .display_fault = g_product_display_fault || (g_display.init_state == ILI9341_INIT_ERROR),

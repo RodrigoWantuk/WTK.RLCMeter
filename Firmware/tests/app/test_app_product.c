@@ -1,4 +1,5 @@
 #include "app/app_product.h"
+#include "app/app_io_workspace.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -23,6 +24,9 @@ typedef struct
     bool dumpable;
     bool abort_called;
 } fake_io_t;
+
+static app_calibration_service_t g_service;
+static app_io_workspace_t g_workspace;
 
 static int expect_true(bool condition, const char *message)
 {
@@ -209,10 +213,43 @@ static app_measurement_session_io_t make_io(fake_io_t *fake)
     };
 }
 
+static app_cal_session_io_t make_cal_io(fake_io_t *fake)
+{
+    return (app_cal_session_io_t){
+        .start_capture = fake_start_attempt,
+        .step_capture = fake_step_attempt,
+        .capture_active = fake_attempt_active,
+        .capture_done = fake_attempt_done,
+        .capture_dumpable = fake_attempt_dumpable,
+        .capture_block = fake_attempt_block,
+        .capture_error = fake_attempt_error,
+        .capture_acknowledge = fake_attempt_acknowledge,
+        .capture_abort = fake_attempt_abort,
+        .user = fake,
+    };
+}
+
+static void init_test_cal_service(void)
+{
+    app_calibration_service_init(&g_service);
+    app_io_workspace_init(&g_workspace);
+    app_calibration_service_attach_workspace(&g_service, &g_workspace);
+}
+
+static bsp_status_t init_product(app_product_t *product, fake_io_t *fake)
+{
+    init_test_cal_service();
+    app_measurement_session_io_t io = make_io(fake);
+    app_cal_session_io_t cal_io = make_cal_io(fake);
+    return app_product_init(product, &g_service, &io, &cal_io);
+}
+
 static app_product_inputs_t inputs_ready(void)
 {
     return (app_product_inputs_t){
         .calibration_status = APP_CAL_SERVICE_ACTIVE_VALID,
+        .calibration_active_valid = true,
+        .calibration_active_sequence = 1u,
         .safety_result = {
             .measure_allowed = true,
             .primary_blocker = HW_SAFETY_MEASURE_ALLOWED,
@@ -248,26 +285,37 @@ static int test_boot_calibration_gate(void)
 {
     int failures = 0;
     fake_io_t fake = {0};
-    app_measurement_session_io_t io = make_io(&fake);
     app_product_t product;
-    failures += expect_true(app_product_init(&product, &io) == BSP_STATUS_OK, "product init");
+    failures += expect_true(init_product(&product, &fake) == BSP_STATUS_OK, "product init");
     app_product_inputs_t inputs = inputs_ready();
     boot_to_ready(&product, &inputs);
     ui_product_view_t view;
     app_product_make_view(&product, &view);
     failures += expect_true(view.state == UI_PRODUCT_STATE_READY, "valid calibration reaches ready");
 
-    failures += expect_true(app_product_init(&product, &io) == BSP_STATUS_OK, "product reinit");
+    failures += expect_true(init_product(&product, &fake) == BSP_STATUS_OK, "product reinit");
     inputs.calibration_status = APP_CAL_SERVICE_NO_VALID_CALIBRATION;
+    inputs.calibration_active_valid = false;
+    inputs.calibration_active_sequence = 0u;
     boot_to_ready(&product, &inputs);
     click_ok(&product);
-    boot_to_ready(&product, &inputs);
+    app_product_step(&product,
+                     &inputs,
+                     &(const bsp_clock_summary_t){.source = BSP_CLOCK_SOURCE_HSE_PLL,
+                                                  .sysclk_hz = 72000000u,
+                                                  .hse_ready = true},
+                     BSP_STATUS_OK,
+                     3u);
     app_product_make_view(&product, &view);
-    failures += expect_true(view.state == UI_PRODUCT_STATE_CALIBRATION_REQUIRED, "missing calibration blocks ready");
-    failures += expect_u32(fake.start_count, 0u, "cal gate starts no measurement");
+    failures += expect_true(view.state == UI_PRODUCT_STATE_CALIBRATION_WIZARD,
+                            "missing calibration starts mandatory wizard on short OK");
+    failures += expect_true(view.wizard.mandatory, "missing calibration wizard is mandatory");
+    failures += expect_u32(fake.start_count, 0u, "cal gate starts no measurement acquisition");
 
-    failures += expect_true(app_product_init(&product, &io) == BSP_STATUS_OK, "product storage reinit");
+    failures += expect_true(init_product(&product, &fake) == BSP_STATUS_OK, "product storage reinit");
     inputs.calibration_status = APP_CAL_SERVICE_STORAGE_UNAVAILABLE;
+    inputs.calibration_active_valid = false;
+    inputs.calibration_active_sequence = 0u;
     boot_to_ready(&product, &inputs);
     app_product_make_view(&product, &view);
     failures += expect_true(view.state == UI_PRODUCT_STATE_CALIBRATION_REQUIRED, "storage unavailable blocks ready");
@@ -282,11 +330,10 @@ static int test_ok_gestures_and_measurement_flow(void)
     fake.outcome_count = 2u;
     fake.outcomes[0] = good_outcome(measurement_complex(50.0f, -500.0f), MEASUREMENT_INTERPRET_CAPACITIVE);
     fake.outcomes[1] = good_outcome(measurement_complex(50.0f, -50.0f), MEASUREMENT_INTERPRET_CAPACITIVE);
-    app_measurement_session_io_t io = make_io(&fake);
     app_product_t product;
     app_product_inputs_t inputs = inputs_ready();
     const bsp_clock_summary_t clock = {.source = BSP_CLOCK_SOURCE_HSE_PLL, .sysclk_hz = 72000000u, .hse_ready = true};
-    failures += expect_true(app_product_init(&product, &io) == BSP_STATUS_OK, "product init measurement");
+    failures += expect_true(init_product(&product, &fake) == BSP_STATUS_OK, "product init measurement");
     boot_to_ready(&product, &inputs);
     send_button(&product, BUTTON_ID_OK, BUTTON_EVENT_PRESS);
     app_product_step(&product, &inputs, &clock, BSP_STATUS_OK, 3u);
@@ -317,15 +364,59 @@ static int test_ok_gestures_and_measurement_flow(void)
     failures += expect_true(view.has_measurement_result && !view.measurement_result_partial, "final result stored");
     failures += expect_u32(view.measurement_result.primary_attempt_index, 0u, "primary survives refinement");
 
-    failures += expect_true(app_product_init(&product, &io) == BSP_STATUS_OK, "product init long");
+    failures += expect_true(init_product(&product, &fake) == BSP_STATUS_OK, "product init long");
     boot_to_ready(&product, &inputs);
     send_button(&product, BUTTON_ID_OK, BUTTON_EVENT_PRESS);
     send_button(&product, BUTTON_ID_OK, BUTTON_EVENT_LONG_PRESS);
     send_button(&product, BUTTON_ID_OK, BUTTON_EVENT_RELEASE);
     app_product_step(&product, &inputs, &clock, BSP_STATUS_OK, 25u);
     app_product_make_view(&product, &view);
-    failures += expect_true(view.menu_not_implemented, "long OK reports menu noop");
+    failures += expect_true(view.state == UI_PRODUCT_STATE_MENU, "long OK opens menu");
+    failures += expect_u32(view.menu.item_count, 2u, "menu has calibration and back");
     failures += expect_u32(fake.start_count, 2u, "long OK starts no extra measurement");
+    return failures;
+}
+
+static int test_menu_calibration_status_and_dirty_candidate(void)
+{
+    int failures = 0;
+    fake_io_t fake = {0};
+    app_product_t product;
+    app_product_inputs_t inputs = inputs_ready();
+    const bsp_clock_summary_t clock = {.source = BSP_CLOCK_SOURCE_HSE_PLL,
+                                       .sysclk_hz = 72000000u,
+                                       .hse_ready = true};
+    failures += expect_true(init_product(&product, &fake) == BSP_STATUS_OK,
+                            "product init calibration menu");
+    boot_to_ready(&product, &inputs);
+
+    send_button(&product, BUTTON_ID_OK, BUTTON_EVENT_PRESS);
+    send_button(&product, BUTTON_ID_OK, BUTTON_EVENT_LONG_PRESS);
+    send_button(&product, BUTTON_ID_OK, BUTTON_EVENT_RELEASE);
+    app_product_step(&product, &inputs, &clock, BSP_STATUS_OK, 3u);
+    ui_product_view_t view;
+    app_product_make_view(&product, &view);
+    failures += expect_true(view.state == UI_PRODUCT_STATE_MENU, "long OK enters menu");
+    failures += expect_u32(view.menu.selected_index, 0u, "calibration is first menu item");
+
+    click_ok(&product);
+    app_product_step(&product, &inputs, &clock, BSP_STATUS_OK, 4u);
+    app_product_make_view(&product, &view);
+    failures += expect_true(view.state == UI_PRODUCT_STATE_CALIBRATION_STATUS,
+                            "menu calibration opens status screen");
+    failures += expect_true(view.calibration_active_valid, "status exposes active calibration validity");
+    failures += expect_u32(view.calibration_sequence, 1u, "status exposes active calibration sequence");
+
+    failures += expect_true(app_calibration_service_candidate_begin(&g_service) == BSP_STATUS_OK,
+                            "dirty candidate setup");
+    inputs.calibration_status = APP_CAL_SERVICE_CANDIDATE_DIRTY;
+    inputs.calibration_active_valid = true;
+    click_ok(&product);
+    app_product_step(&product, &inputs, &clock, BSP_STATUS_OK, 5u);
+    app_product_make_view(&product, &view);
+    failures += expect_true(view.state == UI_PRODUCT_STATE_CALIBRATION_STATUS,
+                            "dirty candidate prevents overwriting manual wizard start");
+    failures += expect_u32(fake.start_count, 0u, "dirty candidate starts no capture");
     return failures;
 }
 
@@ -335,11 +426,10 @@ static int test_safety_fault_and_pages(void)
     fake_io_t fake = {0};
     fake.outcome_count = 1u;
     fake.outcomes[0] = good_outcome(measurement_complex(1000.0f, 0.0f), MEASUREMENT_INTERPRET_RESISTIVE);
-    app_measurement_session_io_t io = make_io(&fake);
     app_product_t product;
     app_product_inputs_t inputs = inputs_ready();
     const bsp_clock_summary_t clock = {.source = BSP_CLOCK_SOURCE_HSE_PLL, .sysclk_hz = 72000000u, .hse_ready = true};
-    failures += expect_true(app_product_init(&product, &io) == BSP_STATUS_OK, "product init pages");
+    failures += expect_true(init_product(&product, &fake) == BSP_STATUS_OK, "product init pages");
     boot_to_ready(&product, &inputs);
     inputs.safety_result.measure_allowed = false;
     inputs.safety_result.primary_blocker = HW_SAFETY_BLOCKED_CHARGER;
@@ -381,6 +471,7 @@ int main(int argc, char **argv)
     int failures = 0;
     failures += test_boot_calibration_gate();
     failures += test_ok_gestures_and_measurement_flow();
+    failures += test_menu_calibration_status_and_dirty_candidate();
     failures += test_safety_fault_and_pages();
     failures += expect_true(sizeof(ui_product_measurement_t) < sizeof(measurement_session_result_t),
                             "compact UI result is smaller than session result");

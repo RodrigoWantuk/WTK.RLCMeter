@@ -65,6 +65,8 @@ bool app_calibration_service_busy(const app_calibration_service_t *service);
 app_calibration_runtime_t *app_calibration_service_runtime(app_calibration_service_t *service);
 const app_calibration_runtime_t *app_calibration_service_runtime_const(
     const app_calibration_service_t *service);
+bool app_calibration_service_active_valid(const app_calibration_service_t *service);
+uint32_t app_calibration_service_active_sequence(const app_calibration_service_t *service);
 const measurement_cal_set_t *app_calibration_service_active_set(
     const app_calibration_service_t *service);
 app_calibration_workflow_t *app_calibration_service_workflow(app_calibration_service_t *service);

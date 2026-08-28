@@ -15,6 +15,9 @@ typedef enum
     UI_PRODUCT_STATE_CALIBRATION_CHECK,
     UI_PRODUCT_STATE_CALIBRATION_REQUIRED,
     UI_PRODUCT_STATE_READY,
+    UI_PRODUCT_STATE_MENU,
+    UI_PRODUCT_STATE_CALIBRATION_STATUS,
+    UI_PRODUCT_STATE_CALIBRATION_WIZARD,
     UI_PRODUCT_STATE_MEASURING,
     UI_PRODUCT_STATE_RESULT,
     UI_PRODUCT_STATE_SAFETY_BLOCKED,
@@ -62,6 +65,33 @@ typedef enum
     UI_PRODUCT_BATTERY_CRITICAL,
 } ui_product_battery_t;
 
+typedef enum
+{
+    UI_PRODUCT_WIZARD_IDLE = 0,
+    UI_PRODUCT_WIZARD_INTRO,
+    UI_PRODUCT_WIZARD_WAIT_OPEN,
+    UI_PRODUCT_WIZARD_CAPTURE_OPEN,
+    UI_PRODUCT_WIZARD_WAIT_SHORT,
+    UI_PRODUCT_WIZARD_CAPTURE_SHORT,
+    UI_PRODUCT_WIZARD_WAIT_LOAD,
+    UI_PRODUCT_WIZARD_CAPTURE_LOAD,
+    UI_PRODUCT_WIZARD_RANGE_COMPLETE,
+    UI_PRODUCT_WIZARD_CONFIRM_SAVE,
+    UI_PRODUCT_WIZARD_COMMITTING,
+    UI_PRODUCT_WIZARD_COMPLETE,
+    UI_PRODUCT_WIZARD_FAILED,
+    UI_PRODUCT_WIZARD_SAFETY_BLOCKED,
+    UI_PRODUCT_WIZARD_CANCELING,
+    UI_PRODUCT_WIZARD_CANCELED,
+} ui_product_wizard_state_t;
+
+typedef enum
+{
+    UI_PRODUCT_WIZARD_STANDARD_OPEN = 0,
+    UI_PRODUCT_WIZARD_STANDARD_SHORT,
+    UI_PRODUCT_WIZARD_STANDARD_LOAD,
+} ui_product_wizard_standard_t;
+
 typedef struct
 {
     measurement_auto_status_t status;
@@ -86,6 +116,34 @@ typedef struct
 
 typedef struct
 {
+    uint8_t selected_index;
+    uint8_t item_count;
+} ui_product_menu_t;
+
+typedef struct
+{
+    uint8_t state;
+    uint8_t mode;
+    uint8_t standard;
+    uint8_t error;
+    uint8_t workflow_result;
+    uint8_t solver_status;
+    hw_range_id_t range_id;
+    hw_excitation_freq_t frequency;
+    hw_excitation_amp_t amplitude;
+    uint8_t range_index;
+    uint8_t range_count;
+    uint8_t condition_index;
+    uint8_t condition_count;
+    uint8_t solved_count;
+    uint8_t total_conditions;
+    uint8_t accepted;
+    uint8_t attempts;
+    bool mandatory;
+} ui_product_wizard_t;
+
+typedef struct
+{
     ui_product_state_t state;
     ui_product_page_t page;
     ui_product_calibration_state_t calibration_status;
@@ -93,12 +151,15 @@ typedef struct
     ui_product_battery_t battery_state;
     uint8_t measurement_state;
     ui_product_measurement_t measurement_result;
+    ui_product_menu_t menu;
+    ui_product_wizard_t wizard;
     bool has_measurement_result;
     bool measurement_result_partial;
     bool storage_unavailable;
     bool display_ready;
     bool display_fault;
-    bool menu_not_implemented;
+    bool calibration_active_valid;
+    uint32_t calibration_sequence;
     uint32_t safety_fault_mask;
     uint32_t session_sequence;
     uint32_t generation;

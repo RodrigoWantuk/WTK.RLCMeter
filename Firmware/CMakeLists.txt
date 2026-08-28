@@ -62,6 +62,7 @@ add_library(wtk_firmware_common STATIC
     src/app/app_calibration_service.c
     src/app/app_calibration_session.c
     src/app/app_calibration_campaign.c
+    src/app/app_calibration_wizard.c
     src/app/app_calibration_workflow.c
     src/app/app_io_workspace.c
     src/app/app_measurement_session.c
@@ -132,29 +133,45 @@ elseif(WTK_TARGET_PLATFORM STREQUAL "stm32")
             PROPERTIES COMPILE_OPTIONS "-Os"
         )
     elseif(WTK_FIRMWARE_PROFILE STREQUAL "PRODUCT")
-        if(WTK_BUILD_TYPE STREQUAL "Release")
-            set_source_files_properties(
-                src/app/app_shell.c
-                src/app/app_product.c
-                src/app/app_measurement_session.c
-                src/app/app_calibration_service.c
-                src/hardware/hw_metrology_measure.c
-                src/hardware/hw_aux_sensors.c
-                src/measurement/measurement_dsp.c
-                src/measurement/measurement_engine.c
-                src/measurement/measurement_calibration.c
-                src/measurement/measurement_calibration_store.c
-                src/ui/ui_product.c
-                src/ui/ui_format.c
-                PROPERTIES COMPILE_OPTIONS "-Os"
-            )
-        endif()
+        # PRODUCT must link inside the guaranteed Rev.1 64 KiB Flash in both
+        # Debug and Release presets. Keep large orchestration/UI units
+        # size-optimized while preserving target debug symbols globally.
+        set_source_files_properties(
+            src/app/app_shell.c
+            src/app/app_product.c
+            src/app/app_measurement_session.c
+            src/app/app_calibration_wizard.c
+            src/app/app_calibration_service.c
+            src/app/app_calibration_session.c
+            src/app/app_calibration_campaign.c
+            src/app/app_calibration_workflow.c
+            src/hardware/hw_metrology_measure.c
+            src/hardware/hw_aux_sensors.c
+            src/measurement/measurement_dsp.c
+            src/measurement/measurement_engine.c
+            src/measurement/measurement_calibration.c
+            src/measurement/measurement_calibration_solver.c
+            src/measurement/measurement_calibration_store.c
+            src/ui/ui_product.c
+            src/ui/ui_format.c
+            src/ui/ui_fallback_renderer.c
+            src/bsp/bsp_adc.c
+            src/bsp/bsp_gpio.c
+            src/bsp/bsp_timers.c
+            src/drivers/ili9341.c
+            src/drivers/w25q_device.c
+            src/hardware/hw_peripherals.c
+            PROPERTIES COMPILE_OPTIONS "-Os"
+        )
     elseif(NOT WTK_FIRMWARE_PROFILE STREQUAL "PRODUCT")
         message(FATAL_ERROR "Unsupported WTK_FIRMWARE_PROFILE='${WTK_FIRMWARE_PROFILE}'. Use PRODUCT or BRINGUP.")
     endif()
 
     if(CMAKE_C_COMPILER_ID MATCHES "GNU")
         target_compile_options(wtk_firmware_common PRIVATE -fstack-usage)
+    endif()
+    if(WTK_FIRMWARE_PROFILE STREQUAL "PRODUCT")
+        target_compile_options(wtk_firmware_common PRIVATE -Os)
     endif()
 
     add_executable(wtk_rlcmeter
@@ -202,6 +219,9 @@ elseif(WTK_TARGET_PLATFORM STREQUAL "stm32")
     wtk_configure_stm32cube_f1(wtk_rlcmeter)
     if(CMAKE_C_COMPILER_ID MATCHES "GNU")
         target_compile_options(wtk_rlcmeter PRIVATE -fstack-usage)
+    endif()
+    if(WTK_FIRMWARE_PROFILE STREQUAL "PRODUCT")
+        target_compile_options(wtk_rlcmeter PRIVATE -Os)
     endif()
 
     if(WTK_WARNINGS_AS_ERRORS_STM32)
