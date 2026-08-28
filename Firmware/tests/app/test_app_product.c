@@ -28,12 +28,14 @@ typedef struct
 } fake_io_t;
 
 static app_calibration_service_t g_service;
+static app_settings_service_t g_settings;
 static app_io_workspace_t g_workspace;
 
 static app_product_inputs_t inputs_ready(void);
 static bsp_status_t init_product(app_product_t *product, fake_io_t *fake);
 static void boot_to_ready(app_product_t *product, const app_product_inputs_t *inputs);
 static void send_button(app_product_t *product, button_id_t button, button_event_type_t type);
+static void send_button_at(app_product_t *product, button_id_t button, button_event_type_t type, uint32_t now_ms);
 static void click_ok(app_product_t *product);
 
 static int expect_true(bool condition, const char *message)
@@ -257,6 +259,8 @@ static app_cal_session_io_t make_cal_io(fake_io_t *fake)
 static void init_test_cal_service(void)
 {
     app_calibration_service_init(&g_service);
+    g_settings = (app_settings_service_t){0};
+    app_settings_service_use_defaults(&g_settings);
     app_io_workspace_init(&g_workspace);
     app_calibration_service_attach_workspace(&g_service, &g_workspace);
 }
@@ -468,7 +472,7 @@ static bsp_status_t init_product(app_product_t *product, fake_io_t *fake)
     init_test_cal_service();
     app_measurement_session_io_t io = make_io(fake);
     app_cal_session_io_t cal_io = make_cal_io(fake);
-    return app_product_init(product, &g_service, &io, &cal_io);
+    return app_product_init(product, &g_service, &g_settings, &io, &cal_io);
 }
 
 static app_product_inputs_t inputs_ready(void)
@@ -498,7 +502,12 @@ static void boot_to_ready(app_product_t *product, const app_product_inputs_t *in
 
 static void send_button(app_product_t *product, button_id_t button, button_event_type_t type)
 {
-    const button_event_t event = {.button = button, .type = type, .timestamp_ms = 1u};
+    send_button_at(product, button, type, 1u);
+}
+
+static void send_button_at(app_product_t *product, button_id_t button, button_event_type_t type, uint32_t now_ms)
+{
+    const button_event_t event = {.button = button, .type = type, .timestamp_ms = now_ms};
     app_product_handle_button_event(product, &event);
 }
 
@@ -599,7 +608,7 @@ static int test_ok_gestures_and_measurement_flow(void)
     app_product_step(&product, &inputs, &clock, BSP_STATUS_OK, 25u);
     app_product_make_view(&product, &view);
     failures += expect_true(view.state == UI_PRODUCT_STATE_MENU, "long OK opens menu");
-    failures += expect_u32(view.menu.item_count, 2u, "menu has calibration and back");
+    failures += expect_u32(view.menu.item_count, 5u, "menu has Stage 2B entries");
     failures += expect_u32(fake.start_count, 2u, "long OK starts no extra measurement");
     return failures;
 }
@@ -686,6 +695,118 @@ static int test_safety_fault_and_pages(void)
     return failures;
 }
 
+static int test_display_menu_brightness_preview_no_step_persist(void)
+{
+    int failures = 0;
+    fake_io_t fake = {0};
+    app_product_t product;
+    app_product_inputs_t inputs = inputs_ready();
+    const bsp_clock_summary_t clock = {.source = BSP_CLOCK_SOURCE_HSE_PLL,
+                                       .sysclk_hz = 72000000u,
+                                       .hse_ready = true};
+    failures += expect_true(init_product(&product, &fake) == BSP_STATUS_OK,
+                            "product init display menu");
+    boot_to_ready(&product, &inputs);
+    send_button(&product, BUTTON_ID_OK, BUTTON_EVENT_PRESS);
+    send_button(&product, BUTTON_ID_OK, BUTTON_EVENT_LONG_PRESS);
+    send_button(&product, BUTTON_ID_OK, BUTTON_EVENT_RELEASE);
+    app_product_step(&product, &inputs, &clock, BSP_STATUS_OK, 3u);
+    send_button(&product, BUTTON_ID_DOWN, BUTTON_EVENT_PRESS);
+    app_product_step(&product, &inputs, &clock, BSP_STATUS_OK, 4u);
+    click_ok(&product);
+    app_product_step(&product, &inputs, &clock, BSP_STATUS_OK, 5u);
+    ui_product_view_t view;
+    app_product_make_view(&product, &view);
+    failures += expect_true(view.state == UI_PRODUCT_STATE_DISPLAY_MENU, "display submenu opens");
+    failures += expect_u32(view.menu.selected_index, 0u, "brightness selected");
+    click_ok(&product);
+    app_product_step(&product, &inputs, &clock, BSP_STATUS_OK, 6u);
+    failures += expect_true(view.state != UI_PRODUCT_STATE_BRIGHTNESS_EDIT, "stale view not reused");
+    send_button(&product, BUTTON_ID_DOWN, BUTTON_EVENT_PRESS);
+    app_product_step(&product, &inputs, &clock, BSP_STATUS_OK, 7u);
+    app_product_outputs_t outputs;
+    app_product_make_outputs(&product, &outputs);
+    app_product_make_view(&product, &view);
+    failures += expect_true(view.state == UI_PRODUCT_STATE_BRIGHTNESS_EDIT, "brightness editor active");
+    failures += expect_u32(view.menu.brightness_percent, 30u, "brightness increments in 5 percent step");
+    failures += expect_u32(outputs.backlight_percent, 30u, "brightness preview updates output");
+    failures += expect_true(app_settings_service_dirty(&g_settings), "preview marks settings dirty");
+    failures += expect_true(!app_settings_service_busy(&g_settings), "preview does not persist immediately");
+    send_button(&product, BUTTON_ID_OK, BUTTON_EVENT_PRESS);
+    send_button(&product, BUTTON_ID_OK, BUTTON_EVENT_LONG_PRESS);
+    send_button(&product, BUTTON_ID_OK, BUTTON_EVENT_RELEASE);
+    app_product_step(&product, &inputs, &clock, BSP_STATUS_OK, 8u);
+    app_product_make_outputs(&product, &outputs);
+    failures += expect_u32(outputs.backlight_percent, 25u, "long OK restores entry brightness");
+    return failures;
+}
+
+static int test_backlight_timeout_wake_consumes_ok_gesture(void)
+{
+    int failures = 0;
+    fake_io_t fake = {0};
+    app_product_t product;
+    app_product_inputs_t inputs = inputs_ready();
+    const bsp_clock_summary_t clock = {.source = BSP_CLOCK_SOURCE_HSE_PLL,
+                                       .sysclk_hz = 72000000u,
+                                       .hse_ready = true};
+    failures += expect_true(init_product(&product, &fake) == BSP_STATUS_OK,
+                            "product init backlight timeout");
+    boot_to_ready(&product, &inputs);
+    app_product_step(&product, &inputs, &clock, BSP_STATUS_OK, 60005u);
+    app_product_outputs_t outputs;
+    app_product_make_outputs(&product, &outputs);
+    failures += expect_u32(outputs.backlight_percent, 0u, "timeout blanks backlight");
+    send_button_at(&product, BUTTON_ID_OK, BUTTON_EVENT_PRESS, 60006u);
+    send_button_at(&product, BUTTON_ID_OK, BUTTON_EVENT_LONG_PRESS, 60600u);
+    send_button_at(&product, BUTTON_ID_OK, BUTTON_EVENT_RELEASE, 60700u);
+    app_product_step(&product, &inputs, &clock, BSP_STATUS_OK, 60700u);
+    ui_product_view_t view;
+    app_product_make_view(&product, &view);
+    app_product_make_outputs(&product, &outputs);
+    failures += expect_u32(outputs.backlight_percent, 25u, "wake restores configured brightness");
+    failures += expect_true(view.state == UI_PRODUCT_STATE_READY, "wake gesture does not open menu");
+    failures += expect_u32(fake.start_count, 0u, "wake gesture starts no measurement");
+    return failures;
+}
+
+static int test_sound_menu_toggle_updates_output(void)
+{
+    int failures = 0;
+    fake_io_t fake = {0};
+    app_product_t product;
+    app_product_inputs_t inputs = inputs_ready();
+    const bsp_clock_summary_t clock = {.source = BSP_CLOCK_SOURCE_HSE_PLL,
+                                       .sysclk_hz = 72000000u,
+                                       .hse_ready = true};
+    failures += expect_true(init_product(&product, &fake) == BSP_STATUS_OK,
+                            "product init sound menu");
+    boot_to_ready(&product, &inputs);
+    send_button(&product, BUTTON_ID_OK, BUTTON_EVENT_PRESS);
+    send_button(&product, BUTTON_ID_OK, BUTTON_EVENT_LONG_PRESS);
+    send_button(&product, BUTTON_ID_OK, BUTTON_EVENT_RELEASE);
+    app_product_step(&product, &inputs, &clock, BSP_STATUS_OK, 3u);
+    send_button(&product, BUTTON_ID_DOWN, BUTTON_EVENT_PRESS);
+    app_product_step(&product, &inputs, &clock, BSP_STATUS_OK, 4u);
+    send_button(&product, BUTTON_ID_DOWN, BUTTON_EVENT_PRESS);
+    app_product_step(&product, &inputs, &clock, BSP_STATUS_OK, 5u);
+    click_ok(&product);
+    app_product_step(&product, &inputs, &clock, BSP_STATUS_OK, 6u);
+    ui_product_view_t view;
+    app_product_make_view(&product, &view);
+    failures += expect_true(view.state == UI_PRODUCT_STATE_SOUND_MENU, "sound submenu opens");
+    failures += expect_true(view.menu.sound_enabled, "sound initially enabled");
+    click_ok(&product);
+    app_product_step(&product, &inputs, &clock, BSP_STATUS_OK, 7u);
+    app_product_outputs_t outputs;
+    app_product_make_outputs(&product, &outputs);
+    app_product_make_view(&product, &view);
+    failures += expect_true(view.state == UI_PRODUCT_STATE_SOUND_MENU, "sound toggle stays in submenu");
+    failures += expect_true(!outputs.sound_enabled, "sound output disabled");
+    failures += expect_true(app_settings_service_dirty(&g_settings), "sound toggle marks settings dirty");
+    return failures;
+}
+
 int main(int argc, char **argv)
 {
     if ((argc == 2) && (strcmp(argv[1], "--sizes") == 0))
@@ -700,6 +821,9 @@ int main(int argc, char **argv)
     failures += test_ok_gestures_and_measurement_flow();
     failures += test_menu_calibration_status_and_dirty_candidate();
     failures += test_safety_fault_and_pages();
+    failures += test_display_menu_brightness_preview_no_step_persist();
+    failures += test_backlight_timeout_wake_consumes_ok_gesture();
+    failures += test_sound_menu_toggle_updates_output();
     failures += test_fault_during_measurement_capture_drains_runtime();
     failures += test_calibration_validity_loss_drains_measurement();
     failures += test_fault_during_calibration_capture_drains_runtime();

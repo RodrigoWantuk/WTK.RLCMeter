@@ -67,6 +67,7 @@ add_library(wtk_firmware_common STATIC
     src/app/app_io_workspace.c
     src/app/app_measurement_session.c
     src/app/app_product.c
+    src/app/app_settings_service.c
     src/app/app_version.c
     src/bsp/bsp_adc_common.c
     src/bsp/bsp_adc_core.c
@@ -103,6 +104,7 @@ add_library(wtk_firmware_common STATIC
     src/ui/ui_format.c
     src/ui/ui_product.c
     src/ui/ui_resources.c
+    src/ui/ui_text.c
 )
 target_include_directories(wtk_firmware_common
     PUBLIC
@@ -134,7 +136,7 @@ elseif(WTK_TARGET_PLATFORM STREQUAL "stm32")
         # firmware must fit the guaranteed 64 KiB STM32F103C8T6 Flash while
         # still preserving symbols for SWD/GDB inspection. Release may also
         # enable preset-level LTO for additional dead-code folding.
-        target_compile_options(wtk_firmware_common PRIVATE -Os)
+        target_compile_options(wtk_firmware_common PRIVATE -Os -fno-unwind-tables -fno-asynchronous-unwind-tables)
     endif()
 
     add_executable(wtk_rlcmeter
@@ -166,6 +168,8 @@ elseif(WTK_TARGET_PLATFORM STREQUAL "stm32")
     )
     if(WTK_FIRMWARE_PROFILE STREQUAL "BRINGUP")
         target_sources(wtk_rlcmeter PRIVATE src/app/app_bringup_console.c)
+    else()
+        target_sources(wtk_rlcmeter PRIVATE src/storage/app_settings_w25q_adapter.c)
     endif()
     set_target_properties(wtk_rlcmeter PROPERTIES
         OUTPUT_NAME "WTK.RLCMeter"
@@ -184,7 +188,7 @@ elseif(WTK_TARGET_PLATFORM STREQUAL "stm32")
         target_compile_options(wtk_rlcmeter PRIVATE -fstack-usage)
     endif()
     if(WTK_FIRMWARE_PROFILE STREQUAL "PRODUCT")
-        target_compile_options(wtk_rlcmeter PRIVATE -Os)
+        target_compile_options(wtk_rlcmeter PRIVATE -Os -fno-unwind-tables -fno-asynchronous-unwind-tables)
     endif()
 
     if(WTK_WARNINGS_AS_ERRORS_STM32)
@@ -201,7 +205,7 @@ elseif(WTK_TARGET_PLATFORM STREQUAL "stm32")
     set(WTK_SIZE_BUDGET "none")
     if(WTK_FIRMWARE_PROFILE STREQUAL "BRINGUP")
         set(WTK_SIZE_BUDGET "bringup")
-    elseif(WTK_FIRMWARE_PROFILE STREQUAL "PRODUCT")
+    elseif(WTK_FIRMWARE_PROFILE STREQUAL "PRODUCT" AND NOT WTK_BUILD_TYPE STREQUAL "Debug")
         set(WTK_SIZE_BUDGET "product")
     endif()
 

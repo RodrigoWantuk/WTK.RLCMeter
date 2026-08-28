@@ -2,6 +2,12 @@
 
 #include <stddef.h>
 
+#if defined(__GNUC__)
+#define WTK_NOINLINE __attribute__((noinline))
+#else
+#define WTK_NOINLINE
+#endif
+
 enum
 {
     APP_PRODUCT_RUNTIME_NONE = 0,
@@ -10,13 +16,31 @@ enum
     APP_PRODUCT_RUNTIME_TEARDOWN_NONE = 0,
     APP_PRODUCT_RUNTIME_TEARDOWN_MEASUREMENT,
     APP_PRODUCT_RUNTIME_TEARDOWN_CALIBRATION,
-    APP_PRODUCT_MENU_CALIBRATION = 0,
-    APP_PRODUCT_MENU_BACK = 1,
-    APP_PRODUCT_MENU_COUNT = 2,
+    APP_PRODUCT_MAIN_CALIBRATION = 0,
+    APP_PRODUCT_MAIN_DISPLAY,
+    APP_PRODUCT_MAIN_SOUND,
+    APP_PRODUCT_MAIN_ABOUT,
+    APP_PRODUCT_MAIN_BACK,
+    APP_PRODUCT_MAIN_COUNT,
+    APP_PRODUCT_DISPLAY_BRIGHTNESS = 0,
+    APP_PRODUCT_DISPLAY_TIMEOUT,
+    APP_PRODUCT_DISPLAY_BACK,
+    APP_PRODUCT_DISPLAY_COUNT,
+    APP_PRODUCT_SOUND_TOGGLE = 0,
+    APP_PRODUCT_SOUND_BACK,
+    APP_PRODUCT_SOUND_COUNT,
 };
 
-static ui_product_calibration_state_t ui_cal_state(app_cal_service_status_t status)
+static void mark_dirty(app_product_t *product);
+static void set_state(app_product_t *product, ui_product_state_t state);
+
+static ui_product_calibration_state_t ui_cal_state(app_cal_service_status_t status,
+                                                  bool calibration_active_valid)
 {
+    if (calibration_active_valid)
+    {
+        return UI_PRODUCT_CAL_ACTIVE_VALID;
+    }
     switch (status)
     {
     case APP_CAL_SERVICE_ACTIVE_VALID:
@@ -33,6 +57,91 @@ static ui_product_calibration_state_t ui_cal_state(app_cal_service_status_t stat
     default:
         return UI_PRODUCT_CAL_REQUIRED;
     }
+}
+
+static app_settings_t current_settings(const app_product_t *product)
+{
+    const app_settings_t *settings =
+        (product == NULL) ? NULL : app_settings_service_current(product->settings_service);
+    return (settings == NULL) ? app_settings_defaults() : *settings;
+}
+
+static void sync_settings_view(app_product_t *product)
+{
+    if (product == NULL)
+    {
+        return;
+    }
+    const app_settings_t settings = current_settings(product);
+    const uint16_t timeout_seconds = (uint16_t)settings.backlight_timeout;
+    if ((product->view.menu.brightness_percent != settings.brightness_percent) ||
+        (product->view.menu.timeout_seconds != timeout_seconds) ||
+        (product->view.menu.sound_enabled != settings.sound_enabled) ||
+        (product->view.menu.dirty != app_settings_service_dirty(product->settings_service)) ||
+        (product->view.menu.save_failed != app_settings_service_save_failed(product->settings_service)))
+    {
+        product->view.menu.brightness_percent = settings.brightness_percent;
+        product->view.menu.timeout_seconds = timeout_seconds;
+        product->view.menu.sound_enabled = settings.sound_enabled;
+        product->view.menu.dirty = app_settings_service_dirty(product->settings_service);
+        product->view.menu.save_failed = app_settings_service_save_failed(product->settings_service);
+        mark_dirty(product);
+    }
+}
+
+static void set_menu(app_product_t *product,
+                     ui_product_state_t state,
+                     uint8_t selected,
+                     uint8_t count)
+{
+    if (product == NULL)
+    {
+        return;
+    }
+    product->menu_index = selected;
+    product->view.menu.selected_index = selected;
+    product->view.menu.item_count = count;
+    sync_settings_view(product);
+    set_state(product, state);
+    mark_dirty(product);
+}
+
+static uint8_t state_menu_count(ui_product_state_t state)
+{
+    switch (state)
+    {
+    case UI_PRODUCT_STATE_DISPLAY_MENU:
+    case UI_PRODUCT_STATE_BRIGHTNESS_EDIT:
+    case UI_PRODUCT_STATE_TIMEOUT_EDIT:
+        return APP_PRODUCT_DISPLAY_COUNT;
+    case UI_PRODUCT_STATE_SOUND_MENU:
+        return APP_PRODUCT_SOUND_COUNT;
+    case UI_PRODUCT_STATE_MENU:
+    default:
+        return APP_PRODUCT_MAIN_COUNT;
+    }
+}
+
+static bool state_is_menu_like(ui_product_state_t state)
+{
+    return (state == UI_PRODUCT_STATE_MENU) ||
+           (state == UI_PRODUCT_STATE_DISPLAY_MENU) ||
+           (state == UI_PRODUCT_STATE_SOUND_MENU) ||
+           (state == UI_PRODUCT_STATE_BRIGHTNESS_EDIT) ||
+           (state == UI_PRODUCT_STATE_TIMEOUT_EDIT);
+}
+
+static uint8_t clamp_brightness_step(int16_t value)
+{
+    if (value < 5)
+    {
+        return 5u;
+    }
+    if (value > 100)
+    {
+        return 100u;
+    }
+    return (uint8_t)(((value + 2) / 5) * 5);
 }
 
 static ui_product_battery_t ui_battery_state(hw_battery_state_t state)
@@ -418,12 +527,177 @@ static void update_measurement_result(app_product_t *product, app_measurement_ev
     }
 }
 
+static void request_settings_save(app_product_t *product)
+{
+    if (product != NULL)
+    {
+        product->settings_save_requested = true;
+        sync_settings_view(product);
+    }
+}
+
+static void apply_settings(app_product_t *product, const app_settings_t *settings)
+{
+    if ((product != NULL) && (settings != NULL) &&
+        (app_settings_service_set(product->settings_service, settings) == BSP_STATUS_OK))
+    {
+        sync_settings_view(product);
+    }
+}
+
+static WTK_NOINLINE void update_menu_navigation(app_product_t *product)
+{
+    const uint8_t count = state_menu_count(product->view.state);
+    if (product->request_page_next)
+    {
+        product->menu_index = (uint8_t)((product->menu_index + 1u) % count);
+        product->view.menu.selected_index = product->menu_index;
+        mark_dirty(product);
+    }
+    if (product->request_page_prev)
+    {
+        product->menu_index = (product->menu_index == 0u) ? (uint8_t)(count - 1u) :
+                                                            (uint8_t)(product->menu_index - 1u);
+        product->view.menu.selected_index = product->menu_index;
+        mark_dirty(product);
+    }
+}
+
+static WTK_NOINLINE void handle_display_editor(app_product_t *product, bool brightness_editor)
+{
+    app_settings_t settings = current_settings(product);
+    if (product->request_page_next || product->request_page_prev)
+    {
+        if (brightness_editor)
+        {
+            const int16_t delta = product->request_page_next ? 5 : -5;
+            settings.brightness_percent = clamp_brightness_step((int16_t)settings.brightness_percent + delta);
+        }
+        else
+        {
+            settings.backlight_timeout = product->request_page_next ?
+                                             app_backlight_timeout_next(settings.backlight_timeout) :
+                                             app_backlight_timeout_prev(settings.backlight_timeout);
+        }
+        apply_settings(product, &settings);
+    }
+    if (product->request_menu)
+    {
+        apply_settings(product, &product->edit_entry_settings);
+        set_menu(product, UI_PRODUCT_STATE_DISPLAY_MENU, 0u, APP_PRODUCT_DISPLAY_COUNT);
+    }
+    else if (product->request_click)
+    {
+        request_settings_save(product);
+        set_menu(product,
+                 UI_PRODUCT_STATE_DISPLAY_MENU,
+                 brightness_editor ? APP_PRODUCT_DISPLAY_BRIGHTNESS : APP_PRODUCT_DISPLAY_TIMEOUT,
+                 APP_PRODUCT_DISPLAY_COUNT);
+    }
+    clear_requests(product);
+}
+
+static WTK_NOINLINE void service_pending_settings_save(app_product_t *product,
+                                          const app_product_inputs_t *inputs,
+                                          uint32_t now_ms)
+{
+    if ((product == NULL) || (inputs == NULL))
+    {
+        return;
+    }
+    if (app_settings_service_busy(product->settings_service))
+    {
+        const bsp_status_t status = app_settings_service_step(product->settings_service, now_ms);
+        if ((status != BSP_STATUS_OK) && (status != BSP_STATUS_BUSY))
+        {
+            product->settings_save_requested = false;
+        }
+        sync_settings_view(product);
+        return;
+    }
+    (void)app_settings_service_acknowledge(product->settings_service);
+    if (product->settings_save_requested && app_settings_service_dirty(product->settings_service) &&
+        !inputs->settings_storage_busy)
+    {
+        const bsp_status_t status = app_settings_service_save_start(product->settings_service, now_ms);
+        if ((status != BSP_STATUS_OK) && (status != BSP_STATUS_BUSY))
+        {
+            product->settings_save_requested = false;
+        }
+        sync_settings_view(product);
+    }
+    if (!app_settings_service_dirty(product->settings_service))
+    {
+        product->settings_save_requested = false;
+    }
+}
+
+static bool calibration_forces_awake(const app_product_t *product)
+{
+    if ((product == NULL) || (product->runtime_kind != APP_PRODUCT_RUNTIME_CALIBRATION))
+    {
+        return false;
+    }
+    switch ((app_cal_wizard_state_t)product->runtime.calibration.state)
+    {
+    case APP_CAL_WIZARD_CAPTURE_OPEN:
+    case APP_CAL_WIZARD_CAPTURE_SHORT:
+    case APP_CAL_WIZARD_CAPTURE_LOAD:
+    case APP_CAL_WIZARD_COMMITTING:
+    case APP_CAL_WIZARD_FAILED:
+    case APP_CAL_WIZARD_SAFETY_BLOCKED:
+    case APP_CAL_WIZARD_CANCELING:
+        return true;
+    default:
+        return false;
+    }
+}
+
+static WTK_NOINLINE void update_backlight_idle(app_product_t *product,
+                                  const app_product_inputs_t *inputs,
+                                  uint32_t now_ms)
+{
+    if ((product == NULL) || (inputs == NULL))
+    {
+        return;
+    }
+    const bool force_awake =
+        (product->view.state == UI_PRODUCT_STATE_MEASURING) ||
+        (product->view.state == UI_PRODUCT_STATE_FAULT) ||
+        (product->view.state == UI_PRODUCT_STATE_SAFETY_BLOCKED) ||
+        calibration_forces_awake(product) ||
+        !inputs->safety_result.measure_allowed;
+    if (force_awake)
+    {
+        if (product->backlight_sleeping)
+        {
+            product->backlight_sleeping = false;
+            mark_dirty(product);
+        }
+        product->last_activity_ms = now_ms;
+        return;
+    }
+    const app_settings_t settings = current_settings(product);
+    if (settings.backlight_timeout == APP_BACKLIGHT_TIMEOUT_OFF)
+    {
+        return;
+    }
+    const uint32_t timeout_ms = (uint32_t)settings.backlight_timeout * 1000u;
+    if (!product->backlight_sleeping &&
+        ((uint32_t)(now_ms - product->last_activity_ms) >= timeout_ms))
+    {
+        product->backlight_sleeping = true;
+        mark_dirty(product);
+    }
+}
+
 bsp_status_t app_product_init(app_product_t *product,
                               app_calibration_service_t *calibration_service,
+                              app_settings_service_t *settings_service,
                               const app_measurement_session_io_t *measurement_io,
                               const app_cal_session_io_t *calibration_io)
 {
-    if ((product == NULL) || (calibration_service == NULL) ||
+    if ((product == NULL) || (calibration_service == NULL) || (settings_service == NULL) ||
         (measurement_io == NULL) || (calibration_io == NULL))
     {
         return BSP_STATUS_INVALID_ARG;
@@ -432,6 +706,9 @@ bsp_status_t app_product_init(app_product_t *product,
     product->measurement_io = *measurement_io;
     product->calibration_io = *calibration_io;
     product->calibration_service = calibration_service;
+    product->settings_service = settings_service;
+    product->last_activity_ms = 0u;
+    product->wake_consume_button = BUTTON_ID_COUNT;
     const bsp_status_t status = activate_measurement_runtime(product);
     if (status != BSP_STATUS_OK)
     {
@@ -444,8 +721,11 @@ bsp_status_t app_product_init(app_product_t *product,
         .safety_blocker = UI_PRODUCT_BLOCK_SENSOR,
         .battery_state = UI_PRODUCT_BATTERY_UNKNOWN,
         .menu = {
-            .selected_index = APP_PRODUCT_MENU_CALIBRATION,
-            .item_count = APP_PRODUCT_MENU_COUNT,
+            .selected_index = APP_PRODUCT_MAIN_CALIBRATION,
+            .item_count = APP_PRODUCT_MAIN_COUNT,
+            .brightness_percent = current_settings(product).brightness_percent,
+            .timeout_seconds = (uint16_t)current_settings(product).backlight_timeout,
+            .sound_enabled = current_settings(product).sound_enabled,
         },
         .generation = 1u,
     };
@@ -458,6 +738,31 @@ void app_product_handle_button_event(app_product_t *product, const button_event_
     if ((product == NULL) || (event == NULL))
     {
         return;
+    }
+    if (product->backlight_sleeping && (event->type == BUTTON_EVENT_PRESS))
+    {
+        product->backlight_sleeping = false;
+        product->wake_consume_active = true;
+        product->wake_consume_button = event->button;
+        product->last_activity_ms = event->timestamp_ms;
+        mark_dirty(product);
+        return;
+    }
+    if (product->wake_consume_active)
+    {
+        if ((event->button == product->wake_consume_button) &&
+            (event->type == BUTTON_EVENT_RELEASE))
+        {
+            product->wake_consume_active = false;
+            product->wake_consume_button = BUTTON_ID_COUNT;
+            product->ok_armed = false;
+            product->ok_long_seen = false;
+        }
+        return;
+    }
+    if (event->type == BUTTON_EVENT_PRESS)
+    {
+        product->last_activity_ms = event->timestamp_ms;
     }
     if (event->button == BUTTON_ID_OK)
     {
@@ -507,7 +812,12 @@ void app_product_step(app_product_t *product,
         return;
     }
 
-    const ui_product_calibration_state_t next_cal = ui_cal_state(inputs->calibration_status);
+    service_pending_settings_save(product, inputs, now_ms);
+    sync_settings_view(product);
+    update_backlight_idle(product, inputs, now_ms);
+
+    const ui_product_calibration_state_t next_cal =
+        ui_cal_state(inputs->calibration_status, inputs->calibration_active_valid);
     const ui_product_blocker_t next_blocker = ui_blocker(inputs->safety_result.primary_blocker);
     const ui_product_battery_t next_battery = ui_battery_state(inputs->battery_state);
     const bool next_storage_unavailable = inputs->calibration_status == APP_CAL_SERVICE_STORAGE_UNAVAILABLE;
@@ -580,47 +890,111 @@ void app_product_step(app_product_t *product,
         return;
     }
 
-    if (product->view.state == UI_PRODUCT_STATE_MENU)
+    if (state_is_menu_like(product->view.state))
     {
-        if (product->request_page_next)
+        if (product->view.state == UI_PRODUCT_STATE_BRIGHTNESS_EDIT)
         {
-            product->menu_index = (uint8_t)((product->menu_index + 1u) % APP_PRODUCT_MENU_COUNT);
-            product->view.menu.selected_index = product->menu_index;
-            mark_dirty(product);
+            handle_display_editor(product, true);
+            return;
         }
-        if (product->request_page_prev)
+        if (product->view.state == UI_PRODUCT_STATE_TIMEOUT_EDIT)
         {
-            product->menu_index = (product->menu_index == 0u) ?
-                                      (uint8_t)(APP_PRODUCT_MENU_COUNT - 1u) :
-                                      (uint8_t)(product->menu_index - 1u);
-            product->view.menu.selected_index = product->menu_index;
-            mark_dirty(product);
+            handle_display_editor(product, false);
+            return;
         }
+        update_menu_navigation(product);
         if (product->request_menu)
         {
-            set_state(product,
-                      (product->view.has_measurement_result && !product->view.measurement_result_partial) ?
-                          UI_PRODUCT_STATE_RESULT :
-                          UI_PRODUCT_STATE_READY);
-        }
-        else if (product->request_click)
-        {
-            if (product->menu_index == APP_PRODUCT_MENU_CALIBRATION)
-            {
-                set_state(product, UI_PRODUCT_STATE_CALIBRATION_STATUS);
-            }
-            else
+            if (product->view.state == UI_PRODUCT_STATE_MENU)
             {
                 set_state(product,
                           (product->view.has_measurement_result && !product->view.measurement_result_partial) ?
                               UI_PRODUCT_STATE_RESULT :
                               UI_PRODUCT_STATE_READY);
             }
+            else
+            {
+                set_menu(product, UI_PRODUCT_STATE_MENU, APP_PRODUCT_MAIN_CALIBRATION, APP_PRODUCT_MAIN_COUNT);
+            }
+        }
+        else if (product->request_click)
+        {
+            if (product->view.state == UI_PRODUCT_STATE_MENU)
+            {
+                if (product->menu_index == APP_PRODUCT_MAIN_CALIBRATION)
+                {
+                    set_state(product, UI_PRODUCT_STATE_CALIBRATION_STATUS);
+                }
+                else if (product->menu_index == APP_PRODUCT_MAIN_DISPLAY)
+                {
+                    set_menu(product, UI_PRODUCT_STATE_DISPLAY_MENU, APP_PRODUCT_DISPLAY_BRIGHTNESS, APP_PRODUCT_DISPLAY_COUNT);
+                }
+                else if (product->menu_index == APP_PRODUCT_MAIN_SOUND)
+                {
+                    set_menu(product, UI_PRODUCT_STATE_SOUND_MENU, APP_PRODUCT_SOUND_TOGGLE, APP_PRODUCT_SOUND_COUNT);
+                }
+                else if (product->menu_index == APP_PRODUCT_MAIN_ABOUT)
+                {
+                    set_state(product, UI_PRODUCT_STATE_ABOUT);
+                }
+                else
+                {
+                    set_state(product,
+                              (product->view.has_measurement_result && !product->view.measurement_result_partial) ?
+                                  UI_PRODUCT_STATE_RESULT :
+                                  UI_PRODUCT_STATE_READY);
+                }
+            }
+            else if (product->view.state == UI_PRODUCT_STATE_DISPLAY_MENU)
+            {
+                if (product->menu_index == APP_PRODUCT_DISPLAY_BRIGHTNESS)
+                {
+                    product->edit_entry_settings = current_settings(product);
+                    set_state(product, UI_PRODUCT_STATE_BRIGHTNESS_EDIT);
+                }
+                else if (product->menu_index == APP_PRODUCT_DISPLAY_TIMEOUT)
+                {
+                    product->edit_entry_settings = current_settings(product);
+                    set_state(product, UI_PRODUCT_STATE_TIMEOUT_EDIT);
+                }
+                else
+                {
+                    set_menu(product, UI_PRODUCT_STATE_MENU, APP_PRODUCT_MAIN_DISPLAY, APP_PRODUCT_MAIN_COUNT);
+                }
+            }
+            else if (product->view.state == UI_PRODUCT_STATE_SOUND_MENU)
+            {
+                if (product->menu_index == APP_PRODUCT_SOUND_TOGGLE)
+                {
+                    app_settings_t settings = current_settings(product);
+                    settings.sound_enabled = !settings.sound_enabled;
+                    apply_settings(product, &settings);
+                    request_settings_save(product);
+                    if (settings.sound_enabled)
+                    {
+                        product->tone_sequence++;
+                    }
+                }
+                else
+                {
+                    set_menu(product, UI_PRODUCT_STATE_MENU, APP_PRODUCT_MAIN_SOUND, APP_PRODUCT_MAIN_COUNT);
+                }
+            }
         }
         product->request_click = false;
         product->request_menu = false;
         product->request_page_next = false;
         product->request_page_prev = false;
+        return;
+    }
+
+    if (product->view.state == UI_PRODUCT_STATE_ABOUT)
+    {
+        if (product->request_menu || product->request_click)
+        {
+            set_menu(product, UI_PRODUCT_STATE_MENU, APP_PRODUCT_MAIN_ABOUT, APP_PRODUCT_MAIN_COUNT);
+        }
+        clear_requests(product);
         return;
     }
 
@@ -770,11 +1144,7 @@ void app_product_step(app_product_t *product,
 
     if (product->request_menu)
     {
-        product->menu_index = APP_PRODUCT_MENU_CALIBRATION;
-        product->view.menu.selected_index = product->menu_index;
-        product->view.menu.item_count = APP_PRODUCT_MENU_COUNT;
-        mark_dirty(product);
-        set_state(product, UI_PRODUCT_STATE_MENU);
+        set_menu(product, UI_PRODUCT_STATE_MENU, APP_PRODUCT_MAIN_CALIBRATION, APP_PRODUCT_MAIN_COUNT);
         product->request_menu = false;
         product->request_click = false;
         product->request_page_next = false;
@@ -801,7 +1171,8 @@ void app_product_step(app_product_t *product,
     product->request_page_next = false;
     product->request_page_prev = false;
 
-    if (product->request_click && state_accepts_measurement_request(product->view.state))
+    if (product->request_click && state_accepts_measurement_request(product->view.state) &&
+        !app_settings_service_busy(product->settings_service))
     {
         if (activate_measurement_runtime(product) != BSP_STATUS_OK)
         {
@@ -837,27 +1208,28 @@ void app_product_step(app_product_t *product,
     product->view.session_sequence = product->session_sequence;
 }
 
-void app_product_cancel(app_product_t *product)
-{
-    if (product != NULL)
-    {
-        if (product->runtime_kind == APP_PRODUCT_RUNTIME_MEASUREMENT)
-        {
-            (void)app_measurement_session_cancel(measurement_runtime(product));
-        }
-        else if (product->runtime_kind == APP_PRODUCT_RUNTIME_CALIBRATION)
-        {
-            (void)app_calibration_wizard_cancel(wizard_runtime(product));
-        }
-    }
-}
-
 void app_product_make_view(const app_product_t *product, ui_product_view_t *view)
 {
     if ((product != NULL) && (view != NULL))
     {
         *view = product->view;
     }
+}
+
+void app_product_make_outputs(const app_product_t *product, app_product_outputs_t *outputs)
+{
+    if ((product == NULL) || (outputs == NULL))
+    {
+        return;
+    }
+    const app_settings_t settings = current_settings(product);
+    *outputs = (app_product_outputs_t){
+        .backlight_percent = product->backlight_sleeping ? 0u : settings.brightness_percent,
+        .sound_enabled = settings.sound_enabled,
+        .tone_frequency_hz = (product->tone_sequence != 0u) ? 2000u : 0u,
+        .tone_duration_ms = (product->tone_sequence != 0u) ? 30u : 0u,
+        .tone_sequence = product->tone_sequence,
+    };
 }
 
 uint32_t app_product_context_size_bytes(void)

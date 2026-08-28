@@ -231,7 +231,85 @@ remain internally available.
 
 ## Stage 2B — settings and normal menu expansion
 
-STATUS: NOT_STARTED
+STATUS: IMPLEMENTED_REQUIRES_BENCH_VALIDATION
+
+Implemented software boundary:
+
+- Product settings are represented by `app_settings_t` with only the Rev.1 Stage 2B
+  fields: display brightness percent, backlight inactivity timeout, and sound enabled.
+  Defaults are 25%, 60 s, and sound enabled.
+- Settings validation is semantic rather than raw-struct based: brightness must be
+  5..100%, timeout must be one of OFF/15/30/60/120/300 s, and sound is serialized as a
+  strict boolean.
+- W25Q mutable layout is rebalanced without changing the total reserved region or the
+  existing calibration/bringup anchors:
+
+```text
+calibration A: 1 sector
+calibration B: 1 sector
+settings A:    1 sector
+settings B:    1 sector
+diagnostics:   3 sectors
+bringup test:  1 sector
+```
+
+- `app_settings_service_t` owns two-slot transactional settings persistence. The frame
+  is portable little-endian and includes magic, schema version, frame/payload size,
+  sequence, payload CRC32, payload, and a final commit marker programmed last.
+- Settings load independently classifies both slots and chooses the newest valid
+  sequence with wrap-safe ordering. If no valid settings exist, PRODUCT uses defaults;
+  settings storage failure is nonfatal and does not affect the mandatory calibration
+  gate.
+- Settings save erases/programs/verifies the inactive slot before programming the final
+  commit marker. A failed replacement leaves the previous valid slot untouched, keeps
+  the in-RAM setting applied and dirty, exposes save failure, and allows retry.
+- PRODUCT storage ownership now blocks generic W25Q polling while calibration or settings
+  owns a mutation. Boot load order after W25Q probe is calibration first, then settings.
+- `app_product_cancel()` was removed from the public API because it did not preserve the
+  Stage 2A.1 safe-drain lifecycle. Cancellation remains owned by the active measurement
+  or calibration wizard flow.
+- Product UI calibration validity now treats `calibration_active_valid=true` as ACTIVE
+  even while the calibration service reports active workflow, store busy, or dirty
+  candidate states.
+- `app_product_t` exposes desired hardware effects through `app_product_outputs_t`.
+  `app_shell.c` applies backlight and buzzer settings; the view renderer remains
+  presentation-only and does not manipulate hardware.
+- Main menu now contains Calibration, Display, Sound, About, and Back. Display contains
+  Brightness, Backlight Timeout, and Back. Sound contains Sound On/Off and Back. Language
+  and Debug menus remain out of this Stage 2B implementation.
+- Brightness editing uses 5% steps with live backlight preview. Changes are dirty in RAM
+  while editing; the persistent write is requested only on explicit confirmation, not on
+  every button repeat. Long OK cancels and restores the entry value.
+- Backlight inactivity uses wrap-safe millisecond comparisons. OFF timeout never blanks;
+  otherwise timeout drives desired backlight to 0%. The first physical button press wakes
+  the backlight and consumes the whole gesture.
+- Sound enable/disable is loaded from settings and applied by the shell. Quiet mode
+  remains authoritative over the buzzer.
+- A small About page reports firmware version, hardware compatibility, short git commit,
+  and calibration schema.
+- `ui_text_id_t` and `ui_text_fallback()` provide stable text IDs and internal fallback
+  strings for normal menu/settings/About text. External W25Q resource text remains a
+  later Stage 3 concern.
+
+Software evidence:
+
+- Host tests cover the rebalanced W25Q layout, settings defaults/validation, A/B
+  save/load, wrap-safe sequence selection, failed replacement preserving the previous
+  valid slot, display brightness preview without immediate persistence, and wake-consume
+  behavior.
+- PRODUCT Release remains below the Stage 2B preferred final budgets from the Stage
+  2A.1 forecast at 55164 B Flash and 16724 B accounted RAM in local STM32 Release build.
+- STM32 Debug remains a non-LTO diagnostic build and reports size/profile information
+  without enforcing the PRODUCT Flash hard gate. PRODUCT Release and BRINGUP continue to
+  enforce the existing budget gates.
+
+Remaining Phase 08 work:
+
+- external resource/font pack and localization storage integration;
+- graph/result pages beyond the current primary/details pages;
+- debug console page if retained for PRODUCT;
+- physical validation of buttons, backlight timeout/wake behavior, sound setting, and
+  W25Q settings power-loss behavior on Rev.1 hardware.
 
 ## Goal
 

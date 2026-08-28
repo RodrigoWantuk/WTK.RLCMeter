@@ -5,6 +5,7 @@
 #include "app/app_io_workspace.h"
 #include "app/app_product.h"
 #include "app/app_safety_fault.h"
+#include "app/app_settings_service.h"
 #include "bsp/bsp_adc.h"
 #include "bsp/bsp_clock.h"
 #include "bsp/bsp_diagnostics.h"
@@ -34,8 +35,11 @@
 #include "hardware/hw_safety.h"
 #include "ui/ui_fallback_renderer.h"
 #include "ui/ui_product.h"
-#include "storage/measurement_cal_w25q_adapter.h"
 #include "wtk_build_config.h"
+#if !WTK_ENABLE_BRINGUP_CONSOLE
+#include "storage/app_settings_w25q_adapter.h"
+#endif
+#include "storage/measurement_cal_w25q_adapter.h"
 
 typedef enum
 {
@@ -60,10 +64,15 @@ static app_io_workspace_t g_io_workspace;
 static app_bringup_console_t g_bringup_console;
 static bool g_display_ready_reported = false;
 #else
+static app_settings_service_t g_settings_service;
 static app_product_t g_product;
 static ui_product_t g_product_ui;
 static hw_metrology_measure_t g_product_measure;
 static uint16_t g_product_ccr_table[HW_EXCITATION_LUT_POINTS];
+static uint32_t g_product_output_tone_sequence = 0u;
+static uint8_t g_product_output_backlight_percent = UINT8_MAX;
+static bool g_product_output_sound_valid = false;
+static bool g_product_output_sound_enabled = true;
 static bool g_product_display_fault = false;
 #endif
 static bool g_flash_fallback_drawn = false;
@@ -546,7 +555,40 @@ static bsp_status_t product_init_controller(void)
         .user = NULL,
     };
     ui_product_init(&g_product_ui);
-    return app_product_init(&g_product, &g_calibration_service, &session_io, &calibration_io);
+    return app_product_init(&g_product,
+                            &g_calibration_service,
+                            &g_settings_service,
+                            &session_io,
+                            &calibration_io);
+}
+
+static void product_apply_outputs(void)
+{
+    app_product_outputs_t outputs;
+    app_product_make_outputs(&g_product, &outputs);
+    if (outputs.backlight_percent != g_product_output_backlight_percent)
+    {
+        if (hw_backlight_set_percent(outputs.backlight_percent) == BSP_STATUS_OK)
+        {
+            g_product_output_backlight_percent = outputs.backlight_percent;
+        }
+    }
+    if (!g_product_output_sound_valid ||
+        (outputs.sound_enabled != g_product_output_sound_enabled))
+    {
+        hw_buzzer_set_enabled(outputs.sound_enabled);
+        g_product_output_sound_enabled = outputs.sound_enabled;
+        g_product_output_sound_valid = true;
+    }
+    if ((outputs.tone_sequence != 0u) &&
+        (outputs.tone_sequence != g_product_output_tone_sequence))
+    {
+        g_product_output_tone_sequence = outputs.tone_sequence;
+        if (outputs.sound_enabled)
+        {
+            (void)hw_buzzer_play_tone(outputs.tone_frequency_hz, outputs.tone_duration_ms, bsp_time_now_ms());
+        }
+    }
 }
 #endif
 
@@ -774,6 +816,7 @@ static void app_step(void)
         .safety_fault_mask = app_safety_fault_mask(&g_safety_faults),
         .display_ready = g_display.ready,
         .display_fault = g_product_display_fault || (g_display.init_state == ILI9341_INIT_ERROR),
+        .settings_storage_busy = app_calibration_service_busy(&g_calibration_service),
     };
     app_product_step(&g_product,
                      &product_inputs,
@@ -782,6 +825,7 @@ static void app_step(void)
                      now_ms);
     ui_product_view_t product_view;
     app_product_make_view(&g_product, &product_view);
+    product_apply_outputs();
     ui_product_request(&g_product_ui, &product_view);
     const bsp_status_t ui_status =
         ui_product_step(&g_product_ui, &g_display, hw_peripherals_quiet_requested());
@@ -789,7 +833,8 @@ static void app_step(void)
     {
         g_product_display_fault = true;
     }
-    if (!app_calibration_service_busy(&g_calibration_service))
+    if (!app_calibration_service_busy(&g_calibration_service) &&
+        !app_settings_service_busy(&g_settings_service))
     {
         (void)w25q_device_poll(&g_flash, now_ms);
     }
@@ -875,6 +920,11 @@ void app_shell_run(void)
     app_bringup_console_attach_workspace(&g_bringup_console, &g_io_workspace);
     g_display_ready_reported = false;
 #else
+    app_settings_service_use_defaults(&g_settings_service);
+    g_product_output_tone_sequence = 0u;
+    g_product_output_backlight_percent = UINT8_MAX;
+    g_product_output_sound_valid = false;
+    g_product_output_sound_enabled = true;
     const bsp_status_t product_status = product_init_controller();
     app_record_status_fault(product_status, APP_SAFETY_FAULT_METROLOGY_RUNTIME);
     bsp_diagnostics_write_key_value_text("product", bsp_status_string(product_status));
@@ -917,16 +967,36 @@ void app_shell_run(void)
         bsp_diagnostics_write_key_value_u32("w25q_capacity", g_flash.part.capacity_bytes);
         bsp_diagnostics_write_key_value_u32("w25q_test_sector",
                                             w25q_reserved_test_sector_address(g_flash.part.capacity_bytes));
+#if !WTK_ENABLE_BRINGUP_CONSOLE
+        const app_settings_store_io_t settings_io = app_settings_w25q_store_io(&g_flash);
+        const bsp_status_t settings_init_status =
+            app_settings_service_init(&g_settings_service, &settings_io, g_flash.part.capacity_bytes);
+        const bsp_status_t settings_load_status =
+            (settings_init_status == BSP_STATUS_OK) ?
+                app_settings_service_load(&g_settings_service, NULL) :
+                settings_init_status;
+        if (settings_load_status != BSP_STATUS_OK)
+        {
+            app_settings_service_use_defaults(&g_settings_service);
+        }
+        bsp_diagnostics_write_key_value_text("settings", bsp_status_string(settings_load_status));
+#endif
     }
     else
     {
         app_calibration_service_mark_storage_unavailable(&g_calibration_service);
+#if !WTK_ENABLE_BRINGUP_CONSOLE
+        app_settings_service_use_defaults(&g_settings_service);
+#endif
         bsp_diagnostics_write_key_value_text("calibration_state",
                                              app_calibration_service_status_string(
                                                  app_calibration_service_status(&g_calibration_service)));
     }
 
     ili9341_init_start(&g_display, bsp_time_now_ms());
+#if !WTK_ENABLE_BRINGUP_CONSOLE
+    product_apply_outputs();
+#endif
 
     for (;;)
     {

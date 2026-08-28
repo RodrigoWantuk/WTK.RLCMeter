@@ -20,8 +20,9 @@ bool storage_layout_partition(uint32_t capacity_bytes,
     const uint32_t mutable_start = capacity_bytes - STORAGE_LAYOUT_MUTABLE_RESERVED_BYTES;
     const uint32_t cal_a_start = mutable_start;
     const uint32_t cal_b_start = cal_a_start + STORAGE_LAYOUT_CAL_SLOT_BYTES;
-    const uint32_t settings_start = cal_b_start + STORAGE_LAYOUT_CAL_SLOT_BYTES;
-    const uint32_t diagnostics_start = settings_start + STORAGE_LAYOUT_SETTINGS_BYTES;
+    const uint32_t settings_a_start = cal_b_start + STORAGE_LAYOUT_CAL_SLOT_BYTES;
+    const uint32_t settings_b_start = settings_a_start + STORAGE_LAYOUT_SETTINGS_SLOT_BYTES;
+    const uint32_t diagnostics_start = settings_b_start + STORAGE_LAYOUT_SETTINGS_SLOT_BYTES;
     const uint32_t test_start = capacity_bytes - STORAGE_LAYOUT_W25Q_SECTOR_SIZE;
 
     switch (id)
@@ -47,11 +48,18 @@ bool storage_layout_partition(uint32_t capacity_bytes,
             .size = STORAGE_LAYOUT_CAL_SLOT_BYTES,
         };
         return true;
-    case STORAGE_PARTITION_SETTINGS:
+    case STORAGE_PARTITION_SETTINGS_A:
         *partition = (storage_partition_t){
             .id = id,
-            .start = settings_start,
-            .size = STORAGE_LAYOUT_SETTINGS_BYTES,
+            .start = settings_a_start,
+            .size = STORAGE_LAYOUT_SETTINGS_SLOT_BYTES,
+        };
+        return true;
+    case STORAGE_PARTITION_SETTINGS_B:
+        *partition = (storage_partition_t){
+            .id = id,
+            .start = settings_b_start,
+            .size = STORAGE_LAYOUT_SETTINGS_SLOT_BYTES,
         };
         return true;
     case STORAGE_PARTITION_DIAGNOSTICS:

@@ -834,6 +834,27 @@ Calibration capture temperature is valid only when the auxiliary NTC snapshot is
 Firmware must not substitute a fixed placeholder ambient temperature in calibration
 records or Bringup acquisition requests.
 
+## Product Settings Persistence
+
+Phase 08 Stage 2B stores product settings independently from calibration. The W25Q mutable
+reserved region remains eight sectors total, but the middle layout is now calibration A,
+calibration B, settings A, settings B, diagnostics, and bringup test. Diagnostics owns
+three sectors; the bringup test sector remains the final sector.
+
+Settings use a portable little-endian transactional frame, not a raw C struct. The frame
+contains magic, schema, frame/payload sizes, sequence, payload CRC32, payload, and a final
+commit marker. The commit marker is programmed last. Boot independently inspects both
+settings slots, uses wrap-safe sequence ordering to choose the newest valid frame, and
+falls back to defaults if neither slot is valid.
+
+Settings failure is nonfatal. Calibration validity remains the mandatory measurement gate.
+A failed settings write leaves the current in-RAM setting applied, marks the service dirty
+with save failure visible, and preserves the previous valid settings slot for reboot.
+
+The normal product UI uses stable `ui_text_id_t` identifiers with internal fallback text.
+External resource-pack text and localization may replace the resolver later without
+changing menu state-machine semantics.
+
 ## Decision-change rule
 
 Any agent or contributor proposing to reverse a consolidated decision must document:

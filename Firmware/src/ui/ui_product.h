@@ -16,6 +16,11 @@ typedef enum
     UI_PRODUCT_STATE_CALIBRATION_REQUIRED,
     UI_PRODUCT_STATE_READY,
     UI_PRODUCT_STATE_MENU,
+    UI_PRODUCT_STATE_DISPLAY_MENU,
+    UI_PRODUCT_STATE_BRIGHTNESS_EDIT,
+    UI_PRODUCT_STATE_TIMEOUT_EDIT,
+    UI_PRODUCT_STATE_SOUND_MENU,
+    UI_PRODUCT_STATE_ABOUT,
     UI_PRODUCT_STATE_CALIBRATION_STATUS,
     UI_PRODUCT_STATE_CALIBRATION_WIZARD,
     UI_PRODUCT_STATE_MEASURING,
@@ -118,6 +123,11 @@ typedef struct
 {
     uint8_t selected_index;
     uint8_t item_count;
+    uint8_t brightness_percent;
+    uint16_t timeout_seconds;
+    bool sound_enabled;
+    bool dirty;
+    bool save_failed;
 } ui_product_menu_t;
 
 typedef struct

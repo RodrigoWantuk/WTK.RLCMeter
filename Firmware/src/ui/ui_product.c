@@ -2,6 +2,9 @@
 
 #include <stddef.h>
 
+#include "ui/ui_text.h"
+#include "wtk_build_config.h"
+
 #include "ui/ui_fallback_renderer.h"
 #include "ui/ui_format.h"
 
@@ -333,7 +336,101 @@ static bool prepare_menu_line(const ui_product_view_t *view, uint8_t index, ui_p
     }
     if (index == 0u)
     {
-        line_set(line, 8u, 16u, 2u, UI_COLOR_CYAN, "MENU");
+        line_set(line, 8u, 16u, 2u, UI_COLOR_CYAN, ui_text_fallback(UI_TEXT_ID_MENU));
+        return true;
+    }
+    static const ui_text_id_t ids[] = {
+        UI_TEXT_ID_CALIBRATION,
+        UI_TEXT_ID_DISPLAY,
+        UI_TEXT_ID_SOUND,
+        UI_TEXT_ID_ABOUT,
+        UI_TEXT_ID_BACK,
+    };
+    if ((index >= 1u) && (index <= (uint8_t)(sizeof(ids) / sizeof(ids[0]))))
+    {
+        line_set(line,
+                 8u,
+                 (uint16_t)(54u + ((uint16_t)(index - 1u) * 18u)),
+                 1u,
+                 (view->menu.selected_index == (uint8_t)(index - 1u)) ? UI_COLOR_GREEN : UI_COLOR_WHITE,
+                 ui_text_fallback(ids[index - 1u]));
+        return true;
+    }
+    return false;
+}
+
+static const char *timeout_token(uint16_t seconds, char *scratch, size_t capacity)
+{
+    if (seconds == 0u)
+    {
+        return ui_text_fallback(UI_TEXT_ID_OFF);
+    }
+    size_t used = 0u;
+    (void)append_u32(scratch, capacity, &used, seconds);
+    (void)append_char(scratch, capacity, &used, 's');
+    return scratch;
+}
+
+static bool prepare_display_menu_line(const ui_product_view_t *view, uint8_t index, ui_product_line_t *line)
+{
+    if ((view == NULL) || (line == NULL))
+    {
+        return false;
+    }
+    if (index == 0u)
+    {
+        line_set(line, 8u, 16u, 2u, UI_COLOR_CYAN, ui_text_fallback(UI_TEXT_ID_DISPLAY));
+        return true;
+    }
+    char row[32] = {0};
+    size_t used = 0u;
+    if (index == 1u)
+    {
+        (void)append_text(row, sizeof(row), &used, ui_text_fallback(UI_TEXT_ID_BRIGHTNESS));
+        (void)append_char(row, sizeof(row), &used, ' ');
+        (void)append_u32(row, sizeof(row), &used, view->menu.brightness_percent);
+        (void)append_char(row, sizeof(row), &used, '%');
+        line_set(line, 8u, 54u, 1u,
+                 (view->menu.selected_index == 0u) ? UI_COLOR_GREEN : UI_COLOR_WHITE, row);
+        return true;
+    }
+    if (index == 2u)
+    {
+        char timeout[8] = {0};
+        (void)append_text(row, sizeof(row), &used, "TIMEOUT ");
+        (void)append_text(row, sizeof(row), &used,
+                          timeout_token(view->menu.timeout_seconds, timeout, sizeof(timeout)));
+        line_set(line, 8u, 74u, 1u,
+                 (view->menu.selected_index == 1u) ? UI_COLOR_GREEN : UI_COLOR_WHITE, row);
+        return true;
+    }
+    if (index == 3u)
+    {
+        line_set(line,
+                 8u,
+                 94u,
+                 1u,
+                 (view->menu.selected_index == 2u) ? UI_COLOR_GREEN : UI_COLOR_WHITE,
+                 ui_text_fallback(UI_TEXT_ID_BACK));
+        return true;
+    }
+    if ((index == 4u) && view->menu.save_failed)
+    {
+        line_set(line, 8u, 122u, 1u, UI_COLOR_AMBER, ui_text_fallback(UI_TEXT_ID_SETTINGS_SAVE_FAILED));
+        return true;
+    }
+    return false;
+}
+
+static bool prepare_sound_menu_line(const ui_product_view_t *view, uint8_t index, ui_product_line_t *line)
+{
+    if ((view == NULL) || (line == NULL))
+    {
+        return false;
+    }
+    if (index == 0u)
+    {
+        line_set(line, 8u, 16u, 2u, UI_COLOR_CYAN, ui_text_fallback(UI_TEXT_ID_SOUND));
         return true;
     }
     if (index == 1u)
@@ -343,7 +440,7 @@ static bool prepare_menu_line(const ui_product_view_t *view, uint8_t index, ui_p
                  54u,
                  1u,
                  (view->menu.selected_index == 0u) ? UI_COLOR_GREEN : UI_COLOR_WHITE,
-                 "CALIBRATION");
+                 view->menu.sound_enabled ? ui_text_fallback(UI_TEXT_ID_ON) : ui_text_fallback(UI_TEXT_ID_OFF));
         return true;
     }
     if (index == 2u)
@@ -353,7 +450,57 @@ static bool prepare_menu_line(const ui_product_view_t *view, uint8_t index, ui_p
                  74u,
                  1u,
                  (view->menu.selected_index == 1u) ? UI_COLOR_GREEN : UI_COLOR_WHITE,
-                 "BACK");
+                 ui_text_fallback(UI_TEXT_ID_BACK));
+        return true;
+    }
+    if ((index == 3u) && view->menu.save_failed)
+    {
+        line_set(line, 8u, 122u, 1u, UI_COLOR_AMBER, ui_text_fallback(UI_TEXT_ID_SETTINGS_SAVE_FAILED));
+        return true;
+    }
+    return false;
+}
+
+static bool prepare_about_line(uint8_t index, ui_product_line_t *line)
+{
+    if (line == NULL)
+    {
+        return false;
+    }
+    if (index == 0u)
+    {
+        line_set(line, 8u, 16u, 2u, UI_COLOR_CYAN, ui_text_fallback(UI_TEXT_ID_WTK_RLCMETER));
+        return true;
+    }
+    if (index == 1u)
+    {
+        line_set(line, 8u, 54u, 1u, UI_COLOR_WHITE, WTK_PROJECT_VERSION);
+        return true;
+    }
+    if (index == 2u)
+    {
+        line_set(line, 8u, 74u, 1u, UI_COLOR_WHITE, WTK_HARDWARE_COMPATIBILITY);
+        return true;
+    }
+    if (index == 3u)
+    {
+        char row[28] = {0};
+        size_t used = 0u;
+        (void)append_text(row, sizeof(row), &used, "GIT ");
+        for (uint8_t i = 0u; (i < 7u) && (WTK_GIT_COMMIT[i] != '\0'); i++)
+        {
+            (void)append_char(row, sizeof(row), &used, WTK_GIT_COMMIT[i]);
+        }
+        line_set(line, 8u, 94u, 1u, UI_COLOR_WHITE, row);
+        return true;
+    }
+    if (index == 4u)
+    {
+        char row[28] = {0};
+        size_t used = 0u;
+        (void)append_text(row, sizeof(row), &used, "CAL SCHEMA ");
+        (void)append_u32(row, sizeof(row), &used, WTK_CALIBRATION_SCHEMA_VERSION);
+        line_set(line, 8u, 114u, 1u, UI_COLOR_WHITE, row);
         return true;
     }
     return false;
@@ -369,7 +516,7 @@ static bool prepare_calibration_status_line(const ui_product_view_t *view,
     }
     if (index == 0u)
     {
-        line_set(line, 8u, 16u, 2u, UI_COLOR_CYAN, "CALIBRATION");
+        line_set(line, 8u, 16u, 2u, UI_COLOR_CYAN, ui_text_fallback(UI_TEXT_ID_CALIBRATION));
         return true;
     }
     if (index == 1u)
@@ -379,7 +526,8 @@ static bool prepare_calibration_status_line(const ui_product_view_t *view,
                  54u,
                  1u,
                  view->calibration_active_valid ? UI_COLOR_GREEN : UI_COLOR_AMBER,
-                 view->calibration_active_valid ? "ACTIVE" : "REQUIRED");
+                 view->calibration_active_valid ? ui_text_fallback(UI_TEXT_ID_ACTIVE) :
+                                                  ui_text_fallback(UI_TEXT_ID_REQUIRED));
         return true;
     }
     if (index == 2u)
@@ -393,7 +541,7 @@ static bool prepare_calibration_status_line(const ui_product_view_t *view,
     }
     if (index == 3u)
     {
-        line_set(line, 8u, 104u, 1u, UI_COLOR_GREEN, "FULL CALIBRATION");
+        line_set(line, 8u, 104u, 1u, UI_COLOR_GREEN, ui_text_fallback(UI_TEXT_ID_FULL_CALIBRATION));
         return true;
     }
     return false;
@@ -609,14 +757,14 @@ static bool prepare_line(const ui_product_view_t *view, uint8_t index, ui_produc
     case UI_PRODUCT_STATE_SELF_TEST:
         if (index == 0u)
         {
-            line_set(line, 8u, 24u, 2u, UI_COLOR_WHITE, "STARTING");
+            line_set(line, 8u, 24u, 2u, UI_COLOR_WHITE, ui_text_fallback(UI_TEXT_ID_STARTING));
             return true;
         }
         return false;
     case UI_PRODUCT_STATE_CALIBRATION_CHECK:
         if (index == 0u)
         {
-            line_set(line, 8u, 24u, 2u, UI_COLOR_WHITE, "CAL CHECK");
+            line_set(line, 8u, 24u, 2u, UI_COLOR_WHITE, ui_text_fallback(UI_TEXT_ID_CAL_CHECK));
             return true;
         }
         return false;
@@ -631,20 +779,29 @@ static bool prepare_line(const ui_product_view_t *view, uint8_t index, ui_produc
                      (view->storage_unavailable ||
                       (view->calibration_status == UI_PRODUCT_CAL_STORAGE_ERROR)) ? UI_COLOR_RED : UI_COLOR_AMBER,
                      (view->storage_unavailable ||
-                      (view->calibration_status == UI_PRODUCT_CAL_STORAGE_ERROR)) ? "STORAGE ERROR" :
-                                                                                     "CALIBRATION REQUIRED");
+                      (view->calibration_status == UI_PRODUCT_CAL_STORAGE_ERROR)) ?
+                         ui_text_fallback(UI_TEXT_ID_STORAGE_ERROR) :
+                         ui_text_fallback(UI_TEXT_ID_CALIBRATION_REQUIRED));
             return true;
         }
         return false;
     case UI_PRODUCT_STATE_READY:
         if (index == 0u)
         {
-            line_set(line, 8u, 24u, 3u, UI_COLOR_GREEN, "READY");
+            line_set(line, 8u, 24u, 3u, UI_COLOR_GREEN, ui_text_fallback(UI_TEXT_ID_READY));
             return true;
         }
         return false;
     case UI_PRODUCT_STATE_MENU:
         return prepare_menu_line(view, index, line);
+    case UI_PRODUCT_STATE_DISPLAY_MENU:
+    case UI_PRODUCT_STATE_BRIGHTNESS_EDIT:
+    case UI_PRODUCT_STATE_TIMEOUT_EDIT:
+        return prepare_display_menu_line(view, index, line);
+    case UI_PRODUCT_STATE_SOUND_MENU:
+        return prepare_sound_menu_line(view, index, line);
+    case UI_PRODUCT_STATE_ABOUT:
+        return prepare_about_line(index, line);
     case UI_PRODUCT_STATE_CALIBRATION_STATUS:
         return prepare_calibration_status_line(view, index, line);
     case UI_PRODUCT_STATE_CALIBRATION_WIZARD:
@@ -652,7 +809,7 @@ static bool prepare_line(const ui_product_view_t *view, uint8_t index, ui_produc
     case UI_PRODUCT_STATE_MEASURING:
         if (index == 0u)
         {
-            line_set(line, 8u, 24u, 2u, UI_COLOR_WHITE, "MEASURING");
+            line_set(line, 8u, 24u, 2u, UI_COLOR_WHITE, ui_text_fallback(UI_TEXT_ID_MEASURING));
             return true;
         }
         return view->has_measurement_result ?
@@ -663,7 +820,7 @@ static bool prepare_line(const ui_product_view_t *view, uint8_t index, ui_produc
         {
             if (index == 0u)
             {
-                line_set(line, 8u, 24u, 3u, UI_COLOR_GREEN, "READY");
+                line_set(line, 8u, 24u, 3u, UI_COLOR_GREEN, ui_text_fallback(UI_TEXT_ID_READY));
                 return true;
             }
             return false;
@@ -870,6 +1027,16 @@ const char *ui_product_state_string(ui_product_state_t state)
         return "READY";
     case UI_PRODUCT_STATE_MENU:
         return "MENU";
+    case UI_PRODUCT_STATE_DISPLAY_MENU:
+        return "DISPLAY_MENU";
+    case UI_PRODUCT_STATE_BRIGHTNESS_EDIT:
+        return "BRIGHTNESS_EDIT";
+    case UI_PRODUCT_STATE_TIMEOUT_EDIT:
+        return "TIMEOUT_EDIT";
+    case UI_PRODUCT_STATE_SOUND_MENU:
+        return "SOUND_MENU";
+    case UI_PRODUCT_STATE_ABOUT:
+        return "ABOUT";
     case UI_PRODUCT_STATE_CALIBRATION_STATUS:
         return "CALIBRATION_STATUS";
     case UI_PRODUCT_STATE_CALIBRATION_WIZARD:

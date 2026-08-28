@@ -448,6 +448,22 @@ endif()
 
 add_test(NAME wtk_app_product_test COMMAND wtk_app_product_test)
 
+add_executable(wtk_app_settings_service_test
+    app/test_app_settings_service.c
+)
+target_link_libraries(wtk_app_settings_service_test PRIVATE wtk_firmware_common)
+target_include_directories(wtk_app_settings_service_test PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}"
+    "${PROJECT_SOURCE_DIR}/src"
+)
+wtk_configure_c_target(wtk_app_settings_service_test)
+wtk_apply_project_warnings(wtk_app_settings_service_test)
+wtk_apply_common_compile_options(wtk_app_settings_service_test)
+if(WTK_WARNINGS_AS_ERRORS_HOST)
+    wtk_treat_warnings_as_errors(wtk_app_settings_service_test)
+endif()
+add_test(NAME wtk_app_settings_service_test COMMAND wtk_app_settings_service_test)
+
 add_executable(wtk_app_calibration_wizard_test
     app/test_app_calibration_wizard.c
 )
