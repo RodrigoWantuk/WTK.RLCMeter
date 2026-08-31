@@ -130,8 +130,8 @@ bsp_status_t ui_fallback_text_scaled_step(const ili9341_t *display,
         return BSP_STATUS_INVALID_ARG;
     }
     g_text_chars_written++;
-    op->index++;
-    if ((op->index >= (sizeof(op->text) - 1u)) || (op->text[op->index] == '\0'))
+    op->byte_index++;
+    if ((op->byte_index >= (sizeof(op->text) - 1u)) || (op->text[op->byte_index] == '\0'))
     {
         op->active = false;
         return BSP_STATUS_OK;

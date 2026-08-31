@@ -6,6 +6,7 @@
 
 #include "drivers/ili9341.h"
 #include "ui/ui_fallback_font.h"
+#include "ui/ui_utf8.h"
 
 enum
 {
@@ -15,14 +16,14 @@ enum
 static bsp_status_t draw_scaled_char(const ili9341_t *display,
                                      uint16_t x,
                                      uint16_t y,
-                                     char ch,
+                                     uint32_t codepoint,
                                      uint8_t scale,
                                      uint16_t fg_rgb565,
                                      uint16_t bg_rgb565)
 {
     uint16_t pixels[UI_FALLBACK_GLYPH_WIDTH * 3u];
     uint8_t rows[UI_FALLBACK_GLYPH_HEIGHT] = {0u};
-    (void)ui_fallback_font_get_glyph(ch, rows);
+    (void)ui_fallback_font_get_glyph(codepoint, rows);
     for (uint16_t row = 0u; row < UI_FALLBACK_GLYPH_HEIGHT; row++)
     {
         uint16_t width = 0u;
@@ -57,17 +58,17 @@ static bsp_status_t draw_scaled_char(const ili9341_t *display,
     return BSP_STATUS_OK;
 }
 
-bsp_status_t ui_fallback_draw_char(const ili9341_t *display,
-                                   uint16_t x,
-                                   uint16_t y,
-                                   char ch,
-                                   uint16_t fg_rgb565,
-                                   uint16_t bg_rgb565)
+bsp_status_t ui_fallback_draw_codepoint(const ili9341_t *display,
+                                        uint16_t x,
+                                        uint16_t y,
+                                        uint32_t codepoint,
+                                        uint16_t fg_rgb565,
+                                        uint16_t bg_rgb565)
 {
     uint8_t rows[UI_FALLBACK_GLYPH_HEIGHT] = {0u};
     uint16_t pixels[UI_FALLBACK_GLYPH_WIDTH];
 
-    (void)ui_fallback_font_get_glyph(ch, rows);
+    (void)ui_fallback_font_get_glyph(codepoint, rows);
 
     for (uint16_t row = 0u; row < UI_FALLBACK_GLYPH_HEIGHT; row++)
     {
@@ -107,15 +108,26 @@ bsp_status_t ui_fallback_draw_text(const ili9341_t *display,
     }
 
     uint16_t cursor_x = x;
-    for (size_t i = 0u; text[i] != '\0'; i++)
+    size_t offset = 0u;
+    while (text[offset] != '\0')
     {
-        const bsp_status_t status = ui_fallback_draw_char(display, cursor_x, y, text[i], fg_rgb565, bg_rgb565);
+        uint32_t codepoint = 0u;
+        size_t next = offset;
+        ui_utf8_status_t decode = ui_utf8_decode_next(text, strlen(text), &next, &codepoint);
+        if (decode != UI_UTF8_STATUS_OK)
+        {
+            codepoint = (uint32_t)'?';
+            next = offset + 1u;
+        }
+        const bsp_status_t status =
+            ui_fallback_draw_codepoint(display, cursor_x, y, codepoint, fg_rgb565, bg_rgb565);
         if (status != BSP_STATUS_OK)
         {
             return status;
         }
 
         cursor_x = (uint16_t)(cursor_x + UI_FALLBACK_GLYPH_WIDTH + UI_FALLBACK_GLYPH_SPACING);
+        offset = next;
     }
 
     return BSP_STATUS_OK;
@@ -135,15 +147,32 @@ bsp_status_t ui_fallback_draw_text_scaled(const ili9341_t *display,
     }
 
     uint16_t cursor_x = x;
-    for (size_t i = 0u; text[i] != '\0'; i++)
+    size_t offset = 0u;
+    const size_t length = strlen(text);
+    uint8_t glyph_index = 0u;
+    while (text[offset] != '\0')
     {
+        uint32_t codepoint = 0u;
+        size_t next = offset;
+        ui_utf8_status_t decode = ui_utf8_decode_next(text, length, &next, &codepoint);
+        if (decode != UI_UTF8_STATUS_OK)
+        {
+            codepoint = (uint32_t)'?';
+            next = offset + 1u;
+        }
         const bsp_status_t status =
-            draw_scaled_char(display, cursor_x, y, text[i], scale, fg_rgb565, bg_rgb565);
+            draw_scaled_char(display, cursor_x, y, codepoint, scale, fg_rgb565, bg_rgb565);
         if (status != BSP_STATUS_OK)
         {
             return status;
         }
         cursor_x = (uint16_t)(cursor_x + ((UI_FALLBACK_GLYPH_WIDTH + UI_FALLBACK_GLYPH_SPACING) * scale));
+        offset = next;
+        glyph_index++;
+        if (glyph_index >= UI_FALLBACK_TEXT_MAX_CHARS)
+        {
+            break;
+        }
     }
     return BSP_STATUS_OK;
 }
@@ -181,23 +210,32 @@ bsp_status_t ui_fallback_text_scaled_step(const ili9341_t *display,
     {
         return BSP_STATUS_INVALID_ARG;
     }
-    const char ch = op->text[op->index];
-    if (ch == '\0')
+    if (op->text[op->byte_index] == '\0')
     {
         op->active = false;
         return BSP_STATUS_OK;
     }
+    uint32_t codepoint = 0u;
+    size_t offset = op->byte_index;
+    const size_t length = strlen(op->text);
+    const ui_utf8_status_t decode = ui_utf8_decode_next(op->text, length, &offset, &codepoint);
+    if (decode != UI_UTF8_STATUS_OK)
+    {
+        codepoint = (uint32_t)'?';
+        offset = (size_t)op->byte_index + 1u;
+    }
     const uint16_t cursor_x =
-        (uint16_t)(op->x + ((uint16_t)op->index *
+        (uint16_t)(op->x + ((uint16_t)op->glyph_index *
                             (uint16_t)((UI_FALLBACK_GLYPH_WIDTH + UI_FALLBACK_GLYPH_SPACING) * op->scale)));
     const bsp_status_t status =
-        draw_scaled_char(display, cursor_x, op->y, ch, op->scale, op->fg_rgb565, op->bg_rgb565);
+        draw_scaled_char(display, cursor_x, op->y, codepoint, op->scale, op->fg_rgb565, op->bg_rgb565);
     if (status != BSP_STATUS_OK)
     {
         return status;
     }
-    op->index++;
-    if ((op->index >= (sizeof(op->text) - 1u)) || (op->text[op->index] == '\0'))
+    op->byte_index = (uint8_t)offset;
+    op->glyph_index++;
+    if ((op->byte_index >= (sizeof(op->text) - 1u)) || (op->text[op->byte_index] == '\0'))
     {
         op->active = false;
         return BSP_STATUS_OK;

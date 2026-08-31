@@ -196,10 +196,12 @@ static int test_defaults_validation_and_roundtrip(void)
     const app_settings_t *settings = app_settings_service_current(&service);
     failures += expect_u32(settings->brightness_percent, 25u, "default brightness");
     failures += expect_u32((uint32_t)settings->backlight_timeout, 60u, "default timeout");
+    failures += expect_u32(settings->language_id, UI_LANGUAGE_EN, "default language");
     failures += expect_true(settings->sound_enabled, "default sound enabled");
 
     app_settings_t changed = {.brightness_percent = 55u,
                               .backlight_timeout = APP_BACKLIGHT_TIMEOUT_120S,
+                              .language_id = (uint8_t)UI_LANGUAGE_PT_BR,
                               .sound_enabled = false};
     failures += expect_true(app_settings_service_set(&service, &changed) == BSP_STATUS_OK,
                             "set valid settings");
@@ -217,6 +219,7 @@ static int test_defaults_validation_and_roundtrip(void)
     settings = app_settings_service_current(&loaded);
     failures += expect_u32(settings->brightness_percent, 55u, "reload brightness");
     failures += expect_u32((uint32_t)settings->backlight_timeout, 120u, "reload timeout");
+    failures += expect_u32(settings->language_id, UI_LANGUAGE_PT_BR, "reload language");
     failures += expect_true(!settings->sound_enabled, "reload sound disabled");
 
     changed.brightness_percent = 4u;
@@ -238,9 +241,11 @@ static int test_failed_replacement_preserves_previous_slot(void)
     app_settings_service_t service;
     app_settings_t first = {.brightness_percent = 35u,
                             .backlight_timeout = APP_BACKLIGHT_TIMEOUT_30S,
+                            .language_id = (uint8_t)UI_LANGUAGE_EN,
                             .sound_enabled = true};
     app_settings_t second = {.brightness_percent = 80u,
                              .backlight_timeout = APP_BACKLIGHT_TIMEOUT_300S,
+                             .language_id = (uint8_t)UI_LANGUAGE_PT_BR,
                              .sound_enabled = false};
     failures += expect_true(app_settings_service_init(&service, &io, FAKE_FLASH_BYTES) == BSP_STATUS_OK,
                             "initial service");
@@ -303,6 +308,7 @@ static int test_failed_writes_stay_dirty(void)
         app_settings_service_t service;
         app_settings_t settings = {.brightness_percent = 60u,
                                    .backlight_timeout = APP_BACKLIGHT_TIMEOUT_15S,
+                                   .language_id = (uint8_t)UI_LANGUAGE_EN,
                                    .sound_enabled = false};
         failures += expect_true(app_settings_service_init(&service, &io, FAKE_FLASH_BYTES) == BSP_STATUS_OK,
                                 "failure scenario init");
@@ -332,9 +338,11 @@ static int test_newest_wrap_safe_slot_selected(void)
     app_settings_service_t service;
     app_settings_t a = {.brightness_percent = 10u,
                         .backlight_timeout = APP_BACKLIGHT_TIMEOUT_15S,
+                        .language_id = (uint8_t)UI_LANGUAGE_EN,
                         .sound_enabled = true};
     app_settings_t b = {.brightness_percent = 95u,
                         .backlight_timeout = APP_BACKLIGHT_TIMEOUT_OFF,
+                        .language_id = (uint8_t)UI_LANGUAGE_PT_BR,
                         .sound_enabled = false};
     failures += expect_true(app_settings_service_init(&service, &io, FAKE_FLASH_BYTES) == BSP_STATUS_OK,
                             "wrap init");

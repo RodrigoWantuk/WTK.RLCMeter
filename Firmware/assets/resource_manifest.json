@@ -1,0 +1,19 @@
+{
+  "schema_version": 2,
+  "resources": [
+    {
+      "id": "TEXT_EN",
+      "type": "TEXT_TABLE",
+      "format": "TEXT_TABLE_UTF8_V1",
+      "language": "en",
+      "path": "text/en.json"
+    },
+    {
+      "id": "TEXT_PT_BR",
+      "type": "TEXT_TABLE",
+      "format": "TEXT_TABLE_UTF8_V1",
+      "language": "pt-BR",
+      "path": "text/pt-BR.json"
+    }
+  ]
+}

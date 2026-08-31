@@ -7,6 +7,7 @@
 
 #include "bsp/bsp_status.h"
 #include "storage/storage_layout.h"
+#include "ui/ui_text.h"
 
 typedef enum
 {
@@ -22,6 +23,7 @@ typedef struct
 {
     uint8_t brightness_percent;
     app_backlight_timeout_t backlight_timeout;
+    uint8_t language_id;
     bool sound_enabled;
 } app_settings_t;
 

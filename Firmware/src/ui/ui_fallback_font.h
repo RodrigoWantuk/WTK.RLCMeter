@@ -10,6 +10,6 @@ enum
     UI_FALLBACK_GLYPH_HEIGHT = 7u,
 };
 
-bool ui_fallback_font_get_glyph(char ch, uint8_t rows[UI_FALLBACK_GLYPH_HEIGHT]);
+bool ui_fallback_font_get_glyph(uint32_t codepoint, uint8_t rows[UI_FALLBACK_GLYPH_HEIGHT]);
 
 #endif

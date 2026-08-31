@@ -64,6 +64,7 @@ add_library(wtk_firmware_common STATIC
     src/app/app_calibration_campaign.c
     src/app/app_calibration_wizard.c
     src/app/app_calibration_workflow.c
+    src/app/app_flash_access.c
     src/app/app_io_workspace.c
     src/app/app_measurement_session.c
     src/app/app_product.c
@@ -103,8 +104,9 @@ add_library(wtk_firmware_common STATIC
     src/ui/ui_fallback_font.c
     src/ui/ui_format.c
     src/ui/ui_product.c
-    src/ui/ui_resources.c
+    src/ui/ui_text_catalog.c
     src/ui/ui_text.c
+    src/ui/ui_utf8.c
 )
 target_include_directories(wtk_firmware_common
     PUBLIC
@@ -169,7 +171,10 @@ elseif(WTK_TARGET_PLATFORM STREQUAL "stm32")
     if(WTK_FIRMWARE_PROFILE STREQUAL "BRINGUP")
         target_sources(wtk_rlcmeter PRIVATE src/app/app_bringup_console.c)
     else()
-        target_sources(wtk_rlcmeter PRIVATE src/storage/app_settings_w25q_adapter.c)
+        target_sources(wtk_rlcmeter PRIVATE
+            src/storage/app_settings_w25q_adapter.c
+            src/storage/resource_w25q_adapter.c
+        )
     endif()
     set_target_properties(wtk_rlcmeter PROPERTIES
         OUTPUT_NAME "WTK.RLCMeter"

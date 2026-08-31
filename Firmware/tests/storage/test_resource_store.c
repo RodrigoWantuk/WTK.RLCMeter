@@ -1,14 +1,22 @@
 #include "storage/resource_store.h"
-#include "ui/ui_resources.h"
+
+#include "storage/storage_crc32.h"
+#include "ui/ui_text.h"
 
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <string.h>
+
+enum
+{
+    PACK_BYTES = 512u,
+};
 
 static int g_failures = 0;
-static uint8_t g_data[600];
-static uint32_t g_written = 0u;
+static uint8_t g_pack[PACK_BYTES];
+static bool g_defer_next_read = false;
 
 static void expect_true(bool condition, const char *message)
 {
@@ -19,130 +27,142 @@ static void expect_true(bool condition, const char *message)
     }
 }
 
-typedef struct
+static bsp_status_t mem_read(uint32_t address, void *dst, size_t size, void *user)
 {
-    bool defer_next_read;
-    bool defer_next_write;
-} stream_test_context_t;
-
-static ui_resource_status_t read_resource(void *context,
-                                          const resource_entry_t *entry,
-                                          uint32_t offset,
-                                          uint8_t *dst,
-                                          size_t size)
-{
-    stream_test_context_t *const test_context = (stream_test_context_t *)context;
-    if ((test_context != NULL) && test_context->defer_next_read)
+    const uint8_t *bytes = (const uint8_t *)user;
+    if (g_defer_next_read)
     {
-        test_context->defer_next_read = false;
-        return UI_RESOURCE_STATUS_DEFERRED;
+        g_defer_next_read = false;
+        return BSP_STATUS_BUSY;
     }
-
-    if ((entry == NULL) || (dst == NULL) || ((offset + size) > entry->size))
+    if ((bytes == NULL) || (dst == NULL) || (size > PACK_BYTES) || (address > (PACK_BYTES - size)))
     {
-        return UI_RESOURCE_STATUS_ERROR;
+        return BSP_STATUS_INVALID_ARG;
     }
-
-    for (size_t i = 0u; i < size; i++)
-    {
-        dst[i] = g_data[offset + i];
-    }
-
-    return UI_RESOURCE_STATUS_OK;
+    (void)memcpy(dst, &bytes[address], size);
+    return BSP_STATUS_OK;
 }
 
-static ui_resource_status_t write_resource(void *context, const uint8_t *src, size_t size)
+static void write_entry(uint32_t offset, resource_entry_t entry)
 {
-    stream_test_context_t *const test_context = (stream_test_context_t *)context;
-    if ((test_context != NULL) && test_context->defer_next_write)
-    {
-        test_context->defer_next_write = false;
-        return UI_RESOURCE_STATUS_DEFERRED;
-    }
-
-    if (src == NULL)
-    {
-        return UI_RESOURCE_STATUS_ERROR;
-    }
-
-    g_written += (uint32_t)size;
-    return UI_RESOURCE_STATUS_OK;
+    resource_store_encode_entry(&g_pack[offset], &entry);
 }
 
-static void test_manifest_bounds(void)
+static uint32_t write_text_payload(uint32_t offset, uint8_t language, const char *a, const char *b)
 {
-    const resource_pack_header_t header = {
-        .magic = RESOURCE_STORE_MAGIC,
-        .schema_version = RESOURCE_STORE_SCHEMA_VERSION,
+    const uint32_t index_offset = RESOURCE_TEXT_TABLE_HEADER_SIZE;
+    const uint32_t blob_offset = index_offset + (2u * RESOURCE_TEXT_TABLE_RECORD_SIZE);
+    resource_text_record_t records[2] = {
+        {.text_id = UI_TEXT_ID_READY, .byte_length = (uint16_t)strlen(a), .byte_offset = 0u},
+        {.text_id = UI_TEXT_ID_BACK, .byte_length = (uint16_t)strlen(b), .byte_offset = (uint32_t)strlen(a)},
+    };
+    resource_text_table_header_t header = {
+        .magic = RESOURCE_TEXT_TABLE_MAGIC,
+        .version = RESOURCE_TEXT_TABLE_VERSION,
+        .header_size = RESOURCE_TEXT_TABLE_HEADER_SIZE,
+        .language_id = language,
+        .record_count = 2u,
+        .index_offset = index_offset,
+        .blob_offset = blob_offset,
+    };
+    uint8_t index[2u * RESOURCE_TEXT_TABLE_RECORD_SIZE];
+    resource_store_encode_text_record(&index[0], &records[0]);
+    resource_store_encode_text_record(&index[RESOURCE_TEXT_TABLE_RECORD_SIZE], &records[1]);
+    header.index_crc32 = storage_crc32(index, sizeof(index));
+    resource_store_encode_text_header(&g_pack[offset], &header);
+    (void)memcpy(&g_pack[offset + index_offset], index, sizeof(index));
+    (void)memcpy(&g_pack[offset + blob_offset], a, strlen(a));
+    (void)memcpy(&g_pack[offset + blob_offset + strlen(a)], b, strlen(b));
+    return blob_offset + (uint32_t)strlen(a) + (uint32_t)strlen(b);
+}
+
+static void build_pack(void)
+{
+    (void)memset(g_pack, 0xFF, sizeof(g_pack));
+    const uint32_t table_offset = RESOURCE_PACK_HEADER_SIZE;
+    const uint32_t data_offset = table_offset + (2u * RESOURCE_PACK_ENTRY_WIRE_SIZE);
+    const uint32_t en_offset = data_offset;
+    const uint32_t en_size = write_text_payload(en_offset, (uint8_t)UI_LANGUAGE_EN, "READY", "BACK");
+    const uint32_t pt_offset = en_offset + en_size;
+    const uint32_t pt_size = write_text_payload(pt_offset, (uint8_t)UI_LANGUAGE_PT_BR, "PRONTO", "VOLTAR");
+    resource_entry_t en = {
+        .resource_id = RESOURCE_ID_TEXT_EN,
+        .resource_type = RESOURCE_TYPE_TEXT_TABLE,
+        .format = RESOURCE_FORMAT_TEXT_TABLE_UTF8_V1,
+        .payload_offset = en_offset,
+        .payload_size = en_size,
+        .payload_crc32 = storage_crc32(&g_pack[en_offset], en_size),
+    };
+    resource_entry_t pt = {
+        .resource_id = RESOURCE_ID_TEXT_PT_BR,
+        .resource_type = RESOURCE_TYPE_TEXT_TABLE,
+        .format = RESOURCE_FORMAT_TEXT_TABLE_UTF8_V1,
+        .payload_offset = pt_offset,
+        .payload_size = pt_size,
+        .payload_crc32 = storage_crc32(&g_pack[pt_offset], pt_size),
+    };
+    write_entry(table_offset, en);
+    write_entry(table_offset + RESOURCE_PACK_ENTRY_WIRE_SIZE, pt);
+    resource_pack_header_t header = {
+        .magic = RESOURCE_PACK_MAGIC,
+        .schema_version = RESOURCE_PACK_SCHEMA_VERSION,
+        .header_size = RESOURCE_PACK_HEADER_SIZE,
+        .resource_api_version = RESOURCE_PACK_API_VERSION,
+        .total_pack_size = pt_offset + pt_size,
         .entry_count = 2u,
-        .table_offset = 64u,
-        .blob_offset = 256u,
+        .entry_wire_size = RESOURCE_PACK_ENTRY_WIRE_SIZE,
+        .entry_table_offset = table_offset,
+        .data_offset = data_offset,
+        .entry_table_crc32 = storage_crc32(&g_pack[table_offset], 2u * RESOURCE_PACK_ENTRY_WIRE_SIZE),
     };
-    const resource_entry_t entry = {
-        .id = 1u,
-        .offset = 300u,
-        .size = 100u,
-        .width = 10u,
-        .height = 10u,
-        .format = RESOURCE_FORMAT_RAW_RGB565,
-        .flags = 0u,
-        .metrics_offset = 0u,
-        .metrics_size = 0u,
-        .crc32 = 0u,
-    };
-
-    expect_true(resource_pack_header_valid(&header, 1024u), "valid header");
-    expect_true(resource_entry_valid(&header, &entry, 1024u), "valid entry");
-    expect_true(!resource_pack_header_valid(&header, 70u), "table overflow rejected");
-    expect_true(!resource_entry_valid(&header, &entry, 350u), "entry overflow rejected");
+    uint8_t header_bytes[RESOURCE_PACK_HEADER_SIZE];
+    resource_store_encode_header(header_bytes, &header, false);
+    header.header_crc32 = storage_crc32(header_bytes, sizeof(header_bytes));
+    resource_store_encode_header(g_pack, &header, true);
 }
 
-static void test_stream_chunks(void)
+static void test_catalog_mount_lookup_and_defer(void)
 {
-    for (size_t i = 0u; i < sizeof(g_data); i++)
-    {
-        g_data[i] = (uint8_t)i;
-    }
+    build_pack();
+    const resource_catalog_io_t io = {.read = mem_read, .user = g_pack};
+    resource_catalog_t catalog;
+    expect_true(resource_catalog_mount(&catalog, &io, 0u, PACK_BYTES) == RESOURCE_STATUS_OK,
+                "valid v2 catalog mounts");
+    resource_entry_t entry;
+    expect_true(resource_catalog_lookup(&catalog, RESOURCE_ID_TEXT_PT_BR, &entry) == RESOURCE_STATUS_OK,
+                "PT-BR table lookup");
+    expect_true(resource_catalog_verify_payload(&catalog, &entry) == RESOURCE_STATUS_OK,
+                "payload CRC verifies");
+    g_defer_next_read = true;
+    expect_true(resource_catalog_lookup(&catalog, RESOURCE_ID_TEXT_EN, &entry) == RESOURCE_STATUS_DEFERRED,
+                "busy read maps to deferred");
+}
 
-    const resource_entry_t entry = {
-        .id = 2u,
-        .offset = 256u,
-        .size = 513u,
-        .width = 0u,
-        .height = 0u,
-        .format = RESOURCE_FORMAT_GLYPH_A4,
-        .flags = 0u,
-        .metrics_offset = 0u,
-        .metrics_size = 0u,
-        .crc32 = 0u,
-    };
-    ui_resource_streamer_t streamer;
-    ui_resource_stream_t stream;
-    stream_test_context_t context = {
-        .defer_next_read = true,
-        .defer_next_write = false,
-    };
-    g_written = 0u;
-
-    ui_resource_streamer_init(&streamer, read_resource, &context, write_resource, &context);
-    ui_resource_stream_start(&stream, &entry);
-    expect_true(ui_resource_stream_step(&streamer, &stream) == UI_RESOURCE_STATUS_DEFERRED,
-                "deferred read keeps stream active");
-    expect_true(stream.active && (stream.offset == 0u) && (g_written == 0u), "deferred read preserves offset");
-    expect_true(ui_resource_stream_step(&streamer, &stream) == UI_RESOURCE_STATUS_OK, "first chunk");
-    context.defer_next_write = true;
-    expect_true(ui_resource_stream_step(&streamer, &stream) == UI_RESOURCE_STATUS_DEFERRED,
-                "deferred write keeps stream active");
-    expect_true(stream.active && (stream.offset == UI_RESOURCE_SCRATCH_BYTES), "deferred write preserves offset");
-    expect_true(ui_resource_stream_step(&streamer, &stream) == UI_RESOURCE_STATUS_OK, "second chunk");
-    expect_true(ui_resource_stream_step(&streamer, &stream) == UI_RESOURCE_STATUS_OK, "third chunk");
-    expect_true(!stream.active, "stream complete");
-    expect_true(g_written == entry.size, "all bytes streamed");
+static void test_header_and_entry_reject_bad_wire_values(void)
+{
+    build_pack();
+    resource_pack_header_t header;
+    expect_true(resource_store_decode_header(g_pack, PACK_BYTES, &header) == RESOURCE_STATUS_OK,
+                "header decodes");
+    uint8_t bad_header[RESOURCE_PACK_HEADER_SIZE];
+    (void)memcpy(bad_header, g_pack, sizeof(bad_header));
+    bad_header[6] = 0u;
+    expect_true(resource_store_decode_header(bad_header, PACK_BYTES, &header) == RESOURCE_STATUS_INCOMPATIBLE_SCHEMA,
+                "wrong header size rejected");
+    uint8_t entry_bytes[RESOURCE_PACK_ENTRY_WIRE_SIZE];
+    (void)memcpy(entry_bytes, &g_pack[RESOURCE_PACK_HEADER_SIZE], sizeof(entry_bytes));
+    entry_bytes[0] = 0u;
+    entry_bytes[1] = 0u;
+    entry_bytes[2] = 0u;
+    entry_bytes[3] = 0u;
+    resource_entry_t entry;
+    expect_true(resource_store_decode_entry(entry_bytes, &header, PACK_BYTES, &entry) == RESOURCE_STATUS_CORRUPT,
+                "zero resource id rejected");
 }
 
 int main(void)
 {
-    test_manifest_bounds();
-    test_stream_chunks();
+    test_catalog_mount_lookup_and_defer();
+    test_header_and_entry_reject_bad_wire_values();
     return (g_failures == 0) ? 0 : 1;
 }

@@ -19,6 +19,7 @@ enum
     APP_PRODUCT_MAIN_CALIBRATION = 0,
     APP_PRODUCT_MAIN_DISPLAY,
     APP_PRODUCT_MAIN_SOUND,
+    APP_PRODUCT_MAIN_LANGUAGE,
     APP_PRODUCT_MAIN_ABOUT,
     APP_PRODUCT_MAIN_BACK,
     APP_PRODUCT_MAIN_COUNT,
@@ -29,6 +30,10 @@ enum
     APP_PRODUCT_SOUND_TOGGLE = 0,
     APP_PRODUCT_SOUND_BACK,
     APP_PRODUCT_SOUND_COUNT,
+    APP_PRODUCT_LANGUAGE_EN = 0,
+    APP_PRODUCT_LANGUAGE_PT_BR,
+    APP_PRODUCT_LANGUAGE_BACK,
+    APP_PRODUCT_LANGUAGE_COUNT,
 };
 
 static void mark_dirty(app_product_t *product);
@@ -77,12 +82,14 @@ static void sync_settings_view(app_product_t *product)
     if ((product->view.menu.brightness_percent != settings.brightness_percent) ||
         (product->view.menu.timeout_seconds != timeout_seconds) ||
         (product->view.menu.sound_enabled != settings.sound_enabled) ||
+        (product->view.menu.language_id != settings.language_id) ||
         (product->view.menu.dirty != app_settings_service_dirty(product->settings_service)) ||
         (product->view.menu.save_failed != app_settings_service_save_failed(product->settings_service)))
     {
         product->view.menu.brightness_percent = settings.brightness_percent;
         product->view.menu.timeout_seconds = timeout_seconds;
         product->view.menu.sound_enabled = settings.sound_enabled;
+        product->view.menu.language_id = settings.language_id;
         product->view.menu.dirty = app_settings_service_dirty(product->settings_service);
         product->view.menu.save_failed = app_settings_service_save_failed(product->settings_service);
         mark_dirty(product);
@@ -116,6 +123,8 @@ static uint8_t state_menu_count(ui_product_state_t state)
         return APP_PRODUCT_DISPLAY_COUNT;
     case UI_PRODUCT_STATE_SOUND_MENU:
         return APP_PRODUCT_SOUND_COUNT;
+    case UI_PRODUCT_STATE_LANGUAGE_MENU:
+        return APP_PRODUCT_LANGUAGE_COUNT;
     case UI_PRODUCT_STATE_MENU:
     default:
         return APP_PRODUCT_MAIN_COUNT;
@@ -127,6 +136,7 @@ static bool state_is_menu_like(ui_product_state_t state)
     return (state == UI_PRODUCT_STATE_MENU) ||
            (state == UI_PRODUCT_STATE_DISPLAY_MENU) ||
            (state == UI_PRODUCT_STATE_SOUND_MENU) ||
+           (state == UI_PRODUCT_STATE_LANGUAGE_MENU) ||
            (state == UI_PRODUCT_STATE_BRIGHTNESS_EDIT) ||
            (state == UI_PRODUCT_STATE_TIMEOUT_EDIT);
 }
@@ -297,6 +307,8 @@ static void clear_requests(app_product_t *product)
         product->request_menu = false;
         product->request_page_next = false;
         product->request_page_prev = false;
+        product->measurement_deferred_for_settings = false;
+        product->calibration_deferred_for_settings = false;
     }
 }
 
@@ -607,6 +619,11 @@ static WTK_NOINLINE void service_pending_settings_save(app_product_t *product,
     }
     if (app_settings_service_busy(product->settings_service))
     {
+        if (inputs->settings_storage_busy)
+        {
+            sync_settings_view(product);
+            return;
+        }
         const bsp_status_t status = app_settings_service_step(product->settings_service, now_ms);
         if ((status != BSP_STATUS_OK) && (status != BSP_STATUS_BUSY))
         {
@@ -726,6 +743,7 @@ bsp_status_t app_product_init(app_product_t *product,
             .brightness_percent = current_settings(product).brightness_percent,
             .timeout_seconds = (uint16_t)current_settings(product).backlight_timeout,
             .sound_enabled = current_settings(product).sound_enabled,
+            .language_id = current_settings(product).language_id,
         },
         .generation = 1u,
     };
@@ -832,6 +850,7 @@ void app_product_step(app_product_t *product,
         (product->view.display_ready != inputs->display_ready) ||
         (product->view.display_fault != inputs->display_fault) ||
         (product->view.storage_unavailable != next_storage_unavailable) ||
+        (product->view.resource_status != inputs->resource_status) ||
         (product->view.measurement_state != next_measurement_state) ||
         (product->view.calibration_active_valid != inputs->calibration_active_valid) ||
         (product->view.calibration_sequence != inputs->calibration_active_sequence))
@@ -843,6 +862,7 @@ void app_product_step(app_product_t *product,
         product->view.display_ready = inputs->display_ready;
         product->view.display_fault = inputs->display_fault;
         product->view.storage_unavailable = next_storage_unavailable;
+        product->view.resource_status = inputs->resource_status;
         product->view.measurement_state = next_measurement_state;
         product->view.calibration_active_valid = inputs->calibration_active_valid;
         product->view.calibration_sequence = inputs->calibration_active_sequence;
@@ -855,6 +875,24 @@ void app_product_step(app_product_t *product,
         if (runtime_active(product))
         {
             begin_runtime_teardown(product, UI_PRODUCT_STATE_FAULT);
+            (void)drain_runtime_teardown(product,
+                                         &inputs->safety_result,
+                                         clock_summary,
+                                         clock_status,
+                                         inputs->temperature_mC,
+                                         inputs->temperature_valid,
+                                         now_ms);
+        }
+        clear_requests(product);
+        return;
+    }
+
+    if (inputs->resource_status != RESOURCE_STATUS_OK)
+    {
+        set_state(product, UI_PRODUCT_STATE_RESOURCE_ERROR);
+        if (runtime_active(product))
+        {
+            begin_runtime_teardown(product, UI_PRODUCT_STATE_RESOURCE_ERROR);
             (void)drain_runtime_teardown(product,
                                          &inputs->safety_result,
                                          clock_summary,
@@ -933,6 +971,13 @@ void app_product_step(app_product_t *product,
                 {
                     set_menu(product, UI_PRODUCT_STATE_SOUND_MENU, APP_PRODUCT_SOUND_TOGGLE, APP_PRODUCT_SOUND_COUNT);
                 }
+                else if (product->menu_index == APP_PRODUCT_MAIN_LANGUAGE)
+                {
+                    set_menu(product,
+                             UI_PRODUCT_STATE_LANGUAGE_MENU,
+                             APP_PRODUCT_LANGUAGE_EN,
+                             APP_PRODUCT_LANGUAGE_COUNT);
+                }
                 else if (product->menu_index == APP_PRODUCT_MAIN_ABOUT)
                 {
                     set_state(product, UI_PRODUCT_STATE_ABOUT);
@@ -980,6 +1025,24 @@ void app_product_step(app_product_t *product,
                     set_menu(product, UI_PRODUCT_STATE_MENU, APP_PRODUCT_MAIN_SOUND, APP_PRODUCT_MAIN_COUNT);
                 }
             }
+            else if (product->view.state == UI_PRODUCT_STATE_LANGUAGE_MENU)
+            {
+                if ((product->menu_index == APP_PRODUCT_LANGUAGE_EN) ||
+                    (product->menu_index == APP_PRODUCT_LANGUAGE_PT_BR))
+                {
+                    app_settings_t settings = current_settings(product);
+                    settings.language_id =
+                        (product->menu_index == APP_PRODUCT_LANGUAGE_EN) ?
+                            (uint8_t)UI_LANGUAGE_EN :
+                            (uint8_t)UI_LANGUAGE_PT_BR;
+                    apply_settings(product, &settings);
+                    request_settings_save(product);
+                }
+                else
+                {
+                    set_menu(product, UI_PRODUCT_STATE_MENU, APP_PRODUCT_MAIN_LANGUAGE, APP_PRODUCT_MAIN_COUNT);
+                }
+            }
         }
         product->request_click = false;
         product->request_menu = false;
@@ -1004,11 +1067,17 @@ void app_product_step(app_product_t *product,
         {
             set_state(product, UI_PRODUCT_STATE_MENU);
         }
-        else if (product->request_click && inputs->calibration_active_valid &&
+        else if ((product->request_click || product->calibration_deferred_for_settings) &&
+                 inputs->calibration_active_valid &&
                  (inputs->calibration_status != APP_CAL_SERVICE_STORAGE_UNAVAILABLE))
         {
-            if (activate_wizard_runtime(product) == BSP_STATUS_OK)
+            if (app_settings_service_busy(product->settings_service) || inputs->settings_storage_busy)
             {
+                product->calibration_deferred_for_settings = true;
+            }
+            else if (activate_wizard_runtime(product) == BSP_STATUS_OK)
+            {
+                product->calibration_deferred_for_settings = false;
                 product->calibration_sequence++;
                 if (app_calibration_wizard_start(wizard_runtime(product),
                                                  APP_CAL_WIZARD_MODE_MANUAL,
@@ -1091,10 +1160,15 @@ void app_product_step(app_product_t *product,
             return;
         }
         if ((inputs->calibration_status != APP_CAL_SERVICE_STORAGE_UNAVAILABLE) &&
-            product->request_click)
+            (product->request_click || product->calibration_deferred_for_settings))
         {
-            if (activate_wizard_runtime(product) == BSP_STATUS_OK)
+            if (app_settings_service_busy(product->settings_service) || inputs->settings_storage_busy)
             {
+                product->calibration_deferred_for_settings = true;
+            }
+            else if (activate_wizard_runtime(product) == BSP_STATUS_OK)
+            {
+                product->calibration_deferred_for_settings = false;
                 product->calibration_sequence++;
                 if (app_calibration_wizard_start(wizard_runtime(product),
                                                  APP_CAL_WIZARD_MODE_MANDATORY,
@@ -1172,7 +1246,16 @@ void app_product_step(app_product_t *product,
     product->request_page_prev = false;
 
     if (product->request_click && state_accepts_measurement_request(product->view.state) &&
-        !app_settings_service_busy(product->settings_service))
+        (app_settings_service_busy(product->settings_service) || inputs->settings_storage_busy))
+    {
+        product->measurement_deferred_for_settings = true;
+        product->request_click = false;
+    }
+
+    if ((product->request_click || product->measurement_deferred_for_settings) &&
+        state_accepts_measurement_request(product->view.state) &&
+        !app_settings_service_busy(product->settings_service) &&
+        !inputs->settings_storage_busy)
     {
         if (activate_measurement_runtime(product) != BSP_STATUS_OK)
         {
@@ -1196,6 +1279,7 @@ void app_product_step(app_product_t *product,
             set_state(product, UI_PRODUCT_STATE_MEASURING);
         }
         product->request_click = false;
+        product->measurement_deferred_for_settings = false;
     }
     else
     {

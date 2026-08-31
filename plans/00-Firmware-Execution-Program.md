@@ -32,9 +32,10 @@ Phase 07:
     REQUIRES_BENCH_VALIDATION
 
 Immediate next software phase after physical/software handoff:
-    Phase 08 continuation — Stage 2A.1 lifecycle/Flash hardening is implemented;
-    next software work is Stage 2B settings/menu/resource-ID expansion without
-    spending emergency internal-Flash headroom blindly.
+    Phase 08 continuation — Stage 3A external Resource Pack v2, W25Q text
+    catalogs, localization runtime, and Flash-access policy are implemented
+    pending bench/resource-pack programming validation. Next software work is
+    Stage 3B external fonts/icons/splash and richer product TFT surfaces.
 ```
 
 ## Program objectives

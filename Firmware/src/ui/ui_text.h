@@ -1,7 +1,11 @@
 #ifndef WTK_UI_TEXT_H
 #define WTK_UI_TEXT_H
 
+#include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
+
+#include "storage/resource_store.h"
 
 typedef enum
 {
@@ -27,8 +31,47 @@ typedef enum
     UI_TEXT_ID_SETTINGS_SAVE_FAILED = 0x0014u,
     UI_TEXT_ID_MEASURING = 0x0015u,
     UI_TEXT_ID_DETAILS = 0x0016u,
+    UI_TEXT_ID_LANGUAGE = 0x0017u,
+    UI_TEXT_ID_ENGLISH = 0x0018u,
+    UI_TEXT_ID_PORTUGUESE_BR = 0x0019u,
+    UI_TEXT_ID_RESOURCE_ERROR = 0x001Au,
+    UI_TEXT_ID_TIMEOUT = 0x001Bu,
+    UI_TEXT_ID_OPEN = 0x001Cu,
+    UI_TEXT_ID_SHORT = 0x001Du,
+    UI_TEXT_ID_LOAD = 0x001Eu,
+    UI_TEXT_ID_REFERENCE_KIT_REQUIRED = 0x001Fu,
+    UI_TEXT_ID_CONNECT_REF = 0x0020u,
+    UI_TEXT_ID_OPEN_TERMINALS = 0x0021u,
+    UI_TEXT_ID_SHORT_TERMINALS = 0x0022u,
+    UI_TEXT_ID_OK_TO_START = 0x0023u,
+    UI_TEXT_ID_CALIBRATING = 0x0024u,
+    UI_TEXT_ID_COMPLETE = 0x0025u,
+    UI_TEXT_ID_SAVE_CALIBRATION = 0x0026u,
+    UI_TEXT_ID_SAVING_CALIBRATION = 0x0027u,
+    UI_TEXT_ID_CALIBRATION_SAVED = 0x0028u,
+    UI_TEXT_ID_SAFETY_BLOCKED = 0x0029u,
+    UI_TEXT_ID_CANCELING = 0x002Au,
+    UI_TEXT_ID_CALIBRATION_FAILED = 0x002Bu,
+    UI_TEXT_ID_OK_RETRY_LONG_BACK = 0x002Cu,
+    UI_TEXT_ID_REMOVE_CHARGER = 0x002Du,
+    UI_TEXT_ID_VOLTAGE_DETECTED = 0x002Eu,
+    UI_TEXT_ID_SENSOR_ERROR = 0x002Fu,
+    UI_TEXT_ID_SUPPLY_ERROR = 0x0030u,
+    UI_TEXT_ID_RANGE_ERROR = 0x0031u,
+    UI_TEXT_ID_FAULT = 0x0032u,
+    UI_TEXT_ID_SAFETY = 0x0033u,
+    UI_TEXT_ID_PHASE = 0x0034u,
+    UI_TEXT_ID_GIT = 0x0035u,
+    UI_TEXT_ID_CAL_SCHEMA = 0x0036u,
+    UI_TEXT_ID_SEQUENCE = 0x0037u,
 } ui_text_id_t;
 
-const char *ui_text_fallback(ui_text_id_t id);
+extern const ui_text_id_t ui_text_required_ids[];
+extern const size_t ui_text_required_id_count;
+
+bool ui_language_valid(uint8_t language_id);
+uint32_t ui_language_text_resource_id(uint8_t language_id);
+const char *ui_text_emergency(ui_text_id_t id);
+bool ui_text_is_emergency(ui_text_id_t id);
 
 #endif

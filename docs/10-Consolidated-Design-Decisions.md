@@ -567,7 +567,9 @@ localization growth should move behind resource IDs and W25Q resources where pra
 
 Initial planned UI languages are Portuguese and English.
 
-UI logic uses stable resource/text IDs rather than scattering translated literals through screen code. Localization resources may reside in W25Q while fundamental fallback safety/error text remains internally available.
+UI logic uses stable resource/text IDs rather than scattering translated literals through screen code. Phase 08 Stage 3A stores normal product text in Resource Pack v2 UTF-8 catalogs in W25Q, one text-table resource per language. The selected language is a stable settings field, currently English or Portuguese (Brazil). Fundamental fallback safety/error text remains internally available so missing, corrupt, deferred, or incompatible resources cannot suppress fail-safe diagnostics.
+
+Resource Pack v2 is an explicit little-endian wire format with CRC-protected header, entry table, and payloads. Runtime code decodes fields by width and offset; persistent resources are not raw compiler-dependent C structs.
 
 ## Debug console
 

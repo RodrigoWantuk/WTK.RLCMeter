@@ -608,7 +608,7 @@ static int test_ok_gestures_and_measurement_flow(void)
     app_product_step(&product, &inputs, &clock, BSP_STATUS_OK, 25u);
     app_product_make_view(&product, &view);
     failures += expect_true(view.state == UI_PRODUCT_STATE_MENU, "long OK opens menu");
-    failures += expect_u32(view.menu.item_count, 5u, "menu has Stage 2B entries");
+    failures += expect_u32(view.menu.item_count, 6u, "menu has Stage 3A language entry");
     failures += expect_u32(fake.start_count, 2u, "long OK starts no extra measurement");
     return failures;
 }

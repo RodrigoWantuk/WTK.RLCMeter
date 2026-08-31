@@ -214,6 +214,24 @@ endif()
 
 add_test(NAME wtk_app_safety_fault_test COMMAND wtk_app_safety_fault_test)
 
+add_executable(wtk_app_flash_access_test
+    app/test_app_flash_access.c
+)
+target_link_libraries(wtk_app_flash_access_test PRIVATE wtk_firmware_common)
+target_include_directories(wtk_app_flash_access_test PRIVATE
+    "${PROJECT_SOURCE_DIR}/src"
+    "${PROJECT_BINARY_DIR}/generated"
+)
+wtk_configure_c_target(wtk_app_flash_access_test)
+wtk_apply_project_warnings(wtk_app_flash_access_test)
+wtk_apply_common_compile_options(wtk_app_flash_access_test)
+
+if(WTK_WARNINGS_AS_ERRORS_HOST)
+    wtk_treat_warnings_as_errors(wtk_app_flash_access_test)
+endif()
+
+add_test(NAME wtk_app_flash_access_test COMMAND wtk_app_flash_access_test)
+
 add_executable(wtk_app_io_workspace_test
     app/test_app_io_workspace.c
 )
@@ -499,6 +517,24 @@ if(WTK_WARNINGS_AS_ERRORS_HOST)
 endif()
 
 add_test(NAME wtk_ui_format_test COMMAND wtk_ui_format_test)
+
+add_executable(wtk_ui_utf8_test
+    ui/test_ui_utf8.c
+)
+target_link_libraries(wtk_ui_utf8_test PRIVATE wtk_firmware_common)
+target_include_directories(wtk_ui_utf8_test PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src
+    ${CMAKE_CURRENT_SOURCE_DIR}
+)
+wtk_configure_c_target(wtk_ui_utf8_test)
+wtk_apply_project_warnings(wtk_ui_utf8_test)
+wtk_apply_common_compile_options(wtk_ui_utf8_test)
+
+if(WTK_WARNINGS_AS_ERRORS_HOST)
+    wtk_treat_warnings_as_errors(wtk_ui_utf8_test)
+endif()
+
+add_test(NAME wtk_ui_utf8_test COMMAND wtk_ui_utf8_test)
 
 add_executable(wtk_ui_product_test
     ui/test_ui_product.c

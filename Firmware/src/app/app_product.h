@@ -27,6 +27,7 @@ typedef struct
     bool display_ready;
     bool display_fault;
     bool settings_storage_busy;
+    resource_status_t resource_status;
 } app_product_inputs_t;
 
 typedef struct
@@ -67,6 +68,8 @@ typedef struct
     bool request_page_next;
     bool request_page_prev;
     bool settings_save_requested;
+    bool measurement_deferred_for_settings;
+    bool calibration_deferred_for_settings;
     bool backlight_sleeping;
     bool wake_consume_active;
     button_id_t wake_consume_button;

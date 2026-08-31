@@ -89,6 +89,72 @@ Remaining Phase 08 work:
 - TFT debug console page;
 - physical UI timing and quiet-mode validation.
 
+## Stage 3A — external resource pack core, text catalogs, localization runtime, and flash-access policy
+
+STATUS: IMPLEMENTED_REQUIRES_BENCH_VALIDATION
+
+Implemented software boundary:
+
+- Resource Pack v2 is defined as an explicit little-endian wire format with header,
+  entry table, payload CRCs, entry-table CRC, and header CRC. Runtime code decodes
+  fields by width and offset rather than treating compiler-dependent C structs as
+  storage records.
+- Resource Pack v2 currently supports UTF-8 text-table resources. Each language is one
+  resource with stable resource IDs and a sorted stable text-ID index.
+- The deterministic host builder emits English and Portuguese (Brazil) text catalogs
+  from JSON sources and rejects incomplete required text catalogs.
+- PRODUCT settings schema is now version 2 and stores the selected language as a stable
+  language ID. Older settings records are intentionally treated as incompatible and
+  defaulted.
+- PRODUCT UI includes a Language menu with English, Portuguese (Brazil), and Back.
+  Normal product menu/status labels resolve through the external text provider. The
+  internal fallback retains only emergency/minimal diagnostic text.
+- UTF-8 decoding is bounded and host-tested. The fallback renderer advances by
+  codepoint and renders unsupported/invalid codepoints as `?`.
+- Resource access obeys the shared W25Q policy: reads are deferred during acquisition
+  quiet windows and while calibration/settings mutation owns the Flash device.
+- Missing, corrupt, or incompatible Resource Pack v2 data enters the emergency
+  `RESOURCE_ERROR` product screen. This blocks normal PRODUCT operation without
+  latching a safety fault or weakening K1/range safety behavior.
+- Product Release verbose boot/product diagnostics are compiled out at the default
+  diagnostic level to reclaim internal Flash for the Stage 3A resource-admission path.
+
+Host tooling:
+
+- `Firmware/tools/build_resource_pack.py` builds a deterministic binary pack from
+  `Firmware/assets/resource_manifest.json`.
+- `Firmware/tools/inspect_resource_pack.py` validates and prints the pack header and
+  entry table.
+- `Firmware/tools/resource_pack_format.py` holds the independent Python wire-format
+  encoder/decoder used by tooling tests.
+
+Measured software evidence:
+
+- Generated Resource Pack v2 size: 2212 B.
+- Host Debug CTest: 32/32 passed.
+- Host Release CTest: 32/32 passed.
+- Python tooling unittest: 42 passed.
+- Wokwi lint-only with CLI `0.26.1 (9d71b975b7eb)`: custom-chip compile passed and
+  `wokwi-cli lint` reported no issues.
+- PRODUCT Debug build: 64504 B Flash, 16884 B accounted RAM.
+- PRODUCT Release build: 57216 B Flash, 16872 B accounted RAM.
+- BRINGUP build: 54212 B Flash, 15116 B accounted RAM.
+
+Budget notes:
+
+- PRODUCT Release is below the hard 57344 B Stage 3A gate but above the preferred
+  56320 B target and the older 49152 B soft target.
+- PRODUCT accounted RAM remains below the hard 17408 B Stage 3A gate.
+
+Remaining Stage 3B/product work:
+
+- external font/glyph/icon/splash resources;
+- physical W25Q resource-pack programming and boot validation;
+- product graph/result pages and polished calibration UI;
+- TFT debug console page;
+- final installer/resource flashing flow;
+- physical SPI/resource-read timing and quiet-mode validation.
+
 ## Stage 2A — product calibration wizard and active-calibration gate
 
 STATUS: IMPLEMENTED_REQUIRES_BENCH_VALIDATION

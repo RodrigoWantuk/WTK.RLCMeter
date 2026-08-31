@@ -2,6 +2,7 @@
 
 #include "app/app_bringup_console.h"
 #include "app/app_calibration_service.h"
+#include "app/app_flash_access.h"
 #include "app/app_io_workspace.h"
 #include "app/app_product.h"
 #include "app/app_safety_fault.h"
@@ -40,6 +41,20 @@
 #include "storage/app_settings_w25q_adapter.h"
 #endif
 #include "storage/measurement_cal_w25q_adapter.h"
+#include "storage/resource_store.h"
+#include "storage/resource_w25q_adapter.h"
+#include "storage/storage_layout.h"
+#include "ui/ui_text_catalog.h"
+
+#if WTK_DIAGNOSTIC_LOG_LEVEL_DEFAULT >= 4u
+#define APP_VERBOSE_DIAG_TEXT(key, value) bsp_diagnostics_write_key_value_text((key), (value))
+#define APP_VERBOSE_DIAG_U32(key, value) bsp_diagnostics_write_key_value_u32((key), (value))
+#define APP_VERBOSE_DIAG_HEX8(key, value) bsp_diagnostics_write_key_value_hex8((key), (value))
+#else
+#define APP_VERBOSE_DIAG_TEXT(key, value) ((void)0)
+#define APP_VERBOSE_DIAG_U32(key, value) ((void)0)
+#define APP_VERBOSE_DIAG_HEX8(key, value) ((void)0)
+#endif
 
 typedef enum
 {
@@ -68,6 +83,10 @@ static app_settings_service_t g_settings_service;
 static app_product_t g_product;
 static ui_product_t g_product_ui;
 static hw_metrology_measure_t g_product_measure;
+static resource_catalog_t g_resource_catalog;
+static ui_text_catalog_t g_text_catalog;
+static resource_w25q_reader_t g_resource_reader;
+static resource_status_t g_resource_status = RESOURCE_STATUS_MISSING;
 static uint16_t g_product_ccr_table[HW_EXCITATION_LUT_POINTS];
 static uint32_t g_product_output_tone_sequence = 0u;
 static uint8_t g_product_output_backlight_percent = UINT8_MAX;
@@ -144,6 +163,40 @@ static void app_adc_cancel(void *user_data)
 }
 
 #if !WTK_ENABLE_BRINGUP_CONSOLE
+static app_flash_access_snapshot_t product_flash_access_snapshot(void *user)
+{
+    (void)user;
+    return (app_flash_access_snapshot_t){
+        .quiet = hw_peripherals_quiet_requested(),
+        .calibration_mutation = app_calibration_service_busy(&g_calibration_service),
+        .settings_mutation = app_settings_service_busy(&g_settings_service),
+    };
+}
+
+static resource_status_t product_text_resolve(void *context,
+                                              ui_language_id_t language,
+                                              ui_text_id_t id,
+                                              char *dst,
+                                              size_t capacity)
+{
+    (void)context;
+    if (g_resource_status != RESOURCE_STATUS_OK)
+    {
+        return g_resource_status;
+    }
+    if (!ui_text_catalog_ready(&g_text_catalog) ||
+        (ui_text_catalog_language(&g_text_catalog) != (uint8_t)language))
+    {
+        const resource_status_t select_status =
+            ui_text_catalog_select_language(&g_text_catalog, &g_resource_catalog, (uint8_t)language);
+        if (select_status != RESOURCE_STATUS_OK)
+        {
+            return select_status;
+        }
+    }
+    return ui_text_catalog_resolve(&g_text_catalog, id, dst, capacity);
+}
+
 static hw_excitation_mode_t app_bsp_excitation_mode(void)
 {
     switch (bsp_excitation_mode())
@@ -555,6 +608,7 @@ static bsp_status_t product_init_controller(void)
         .user = NULL,
     };
     ui_product_init(&g_product_ui);
+    ui_product_set_text_provider(&g_product_ui, product_text_resolve, NULL);
     return app_product_init(&g_product,
                             &g_calibration_service,
                             &g_settings_service,
@@ -626,6 +680,7 @@ static uint8_t app_read_button_mask(void)
     return mask;
 }
 
+#if WTK_DIAGNOSTIC_LOG_LEVEL_DEFAULT >= 4u
 static void app_log_button_event(const button_event_t *event)
 {
     if (event == NULL)
@@ -664,7 +719,14 @@ static void app_log_button_event(const button_event_t *event)
     bsp_diagnostics_write(BSP_LOG_LEVEL_DEBUG, button_event_type_string(event->type));
 #endif
 }
+#else
+static void app_log_button_event(const button_event_t *event)
+{
+    (void)event;
+}
+#endif
 
+#if WTK_DIAGNOSTIC_LOG_LEVEL_DEFAULT >= 4u
 static const char *app_safety_state_string(app_safety_state_t state)
 {
     switch (state)
@@ -678,6 +740,7 @@ static const char *app_safety_state_string(app_safety_state_t state)
         return "SAFE_CHECK";
     }
 }
+#endif
 
 static void app_update_safety_state(void)
 {
@@ -718,9 +781,8 @@ static void app_update_safety_state(void)
         (g_safety_state != g_reported_safety_state) ||
         (g_safety_result.primary_blocker != g_reported_primary_blocker))
     {
-        bsp_diagnostics_write_key_value_text("safety_state", app_safety_state_string(g_safety_state));
-        bsp_diagnostics_write_key_value_text("safety_block",
-                                             hw_safety_primary_blocker_string(g_safety_result.primary_blocker));
+        APP_VERBOSE_DIAG_TEXT("safety_state", app_safety_state_string(g_safety_state));
+        APP_VERBOSE_DIAG_TEXT("safety_block", hw_safety_primary_blocker_string(g_safety_result.primary_blocker));
         g_reported_safety_state = g_safety_state;
         g_reported_primary_blocker = g_safety_result.primary_blocker;
         g_safety_transition_reported = true;
@@ -745,10 +807,14 @@ static void app_step(void)
         app_latch_fault(APP_SAFETY_FAULT_ADC_RUNTIME);
     }
 #if !WTK_ENABLE_BRINGUP_CONSOLE
-    const bsp_status_t cal_step_status = app_calibration_service_step(&g_calibration_service, now_ms);
-    if ((cal_step_status != BSP_STATUS_OK) && (cal_step_status != BSP_STATUS_BUSY))
+    app_flash_access_snapshot_t flash_access = product_flash_access_snapshot(NULL);
+    if (app_flash_access_allowed(&flash_access, APP_FLASH_ACCESS_CALIBRATION_MUTATION))
     {
-        bsp_diagnostics_write_key_value_text("calibration_step", bsp_status_string(cal_step_status));
+        const bsp_status_t cal_step_status = app_calibration_service_step(&g_calibration_service, now_ms);
+        if ((cal_step_status != BSP_STATUS_OK) && (cal_step_status != BSP_STATUS_BUSY))
+        {
+            APP_VERBOSE_DIAG_TEXT("calibration_step", bsp_status_string(cal_step_status));
+        }
     }
 #endif
     app_update_safety_state();
@@ -816,7 +882,9 @@ static void app_step(void)
         .safety_fault_mask = app_safety_fault_mask(&g_safety_faults),
         .display_ready = g_display.ready,
         .display_fault = g_product_display_fault || (g_display.init_state == ILI9341_INIT_ERROR),
-        .settings_storage_busy = app_calibration_service_busy(&g_calibration_service),
+        .settings_storage_busy =
+            !app_flash_access_allowed(&flash_access, APP_FLASH_ACCESS_SETTINGS_MUTATION),
+        .resource_status = g_resource_status,
     };
     app_product_step(&g_product,
                      &product_inputs,
@@ -833,8 +901,8 @@ static void app_step(void)
     {
         g_product_display_fault = true;
     }
-    if (!app_calibration_service_busy(&g_calibration_service) &&
-        !app_settings_service_busy(&g_settings_service))
+    flash_access = product_flash_access_snapshot(NULL);
+    if (app_flash_access_allowed(&flash_access, APP_FLASH_ACCESS_GENERIC_POLL))
     {
         (void)w25q_device_poll(&g_flash, now_ms);
     }
@@ -884,19 +952,20 @@ void app_shell_run(void)
     };
     const bsp_status_t k1_status = hw_k1_init(&g_k1, &k1_io);
     app_record_status_fault(k1_status, APP_SAFETY_FAULT_K1_IO);
-    bsp_diagnostics_write_key_value_text("k1", bsp_status_string(k1_status));
+    APP_VERBOSE_DIAG_TEXT("k1", bsp_status_string(k1_status));
     (void)bsp_excitation_init();
     const bsp_status_t k2_status = hw_k2_init(&g_k2, &k2_io);
     app_record_status_fault(k2_status, APP_SAFETY_FAULT_K2_IO);
-    bsp_diagnostics_write_key_value_text("k2", bsp_status_string(k2_status));
+    APP_VERBOSE_DIAG_TEXT("k2", bsp_status_string(k2_status));
     const bsp_status_t range_status = hw_range_init(&g_range, &range_io);
     app_record_status_fault(range_status, APP_SAFETY_FAULT_RANGE_IO);
-    bsp_diagnostics_write_key_value_text("range", bsp_status_string(range_status));
+    APP_VERBOSE_DIAG_TEXT("range", bsp_status_string(range_status));
     const bsp_status_t charger_init_status = hw_charger_init(&g_charger, &charger_io);
-    bsp_diagnostics_write_key_value_text("charger_init", bsp_status_string(charger_init_status));
+    (void)charger_init_status;
+    APP_VERBOSE_DIAG_TEXT("charger_init", bsp_status_string(charger_init_status));
     const bsp_status_t adc_status = bsp_adc_init(bsp_time_now_ms());
     app_record_status_fault(adc_status, APP_SAFETY_FAULT_ADC_INIT);
-    bsp_diagnostics_write_key_value_text("adc", bsp_status_string(adc_status));
+    APP_VERBOSE_DIAG_TEXT("adc", bsp_status_string(adc_status));
     const hw_aux_adc_io_t aux_adc_io = {
         .start = app_adc_start,
         .poll = app_adc_poll,
@@ -905,10 +974,10 @@ void app_shell_run(void)
     };
     const bsp_status_t aux_status = hw_aux_sensors_init(&g_aux_sensors, &aux_adc_io, bsp_time_now_ms());
     app_record_status_fault(aux_status, APP_SAFETY_FAULT_ADC_INIT);
-    bsp_diagnostics_write_key_value_text("aux_sensors", bsp_status_string(aux_status));
-    bsp_diagnostics_write_key_value_text("charger", hw_charger_state_string(hw_charger_get_state(&g_charger)));
-    bsp_diagnostics_write_key_value_text("k2_topology", hw_lowz_bank_mode_string(hw_k2_topology(&g_k2).lowz_bank_mode));
-    bsp_diagnostics_write_key_value_hex8("safety_faults", app_safety_fault_mask(&g_safety_faults));
+    APP_VERBOSE_DIAG_TEXT("aux_sensors", bsp_status_string(aux_status));
+    APP_VERBOSE_DIAG_TEXT("charger", hw_charger_state_string(hw_charger_get_state(&g_charger)));
+    APP_VERBOSE_DIAG_TEXT("k2_topology", hw_lowz_bank_mode_string(hw_k2_topology(&g_k2).lowz_bank_mode));
+    APP_VERBOSE_DIAG_HEX8("safety_faults", app_safety_fault_mask(&g_safety_faults));
     g_safety_result = hw_safety_evaluate(NULL);
     g_safety_state = APP_SAFETY_SAFE_CHECK;
     g_safety_transition_reported = false;
@@ -921,13 +990,15 @@ void app_shell_run(void)
     g_display_ready_reported = false;
 #else
     app_settings_service_use_defaults(&g_settings_service);
+    ui_text_catalog_init(&g_text_catalog);
+    g_resource_status = RESOURCE_STATUS_MISSING;
     g_product_output_tone_sequence = 0u;
     g_product_output_backlight_percent = UINT8_MAX;
     g_product_output_sound_valid = false;
     g_product_output_sound_enabled = true;
     const bsp_status_t product_status = product_init_controller();
     app_record_status_fault(product_status, APP_SAFETY_FAULT_METROLOGY_RUNTIME);
-    bsp_diagnostics_write_key_value_text("product", bsp_status_string(product_status));
+    APP_VERBOSE_DIAG_TEXT("product", bsp_status_string(product_status));
     g_product_display_fault = false;
 #endif
     w25q_device_init(&g_flash);
@@ -935,38 +1006,42 @@ void app_shell_run(void)
     g_flash_fallback_drawn = false;
 
     const bsp_status_t spi_status = spi_bus_init();
-    bsp_diagnostics_write_key_value_text("spi2", bsp_status_string(spi_status));
+    (void)spi_status;
+    APP_VERBOSE_DIAG_TEXT("spi2", bsp_status_string(spi_status));
 
     const bsp_status_t backlight_status = hw_backlight_init();
-    bsp_diagnostics_write_key_value_text("backlight", bsp_status_string(backlight_status));
+    APP_VERBOSE_DIAG_TEXT("backlight", bsp_status_string(backlight_status));
     if (backlight_status == BSP_STATUS_OK)
     {
         (void)hw_backlight_set_percent(25u);
-        bsp_diagnostics_write_key_value_u32("backlight_pwm_hz", hw_backlight_pwm_hz());
+        APP_VERBOSE_DIAG_U32("backlight_pwm_hz", hw_backlight_pwm_hz());
     }
 
     const bsp_status_t buzzer_status = hw_buzzer_init();
-    bsp_diagnostics_write_key_value_text("buzzer", bsp_status_string(buzzer_status));
+    (void)buzzer_status;
+    APP_VERBOSE_DIAG_TEXT("buzzer", bsp_status_string(buzzer_status));
 
     const w25q_status_t flash_status = w25q_device_probe(&g_flash);
-    bsp_diagnostics_write_key_value_text("w25q", w25q_status_string(flash_status));
+    APP_VERBOSE_DIAG_TEXT("w25q", w25q_status_string(flash_status));
     if (flash_status == W25Q_STATUS_OK)
     {
         const measurement_cal_store_io_t cal_io = measurement_cal_w25q_store_io(&g_flash);
         const bsp_status_t cal_status =
             app_calibration_service_load(&g_calibration_service, &cal_io, g_flash.part.capacity_bytes);
-        bsp_diagnostics_write_key_value_text("calibration", bsp_status_string(cal_status));
-        bsp_diagnostics_write_key_value_text("calibration_state",
-                                             app_calibration_service_status_string(
-                                                 app_calibration_service_status(&g_calibration_service)));
+        (void)cal_status;
+        APP_VERBOSE_DIAG_TEXT("calibration", bsp_status_string(cal_status));
+        APP_VERBOSE_DIAG_TEXT("calibration_state",
+                              app_calibration_service_status_string(
+                                  app_calibration_service_status(&g_calibration_service)));
         const unsigned int jedec = ((unsigned int)g_flash.part.jedec.manufacturer_id << 16u) |
                                    ((unsigned int)g_flash.part.jedec.memory_type << 8u) |
                                    (unsigned int)g_flash.part.jedec.capacity_code;
-        bsp_diagnostics_write_key_value_text("w25q_part", g_flash.part.name);
-        bsp_diagnostics_write_key_value_hex8("w25q_jedec", jedec);
-        bsp_diagnostics_write_key_value_u32("w25q_capacity", g_flash.part.capacity_bytes);
-        bsp_diagnostics_write_key_value_u32("w25q_test_sector",
-                                            w25q_reserved_test_sector_address(g_flash.part.capacity_bytes));
+        (void)jedec;
+        APP_VERBOSE_DIAG_TEXT("w25q_part", g_flash.part.name);
+        APP_VERBOSE_DIAG_HEX8("w25q_jedec", jedec);
+        APP_VERBOSE_DIAG_U32("w25q_capacity", g_flash.part.capacity_bytes);
+        APP_VERBOSE_DIAG_U32("w25q_test_sector",
+                             w25q_reserved_test_sector_address(g_flash.part.capacity_bytes));
 #if !WTK_ENABLE_BRINGUP_CONSOLE
         const app_settings_store_io_t settings_io = app_settings_w25q_store_io(&g_flash);
         const bsp_status_t settings_init_status =
@@ -979,7 +1054,35 @@ void app_shell_run(void)
         {
             app_settings_service_use_defaults(&g_settings_service);
         }
-        bsp_diagnostics_write_key_value_text("settings", bsp_status_string(settings_load_status));
+        APP_VERBOSE_DIAG_TEXT("settings", bsp_status_string(settings_load_status));
+        storage_partition_t resource_partition;
+        if (storage_layout_partition(g_flash.part.capacity_bytes,
+                                     STORAGE_PARTITION_RESOURCE_PACK,
+                                     &resource_partition))
+        {
+            g_resource_reader = (resource_w25q_reader_t){
+                .flash = &g_flash,
+                .policy_snapshot = product_flash_access_snapshot,
+                .policy_user = NULL,
+            };
+            const resource_catalog_io_t resource_io = resource_w25q_catalog_io(&g_resource_reader);
+            g_resource_status = resource_catalog_mount(&g_resource_catalog,
+                                                       &resource_io,
+                                                       resource_partition.start,
+                                                       resource_partition.size);
+            if (g_resource_status == RESOURCE_STATUS_OK)
+            {
+                g_resource_status =
+                    ui_text_catalog_select_language(&g_text_catalog,
+                                                    &g_resource_catalog,
+                                                    app_settings_service_current(&g_settings_service)->language_id);
+            }
+        }
+        else
+        {
+            g_resource_status = RESOURCE_STATUS_CORRUPT;
+        }
+        APP_VERBOSE_DIAG_TEXT("resources", resource_status_string(g_resource_status));
 #endif
     }
     else
@@ -988,9 +1091,9 @@ void app_shell_run(void)
 #if !WTK_ENABLE_BRINGUP_CONSOLE
         app_settings_service_use_defaults(&g_settings_service);
 #endif
-        bsp_diagnostics_write_key_value_text("calibration_state",
-                                             app_calibration_service_status_string(
-                                                 app_calibration_service_status(&g_calibration_service)));
+        APP_VERBOSE_DIAG_TEXT("calibration_state",
+                              app_calibration_service_status_string(
+                                  app_calibration_service_status(&g_calibration_service)));
     }
 
     ili9341_init_start(&g_display, bsp_time_now_ms());

@@ -9,7 +9,7 @@
 
 enum
 {
-    SETTINGS_SCHEMA_VERSION = 1u,
+    SETTINGS_SCHEMA_VERSION = 2u,
     SETTINGS_HEADER_SIZE = 24u,
     SETTINGS_PAYLOAD_OFFSET = 24u,
     SETTINGS_PAYLOAD_SIZE = 8u,
@@ -68,6 +68,7 @@ static bool settings_equal(const app_settings_t *a, const app_settings_t *b)
     return (a != NULL) && (b != NULL) &&
            (a->brightness_percent == b->brightness_percent) &&
            (a->backlight_timeout == b->backlight_timeout) &&
+           (a->language_id == b->language_id) &&
            (a->sound_enabled == b->sound_enabled);
 }
 
@@ -76,6 +77,7 @@ app_settings_t app_settings_defaults(void)
     return (app_settings_t){
         .brightness_percent = 25u,
         .backlight_timeout = APP_BACKLIGHT_TIMEOUT_60S,
+        .language_id = (uint8_t)UI_LANGUAGE_EN,
         .sound_enabled = true,
     };
 }
@@ -141,14 +143,15 @@ bool app_settings_validate(const app_settings_t *settings)
     return (settings != NULL) &&
            (settings->brightness_percent >= 5u) &&
            (settings->brightness_percent <= 100u) &&
-           app_backlight_timeout_valid(settings->backlight_timeout);
+           app_backlight_timeout_valid(settings->backlight_timeout) &&
+           ui_language_valid(settings->language_id);
 }
 
 static void serialize_payload(uint8_t *payload, const app_settings_t *settings)
 {
     payload[0] = settings->brightness_percent;
     payload[1] = settings->sound_enabled ? 1u : 0u;
-    payload[2] = 0u;
+    payload[2] = settings->language_id;
     payload[3] = 0u;
     put_u32(&payload[4], (uint32_t)settings->backlight_timeout);
 }
@@ -156,13 +159,14 @@ static void serialize_payload(uint8_t *payload, const app_settings_t *settings)
 static bool decode_payload(const uint8_t *payload, app_settings_t *settings)
 {
     if ((payload == NULL) || (settings == NULL) || (payload[1] > 1u) ||
-        (payload[2] != 0u) || (payload[3] != 0u))
+        (payload[3] != 0u))
     {
         return false;
     }
     *settings = (app_settings_t){
         .brightness_percent = payload[0],
         .sound_enabled = payload[1] != 0u,
+        .language_id = payload[2],
         .backlight_timeout = (app_backlight_timeout_t)get_u32(&payload[4]),
     };
     return app_settings_validate(settings);

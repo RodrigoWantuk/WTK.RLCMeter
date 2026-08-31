@@ -7,6 +7,7 @@
 #include "drivers/ili9341.h"
 #include "measurement/measurement_engine.h"
 #include "ui/ui_fallback_renderer.h"
+#include "ui/ui_text.h"
 
 typedef enum
 {
@@ -20,7 +21,9 @@ typedef enum
     UI_PRODUCT_STATE_BRIGHTNESS_EDIT,
     UI_PRODUCT_STATE_TIMEOUT_EDIT,
     UI_PRODUCT_STATE_SOUND_MENU,
+    UI_PRODUCT_STATE_LANGUAGE_MENU,
     UI_PRODUCT_STATE_ABOUT,
+    UI_PRODUCT_STATE_RESOURCE_ERROR,
     UI_PRODUCT_STATE_CALIBRATION_STATUS,
     UI_PRODUCT_STATE_CALIBRATION_WIZARD,
     UI_PRODUCT_STATE_MEASURING,
@@ -126,6 +129,7 @@ typedef struct
     uint8_t brightness_percent;
     uint16_t timeout_seconds;
     bool sound_enabled;
+    uint8_t language_id;
     bool dirty;
     bool save_failed;
 } ui_product_menu_t;
@@ -166,6 +170,7 @@ typedef struct
     bool has_measurement_result;
     bool measurement_result_partial;
     bool storage_unavailable;
+    resource_status_t resource_status;
     bool display_ready;
     bool display_fault;
     bool calibration_active_valid;
@@ -174,6 +179,12 @@ typedef struct
     uint32_t session_sequence;
     uint32_t generation;
 } ui_product_view_t;
+
+typedef resource_status_t (*ui_product_text_resolve_fn)(void *context,
+                                                        ui_language_id_t language,
+                                                        ui_text_id_t id,
+                                                        char *dst,
+                                                        size_t capacity);
 
 typedef struct
 {
@@ -185,12 +196,17 @@ typedef struct
     uint32_t rendered_generation;
     uint8_t line_index;
     ui_product_render_state_t render_state;
+    ui_product_text_resolve_fn resolve_text;
+    void *resolve_text_context;
     bool active;
     bool have_rendered;
     bool clear_started;
 } ui_product_t;
 
 void ui_product_init(ui_product_t *ui);
+void ui_product_set_text_provider(ui_product_t *ui,
+                                  ui_product_text_resolve_fn resolve,
+                                  void *context);
 void ui_product_request(ui_product_t *ui, const ui_product_view_t *view);
 bsp_status_t ui_product_step(ui_product_t *ui, const ili9341_t *display, bool quiet);
 uint32_t ui_product_context_size_bytes(void);

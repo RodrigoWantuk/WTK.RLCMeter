@@ -157,25 +157,25 @@ static const char *range_prompt_text(hw_range_id_t range_id)
     }
 }
 
-static const char *blocker_text(ui_product_blocker_t blocker)
+static ui_text_id_t blocker_text_id(ui_product_blocker_t blocker)
 {
     switch (blocker)
     {
     case UI_PRODUCT_BLOCK_CHARGER:
-        return "REMOVE CHARGER";
+        return UI_TEXT_ID_REMOVE_CHARGER;
     case UI_PRODUCT_BLOCK_RESIDUAL:
-        return "VOLTAGE DETECTED";
+        return UI_TEXT_ID_VOLTAGE_DETECTED;
     case UI_PRODUCT_BLOCK_SENSOR:
-        return "SENSOR ERROR";
+        return UI_TEXT_ID_SENSOR_ERROR;
     case UI_PRODUCT_BLOCK_SUPPLY:
-        return "SUPPLY ERROR";
+        return UI_TEXT_ID_SUPPLY_ERROR;
     case UI_PRODUCT_BLOCK_RANGE:
-        return "RANGE ERROR";
+        return UI_TEXT_ID_RANGE_ERROR;
     case UI_PRODUCT_BLOCK_FAULT:
-        return "FAULT";
+        return UI_TEXT_ID_FAULT;
     case UI_PRODUCT_BLOCK_NONE:
     default:
-        return "SAFETY";
+        return UI_TEXT_ID_SAFETY;
     }
 }
 
@@ -222,7 +222,37 @@ typedef struct
     uint16_t color;
     uint8_t scale;
     char text[UI_FALLBACK_TEXT_MAX_CHARS];
+    bool deferred;
 } ui_product_line_t;
+
+static resource_status_t resolve_text(const ui_product_t *ui,
+                                      ui_language_id_t language,
+                                      ui_text_id_t id,
+                                      char *dst,
+                                      size_t capacity)
+{
+    if ((dst == NULL) || (capacity == 0u))
+    {
+        return RESOURCE_STATUS_INVALID_ARG;
+    }
+    dst[0] = '\0';
+    if ((ui != NULL) && (ui->resolve_text != NULL))
+    {
+        const resource_status_t status = ui->resolve_text(ui->resolve_text_context,
+                                                          language,
+                                                          id,
+                                                          dst,
+                                                          capacity);
+        if ((status == RESOURCE_STATUS_OK) || (status == RESOURCE_STATUS_DEFERRED))
+        {
+            return status;
+        }
+    }
+    const char *fallback = ui_text_is_emergency(id) ? ui_text_emergency(id) : "?";
+    return (write_literal(fallback, dst, capacity) == UI_FORMAT_STATUS_OK) ?
+               RESOURCE_STATUS_OK :
+               RESOURCE_STATUS_OUT_OF_RANGE;
+}
 
 static void line_set(ui_product_line_t *line,
                      uint16_t x,
@@ -245,6 +275,33 @@ static void line_set(ui_product_line_t *line,
         size_t used = 0u;
         (void)append_text(line->text, sizeof(line->text), &used, text);
     }
+}
+
+static void line_set_id(const ui_product_t *ui,
+                        const ui_product_view_t *view,
+                        ui_product_line_t *line,
+                        uint16_t x,
+                        uint16_t y,
+                        uint8_t scale,
+                        uint16_t color,
+                        ui_text_id_t id)
+{
+    if (line == NULL)
+    {
+        return;
+    }
+    *line = (ui_product_line_t){0};
+    line->x = x;
+    line->y = y;
+    line->scale = scale;
+    line->color = color;
+    const uint8_t language =
+        ((view == NULL) || !ui_language_valid(view->menu.language_id)) ?
+            (uint8_t)UI_LANGUAGE_EN :
+            view->menu.language_id;
+    const resource_status_t status =
+        resolve_text(ui, (ui_language_id_t)language, id, line->text, sizeof(line->text));
+    line->deferred = (status == RESOURCE_STATUS_DEFERRED);
 }
 
 static bool prepare_result_primary_line(const ui_product_measurement_t *result,
@@ -283,7 +340,9 @@ static bool prepare_result_primary_line(const ui_product_measurement_t *result,
     return true;
 }
 
-static bool prepare_result_details_line(const ui_product_measurement_t *result,
+static bool prepare_result_details_line(const ui_product_t *ui,
+                                        const ui_product_view_t *view,
+                                        const ui_product_measurement_t *result,
                                         uint8_t index,
                                         ui_product_line_t *line)
 {
@@ -293,7 +352,7 @@ static bool prepare_result_details_line(const ui_product_measurement_t *result,
     }
     if (index == 0u)
     {
-        line_set(line, 8u, 12u, 2u, UI_COLOR_CYAN, "DETAILS");
+        line_set_id(ui, view, line, 8u, 12u, 2u, UI_COLOR_CYAN, UI_TEXT_ID_DETAILS);
         return true;
     }
     char text[32] = {0};
@@ -328,7 +387,10 @@ static bool prepare_result_details_line(const ui_product_measurement_t *result,
     return false;
 }
 
-static bool prepare_menu_line(const ui_product_view_t *view, uint8_t index, ui_product_line_t *line)
+static bool prepare_menu_line(const ui_product_t *ui,
+                              const ui_product_view_t *view,
+                              uint8_t index,
+                              ui_product_line_t *line)
 {
     if ((view == NULL) || (line == NULL))
     {
@@ -336,34 +398,51 @@ static bool prepare_menu_line(const ui_product_view_t *view, uint8_t index, ui_p
     }
     if (index == 0u)
     {
-        line_set(line, 8u, 16u, 2u, UI_COLOR_CYAN, ui_text_fallback(UI_TEXT_ID_MENU));
+        line_set_id(ui, view, line, 8u, 16u, 2u, UI_COLOR_CYAN, UI_TEXT_ID_MENU);
         return true;
     }
     static const ui_text_id_t ids[] = {
         UI_TEXT_ID_CALIBRATION,
         UI_TEXT_ID_DISPLAY,
         UI_TEXT_ID_SOUND,
+        UI_TEXT_ID_LANGUAGE,
         UI_TEXT_ID_ABOUT,
         UI_TEXT_ID_BACK,
     };
     if ((index >= 1u) && (index <= (uint8_t)(sizeof(ids) / sizeof(ids[0]))))
     {
-        line_set(line,
-                 8u,
-                 (uint16_t)(54u + ((uint16_t)(index - 1u) * 18u)),
-                 1u,
-                 (view->menu.selected_index == (uint8_t)(index - 1u)) ? UI_COLOR_GREEN : UI_COLOR_WHITE,
-                 ui_text_fallback(ids[index - 1u]));
+        line_set_id(ui,
+                    view,
+                    line,
+                    8u,
+                    (uint16_t)(54u + ((uint16_t)(index - 1u) * 16u)),
+                    1u,
+                    (view->menu.selected_index == (uint8_t)(index - 1u)) ? UI_COLOR_GREEN : UI_COLOR_WHITE,
+                    ids[index - 1u]);
         return true;
     }
     return false;
 }
 
-static const char *timeout_token(uint16_t seconds, char *scratch, size_t capacity)
+static const char *timeout_token(const ui_product_t *ui,
+                                 const ui_product_view_t *view,
+                                 uint16_t seconds,
+                                 char *scratch,
+                                 size_t capacity,
+                                 bool *deferred)
 {
     if (seconds == 0u)
     {
-        return ui_text_fallback(UI_TEXT_ID_OFF);
+        const resource_status_t status = resolve_text(ui,
+                                                      (ui_language_id_t)view->menu.language_id,
+                                                      UI_TEXT_ID_OFF,
+                                                      scratch,
+                                                      capacity);
+        if (deferred != NULL)
+        {
+            *deferred = (status == RESOURCE_STATUS_DEFERRED);
+        }
+        return scratch;
     }
     size_t used = 0u;
     (void)append_u32(scratch, capacity, &used, seconds);
@@ -371,7 +450,10 @@ static const char *timeout_token(uint16_t seconds, char *scratch, size_t capacit
     return scratch;
 }
 
-static bool prepare_display_menu_line(const ui_product_view_t *view, uint8_t index, ui_product_line_t *line)
+static bool prepare_display_menu_line(const ui_product_t *ui,
+                                      const ui_product_view_t *view,
+                                      uint8_t index,
+                                      ui_product_line_t *line)
 {
     if ((view == NULL) || (line == NULL))
     {
@@ -379,14 +461,23 @@ static bool prepare_display_menu_line(const ui_product_view_t *view, uint8_t ind
     }
     if (index == 0u)
     {
-        line_set(line, 8u, 16u, 2u, UI_COLOR_CYAN, ui_text_fallback(UI_TEXT_ID_DISPLAY));
+        line_set_id(ui, view, line, 8u, 16u, 2u, UI_COLOR_CYAN, UI_TEXT_ID_DISPLAY);
         return true;
     }
     char row[32] = {0};
     size_t used = 0u;
     if (index == 1u)
     {
-        (void)append_text(row, sizeof(row), &used, ui_text_fallback(UI_TEXT_ID_BRIGHTNESS));
+        char label[20] = {0};
+        const resource_status_t status =
+            resolve_text(ui, (ui_language_id_t)view->menu.language_id, UI_TEXT_ID_BRIGHTNESS, label, sizeof(label));
+        if (status == RESOURCE_STATUS_DEFERRED)
+        {
+            line_set(line, 8u, 54u, 1u, UI_COLOR_WHITE, "");
+            line->deferred = true;
+            return true;
+        }
+        (void)append_text(row, sizeof(row), &used, label);
         (void)append_char(row, sizeof(row), &used, ' ');
         (void)append_u32(row, sizeof(row), &used, view->menu.brightness_percent);
         (void)append_char(row, sizeof(row), &used, '%');
@@ -397,9 +488,26 @@ static bool prepare_display_menu_line(const ui_product_view_t *view, uint8_t ind
     if (index == 2u)
     {
         char timeout[8] = {0};
-        (void)append_text(row, sizeof(row), &used, "TIMEOUT ");
+        char label[18] = {0};
+        bool deferred = false;
+        const resource_status_t status =
+            resolve_text(ui, (ui_language_id_t)view->menu.language_id, UI_TEXT_ID_TIMEOUT, label, sizeof(label));
+        if (status == RESOURCE_STATUS_DEFERRED)
+        {
+            line_set(line, 8u, 74u, 1u, UI_COLOR_WHITE, "");
+            line->deferred = true;
+            return true;
+        }
+        (void)append_text(row, sizeof(row), &used, label);
+        (void)append_char(row, sizeof(row), &used, ' ');
         (void)append_text(row, sizeof(row), &used,
-                          timeout_token(view->menu.timeout_seconds, timeout, sizeof(timeout)));
+                          timeout_token(ui, view, view->menu.timeout_seconds, timeout, sizeof(timeout), &deferred));
+        if (deferred)
+        {
+            line_set(line, 8u, 74u, 1u, UI_COLOR_WHITE, "");
+            line->deferred = true;
+            return true;
+        }
         line_set(line, 8u, 74u, 1u,
                  (view->menu.selected_index == 1u) ? UI_COLOR_GREEN : UI_COLOR_WHITE, row);
         return true;
@@ -411,18 +519,29 @@ static bool prepare_display_menu_line(const ui_product_view_t *view, uint8_t ind
                  94u,
                  1u,
                  (view->menu.selected_index == 2u) ? UI_COLOR_GREEN : UI_COLOR_WHITE,
-                 ui_text_fallback(UI_TEXT_ID_BACK));
+                 "");
+        line_set_id(ui,
+                    view,
+                    line,
+                    8u,
+                    94u,
+                    1u,
+                    (view->menu.selected_index == 2u) ? UI_COLOR_GREEN : UI_COLOR_WHITE,
+                    UI_TEXT_ID_BACK);
         return true;
     }
     if ((index == 4u) && view->menu.save_failed)
     {
-        line_set(line, 8u, 122u, 1u, UI_COLOR_AMBER, ui_text_fallback(UI_TEXT_ID_SETTINGS_SAVE_FAILED));
+        line_set_id(ui, view, line, 8u, 122u, 1u, UI_COLOR_AMBER, UI_TEXT_ID_SETTINGS_SAVE_FAILED);
         return true;
     }
     return false;
 }
 
-static bool prepare_sound_menu_line(const ui_product_view_t *view, uint8_t index, ui_product_line_t *line)
+static bool prepare_sound_menu_line(const ui_product_t *ui,
+                                    const ui_product_view_t *view,
+                                    uint8_t index,
+                                    ui_product_line_t *line)
 {
     if ((view == NULL) || (line == NULL))
     {
@@ -430,7 +549,7 @@ static bool prepare_sound_menu_line(const ui_product_view_t *view, uint8_t index
     }
     if (index == 0u)
     {
-        line_set(line, 8u, 16u, 2u, UI_COLOR_CYAN, ui_text_fallback(UI_TEXT_ID_SOUND));
+        line_set_id(ui, view, line, 8u, 16u, 2u, UI_COLOR_CYAN, UI_TEXT_ID_SOUND);
         return true;
     }
     if (index == 1u)
@@ -440,7 +559,15 @@ static bool prepare_sound_menu_line(const ui_product_view_t *view, uint8_t index
                  54u,
                  1u,
                  (view->menu.selected_index == 0u) ? UI_COLOR_GREEN : UI_COLOR_WHITE,
-                 view->menu.sound_enabled ? ui_text_fallback(UI_TEXT_ID_ON) : ui_text_fallback(UI_TEXT_ID_OFF));
+                 "");
+        line_set_id(ui,
+                    view,
+                    line,
+                    8u,
+                    54u,
+                    1u,
+                    (view->menu.selected_index == 0u) ? UI_COLOR_GREEN : UI_COLOR_WHITE,
+                    view->menu.sound_enabled ? UI_TEXT_ID_ON : UI_TEXT_ID_OFF);
         return true;
     }
     if (index == 2u)
@@ -450,18 +577,68 @@ static bool prepare_sound_menu_line(const ui_product_view_t *view, uint8_t index
                  74u,
                  1u,
                  (view->menu.selected_index == 1u) ? UI_COLOR_GREEN : UI_COLOR_WHITE,
-                 ui_text_fallback(UI_TEXT_ID_BACK));
+                 "");
+        line_set_id(ui,
+                    view,
+                    line,
+                    8u,
+                    74u,
+                    1u,
+                    (view->menu.selected_index == 1u) ? UI_COLOR_GREEN : UI_COLOR_WHITE,
+                    UI_TEXT_ID_BACK);
         return true;
     }
     if ((index == 3u) && view->menu.save_failed)
     {
-        line_set(line, 8u, 122u, 1u, UI_COLOR_AMBER, ui_text_fallback(UI_TEXT_ID_SETTINGS_SAVE_FAILED));
+        line_set_id(ui, view, line, 8u, 122u, 1u, UI_COLOR_AMBER, UI_TEXT_ID_SETTINGS_SAVE_FAILED);
         return true;
     }
     return false;
 }
 
-static bool prepare_about_line(uint8_t index, ui_product_line_t *line)
+static bool prepare_language_menu_line(const ui_product_t *ui,
+                                       const ui_product_view_t *view,
+                                       uint8_t index,
+                                       ui_product_line_t *line)
+{
+    if ((view == NULL) || (line == NULL))
+    {
+        return false;
+    }
+    if (index == 0u)
+    {
+        line_set_id(ui, view, line, 8u, 16u, 2u, UI_COLOR_CYAN, UI_TEXT_ID_LANGUAGE);
+        return true;
+    }
+    static const ui_text_id_t ids[] = {
+        UI_TEXT_ID_ENGLISH,
+        UI_TEXT_ID_PORTUGUESE_BR,
+        UI_TEXT_ID_BACK,
+    };
+    if ((index >= 1u) && (index <= (uint8_t)(sizeof(ids) / sizeof(ids[0]))))
+    {
+        line_set_id(ui,
+                    view,
+                    line,
+                    8u,
+                    (uint16_t)(54u + ((uint16_t)(index - 1u) * 20u)),
+                    1u,
+                    (view->menu.selected_index == (uint8_t)(index - 1u)) ? UI_COLOR_GREEN : UI_COLOR_WHITE,
+                    ids[index - 1u]);
+        return true;
+    }
+    if ((index == 4u) && view->menu.save_failed)
+    {
+        line_set_id(ui, view, line, 8u, 122u, 1u, UI_COLOR_AMBER, UI_TEXT_ID_SETTINGS_SAVE_FAILED);
+        return true;
+    }
+    return false;
+}
+
+static bool prepare_about_line(const ui_product_t *ui,
+                               const ui_product_view_t *view,
+                               uint8_t index,
+                               ui_product_line_t *line)
 {
     if (line == NULL)
     {
@@ -469,7 +646,7 @@ static bool prepare_about_line(uint8_t index, ui_product_line_t *line)
     }
     if (index == 0u)
     {
-        line_set(line, 8u, 16u, 2u, UI_COLOR_CYAN, ui_text_fallback(UI_TEXT_ID_WTK_RLCMETER));
+        line_set_id(ui, view, line, 8u, 16u, 2u, UI_COLOR_CYAN, UI_TEXT_ID_WTK_RLCMETER);
         return true;
     }
     if (index == 1u)
@@ -506,7 +683,8 @@ static bool prepare_about_line(uint8_t index, ui_product_line_t *line)
     return false;
 }
 
-static bool prepare_calibration_status_line(const ui_product_view_t *view,
+static bool prepare_calibration_status_line(const ui_product_t *ui,
+                                            const ui_product_view_t *view,
                                             uint8_t index,
                                             ui_product_line_t *line)
 {
@@ -516,7 +694,7 @@ static bool prepare_calibration_status_line(const ui_product_view_t *view,
     }
     if (index == 0u)
     {
-        line_set(line, 8u, 16u, 2u, UI_COLOR_CYAN, ui_text_fallback(UI_TEXT_ID_CALIBRATION));
+        line_set_id(ui, view, line, 8u, 16u, 2u, UI_COLOR_CYAN, UI_TEXT_ID_CALIBRATION);
         return true;
     }
     if (index == 1u)
@@ -526,8 +704,15 @@ static bool prepare_calibration_status_line(const ui_product_view_t *view,
                  54u,
                  1u,
                  view->calibration_active_valid ? UI_COLOR_GREEN : UI_COLOR_AMBER,
-                 view->calibration_active_valid ? ui_text_fallback(UI_TEXT_ID_ACTIVE) :
-                                                  ui_text_fallback(UI_TEXT_ID_REQUIRED));
+                 "");
+        line_set_id(ui,
+                    view,
+                    line,
+                    8u,
+                    54u,
+                    1u,
+                    view->calibration_active_valid ? UI_COLOR_GREEN : UI_COLOR_AMBER,
+                    view->calibration_active_valid ? UI_TEXT_ID_ACTIVE : UI_TEXT_ID_REQUIRED);
         return true;
     }
     if (index == 2u)
@@ -541,7 +726,7 @@ static bool prepare_calibration_status_line(const ui_product_view_t *view,
     }
     if (index == 3u)
     {
-        line_set(line, 8u, 104u, 1u, UI_COLOR_GREEN, ui_text_fallback(UI_TEXT_ID_FULL_CALIBRATION));
+        line_set_id(ui, view, line, 8u, 104u, 1u, UI_COLOR_GREEN, UI_TEXT_ID_FULL_CALIBRATION);
         return true;
     }
     return false;
@@ -563,7 +748,9 @@ static bool condition_line(const ui_product_wizard_t *wizard, char *dst, size_t 
            append_text(dst, capacity, &used, amp_token(wizard->amplitude));
 }
 
-static bool prepare_wizard_line(const ui_product_wizard_t *wizard,
+static bool prepare_wizard_line(const ui_product_t *ui,
+                                const ui_product_view_t *view,
+                                const ui_product_wizard_t *wizard,
                                 uint8_t index,
                                 ui_product_line_t *line)
 {
@@ -576,12 +763,12 @@ static bool prepare_wizard_line(const ui_product_wizard_t *wizard,
     case UI_PRODUCT_WIZARD_INTRO:
         if (index == 0u)
         {
-            line_set(line, 8u, 20u, 2u, UI_COLOR_CYAN, "CALIBRATION");
+            line_set_id(ui, view, line, 8u, 20u, 2u, UI_COLOR_CYAN, UI_TEXT_ID_CALIBRATION);
             return true;
         }
         if (index == 1u)
         {
-            line_set(line, 8u, 58u, 1u, UI_COLOR_WHITE, "REFERENCE KIT REQUIRED");
+            line_set_id(ui, view, line, 8u, 58u, 1u, UI_COLOR_WHITE, UI_TEXT_ID_REFERENCE_KIT_REQUIRED);
             return true;
         }
         return false;
@@ -599,14 +786,14 @@ static bool prepare_wizard_line(const ui_product_wizard_t *wizard,
         }
         if (index == 1u)
         {
-            const char *text = "CONNECT REF";
+            ui_text_id_t text_id = UI_TEXT_ID_CONNECT_REF;
             if ((ui_product_wizard_state_t)wizard->state == UI_PRODUCT_WIZARD_WAIT_OPEN)
             {
-                text = "OPEN TERMINALS";
+                text_id = UI_TEXT_ID_OPEN_TERMINALS;
             }
             else if ((ui_product_wizard_state_t)wizard->state == UI_PRODUCT_WIZARD_WAIT_SHORT)
             {
-                text = "SHORT TERMINALS";
+                text_id = UI_TEXT_ID_SHORT_TERMINALS;
             }
             else
             {
@@ -618,12 +805,12 @@ static bool prepare_wizard_line(const ui_product_wizard_t *wizard,
                 line_set(line, 8u, 56u, 1u, UI_COLOR_WHITE, row);
                 return true;
             }
-            line_set(line, 8u, 56u, 1u, UI_COLOR_WHITE, text);
+            line_set_id(ui, view, line, 8u, 56u, 1u, UI_COLOR_WHITE, text_id);
             return true;
         }
         if (index == 2u)
         {
-            line_set(line, 8u, 92u, 1u, UI_COLOR_GREEN, "OK TO START");
+            line_set_id(ui, view, line, 8u, 92u, 1u, UI_COLOR_GREEN, UI_TEXT_ID_OK_TO_START);
             return true;
         }
         return false;
@@ -632,7 +819,7 @@ static bool prepare_wizard_line(const ui_product_wizard_t *wizard,
     case UI_PRODUCT_WIZARD_CAPTURE_LOAD:
         if (index == 0u)
         {
-            line_set(line, 8u, 14u, 2u, UI_COLOR_WHITE, "CALIBRATING");
+            line_set_id(ui, view, line, 8u, 14u, 2u, UI_COLOR_WHITE, UI_TEXT_ID_CALIBRATING);
             return true;
         }
         if (index == 1u)
@@ -675,7 +862,7 @@ static bool prepare_wizard_line(const ui_product_wizard_t *wizard,
         }
         if (index == 1u)
         {
-            line_set(line, 8u, 62u, 2u, UI_COLOR_GREEN, "COMPLETE");
+            line_set_id(ui, view, line, 8u, 62u, 2u, UI_COLOR_GREEN, UI_TEXT_ID_COMPLETE);
             return true;
         }
         return false;
@@ -689,35 +876,35 @@ static bool prepare_wizard_line(const ui_product_wizard_t *wizard,
         }
         if (index == 1u)
         {
-            line_set(line, 8u, 60u, 1u, UI_COLOR_WHITE, "SAVE CALIBRATION?");
+            line_set_id(ui, view, line, 8u, 60u, 1u, UI_COLOR_WHITE, UI_TEXT_ID_SAVE_CALIBRATION);
             return true;
         }
         return false;
     case UI_PRODUCT_WIZARD_COMMITTING:
         if (index == 0u)
         {
-            line_set(line, 8u, 24u, 2u, UI_COLOR_WHITE, "SAVING CALIBRATION");
+            line_set_id(ui, view, line, 8u, 24u, 2u, UI_COLOR_WHITE, UI_TEXT_ID_SAVING_CALIBRATION);
             return true;
         }
         return false;
     case UI_PRODUCT_WIZARD_COMPLETE:
         if (index == 0u)
         {
-            line_set(line, 8u, 24u, 2u, UI_COLOR_GREEN, "CALIBRATION SAVED");
+            line_set_id(ui, view, line, 8u, 24u, 2u, UI_COLOR_GREEN, UI_TEXT_ID_CALIBRATION_SAVED);
             return true;
         }
         return false;
     case UI_PRODUCT_WIZARD_SAFETY_BLOCKED:
         if (index == 0u)
         {
-            line_set(line, 8u, 24u, 1u, UI_COLOR_AMBER, "SAFETY BLOCKED");
+            line_set_id(ui, view, line, 8u, 24u, 1u, UI_COLOR_AMBER, UI_TEXT_ID_SAFETY_BLOCKED);
             return true;
         }
         return false;
     case UI_PRODUCT_WIZARD_CANCELING:
         if (index == 0u)
         {
-            line_set(line, 8u, 24u, 2u, UI_COLOR_AMBER, "CANCELING");
+            line_set_id(ui, view, line, 8u, 24u, 2u, UI_COLOR_AMBER, UI_TEXT_ID_CANCELING);
             return true;
         }
         return false;
@@ -727,19 +914,22 @@ static bool prepare_wizard_line(const ui_product_wizard_t *wizard,
     default:
         if (index == 0u)
         {
-            line_set(line, 8u, 24u, 2u, UI_COLOR_RED, "CALIBRATION FAILED");
+            line_set_id(ui, view, line, 8u, 24u, 2u, UI_COLOR_RED, UI_TEXT_ID_CALIBRATION_FAILED);
             return true;
         }
         if (index == 1u)
         {
-            line_set(line, 8u, 62u, 1u, UI_COLOR_WHITE, "OK RETRY  LONG BACK");
+            line_set_id(ui, view, line, 8u, 62u, 1u, UI_COLOR_WHITE, UI_TEXT_ID_OK_RETRY_LONG_BACK);
             return true;
         }
         return false;
     }
 }
 
-static bool prepare_line(const ui_product_view_t *view, uint8_t index, ui_product_line_t *line)
+static bool prepare_line(const ui_product_t *ui,
+                         const ui_product_view_t *view,
+                         uint8_t index,
+                         ui_product_line_t *line)
 {
     if ((view == NULL) || (line == NULL))
     {
@@ -750,66 +940,80 @@ static bool prepare_line(const ui_product_view_t *view, uint8_t index, ui_produc
     case UI_PRODUCT_STATE_STARTUP:
         if (index == 0u)
         {
-            line_set(line, 8u, 24u, 3u, UI_COLOR_WHITE, "WTK RLC");
+            line_set_id(ui, view, line, 8u, 24u, 3u, UI_COLOR_WHITE, UI_TEXT_ID_WTK_RLCMETER);
             return true;
         }
         return false;
     case UI_PRODUCT_STATE_SELF_TEST:
         if (index == 0u)
         {
-            line_set(line, 8u, 24u, 2u, UI_COLOR_WHITE, ui_text_fallback(UI_TEXT_ID_STARTING));
+            line_set_id(ui, view, line, 8u, 24u, 2u, UI_COLOR_WHITE, UI_TEXT_ID_STARTING);
             return true;
         }
         return false;
     case UI_PRODUCT_STATE_CALIBRATION_CHECK:
         if (index == 0u)
         {
-            line_set(line, 8u, 24u, 2u, UI_COLOR_WHITE, ui_text_fallback(UI_TEXT_ID_CAL_CHECK));
+            line_set_id(ui, view, line, 8u, 24u, 2u, UI_COLOR_WHITE, UI_TEXT_ID_CAL_CHECK);
             return true;
         }
         return false;
     case UI_PRODUCT_STATE_CALIBRATION_REQUIRED:
         if (index == 0u)
         {
-            line_set(line,
-                     8u,
-                     24u,
-                     (view->storage_unavailable ||
-                      (view->calibration_status == UI_PRODUCT_CAL_STORAGE_ERROR)) ? 2u : 1u,
-                     (view->storage_unavailable ||
-                      (view->calibration_status == UI_PRODUCT_CAL_STORAGE_ERROR)) ? UI_COLOR_RED : UI_COLOR_AMBER,
-                     (view->storage_unavailable ||
-                      (view->calibration_status == UI_PRODUCT_CAL_STORAGE_ERROR)) ?
-                         ui_text_fallback(UI_TEXT_ID_STORAGE_ERROR) :
-                         ui_text_fallback(UI_TEXT_ID_CALIBRATION_REQUIRED));
+            const bool storage_error =
+                view->storage_unavailable ||
+                (view->calibration_status == UI_PRODUCT_CAL_STORAGE_ERROR);
+            line_set_id(ui,
+                        view,
+                        line,
+                        8u,
+                        24u,
+                        storage_error ? 2u : 1u,
+                        storage_error ? UI_COLOR_RED : UI_COLOR_AMBER,
+                        storage_error ? UI_TEXT_ID_STORAGE_ERROR : UI_TEXT_ID_CALIBRATION_REQUIRED);
+            return true;
+        }
+        return false;
+    case UI_PRODUCT_STATE_RESOURCE_ERROR:
+        if (index == 0u)
+        {
+            line_set_id(ui, view, line, 8u, 24u, 2u, UI_COLOR_RED, UI_TEXT_ID_RESOURCE_ERROR);
+            return true;
+        }
+        if (index == 1u)
+        {
+            line_set(line, 8u, 60u, 1u, UI_COLOR_AMBER, resource_status_string(view->resource_status));
             return true;
         }
         return false;
     case UI_PRODUCT_STATE_READY:
         if (index == 0u)
         {
-            line_set(line, 8u, 24u, 3u, UI_COLOR_GREEN, ui_text_fallback(UI_TEXT_ID_READY));
+            line_set_id(ui, view, line, 8u, 24u, 3u, UI_COLOR_GREEN, UI_TEXT_ID_READY);
             return true;
         }
         return false;
     case UI_PRODUCT_STATE_MENU:
-        return prepare_menu_line(view, index, line);
+        return prepare_menu_line(ui, view, index, line);
     case UI_PRODUCT_STATE_DISPLAY_MENU:
     case UI_PRODUCT_STATE_BRIGHTNESS_EDIT:
     case UI_PRODUCT_STATE_TIMEOUT_EDIT:
-        return prepare_display_menu_line(view, index, line);
+        return prepare_display_menu_line(ui, view, index, line);
     case UI_PRODUCT_STATE_SOUND_MENU:
-        return prepare_sound_menu_line(view, index, line);
+        return prepare_sound_menu_line(ui, view, index, line);
+    case UI_PRODUCT_STATE_LANGUAGE_MENU:
+        return prepare_language_menu_line(ui, view, index, line);
     case UI_PRODUCT_STATE_ABOUT:
-        return prepare_about_line(index, line);
+        return prepare_about_line(ui, view, index, line);
     case UI_PRODUCT_STATE_CALIBRATION_STATUS:
-        return prepare_calibration_status_line(view, index, line);
+        return prepare_calibration_status_line(ui, view, index, line);
     case UI_PRODUCT_STATE_CALIBRATION_WIZARD:
-        return prepare_wizard_line(&view->wizard, index, line);
+        return prepare_wizard_line(ui, view, &view->wizard, index, line);
     case UI_PRODUCT_STATE_MEASURING:
         if (index == 0u)
         {
-            line_set(line, 8u, 24u, 2u, UI_COLOR_WHITE, ui_text_fallback(UI_TEXT_ID_MEASURING));
+            line_set_id(ui, view, line, 8u, 24u, 2u, UI_COLOR_WHITE, UI_TEXT_ID_MEASURING);
             return true;
         }
         return view->has_measurement_result ?
@@ -820,18 +1024,18 @@ static bool prepare_line(const ui_product_view_t *view, uint8_t index, ui_produc
         {
             if (index == 0u)
             {
-                line_set(line, 8u, 24u, 3u, UI_COLOR_GREEN, ui_text_fallback(UI_TEXT_ID_READY));
+                line_set_id(ui, view, line, 8u, 24u, 3u, UI_COLOR_GREEN, UI_TEXT_ID_READY);
                 return true;
             }
             return false;
         }
         return (view->page == UI_PRODUCT_PAGE_DETAILS) ?
-                   prepare_result_details_line(&view->measurement_result, index, line) :
+                   prepare_result_details_line(ui, view, &view->measurement_result, index, line) :
                    prepare_result_primary_line(&view->measurement_result, index, line);
     case UI_PRODUCT_STATE_SAFETY_BLOCKED:
         if (index == 0u)
         {
-            line_set(line, 8u, 24u, 1u, UI_COLOR_RED, blocker_text(view->safety_blocker));
+            line_set_id(ui, view, line, 8u, 24u, 1u, UI_COLOR_RED, blocker_text_id(view->safety_blocker));
             return true;
         }
         return false;
@@ -894,6 +1098,17 @@ void ui_product_init(ui_product_t *ui)
     if (ui != NULL)
     {
         *ui = (ui_product_t){0};
+    }
+}
+
+void ui_product_set_text_provider(ui_product_t *ui,
+                                  ui_product_text_resolve_fn resolve,
+                                  void *context)
+{
+    if (ui != NULL)
+    {
+        ui->resolve_text = resolve;
+        ui->resolve_text_context = context;
     }
 }
 
@@ -978,7 +1193,7 @@ bsp_status_t ui_product_step(ui_product_t *ui, const ili9341_t *display, bool qu
     }
 
     ui_product_line_t line;
-    if (!prepare_line(&ui->rendering, ui->line_index, &line))
+    if (!prepare_line(ui, &ui->rendering, ui->line_index, &line))
     {
         ui->rendered = ui->rendering;
         ui->rendered_generation = ui->rendering.generation;
@@ -991,6 +1206,10 @@ bsp_status_t ui_product_step(ui_product_t *ui, const ili9341_t *display, bool qu
             return BSP_STATUS_BUSY;
         }
         return BSP_STATUS_OK;
+    }
+    if (line.deferred)
+    {
+        return BSP_STATUS_BUSY;
     }
     ui_fallback_text_scaled_start(&ui->text_op,
                                   line.x,
@@ -1035,8 +1254,12 @@ const char *ui_product_state_string(ui_product_state_t state)
         return "TIMEOUT_EDIT";
     case UI_PRODUCT_STATE_SOUND_MENU:
         return "SOUND_MENU";
+    case UI_PRODUCT_STATE_LANGUAGE_MENU:
+        return "LANGUAGE_MENU";
     case UI_PRODUCT_STATE_ABOUT:
         return "ABOUT";
+    case UI_PRODUCT_STATE_RESOURCE_ERROR:
+        return "RESOURCE_ERROR";
     case UI_PRODUCT_STATE_CALIBRATION_STATUS:
         return "CALIBRATION_STATUS";
     case UI_PRODUCT_STATE_CALIBRATION_WIZARD:
