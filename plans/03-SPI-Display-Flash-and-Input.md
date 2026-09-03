@@ -310,6 +310,11 @@ W25Q bring-up sector:    final sector of detected capacity, reserved for control
 
 The font/resource work intentionally does not select MCUFont or a custom final renderer. The backend remains callback-based until real Release Flash/RAM headroom and asset-pack needs are measured.
 
+Phase 08 Stage 3A/3A.1 later tightened the resource-text layer into Resource Pack v2
+API version 2 with dense validated EN/PT-BR text catalogs. The original Phase 03
+streaming and fallback-emergency contracts remain unchanged: resource reads are
+bounded/deferred, and emergency safety/error presentation must work without W25Q.
+
 ### Automated validation
 
 Automated validation passed:

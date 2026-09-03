@@ -569,6 +569,15 @@ Initial planned UI languages are Portuguese and English.
 
 UI logic uses stable resource/text IDs rather than scattering translated literals through screen code. Phase 08 Stage 3A stores normal product text in Resource Pack v2 UTF-8 catalogs in W25Q, one text-table resource per language. The selected language is a stable settings field, currently English or Portuguese (Brazil). Fundamental fallback safety/error text remains internally available so missing, corrupt, deferred, or incompatible resources cannot suppress fail-safe diagnostics.
 
+Resource Pack v2 API version 2 uses dense text catalogs for the current fallback-renderer
+contract: text IDs `0x0001..0x0038`, every ID present in every required language, and
+each UTF-8 string no longer than 31 payload bytes. Firmware validates both EN and PT-BR
+catalogs at resource admission, including text payload CRC, text-table header, dense
+index shape, index CRC, record bounds, and UTF-8 for every string. Normal text-resource
+failures propagate to the PRODUCT `RESOURCE_ERROR` state; emergency screens render from
+internal text and do not perform W25Q resource reads. `RESOURCE_STATUS_DEFERRED` is
+backpressure, not a fatal resource error.
+
 Resource Pack v2 is an explicit little-endian wire format with CRC-protected header, entry table, and payloads. Runtime code decodes fields by width and offset; persistent resources are not raw compiler-dependent C structs.
 
 ## Debug console

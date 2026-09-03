@@ -191,10 +191,19 @@ static resource_status_t product_text_resolve(void *context,
             ui_text_catalog_select_language(&g_text_catalog, &g_resource_catalog, (uint8_t)language);
         if (select_status != RESOURCE_STATUS_OK)
         {
+            if (select_status != RESOURCE_STATUS_DEFERRED)
+            {
+                g_resource_status = select_status;
+            }
             return select_status;
         }
     }
-    return ui_text_catalog_resolve(&g_text_catalog, id, dst, capacity);
+    const resource_status_t resolve_status = ui_text_catalog_resolve(&g_text_catalog, id, dst, capacity);
+    if ((resolve_status != RESOURCE_STATUS_OK) && (resolve_status != RESOURCE_STATUS_DEFERRED))
+    {
+        g_resource_status = resolve_status;
+    }
+    return resolve_status;
 }
 
 static hw_excitation_mode_t app_bsp_excitation_mode(void)
@@ -1072,10 +1081,14 @@ void app_shell_run(void)
                                                        resource_partition.size);
             if (g_resource_status == RESOURCE_STATUS_OK)
             {
-                g_resource_status =
-                    ui_text_catalog_select_language(&g_text_catalog,
-                                                    &g_resource_catalog,
-                                                    app_settings_service_current(&g_settings_service)->language_id);
+                g_resource_status = ui_text_catalog_validate_required_languages(&g_resource_catalog);
+            }
+            if (g_resource_status == RESOURCE_STATUS_OK)
+            {
+                const uint8_t language_id = app_settings_service_current(&g_settings_service)->language_id;
+                g_resource_status = ui_text_catalog_select_language(&g_text_catalog,
+                                                                    &g_resource_catalog,
+                                                                    language_id);
             }
         }
         else

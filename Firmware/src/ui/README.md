@@ -85,3 +85,13 @@ lets quiet mode or W25Q mutation policy pause rendering without losing the pendi
 text operation. Missing, corrupt, or incompatible resource packs put PRODUCT UI into
 the emergency `RESOURCE_ERROR` presentation; this is a product-operation blocker, not
 a safety fault.
+
+Resource Pack v2 API version 2 uses dense text IDs `0x0001..0x0038` for both EN and
+PT-BR. Admission validates both language resources, including payload CRC, text header,
+index CRC, dense order/completeness, blob bounds, exact blob consumption, and UTF-8 for
+every string. Runtime lookup then performs one direct index-record read plus the string
+payload read for the requested ID.
+
+The product renderer keeps pending and in-progress `ui_product_view_t` snapshots plus
+only compact rendered state/page metadata. It no longer stores a third full rendered
+view copy in SRAM.

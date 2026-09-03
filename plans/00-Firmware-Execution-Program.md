@@ -32,10 +32,11 @@ Phase 07:
     REQUIRES_BENCH_VALIDATION
 
 Immediate next software phase after physical/software handoff:
-    Phase 08 continuation — Stage 3A external Resource Pack v2, W25Q text
-    catalogs, localization runtime, and Flash-access policy are implemented
-    pending bench/resource-pack programming validation. Next software work is
-    Stage 3B external fonts/icons/splash and richer product TFT surfaces.
+    Phase 08 continuation — Stage 3A.1 Resource Pack v2 integrity,
+    localization completion, runtime resource-error propagation, and PRODUCT
+    UI SRAM hardening are implemented. Stage 3B external fonts/icons/splash
+    remains blocked until additional internal-Flash headroom is recovered
+    below the Stage 3A.1 minimum target.
 ```
 
 ## Program objectives

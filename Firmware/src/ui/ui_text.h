@@ -64,10 +64,16 @@ typedef enum
     UI_TEXT_ID_GIT = 0x0035u,
     UI_TEXT_ID_CAL_SCHEMA = 0x0036u,
     UI_TEXT_ID_SEQUENCE = 0x0037u,
+    UI_TEXT_ID_RANGE = 0x0038u,
 } ui_text_id_t;
 
-extern const ui_text_id_t ui_text_required_ids[];
-extern const size_t ui_text_required_id_count;
+enum
+{
+    UI_TEXT_ID_FIRST = UI_TEXT_ID_WTK_RLCMETER,
+    UI_TEXT_ID_LAST = UI_TEXT_ID_RANGE,
+    UI_TEXT_ID_COUNT = (UI_TEXT_ID_LAST - UI_TEXT_ID_FIRST) + 1u,
+    UI_TEXT_MAX_BYTES = 31u,
+};
 
 bool ui_language_valid(uint8_t language_id);
 uint32_t ui_language_text_resource_id(uint8_t language_id);

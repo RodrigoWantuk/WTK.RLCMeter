@@ -42,6 +42,12 @@ The product controller publishes compact UI snapshots instead of duplicating com
 Phase 07 session results inside the display model. The Phase 07 policy remains the
 authoritative source for partial/final measurement data.
 
+Product resource health is owned at application level. Fatal normal resource failures
+from text resolution or resource admission latch PRODUCT `RESOURCE_ERROR` and preempt
+new settings persistence, but they do not become hardware safety faults. Deferred W25Q
+access caused by quiet mode or active settings/calibration mutation remains transient
+backpressure.
+
 Phase 08 Stage 2A.1 hardens asynchronous ownership:
 
 - `app_shell.c` is the single PRODUCT owner that calls

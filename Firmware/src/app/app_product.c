@@ -2,11 +2,7 @@
 
 #include <stddef.h>
 
-#if defined(__GNUC__)
-#define WTK_NOINLINE __attribute__((noinline))
-#else
 #define WTK_NOINLINE
-#endif
 
 enum
 {
@@ -204,7 +200,7 @@ static void set_state(app_product_t *product, ui_product_state_t state)
 {
     if ((product != NULL) && (product->view.state != state))
     {
-        product->view.state = state;
+        product->view.state = (uint8_t)state;
         mark_dirty(product);
     }
 }
@@ -213,7 +209,7 @@ static void set_page(app_product_t *product, ui_product_page_t page)
 {
     if ((product != NULL) && (product->view.page != page))
     {
-        product->view.page = page;
+        product->view.page = (uint8_t)page;
         mark_dirty(product);
     }
 }
@@ -226,6 +222,11 @@ static bool active_calibration_allows_ready(const app_product_inputs_t *inputs)
 static bool state_accepts_measurement_request(ui_product_state_t state)
 {
     return (state == UI_PRODUCT_STATE_READY) || (state == UI_PRODUCT_STATE_RESULT);
+}
+
+static bool resource_status_is_fatal(resource_status_t status)
+{
+    return (status != RESOURCE_STATUS_OK) && (status != RESOURCE_STATUS_DEFERRED);
 }
 
 static app_measurement_session_t *measurement_runtime(app_product_t *product)
@@ -400,13 +401,13 @@ static ui_product_measurement_t ui_measurement_from_result(const measurement_ses
     {
         return out;
     }
-    out.status = result->status;
-    out.interpretation = result->classification.interpretation;
-    out.confidence = result->confidence.publication_confidence;
-    out.quality = result->confidence.measurement_quality;
-    out.qualification = result->confidence.qualification;
-    out.frequency = result->primary_attempt.config.frequency;
-    out.amplitude = result->primary_attempt.config.amplitude;
+    out.status = (uint8_t)result->status;
+    out.interpretation = (uint8_t)result->classification.interpretation;
+    out.confidence = (uint8_t)result->confidence.publication_confidence;
+    out.quality = (uint8_t)result->confidence.measurement_quality;
+    out.qualification = (uint8_t)result->confidence.qualification;
+    out.frequency = (uint8_t)result->primary_attempt.config.frequency;
+    out.amplitude = (uint8_t)result->primary_attempt.config.amplitude;
     out.resistance_ohms = result->primary_attempt.derived.resistance_ohms;
     out.reactance_ohms = result->primary_attempt.derived.reactance_ohms;
     out.magnitude_ohms = result->primary_attempt.derived.magnitude_ohms;
@@ -490,9 +491,9 @@ static void update_wizard_view(app_product_t *product)
         .error = (uint8_t)snapshot.error,
         .workflow_result = (uint8_t)snapshot.workflow_result,
         .solver_status = (uint8_t)snapshot.solver_status,
-        .range_id = snapshot.range_id,
-        .frequency = snapshot.frequency,
-        .amplitude = snapshot.amplitude,
+        .range_id = (uint8_t)snapshot.range_id,
+        .frequency = (uint8_t)snapshot.frequency,
+        .amplitude = (uint8_t)snapshot.amplitude,
         .range_index = snapshot.range_index,
         .range_count = snapshot.range_count,
         .condition_index = snapshot.condition_index,
@@ -559,7 +560,7 @@ static void apply_settings(app_product_t *product, const app_settings_t *setting
 
 static WTK_NOINLINE void update_menu_navigation(app_product_t *product)
 {
-    const uint8_t count = state_menu_count(product->view.state);
+    const uint8_t count = state_menu_count((ui_product_state_t)product->view.state);
     if (product->request_page_next)
     {
         product->menu_index = (uint8_t)((product->menu_index + 1u) % count);
@@ -830,10 +831,6 @@ void app_product_step(app_product_t *product,
         return;
     }
 
-    service_pending_settings_save(product, inputs, now_ms);
-    sync_settings_view(product);
-    update_backlight_idle(product, inputs, now_ms);
-
     const ui_product_calibration_state_t next_cal =
         ui_cal_state(inputs->calibration_status, inputs->calibration_active_valid);
     const ui_product_blocker_t next_blocker = ui_blocker(inputs->safety_result.primary_blocker);
@@ -855,14 +852,14 @@ void app_product_step(app_product_t *product,
         (product->view.calibration_active_valid != inputs->calibration_active_valid) ||
         (product->view.calibration_sequence != inputs->calibration_active_sequence))
     {
-        product->view.calibration_status = next_cal;
-        product->view.safety_blocker = next_blocker;
-        product->view.battery_state = next_battery;
+        product->view.calibration_status = (uint8_t)next_cal;
+        product->view.safety_blocker = (uint8_t)next_blocker;
+        product->view.battery_state = (uint8_t)next_battery;
         product->view.safety_fault_mask = inputs->safety_fault_mask;
         product->view.display_ready = inputs->display_ready;
         product->view.display_fault = inputs->display_fault;
         product->view.storage_unavailable = next_storage_unavailable;
-        product->view.resource_status = inputs->resource_status;
+        product->view.resource_status = (uint8_t)inputs->resource_status;
         product->view.measurement_state = next_measurement_state;
         product->view.calibration_active_valid = inputs->calibration_active_valid;
         product->view.calibration_sequence = inputs->calibration_active_sequence;
@@ -887,7 +884,7 @@ void app_product_step(app_product_t *product,
         return;
     }
 
-    if (inputs->resource_status != RESOURCE_STATUS_OK)
+    if (resource_status_is_fatal(inputs->resource_status))
     {
         set_state(product, UI_PRODUCT_STATE_RESOURCE_ERROR);
         if (runtime_active(product))
@@ -904,6 +901,10 @@ void app_product_step(app_product_t *product,
         clear_requests(product);
         return;
     }
+
+    service_pending_settings_save(product, inputs, now_ms);
+    sync_settings_view(product);
+    update_backlight_idle(product, inputs, now_ms);
 
     if (drain_runtime_teardown(product,
                                &inputs->safety_result,
@@ -928,7 +929,7 @@ void app_product_step(app_product_t *product,
         return;
     }
 
-    if (state_is_menu_like(product->view.state))
+    if (state_is_menu_like((ui_product_state_t)product->view.state))
     {
         if (product->view.state == UI_PRODUCT_STATE_BRIGHTNESS_EDIT)
         {
@@ -1245,7 +1246,8 @@ void app_product_step(app_product_t *product,
     product->request_page_next = false;
     product->request_page_prev = false;
 
-    if (product->request_click && state_accepts_measurement_request(product->view.state) &&
+    if (product->request_click &&
+        state_accepts_measurement_request((ui_product_state_t)product->view.state) &&
         (app_settings_service_busy(product->settings_service) || inputs->settings_storage_busy))
     {
         product->measurement_deferred_for_settings = true;
@@ -1253,7 +1255,7 @@ void app_product_step(app_product_t *product,
     }
 
     if ((product->request_click || product->measurement_deferred_for_settings) &&
-        state_accepts_measurement_request(product->view.state) &&
+        state_accepts_measurement_request((ui_product_state_t)product->view.state) &&
         !app_settings_service_busy(product->settings_service) &&
         !inputs->settings_storage_busy)
     {

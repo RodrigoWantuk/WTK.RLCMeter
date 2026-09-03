@@ -284,7 +284,10 @@ linker-reserved stack/heap floor.
 Product Debug is intentionally size-first (`-Os` plus debug symbols) because the full
 product profile must fit the guaranteed C8 Flash. Product Release also enables GCC LTO
 from its preset to recover dead-code headroom before the remaining Phase 08 UI/settings
-features are added.
+features are added. Phase 08 Stage 3A.1 keeps PRODUCT Release under the hard 56 KiB
+project gate, but the image remains too close to that gate for Stage 3B external-font
+work; further internal-Flash recovery is required before adding the font/icon/splash
+runtime.
 
 ## Build and editor policy
 

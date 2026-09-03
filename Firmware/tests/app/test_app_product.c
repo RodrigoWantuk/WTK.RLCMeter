@@ -1,5 +1,7 @@
 #include "app/app_product.h"
 #include "app/app_io_workspace.h"
+#include "storage/resource_store.h"
+#include "ui/ui_text_catalog.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -807,11 +809,59 @@ static int test_sound_menu_toggle_updates_output(void)
     return failures;
 }
 
+static int test_resource_error_blocks_pending_language_save(void)
+{
+    int failures = 0;
+    fake_io_t fake = {0};
+    app_product_t product;
+    app_product_inputs_t inputs = inputs_ready();
+    const bsp_clock_summary_t clock = {.source = BSP_CLOCK_SOURCE_HSE_PLL,
+                                       .sysclk_hz = 72000000u,
+                                       .hse_ready = true};
+    failures += expect_true(init_product(&product, &fake) == BSP_STATUS_OK,
+                            "product init language resource error");
+    boot_to_ready(&product, &inputs);
+    send_button(&product, BUTTON_ID_OK, BUTTON_EVENT_PRESS);
+    send_button(&product, BUTTON_ID_OK, BUTTON_EVENT_LONG_PRESS);
+    send_button(&product, BUTTON_ID_OK, BUTTON_EVENT_RELEASE);
+    app_product_step(&product, &inputs, &clock, BSP_STATUS_OK, 3u);
+    for (uint32_t i = 0u; i < 3u; i++)
+    {
+        send_button(&product, BUTTON_ID_DOWN, BUTTON_EVENT_PRESS);
+        app_product_step(&product, &inputs, &clock, BSP_STATUS_OK, 4u + i);
+    }
+    click_ok(&product);
+    app_product_step(&product, &inputs, &clock, BSP_STATUS_OK, 8u);
+    send_button(&product, BUTTON_ID_DOWN, BUTTON_EVENT_PRESS);
+    app_product_step(&product, &inputs, &clock, BSP_STATUS_OK, 9u);
+    click_ok(&product);
+    app_product_step(&product, &inputs, &clock, BSP_STATUS_OK, 10u);
+    failures += expect_true(app_settings_service_dirty(&g_settings),
+                            "language change is dirty before persistence");
+
+    inputs.resource_status = RESOURCE_STATUS_CORRUPT;
+    app_product_step(&product, &inputs, &clock, BSP_STATUS_OK, 11u);
+    ui_product_view_t view;
+    app_product_make_view(&product, &view);
+    failures += expect_true(view.state == UI_PRODUCT_STATE_RESOURCE_ERROR,
+                            "resource error has priority over settings save");
+    failures += expect_true(app_settings_service_dirty(&g_settings),
+                            "bad language setting not acknowledged as persisted");
+    failures += expect_true(!app_settings_service_save_failed(&g_settings),
+                            "settings save is not started after resource failure");
+    return failures;
+}
+
 int main(int argc, char **argv)
 {
     if ((argc == 2) && (strcmp(argv[1], "--sizes") == 0))
     {
         (void)printf("app_product_t=%lu\n", (unsigned long)app_product_context_size_bytes());
+        (void)printf("ui_product_view_t=%lu\n", (unsigned long)sizeof(ui_product_view_t));
+        (void)printf("ui_product_t=%lu\n", (unsigned long)sizeof(ui_product_t));
+        (void)printf("resource_catalog_t=%lu\n", (unsigned long)sizeof(resource_catalog_t));
+        (void)printf("ui_text_catalog_t=%lu\n", (unsigned long)sizeof(ui_text_catalog_t));
+        (void)printf("app_settings_service_t=%lu\n", (unsigned long)sizeof(app_settings_service_t));
         (void)printf("ui_product_measurement_t=%lu\n",
                      (unsigned long)sizeof(ui_product_measurement_t));
         return 0;
@@ -824,6 +874,7 @@ int main(int argc, char **argv)
     failures += test_display_menu_brightness_preview_no_step_persist();
     failures += test_backlight_timeout_wake_consumes_ok_gesture();
     failures += test_sound_menu_toggle_updates_output();
+    failures += test_resource_error_blocks_pending_language_save();
     failures += test_fault_during_measurement_capture_drains_runtime();
     failures += test_calibration_validity_loss_drains_measurement();
     failures += test_fault_during_calibration_capture_drains_runtime();

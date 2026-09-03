@@ -21,6 +21,7 @@ void ui_text_catalog_init(ui_text_catalog_t *text);
 resource_status_t ui_text_catalog_select_language(ui_text_catalog_t *text,
                                                   resource_catalog_t *catalog,
                                                   uint8_t language_id);
+resource_status_t ui_text_catalog_validate_required_languages(resource_catalog_t *catalog);
 resource_status_t ui_text_catalog_resolve(ui_text_catalog_t *text,
                                           ui_text_id_t id,
                                           char *dst,

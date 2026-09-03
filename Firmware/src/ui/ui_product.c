@@ -121,17 +121,17 @@ static ui_format_status_t write_literal(const char *text, char *dst, size_t capa
                                                     UI_FORMAT_STATUS_TRUNCATED;
 }
 
-static const char *wizard_standard_text(uint8_t standard)
+static ui_text_id_t wizard_standard_text_id(uint8_t standard)
 {
     switch ((ui_product_wizard_standard_t)standard)
     {
     case UI_PRODUCT_WIZARD_STANDARD_OPEN:
-        return "OPEN";
+        return UI_TEXT_ID_OPEN;
     case UI_PRODUCT_WIZARD_STANDARD_SHORT:
-        return "SHORT";
+        return UI_TEXT_ID_SHORT;
     case UI_PRODUCT_WIZARD_STANDARD_LOAD:
     default:
-        return "LOAD";
+        return UI_TEXT_ID_LOAD;
     }
 }
 
@@ -187,19 +187,20 @@ static ui_format_status_t format_primary_value(const ui_product_measurement_t *r
     {
         return UI_FORMAT_STATUS_INVALID_ARG;
     }
-    if (result->status == MEASUREMENT_AUTO_STATUS_OPEN_LIKE)
+    const measurement_auto_status_t status = (measurement_auto_status_t)result->status;
+    if (status == MEASUREMENT_AUTO_STATUS_OPEN_LIKE)
     {
-        return write_literal("OPEN", dst, capacity);
+        return write_literal(ui_text_emergency(UI_TEXT_ID_OPEN), dst, capacity);
     }
-    if (result->status == MEASUREMENT_AUTO_STATUS_SHORT_LIKE)
+    if (status == MEASUREMENT_AUTO_STATUS_SHORT_LIKE)
     {
-        return write_literal("SHORT", dst, capacity);
+        return write_literal(ui_text_emergency(UI_TEXT_ID_SHORT), dst, capacity);
     }
     if (!result->derived_valid)
     {
         return write_literal("n/a", dst, capacity);
     }
-    switch (result->interpretation)
+    switch ((measurement_interpretation_t)result->interpretation)
     {
     case MEASUREMENT_INTERPRET_RESISTIVE:
         return ui_format_resistance(result->resistance_ohms, dst, capacity);
@@ -223,6 +224,7 @@ typedef struct
     uint8_t scale;
     char text[UI_FALLBACK_TEXT_MAX_CHARS];
     bool deferred;
+    bool failed;
 } ui_product_line_t;
 
 static resource_status_t resolve_text(const ui_product_t *ui,
@@ -236,6 +238,12 @@ static resource_status_t resolve_text(const ui_product_t *ui,
         return RESOURCE_STATUS_INVALID_ARG;
     }
     dst[0] = '\0';
+    if (ui_text_is_emergency(id))
+    {
+        return (write_literal(ui_text_emergency(id), dst, capacity) == UI_FORMAT_STATUS_OK) ?
+                   RESOURCE_STATUS_OK :
+                   RESOURCE_STATUS_OUT_OF_RANGE;
+    }
     if ((ui != NULL) && (ui->resolve_text != NULL))
     {
         const resource_status_t status = ui->resolve_text(ui->resolve_text_context,
@@ -247,11 +255,22 @@ static resource_status_t resolve_text(const ui_product_t *ui,
         {
             return status;
         }
+        return status;
     }
-    const char *fallback = ui_text_is_emergency(id) ? ui_text_emergency(id) : "?";
-    return (write_literal(fallback, dst, capacity) == UI_FORMAT_STATUS_OK) ?
+    return (write_literal("?", dst, capacity) == UI_FORMAT_STATUS_OK) ?
                RESOURCE_STATUS_OK :
                RESOURCE_STATUS_OUT_OF_RANGE;
+}
+
+static bool line_resource_status(ui_product_line_t *line, resource_status_t status)
+{
+    if (line == NULL)
+    {
+        return false;
+    }
+    line->deferred = (status == RESOURCE_STATUS_DEFERRED);
+    line->failed = (status != RESOURCE_STATUS_OK) && (status != RESOURCE_STATUS_DEFERRED);
+    return status == RESOURCE_STATUS_OK;
 }
 
 static void line_set(ui_product_line_t *line,
@@ -301,10 +320,74 @@ static void line_set_id(const ui_product_t *ui,
             view->menu.language_id;
     const resource_status_t status =
         resolve_text(ui, (ui_language_id_t)language, id, line->text, sizeof(line->text));
-    line->deferred = (status == RESOURCE_STATUS_DEFERRED);
+    (void)line_resource_status(line, status);
 }
 
-static bool prepare_result_primary_line(const ui_product_measurement_t *result,
+static bool line_set_resource_pending(ui_product_line_t *line,
+                                      uint16_t x,
+                                      uint16_t y,
+                                      uint8_t scale,
+                                      uint16_t color,
+                                      resource_status_t status)
+{
+    line_set(line, x, y, scale, color, "");
+    (void)line_resource_status(line, status);
+    return true;
+}
+
+static resource_status_t append_label(const ui_product_t *ui,
+                                      const ui_product_view_t *view,
+                                      ui_text_id_t id,
+                                      char *dst,
+                                      size_t capacity,
+                                      size_t *used)
+{
+    char label[UI_FALLBACK_TEXT_MAX_CHARS] = {0};
+    const uint8_t language =
+        ((view == NULL) || !ui_language_valid(view->menu.language_id)) ?
+            (uint8_t)UI_LANGUAGE_EN :
+            view->menu.language_id;
+    const resource_status_t status =
+        resolve_text(ui, (ui_language_id_t)language, id, label, sizeof(label));
+    if (status != RESOURCE_STATUS_OK)
+    {
+        return status;
+    }
+    return append_text(dst, capacity, used, label) ? RESOURCE_STATUS_OK :
+                                                     RESOURCE_STATUS_OUT_OF_RANGE;
+}
+
+static bool append_label_space(const ui_product_t *ui,
+                               const ui_product_view_t *view,
+                               ui_text_id_t id,
+                               char *dst,
+                               size_t capacity,
+                               size_t *used,
+                               resource_status_t *status)
+{
+    const resource_status_t text_status = append_label(ui, view, id, dst, capacity, used);
+    if (status != NULL)
+    {
+        *status = text_status;
+    }
+    if (text_status != RESOURCE_STATUS_OK)
+    {
+        return false;
+    }
+    if (!append_char(dst, capacity, used, ' '))
+    {
+        if (status != NULL)
+        {
+            *status = RESOURCE_STATUS_OUT_OF_RANGE;
+        }
+        return false;
+    }
+    return true;
+}
+
+static bool prepare_result_primary_line(const ui_product_t *ui,
+                                        const ui_product_view_t *view,
+                                        const ui_product_measurement_t *result,
                                         uint8_t index,
                                         ui_product_line_t *line)
 {
@@ -314,12 +397,19 @@ static bool prepare_result_primary_line(const ui_product_measurement_t *result,
     }
     if (index == 0u)
     {
-        line_set(line, 8u, 24u, 2u, UI_COLOR_CYAN, ui_format_interpretation_token(result->interpretation));
+        line_set(line,
+                 8u,
+                 24u,
+                 2u,
+                 UI_COLOR_CYAN,
+                 ui_format_interpretation_token((measurement_interpretation_t)result->interpretation));
         return true;
     }
     if (index == 1u)
     {
         char value[24] = {0};
+        (void)ui;
+        (void)view;
         (void)format_primary_value(result, value, sizeof(value));
         line_set(line, 8u, 64u, 3u, UI_COLOR_WHITE, value);
         return true;
@@ -330,9 +420,9 @@ static bool prepare_result_primary_line(const ui_product_measurement_t *result,
     }
     char footer[32] = {0};
     size_t used = 0u;
-    if (!append_text(footer, sizeof(footer), &used, amp_token(result->amplitude)) ||
+    if (!append_text(footer, sizeof(footer), &used, amp_token((hw_excitation_amp_t)result->amplitude)) ||
         !append_char(footer, sizeof(footer), &used, ' ') ||
-        !append_text(footer, sizeof(footer), &used, freq_token(result->frequency)))
+        !append_text(footer, sizeof(footer), &used, freq_token((hw_excitation_freq_t)result->frequency)))
     {
         return false;
     }
@@ -379,7 +469,11 @@ static bool prepare_result_details_line(const ui_product_t *ui,
     {
         (void)ui_format_phase_rad(result->phase_rad, text, sizeof(text));
         char row[32] = {0};
-        (void)append_text(row, sizeof(row), &used, "PHASE ");
+        resource_status_t status = RESOURCE_STATUS_OK;
+        if (!append_label_space(ui, view, UI_TEXT_ID_PHASE, row, sizeof(row), &used, &status))
+        {
+            return line_set_resource_pending(line, 8u, 84u, 1u, UI_COLOR_WHITE, status);
+        }
         (void)append_text(row, sizeof(row), &used, text);
         line_set(line, 8u, 84u, 1u, UI_COLOR_WHITE, row);
         return true;
@@ -429,7 +523,7 @@ static const char *timeout_token(const ui_product_t *ui,
                                  uint16_t seconds,
                                  char *scratch,
                                  size_t capacity,
-                                 bool *deferred)
+                                 resource_status_t *status_out)
 {
     if (seconds == 0u)
     {
@@ -438,11 +532,15 @@ static const char *timeout_token(const ui_product_t *ui,
                                                       UI_TEXT_ID_OFF,
                                                       scratch,
                                                       capacity);
-        if (deferred != NULL)
+        if (status_out != NULL)
         {
-            *deferred = (status == RESOURCE_STATUS_DEFERRED);
+            *status_out = status;
         }
         return scratch;
+    }
+    if (status_out != NULL)
+    {
+        *status_out = RESOURCE_STATUS_OK;
     }
     size_t used = 0u;
     (void)append_u32(scratch, capacity, &used, seconds);
@@ -477,6 +575,10 @@ static bool prepare_display_menu_line(const ui_product_t *ui,
             line->deferred = true;
             return true;
         }
+        if (status != RESOURCE_STATUS_OK)
+        {
+            return line_set_resource_pending(line, 8u, 54u, 1u, UI_COLOR_WHITE, status);
+        }
         (void)append_text(row, sizeof(row), &used, label);
         (void)append_char(row, sizeof(row), &used, ' ');
         (void)append_u32(row, sizeof(row), &used, view->menu.brightness_percent);
@@ -489,7 +591,7 @@ static bool prepare_display_menu_line(const ui_product_t *ui,
     {
         char timeout[8] = {0};
         char label[18] = {0};
-        bool deferred = false;
+        resource_status_t timeout_status = RESOURCE_STATUS_OK;
         const resource_status_t status =
             resolve_text(ui, (ui_language_id_t)view->menu.language_id, UI_TEXT_ID_TIMEOUT, label, sizeof(label));
         if (status == RESOURCE_STATUS_DEFERRED)
@@ -498,15 +600,28 @@ static bool prepare_display_menu_line(const ui_product_t *ui,
             line->deferred = true;
             return true;
         }
+        if (status != RESOURCE_STATUS_OK)
+        {
+            return line_set_resource_pending(line, 8u, 74u, 1u, UI_COLOR_WHITE, status);
+        }
         (void)append_text(row, sizeof(row), &used, label);
         (void)append_char(row, sizeof(row), &used, ' ');
         (void)append_text(row, sizeof(row), &used,
-                          timeout_token(ui, view, view->menu.timeout_seconds, timeout, sizeof(timeout), &deferred));
-        if (deferred)
+                          timeout_token(ui,
+                                        view,
+                                        view->menu.timeout_seconds,
+                                        timeout,
+                                        sizeof(timeout),
+                                        &timeout_status));
+        if (timeout_status == RESOURCE_STATUS_DEFERRED)
         {
             line_set(line, 8u, 74u, 1u, UI_COLOR_WHITE, "");
             line->deferred = true;
             return true;
+        }
+        if (timeout_status != RESOURCE_STATUS_OK)
+        {
+            return line_set_resource_pending(line, 8u, 74u, 1u, UI_COLOR_WHITE, timeout_status);
         }
         line_set(line, 8u, 74u, 1u,
                  (view->menu.selected_index == 1u) ? UI_COLOR_GREEN : UI_COLOR_WHITE, row);
@@ -663,7 +778,11 @@ static bool prepare_about_line(const ui_product_t *ui,
     {
         char row[28] = {0};
         size_t used = 0u;
-        (void)append_text(row, sizeof(row), &used, "GIT ");
+        resource_status_t status = RESOURCE_STATUS_OK;
+        if (!append_label_space(ui, view, UI_TEXT_ID_GIT, row, sizeof(row), &used, &status))
+        {
+            return line_set_resource_pending(line, 8u, 94u, 1u, UI_COLOR_WHITE, status);
+        }
         for (uint8_t i = 0u; (i < 7u) && (WTK_GIT_COMMIT[i] != '\0'); i++)
         {
             (void)append_char(row, sizeof(row), &used, WTK_GIT_COMMIT[i]);
@@ -675,7 +794,11 @@ static bool prepare_about_line(const ui_product_t *ui,
     {
         char row[28] = {0};
         size_t used = 0u;
-        (void)append_text(row, sizeof(row), &used, "CAL SCHEMA ");
+        resource_status_t status = RESOURCE_STATUS_OK;
+        if (!append_label_space(ui, view, UI_TEXT_ID_CAL_SCHEMA, row, sizeof(row), &used, &status))
+        {
+            return line_set_resource_pending(line, 8u, 114u, 1u, UI_COLOR_WHITE, status);
+        }
         (void)append_u32(row, sizeof(row), &used, WTK_CALIBRATION_SCHEMA_VERSION);
         line_set(line, 8u, 114u, 1u, UI_COLOR_WHITE, row);
         return true;
@@ -719,7 +842,11 @@ static bool prepare_calibration_status_line(const ui_product_t *ui,
     {
         char text[24] = {0};
         size_t used = 0u;
-        (void)append_text(text, sizeof(text), &used, "SEQ ");
+        resource_status_t status = RESOURCE_STATUS_OK;
+        if (!append_label_space(ui, view, UI_TEXT_ID_SEQUENCE, text, sizeof(text), &used, &status))
+        {
+            return line_set_resource_pending(line, 8u, 74u, 1u, UI_COLOR_WHITE, status);
+        }
         (void)append_u32(text, sizeof(text), &used, view->calibration_sequence);
         line_set(line, 8u, 74u, 1u, UI_COLOR_WHITE, text);
         return true;
@@ -743,9 +870,9 @@ static bool progress_line(char *dst, size_t capacity, uint8_t a, uint8_t b)
 static bool condition_line(const ui_product_wizard_t *wizard, char *dst, size_t capacity)
 {
     size_t used = 0u;
-    return append_text(dst, capacity, &used, freq_token(wizard->frequency)) &&
+    return append_text(dst, capacity, &used, freq_token((hw_excitation_freq_t)wizard->frequency)) &&
            append_char(dst, capacity, &used, ' ') &&
-           append_text(dst, capacity, &used, amp_token(wizard->amplitude));
+           append_text(dst, capacity, &used, amp_token((hw_excitation_amp_t)wizard->amplitude));
 }
 
 static bool prepare_wizard_line(const ui_product_t *ui,
@@ -779,8 +906,12 @@ static bool prepare_wizard_line(const ui_product_t *ui,
         {
             char text[24] = {0};
             size_t used = 0u;
-            (void)append_text(text, sizeof(text), &used, "RANGE ");
-            (void)append_text(text, sizeof(text), &used, range_prompt_text(wizard->range_id));
+            resource_status_t status = RESOURCE_STATUS_OK;
+            if (!append_label_space(ui, view, UI_TEXT_ID_RANGE, text, sizeof(text), &used, &status))
+            {
+                return line_set_resource_pending(line, 8u, 16u, 2u, UI_COLOR_CYAN, status);
+            }
+            (void)append_text(text, sizeof(text), &used, range_prompt_text((hw_range_id_t)wizard->range_id));
             line_set(line, 8u, 16u, 2u, UI_COLOR_CYAN, text);
             return true;
         }
@@ -797,18 +928,28 @@ static bool prepare_wizard_line(const ui_product_t *ui,
             }
             else
             {
-                char row[28] = {0};
-                size_t used = 0u;
-                (void)append_text(row, sizeof(row), &used, "CONNECT ");
-                (void)append_text(row, sizeof(row), &used, range_prompt_text(wizard->range_id));
-                (void)append_text(row, sizeof(row), &used, " REF");
-                line_set(line, 8u, 56u, 1u, UI_COLOR_WHITE, row);
+                line_set_id(ui, view, line, 8u, 56u, 1u, UI_COLOR_WHITE, UI_TEXT_ID_CONNECT_REF);
                 return true;
             }
             line_set_id(ui, view, line, 8u, 56u, 1u, UI_COLOR_WHITE, text_id);
             return true;
         }
         if (index == 2u)
+        {
+            if ((ui_product_wizard_state_t)wizard->state == UI_PRODUCT_WIZARD_WAIT_LOAD)
+            {
+                line_set(line,
+                         8u,
+                         74u,
+                         1u,
+                         UI_COLOR_WHITE,
+                         range_prompt_text((hw_range_id_t)wizard->range_id));
+                return true;
+            }
+            line_set_id(ui, view, line, 8u, 92u, 1u, UI_COLOR_GREEN, UI_TEXT_ID_OK_TO_START);
+            return true;
+        }
+        if ((index == 3u) && ((ui_product_wizard_state_t)wizard->state == UI_PRODUCT_WIZARD_WAIT_LOAD))
         {
             line_set_id(ui, view, line, 8u, 92u, 1u, UI_COLOR_GREEN, UI_TEXT_ID_OK_TO_START);
             return true;
@@ -826,9 +967,18 @@ static bool prepare_wizard_line(const ui_product_t *ui,
         {
             char text[24] = {0};
             size_t used = 0u;
-            (void)append_text(text, sizeof(text), &used, range_prompt_text(wizard->range_id));
+            (void)append_text(text, sizeof(text), &used, range_prompt_text((hw_range_id_t)wizard->range_id));
             (void)append_char(text, sizeof(text), &used, ' ');
-            (void)append_text(text, sizeof(text), &used, wizard_standard_text(wizard->standard));
+            const resource_status_t status = append_label(ui,
+                                                          view,
+                                                          wizard_standard_text_id(wizard->standard),
+                                                          text,
+                                                          sizeof(text),
+                                                          &used);
+            if (status != RESOURCE_STATUS_OK)
+            {
+                return line_set_resource_pending(line, 8u, 52u, 1u, UI_COLOR_CYAN, status);
+            }
             line_set(line, 8u, 52u, 1u, UI_COLOR_CYAN, text);
             return true;
         }
@@ -855,8 +1005,12 @@ static bool prepare_wizard_line(const ui_product_t *ui,
         {
             char text[24] = {0};
             size_t used = 0u;
-            (void)append_text(text, sizeof(text), &used, "RANGE ");
-            (void)append_text(text, sizeof(text), &used, range_prompt_text(wizard->range_id));
+            resource_status_t status = RESOURCE_STATUS_OK;
+            if (!append_label_space(ui, view, UI_TEXT_ID_RANGE, text, sizeof(text), &used, &status))
+            {
+                return line_set_resource_pending(line, 8u, 24u, 2u, UI_COLOR_CYAN, status);
+            }
+            (void)append_text(text, sizeof(text), &used, range_prompt_text((hw_range_id_t)wizard->range_id));
             line_set(line, 8u, 24u, 2u, UI_COLOR_CYAN, text);
             return true;
         }
@@ -935,7 +1089,7 @@ static bool prepare_line(const ui_product_t *ui,
     {
         return false;
     }
-    switch (view->state)
+    switch ((ui_product_state_t)view->state)
     {
     case UI_PRODUCT_STATE_STARTUP:
         if (index == 0u)
@@ -963,7 +1117,7 @@ static bool prepare_line(const ui_product_t *ui,
         {
             const bool storage_error =
                 view->storage_unavailable ||
-                (view->calibration_status == UI_PRODUCT_CAL_STORAGE_ERROR);
+                ((ui_product_calibration_state_t)view->calibration_status == UI_PRODUCT_CAL_STORAGE_ERROR);
             line_set_id(ui,
                         view,
                         line,
@@ -983,7 +1137,11 @@ static bool prepare_line(const ui_product_t *ui,
         }
         if (index == 1u)
         {
-            line_set(line, 8u, 60u, 1u, UI_COLOR_AMBER, resource_status_string(view->resource_status));
+            char status[12] = {0};
+            size_t used = 0u;
+            (void)append_text(status, sizeof(status), &used, "RS ");
+            (void)append_hex8(status, sizeof(status), &used, (uint32_t)(resource_status_t)view->resource_status);
+            line_set(line, 8u, 60u, 1u, UI_COLOR_AMBER, status);
             return true;
         }
         return false;
@@ -1017,7 +1175,11 @@ static bool prepare_line(const ui_product_t *ui,
             return true;
         }
         return view->has_measurement_result ?
-                   prepare_result_primary_line(&view->measurement_result, (uint8_t)(index - 1u), line) :
+                   prepare_result_primary_line(ui,
+                                               view,
+                                               &view->measurement_result,
+                                               (uint8_t)(index - 1u),
+                                               line) :
                    false;
     case UI_PRODUCT_STATE_RESULT:
         if (!view->has_measurement_result)
@@ -1029,13 +1191,20 @@ static bool prepare_line(const ui_product_t *ui,
             }
             return false;
         }
-        return (view->page == UI_PRODUCT_PAGE_DETAILS) ?
+        return ((ui_product_page_t)view->page == UI_PRODUCT_PAGE_DETAILS) ?
                    prepare_result_details_line(ui, view, &view->measurement_result, index, line) :
-                   prepare_result_primary_line(&view->measurement_result, index, line);
+                   prepare_result_primary_line(ui, view, &view->measurement_result, index, line);
     case UI_PRODUCT_STATE_SAFETY_BLOCKED:
         if (index == 0u)
         {
-            line_set_id(ui, view, line, 8u, 24u, 1u, UI_COLOR_RED, blocker_text_id(view->safety_blocker));
+            line_set_id(ui,
+                        view,
+                        line,
+                        8u,
+                        24u,
+                        1u,
+                        UI_COLOR_RED,
+                        blocker_text_id((ui_product_blocker_t)view->safety_blocker));
             return true;
         }
         return false;
@@ -1062,8 +1231,8 @@ static bool prepare_line(const ui_product_t *ui,
 static bool requires_full_clear(const ui_product_t *ui)
 {
     return (ui == NULL) || !ui->have_rendered ||
-           (ui->pending.state != ui->rendered.state) ||
-           (ui->pending.page != ui->rendered.page);
+           (ui->pending.state != ui->rendered_state) ||
+           (ui->pending.page != ui->rendered_page);
 }
 
 static void start_render(ui_product_t *ui)
@@ -1195,8 +1364,9 @@ bsp_status_t ui_product_step(ui_product_t *ui, const ili9341_t *display, bool qu
     ui_product_line_t line;
     if (!prepare_line(ui, &ui->rendering, ui->line_index, &line))
     {
-        ui->rendered = ui->rendering;
         ui->rendered_generation = ui->rendering.generation;
+        ui->rendered_state = ui->rendering.state;
+        ui->rendered_page = ui->rendering.page;
         ui->have_rendered = true;
         ui->active = false;
         ui->render_state = UI_PRODUCT_RENDER_IDLE;
@@ -1210,6 +1380,12 @@ bsp_status_t ui_product_step(ui_product_t *ui, const ili9341_t *display, bool qu
     if (line.deferred)
     {
         return BSP_STATUS_BUSY;
+    }
+    if (line.failed)
+    {
+        ui->active = false;
+        ui->render_state = UI_PRODUCT_RENDER_IDLE;
+        return BSP_STATUS_ERROR;
     }
     ui_fallback_text_scaled_start(&ui->text_op,
                                   line.x,

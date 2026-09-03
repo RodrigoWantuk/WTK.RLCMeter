@@ -102,13 +102,13 @@ typedef enum
 
 typedef struct
 {
-    measurement_auto_status_t status;
-    measurement_interpretation_t interpretation;
-    measurement_confidence_class_t confidence;
-    measurement_quality_class_t quality;
-    measurement_qualification_t qualification;
-    hw_excitation_freq_t frequency;
-    hw_excitation_amp_t amplitude;
+    uint8_t status;
+    uint8_t interpretation;
+    uint8_t confidence;
+    uint8_t quality;
+    uint8_t qualification;
+    uint8_t frequency;
+    uint8_t amplitude;
     float resistance_ohms;
     float reactance_ohms;
     float magnitude_ohms;
@@ -142,9 +142,9 @@ typedef struct
     uint8_t error;
     uint8_t workflow_result;
     uint8_t solver_status;
-    hw_range_id_t range_id;
-    hw_excitation_freq_t frequency;
-    hw_excitation_amp_t amplitude;
+    uint8_t range_id;
+    uint8_t frequency;
+    uint8_t amplitude;
     uint8_t range_index;
     uint8_t range_count;
     uint8_t condition_index;
@@ -158,11 +158,11 @@ typedef struct
 
 typedef struct
 {
-    ui_product_state_t state;
-    ui_product_page_t page;
-    ui_product_calibration_state_t calibration_status;
-    ui_product_blocker_t safety_blocker;
-    ui_product_battery_t battery_state;
+    uint8_t state;
+    uint8_t page;
+    uint8_t calibration_status;
+    uint8_t safety_blocker;
+    uint8_t battery_state;
     uint8_t measurement_state;
     ui_product_measurement_t measurement_result;
     ui_product_menu_t menu;
@@ -170,7 +170,7 @@ typedef struct
     bool has_measurement_result;
     bool measurement_result_partial;
     bool storage_unavailable;
-    resource_status_t resource_status;
+    uint8_t resource_status;
     bool display_ready;
     bool display_fault;
     bool calibration_active_valid;
@@ -190,10 +190,11 @@ typedef struct
 {
     ili9341_fill_t clear_fill;
     ui_product_view_t pending;
-    ui_product_view_t rendered;
     ui_product_view_t rendering;
     ui_fallback_text_op_t text_op;
     uint32_t rendered_generation;
+    uint8_t rendered_state;
+    uint8_t rendered_page;
     uint8_t line_index;
     ui_product_render_state_t render_state;
     ui_product_text_resolve_fn resolve_text;

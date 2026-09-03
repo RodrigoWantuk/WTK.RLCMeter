@@ -28,16 +28,24 @@ static int test_flash_access_policy(void)
                             "resource read deferred during quiet");
     failures += expect_true(!app_flash_access_allowed(&quiet, APP_FLASH_ACCESS_SETTINGS_MUTATION),
                             "settings mutation deferred during quiet");
+    failures += expect_true(!app_flash_access_allowed(&quiet, APP_FLASH_ACCESS_CALIBRATION_MUTATION),
+                            "calibration mutation deferred during quiet");
+    failures += expect_true(!app_flash_access_allowed(&quiet, APP_FLASH_ACCESS_GENERIC_POLL),
+                            "generic poll deferred during quiet");
     app_flash_access_snapshot_t calibration = {.calibration_mutation = true};
     failures += expect_true(!app_flash_access_allowed(&calibration, APP_FLASH_ACCESS_RESOURCE_READ),
                             "resource read deferred during calibration mutation");
     failures += expect_true(!app_flash_access_allowed(&calibration, APP_FLASH_ACCESS_SETTINGS_MUTATION),
                             "settings mutation deferred during calibration mutation");
+    failures += expect_true(!app_flash_access_allowed(&calibration, APP_FLASH_ACCESS_GENERIC_POLL),
+                            "generic poll deferred during calibration mutation");
     app_flash_access_snapshot_t settings = {.settings_mutation = true};
     failures += expect_true(!app_flash_access_allowed(&settings, APP_FLASH_ACCESS_RESOURCE_READ),
                             "resource read deferred during settings mutation");
     failures += expect_true(!app_flash_access_allowed(&settings, APP_FLASH_ACCESS_CALIBRATION_MUTATION),
                             "calibration mutation deferred during settings mutation");
+    failures += expect_true(!app_flash_access_allowed(&settings, APP_FLASH_ACCESS_GENERIC_POLL),
+                            "generic poll deferred during settings mutation");
     failures += expect_true(app_flash_access_context_size_bytes() == 0u, "policy has no runtime state");
     return failures;
 }

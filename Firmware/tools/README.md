@@ -21,8 +21,9 @@ Host-side tools that support firmware, assets, calibration, and diagnostics.
   largest symbols, optional JSON output, and Release/Bringup size-budget gates.
 - `build_resource_pack.py`: builds the deterministic Resource Pack v2 binary from
   `assets/resource_manifest.json`.
-- `inspect_resource_pack.py`: validates and prints Resource Pack v2 header, entry, and
-  CRC metadata.
+- `inspect_resource_pack.py`: validates Resource Pack v2 header, entry table, payload
+  CRCs, required EN/PT-BR text resources, dense text IDs, text index CRCs, bounds, and
+  UTF-8 before printing a concise summary.
 - `resource_pack_format.py`: shared host-side Resource Pack v2 encoder/inspector logic
   used by the builder and Python unit tests.
 

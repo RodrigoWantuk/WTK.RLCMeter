@@ -2,6 +2,7 @@
 
 #include "storage/storage_crc32.h"
 #include "ui/ui_text.h"
+#include "ui/ui_text_catalog.h"
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -11,7 +12,7 @@
 
 enum
 {
-    PACK_BYTES = 512u,
+    PACK_BYTES = 2048u,
 };
 
 static int g_failures = 0;
@@ -48,43 +49,58 @@ static void write_entry(uint32_t offset, resource_entry_t entry)
     resource_store_encode_entry(&g_pack[offset], &entry);
 }
 
-static uint32_t write_text_payload(uint32_t offset, uint8_t language, const char *a, const char *b)
+static uint32_t write_text_payload(uint32_t offset,
+                                   uint8_t language,
+                                   const char *prefix,
+                                   bool bad_index_crc,
+                                   bool bad_language)
 {
     const uint32_t index_offset = RESOURCE_TEXT_TABLE_HEADER_SIZE;
-    const uint32_t blob_offset = index_offset + (2u * RESOURCE_TEXT_TABLE_RECORD_SIZE);
-    resource_text_record_t records[2] = {
-        {.text_id = UI_TEXT_ID_READY, .byte_length = (uint16_t)strlen(a), .byte_offset = 0u},
-        {.text_id = UI_TEXT_ID_BACK, .byte_length = (uint16_t)strlen(b), .byte_offset = (uint32_t)strlen(a)},
-    };
+    const uint32_t blob_offset =
+        index_offset + ((uint32_t)UI_TEXT_ID_COUNT * RESOURCE_TEXT_TABLE_RECORD_SIZE);
+    uint8_t index[UI_TEXT_ID_COUNT * RESOURCE_TEXT_TABLE_RECORD_SIZE];
+    uint32_t blob_cursor = 0u;
+    for (uint16_t i = 0u; i < (uint16_t)UI_TEXT_ID_COUNT; i++)
+    {
+        char text[8];
+        (void)snprintf(text, sizeof(text), "%s%02u", prefix, (unsigned int)(i + 1u));
+        const uint16_t byte_length = (uint16_t)strlen(text);
+        const resource_text_record_t record = {
+            .text_id = (uint16_t)(UI_TEXT_ID_FIRST + i),
+            .byte_length = byte_length,
+            .byte_offset = blob_cursor,
+        };
+        resource_store_encode_text_record(&index[(uint32_t)i * RESOURCE_TEXT_TABLE_RECORD_SIZE],
+                                          &record);
+        (void)memcpy(&g_pack[offset + blob_offset + blob_cursor], text, byte_length);
+        blob_cursor += byte_length;
+    }
     resource_text_table_header_t header = {
         .magic = RESOURCE_TEXT_TABLE_MAGIC,
         .version = RESOURCE_TEXT_TABLE_VERSION,
         .header_size = RESOURCE_TEXT_TABLE_HEADER_SIZE,
-        .language_id = language,
-        .record_count = 2u,
+        .language_id = bad_language ? (uint8_t)UI_LANGUAGE_EN : language,
+        .record_count = (uint16_t)UI_TEXT_ID_COUNT,
         .index_offset = index_offset,
         .blob_offset = blob_offset,
     };
-    uint8_t index[2u * RESOURCE_TEXT_TABLE_RECORD_SIZE];
-    resource_store_encode_text_record(&index[0], &records[0]);
-    resource_store_encode_text_record(&index[RESOURCE_TEXT_TABLE_RECORD_SIZE], &records[1]);
-    header.index_crc32 = storage_crc32(index, sizeof(index));
+    header.index_crc32 = storage_crc32(index, sizeof(index)) ^ (bad_index_crc ? 1u : 0u);
     resource_store_encode_text_header(&g_pack[offset], &header);
     (void)memcpy(&g_pack[offset + index_offset], index, sizeof(index));
-    (void)memcpy(&g_pack[offset + blob_offset], a, strlen(a));
-    (void)memcpy(&g_pack[offset + blob_offset + strlen(a)], b, strlen(b));
-    return blob_offset + (uint32_t)strlen(a) + (uint32_t)strlen(b);
+    return blob_offset + blob_cursor;
 }
 
-static void build_pack(void)
+static void build_pack_with_options(bool bad_pt_index_crc, bool bad_pt_language)
 {
     (void)memset(g_pack, 0xFF, sizeof(g_pack));
     const uint32_t table_offset = RESOURCE_PACK_HEADER_SIZE;
     const uint32_t data_offset = table_offset + (2u * RESOURCE_PACK_ENTRY_WIRE_SIZE);
     const uint32_t en_offset = data_offset;
-    const uint32_t en_size = write_text_payload(en_offset, (uint8_t)UI_LANGUAGE_EN, "READY", "BACK");
+    const uint32_t en_size =
+        write_text_payload(en_offset, (uint8_t)UI_LANGUAGE_EN, "E", false, false);
     const uint32_t pt_offset = en_offset + en_size;
-    const uint32_t pt_size = write_text_payload(pt_offset, (uint8_t)UI_LANGUAGE_PT_BR, "PRONTO", "VOLTAR");
+    const uint32_t pt_size =
+        write_text_payload(pt_offset, (uint8_t)UI_LANGUAGE_PT_BR, "P", bad_pt_index_crc, bad_pt_language);
     resource_entry_t en = {
         .resource_id = RESOURCE_ID_TEXT_EN,
         .resource_type = RESOURCE_TYPE_TEXT_TABLE,
@@ -121,6 +137,11 @@ static void build_pack(void)
     resource_store_encode_header(g_pack, &header, true);
 }
 
+static void build_pack(void)
+{
+    build_pack_with_options(false, false);
+}
+
 static void test_catalog_mount_lookup_and_defer(void)
 {
     build_pack();
@@ -133,9 +154,38 @@ static void test_catalog_mount_lookup_and_defer(void)
                 "PT-BR table lookup");
     expect_true(resource_catalog_verify_payload(&catalog, &entry) == RESOURCE_STATUS_OK,
                 "payload CRC verifies");
+    ui_text_catalog_t text;
+    expect_true(ui_text_catalog_select_language(&text, &catalog, (uint8_t)UI_LANGUAGE_PT_BR) == RESOURCE_STATUS_OK,
+                "dense PT-BR text catalog validates");
+    char resolved[UI_TEXT_MAX_BYTES + 1u];
+    expect_true(ui_text_catalog_resolve(&text, UI_TEXT_ID_READY, resolved, sizeof(resolved)) == RESOURCE_STATUS_OK,
+                "dense catalog resolves by direct index");
+    expect_true(strcmp(resolved, "P06") == 0, "direct index returns expected string");
+    expect_true(ui_text_catalog_validate_required_languages(&catalog) == RESOURCE_STATUS_OK,
+                "both required languages validate");
     g_defer_next_read = true;
     expect_true(resource_catalog_lookup(&catalog, RESOURCE_ID_TEXT_EN, &entry) == RESOURCE_STATUS_DEFERRED,
                 "busy read maps to deferred");
+}
+
+static void test_text_catalog_rejects_semantic_corruption(void)
+{
+    build_pack_with_options(true, false);
+    const resource_catalog_io_t io = {.read = mem_read, .user = g_pack};
+    resource_catalog_t catalog;
+    expect_true(resource_catalog_mount(&catalog, &io, 0u, PACK_BYTES) == RESOURCE_STATUS_OK,
+                "bad index CRC pack still mounts structurally");
+    ui_text_catalog_t text;
+    expect_true(ui_text_catalog_select_language(&text, &catalog, (uint8_t)UI_LANGUAGE_PT_BR) ==
+                    RESOURCE_STATUS_CORRUPT,
+                "bad text index CRC rejected at admission");
+
+    build_pack_with_options(false, true);
+    expect_true(resource_catalog_mount(&catalog, &io, 0u, PACK_BYTES) == RESOURCE_STATUS_OK,
+                "bad language pack still mounts structurally");
+    expect_true(ui_text_catalog_select_language(&text, &catalog, (uint8_t)UI_LANGUAGE_PT_BR) ==
+                    RESOURCE_STATUS_CORRUPT,
+                "text language mismatch rejected at admission");
 }
 
 static void test_header_and_entry_reject_bad_wire_values(void)
@@ -164,5 +214,6 @@ int main(void)
 {
     test_catalog_mount_lookup_and_defer();
     test_header_and_entry_reject_bad_wire_values();
+    test_text_catalog_rejects_semantic_corruption();
     return (g_failures == 0) ? 0 : 1;
 }

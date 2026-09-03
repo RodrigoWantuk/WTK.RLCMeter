@@ -155,6 +155,63 @@ Remaining Stage 3B/product work:
 - final installer/resource flashing flow;
 - physical SPI/resource-read timing and quiet-mode validation.
 
+## Stage 3A.1 — resource integrity, localization completion, and UI SRAM hardening
+
+STATUS: IMPLEMENTED
+
+Implemented software boundary:
+
+- Resource Pack v2 API version is now 2. Text catalogs are a dense UTF-8 table with
+  IDs `0x0001..0x0038`; the runtime and Python tooling share the same first/last ID
+  and 31-byte per-string payload limit.
+- Firmware validates text payload CRC, text header, dense record count/order, exact blob
+  offsets, index CRC, record bounds, and UTF-8 for every string before accepting a
+  language. Boot-time resource admission validates both English and Portuguese (Brazil),
+  so a language switch cannot discover a corrupt installed pack after the fact.
+- Text resolution uses direct dense indexing instead of a binary search over a sparse
+  table. Normal-resource failures propagate as fatal resource status; they are no
+  longer converted into successful `?` strings.
+- Emergency `RESOURCE_ERROR` and safety/failure text remains W25Q-independent. The
+  emergency screen renders without any external resource reads and does not latch a
+  safety fault.
+- PRODUCT UI text migration covers remaining normal labels including phase, Git,
+  calibration schema, sequence, range prompts, OPEN/SHORT/LOAD standard names, and
+  connect-reference prompts. Technical tokens such as frequencies, amplitudes, range
+  names, `R`, `X`, `%`, seconds, hex digits, and `n/a` remain firmware-local tokens.
+- Portuguese (Brazil) resource strings were completed and cleaned up for resource,
+  supply, display, and range terminology while staying inside the fallback renderer's
+  current 31-byte string limit.
+- The product renderer removed the third full `ui_product_view_t` snapshot. It keeps
+  only pending/rendering snapshots plus compact rendered state/page metadata.
+- Product resource errors now preempt settings persistence before W25Q settings mutation
+  can start, while `RESOURCE_STATUS_DEFERRED` remains non-fatal retry/backpressure.
+- W25Q access-policy regression tests cover resource reads and generic polling during
+  quiet, settings mutation, and calibration mutation, plus mutation exclusivity.
+
+Software evidence:
+
+- Host tests cover dense text admission, bad text index CRC, text language mismatch,
+  direct dense lookup, emergency no-resource rendering, fatal normal text resolution,
+  PHASE localization, W25Q access deferral, and resource-error priority over pending
+  language settings save.
+- Python tooling tests cover deterministic pack builds, firmware/Python constant
+  consistency, missing/extra/oversized text IDs, required EN/PT-BR resources, payload
+  CRC corruption, text index corruption, record bounds, and wrong language payloads.
+- Final generated Resource Pack v2 size is 2224 B. Two consecutive builds were
+  byte-identical with SHA-256
+  `0EBA34C08B4FF4195293C37900ACB7B5EACDD46DEC113ED74491348DB603CAD1`.
+- Final local validation: Host Debug CTest 32/32, Host Release CTest 32/32, Python
+  tooling unittest 47/47, Wokwi lint-only passed with CLI 0.26.1, STM32 PRODUCT Debug
+  64676 B Flash / 16788 B accounted RAM, STM32 PRODUCT Release 57180 B Flash /
+  16768 B accounted RAM, STM32 BRINGUP 53916 B Flash / 15116 B accounted RAM.
+- PRODUCT Release remains below the hard 57344 B Flash gate by 164 B and PRODUCT
+  accounted RAM remains below the 17408 B hard gate by 640 B. PRODUCT Release did not
+  reach the Stage 3A.1 minimum headroom target of 55808 B, so Stage 3B external font/
+  icon/splash work is not yet authorized.
+
+Stage 3B remains NOT_STARTED. No external font runtime, bitmap font conversion, icon
+pack, splash asset, graph rendering, or TFT debug-console feature was started here.
+
 ## Stage 2A — product calibration wizard and active-calibration gate
 
 STATUS: IMPLEMENTED_REQUIRES_BENCH_VALIDATION

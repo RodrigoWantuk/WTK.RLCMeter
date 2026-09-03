@@ -51,6 +51,7 @@
       "toolchainFile": "${sourceDir}/cmake/toolchains/arm-none-eabi-gcc.cmake",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_C_FLAGS_RELEASE": "-Os -g0 -DNDEBUG",
         "CMAKE_INTERPROCEDURAL_OPTIMIZATION": "ON",
         "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
         "WTK_TARGET_PLATFORM": "stm32",

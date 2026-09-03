@@ -19,6 +19,9 @@ Files in this directory are source inputs. Firmware consumes packed/generated re
 - `text/en.json` and `text/pt-BR.json` provide UTF-8 product text catalogs with stable
   numeric text IDs. Firmware does not depend on enum ordinal order or physical Flash
   offsets.
+- Stage 3A.1 freezes the current text-catalog semantic ABI as dense IDs
+  `0x0001..0x0038`, every ID present in English and Portuguese (Brazil), and each
+  UTF-8 string no longer than 31 bytes.
 - Build the binary pack with:
 
 ```bash
