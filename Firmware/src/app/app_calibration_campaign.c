@@ -9,122 +9,10 @@ enum
     APP_CAL_CAMPAIGN_MISSING_LOAD = 1u << 2,
 };
 
-static measurement_cal_standard_type_t convert_standard(app_cal_standard_type_t standard)
-{
-    switch (standard)
-    {
-    case APP_CAL_STANDARD_OPEN:
-        return MEASUREMENT_CAL_STANDARD_OPEN;
-    case APP_CAL_STANDARD_SHORT:
-        return MEASUREMENT_CAL_STANDARD_SHORT;
-    case APP_CAL_STANDARD_LOAD:
-    default:
-        return MEASUREMENT_CAL_STANDARD_LOAD;
-    }
-}
-
 static bool key_matches(const app_calibration_campaign_t *campaign, const measurement_cal_key_t *key)
 {
     return (campaign != NULL) && (key != NULL) &&
            measurement_cal_key_equal(&campaign->key, key);
-}
-
-static measurement_complex_t transfer_mean_or_zero(const app_cal_evidence_t *evidence)
-{
-    return ((evidence != NULL) && evidence->hg_overlap_valid) ?
-               evidence->hg_observed_transfer.mean :
-               measurement_complex(0.0f, 0.0f);
-}
-
-static bool open_y_to_t(measurement_complex_t open_y, measurement_complex_t *t)
-{
-    return (t != NULL) &&
-           (measurement_complex_div(measurement_complex(1.0f, 0.0f),
-                                    measurement_complex_add(open_y,
-                                                            measurement_complex(1.0f, 0.0f)),
-                                    t) == MEASUREMENT_STATUS_OK);
-}
-
-static measurement_cal_solver_standard_t make_solver_standard(const app_cal_evidence_t *evidence)
-{
-    const bool open = evidence->standard.type == APP_CAL_STANDARD_OPEN;
-    measurement_cal_solver_standard_t standard = {
-        .key = evidence->key,
-        .standard = convert_standard(evidence->standard.type),
-        .standard_z_ohms = evidence->standard.z_ohms,
-        .standard_z_valid = evidence->standard.z_valid,
-        .t_1x = measurement_complex(0.0f, 0.0f),
-        .t_hg_raw = measurement_complex(0.0f, 0.0f),
-        .hg_observed_transfer = transfer_mean_or_zero(evidence),
-        .temperature_mC = evidence->temperature.valid ? evidence->temperature.mean_mC : 0,
-        .ret_1x_valid = evidence->ret_1x_evidence_valid,
-        .ret_hg_valid = evidence->ret_hg_evidence_valid,
-        .hg_observed_valid = evidence->hg_overlap_valid,
-        .stable = evidence->stable,
-        .temperature_valid = evidence->temperature.valid,
-        .present = true,
-    };
-    if (open)
-    {
-        if (!open_y_to_t(evidence->open_y_1x.mean, &standard.t_1x))
-        {
-            standard.ret_1x_valid = false;
-        }
-        if (measurement_complex_div(evidence->ret_hg_raw.mean,
-                                    evidence->source_2.mean,
-                                    &standard.t_hg_raw) != MEASUREMENT_STATUS_OK)
-        {
-            standard.ret_hg_valid = false;
-        }
-    }
-    else
-    {
-        measurement_complex_t t_1x = measurement_complex(0.0f, 0.0f);
-        measurement_complex_t t_hg_raw = measurement_complex(0.0f, 0.0f);
-        if (measurement_complex_div(evidence->ret_1x.mean,
-                                    evidence->source_1.mean,
-                                    &t_1x) == MEASUREMENT_STATUS_OK)
-        {
-            standard.t_1x = t_1x;
-        }
-        else
-        {
-            standard.ret_1x_valid = false;
-        }
-        if (measurement_complex_div(evidence->ret_hg_raw.mean,
-                                    evidence->source_2.mean,
-                                    &t_hg_raw) == MEASUREMENT_STATUS_OK)
-        {
-            standard.t_hg_raw = t_hg_raw;
-        }
-        else
-        {
-            standard.ret_hg_valid = false;
-        }
-    }
-    if (standard.standard == MEASUREMENT_CAL_STANDARD_OPEN)
-    {
-        standard.standard_z_ohms = measurement_complex(0.0f, 0.0f);
-        standard.standard_z_valid = false;
-    }
-    else if (standard.standard == MEASUREMENT_CAL_STANDARD_SHORT)
-    {
-        standard.standard_z_ohms = measurement_complex(0.0f, 0.0f);
-        standard.standard_z_valid = true;
-    }
-    return standard;
-}
-
-bsp_status_t app_calibration_standard_from_evidence(
-    const app_cal_evidence_t *evidence,
-    measurement_cal_solver_standard_t *standard)
-{
-    if ((evidence == NULL) || (standard == NULL) || !evidence->stable)
-    {
-        return BSP_STATUS_INVALID_ARG;
-    }
-    *standard = make_solver_standard(evidence);
-    return BSP_STATUS_OK;
 }
 
 void app_calibration_campaign_init(app_calibration_campaign_t *campaign)
@@ -163,7 +51,7 @@ bsp_status_t app_calibration_campaign_submit_evidence(app_calibration_campaign_t
     }
 
     measurement_cal_solver_standard_t standard;
-    const bsp_status_t status = app_calibration_standard_from_evidence(evidence, &standard);
+    const bsp_status_t status = app_calibration_workflow_standard_from_evidence(evidence, &standard);
     if (status != BSP_STATUS_OK)
     {
         return status;

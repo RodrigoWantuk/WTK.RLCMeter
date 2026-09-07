@@ -98,3 +98,8 @@ bounded copy of the current line, so an updated pending view may coalesce while 
 finishes and then restart rendering from the newest generation before preparing the next
 line. This replaces the previous second full in-progress snapshot without changing quiet
 mode deferral or resource-error behavior.
+
+Phase 08 Stage 3A.3 recovers PRODUCT Flash headroom below the Stage 3B handoff gate
+without adding external font, glyph, icon, splash, graph, or TFT debug-console runtime.
+Those resources remain Stage 3B/later work and must continue to live outside MCU
+internal Flash where practical.

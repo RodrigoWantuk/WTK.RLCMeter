@@ -7,8 +7,6 @@ enum
     COMMIT_OFFSET = 60u,
     COMMIT_BYTES = 4u,
     PAGE_BYTES = 256u,
-    KEY_BITS_PER_RANGE = 6u,
-    KEY_BITS_PER_FREQ = 2u,
     MEASUREMENT_CAL_STORE_CONTEXT_BUDGET_BYTES = 3400u,
 };
 
@@ -39,27 +37,6 @@ bool measurement_cal_store_sequence_newer(uint32_t a, uint32_t b)
     return (a != b) && ((uint32_t)(a - b) < 0x80000000u);
 }
 
-static bool key_bit(const measurement_cal_key_t *key, uint8_t *bit)
-{
-    if ((key == NULL) || (bit == NULL) ||
-        (key->hardware_revision != MEASUREMENT_CAL_HARDWARE_REV1) ||
-        (key->model_version != MEASUREMENT_CAL_MODEL_VERSION_CURRENT) ||
-        !measurement_cal_condition_allowed(key->range_id, key->frequency, key->amplitude))
-    {
-        return false;
-    }
-    if ((key->range_id > HW_RANGE_ID_1M) ||
-        (key->frequency > HW_EXCITATION_FREQ_10KHZ) ||
-        (key->amplitude > HW_EXCITATION_AMP_500MVRMS))
-    {
-        return false;
-    }
-    *bit = (uint8_t)(((uint8_t)key->range_id * KEY_BITS_PER_RANGE) +
-                     ((uint8_t)key->frequency * KEY_BITS_PER_FREQ) +
-                     (uint8_t)key->amplitude);
-    return *bit < 64u;
-}
-
 static bool set_key_mask(const measurement_cal_set_t *set, uint64_t *mask)
 {
     if ((set == NULL) || (mask == NULL) || (set->record_count > MEASUREMENT_CAL_MAX_RECORDS))
@@ -70,7 +47,7 @@ static bool set_key_mask(const measurement_cal_set_t *set, uint64_t *mask)
     for (uint8_t i = 0u; i < set->record_count; i++)
     {
         uint8_t bit = 0u;
-        if (!key_bit(&set->records[i].key, &bit))
+        if (!measurement_cal_rev1_condition_bit(&set->records[i].key, &bit))
         {
             return false;
         }

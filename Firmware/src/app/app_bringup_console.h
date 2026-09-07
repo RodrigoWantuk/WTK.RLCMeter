@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "app/app_calibration_campaign.h"
 #include "app/app_calibration_service.h"
 #include "app/app_calibration_session.h"
 #include "app/app_io_workspace.h"
@@ -63,6 +64,7 @@ typedef struct
     hw_metrology_measure_t measure;
     app_cal_session_io_t cal_session_io;
     app_calibration_session_t cal_session;
+    app_calibration_campaign_t cal_campaign;
     app_calibration_service_t *cal_service;
     app_io_workspace_t *workspace;
     app_bringup_metrology_dump_source_t dump_source;

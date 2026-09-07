@@ -4,8 +4,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include "app/app_calibration_campaign.h"
 #include "app/app_calibration_session.h"
+#include "app/app_calibration_workflow.h"
 #include "hardware/hw_safety.h"
 
 enum

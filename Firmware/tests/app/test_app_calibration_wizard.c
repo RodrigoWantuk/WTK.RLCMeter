@@ -500,6 +500,35 @@ static int test_condition_enumeration(void)
                            "10R first key amplitude");
     failures += expect_true(app_calibration_wizard_condition_key(HW_RANGE_ID_10R, 3u, &key) != BSP_STATUS_OK,
                             "10R fourth key is forbidden");
+
+    uint64_t seen = 0u;
+    uint8_t unique = 0u;
+    for (uint8_t range_index = 0u; range_index < APP_CAL_WIZARD_RANGE_COUNT; range_index++)
+    {
+        const hw_range_id_t range = (hw_range_id_t)range_index;
+        const uint8_t count = app_calibration_wizard_condition_count(range);
+        for (uint8_t index = 0u; index < count; index++)
+        {
+            failures += expect_true(app_calibration_wizard_condition_key(range, index, &key) == BSP_STATUS_OK,
+                                    "condition key exists");
+            failures += expect_true(measurement_condition_calibratable(key.range_id,
+                                                                       key.frequency,
+                                                                       key.amplitude),
+                                    "condition key is calibratable");
+            failures += expect_true(!((key.range_id == HW_RANGE_ID_10R) &&
+                                      (key.amplitude == HW_EXCITATION_AMP_500MVRMS)),
+                                    "10R never uses 500 mVrms");
+            const uint8_t bit = (uint8_t)((range_index * 6u) +
+                                          ((uint8_t)key.frequency * 2u) +
+                                          (uint8_t)key.amplitude);
+            const uint64_t flag = (uint64_t)1u << bit;
+            failures += expect_true((seen & flag) == 0u, "condition key is unique");
+            seen |= flag;
+            unique++;
+        }
+    }
+    failures += expect_u32(unique, MEASUREMENT_CONDITION_REV1_MAX_SUPPORTED,
+                           "condition enumeration unique count");
     return failures;
 }
 

@@ -24,6 +24,8 @@ enum
     CAL_RECORD_BYTES = 80u,
 };
 
+#define MEASUREMENT_CAL_REV1_FULL_KEY_COUNT 33u
+
 static bool finite_f(float value)
 {
     return isfinite(value) != 0;
@@ -178,13 +180,40 @@ uint32_t measurement_cal_condition_id(const measurement_cal_key_t *key)
     return storage_crc32(bytes, sizeof(bytes));
 }
 
+static bool rev1_key_fields_valid(const measurement_cal_key_t *key)
+{
+    if ((key == NULL) ||
+        (key->hardware_revision != MEASUREMENT_CAL_HARDWARE_REV1) ||
+        (key->model_version != MEASUREMENT_CAL_MODEL_VERSION_CURRENT) ||
+        (key->range_id > HW_RANGE_ID_1M) ||
+        (key->frequency > HW_EXCITATION_FREQ_10KHZ) ||
+        (key->amplitude > HW_EXCITATION_AMP_500MVRMS))
+    {
+        return false;
+    }
+    return !((key->range_id == HW_RANGE_ID_10R) &&
+             (key->amplitude == HW_EXCITATION_AMP_500MVRMS));
+}
+
 static bool key_valid(const measurement_cal_key_t *key)
 {
-    return (key != NULL) &&
-           (key->hardware_revision == MEASUREMENT_CAL_HARDWARE_REV1) &&
-           (key->model_version == MEASUREMENT_CAL_MODEL_VERSION_CURRENT) &&
-           measurement_cal_condition_allowed(key->range_id, key->frequency, key->amplitude);
+    return rev1_key_fields_valid(key);
 }
+
+bool measurement_cal_rev1_condition_bit(const measurement_cal_key_t *key, uint8_t *bit)
+{
+    if ((bit == NULL) || !rev1_key_fields_valid(key))
+    {
+        return false;
+    }
+    *bit = (uint8_t)(((uint8_t)key->range_id * 6u) +
+                     ((uint8_t)key->frequency * 2u) +
+                     (uint8_t)key->amplitude);
+    return *bit < 64u;
+}
+
+_Static_assert(MEASUREMENT_CAL_REV1_FULL_KEY_COUNT == MEASUREMENT_CONDITION_REV1_MAX_SUPPORTED,
+               "Rev.1 full-set count must match the frozen calibratable domain");
 
 static bool model_is_current(uint16_t model_version)
 {
@@ -535,6 +564,28 @@ measurement_cal_validity_t measurement_cal_validate_set(
     {
         validity.status = MEASUREMENT_CAL_VALIDITY_INCOMPLETE;
         validity.flags |= MEASUREMENT_CAL_VALID_FLAG_INCOMPLETE;
+    }
+    return validity;
+}
+
+measurement_cal_validity_t measurement_cal_validate_rev1_full_set(const measurement_cal_set_t *set)
+{
+    measurement_cal_validity_t validity =
+        measurement_cal_validate_set(set,
+                                     NULL,
+                                     MEASUREMENT_CAL_HARDWARE_REV1,
+                                     MEASUREMENT_CAL_MODEL_VERSION_CURRENT);
+    if (validity.status != MEASUREMENT_CAL_VALIDITY_VALID)
+    {
+        return validity;
+    }
+
+    if (set->record_count != MEASUREMENT_CAL_REV1_FULL_KEY_COUNT)
+    {
+        validity.status = MEASUREMENT_CAL_VALIDITY_INCOMPLETE;
+        validity.flags |= MEASUREMENT_CAL_VALID_FLAG_INCOMPLETE;
+        validity.missing_required_count =
+            (uint8_t)(MEASUREMENT_CAL_REV1_FULL_KEY_COUNT - set->record_count);
     }
     return validity;
 }

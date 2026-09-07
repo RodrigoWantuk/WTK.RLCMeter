@@ -190,6 +190,7 @@ measurement_cal_key_t measurement_cal_key(uint32_t hardware_revision,
                                           hw_excitation_amp_t amplitude);
 bool measurement_cal_key_equal(const measurement_cal_key_t *a, const measurement_cal_key_t *b);
 uint32_t measurement_cal_condition_id(const measurement_cal_key_t *key);
+bool measurement_cal_rev1_condition_bit(const measurement_cal_key_t *key, uint8_t *bit);
 bool measurement_cal_condition_allowed(hw_range_id_t range_id,
                                        hw_excitation_freq_t frequency,
                                        hw_excitation_amp_t amplitude);
@@ -217,6 +218,7 @@ measurement_cal_validity_t measurement_cal_validate_set(
     const measurement_cal_requirements_t *requirements,
     uint32_t hardware_revision,
     uint16_t model_version);
+measurement_cal_validity_t measurement_cal_validate_rev1_full_set(const measurement_cal_set_t *set);
 
 measurement_cal_resolve_status_t measurement_cal_resolve_condition(
     const measurement_cal_set_t *set,

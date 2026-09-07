@@ -48,6 +48,14 @@ therefore solve from OPEN, SHORT, and LOAD standards captured at different tempe
 Solver inputs preserve those distinct values and diagnostics expose min/max/span, but
 no temperature-span rejection policy is defined before bench evidence.
 
+Phase 08 Stage 3A.3 keeps the OSL solver and persisted schema/model unchanged while
+decoupling campaign aggregation from PRODUCT. The product wizard converts accepted
+evidence to solver standards, calls the OSL solver directly for each condition, and
+inserts the resulting record into the candidate set. BRINGUP retains a console-owned
+campaign helper for engineering diagnostics. Full PRODUCT activation still requires a
+validated Rev.1 set covering the fixed 33-condition domain; `10R + 500mV` remains
+forbidden.
+
 ## OPEN / SHORT / LOAD
 
 ### OPEN

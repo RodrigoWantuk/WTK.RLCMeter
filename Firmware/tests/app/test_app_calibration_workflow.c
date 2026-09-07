@@ -1548,6 +1548,52 @@ static int test_campaign_solves_condition_and_inserts_candidate_record(void)
                             "campaign OSL coefficients decode");
     failures += expect_complex_near(coefficients.t_open, open_t, 0.0001f, "campaign converts open_y to t_open");
 
+    measurement_cal_solver_standard_t direct_open;
+    measurement_cal_solver_standard_t direct_short;
+    measurement_cal_solver_standard_t direct_load;
+    failures += expect_true(app_calibration_workflow_standard_from_evidence(&open, &direct_open) ==
+                                BSP_STATUS_OK,
+                            "direct open evidence conversion");
+    failures += expect_true(app_calibration_workflow_standard_from_evidence(&shorted, &direct_short) ==
+                                BSP_STATUS_OK,
+                            "direct short evidence conversion");
+    failures += expect_true(app_calibration_workflow_standard_from_evidence(&load, &direct_load) ==
+                                BSP_STATUS_OK,
+                            "direct load evidence conversion");
+    const measurement_cal_solver_input_t direct_input = {
+        .open = direct_open,
+        .shorted = direct_short,
+        .load = direct_load,
+    };
+    measurement_cal_solver_solution_t direct_solution;
+    failures += expect_true(measurement_cal_solver_solve(&direct_input, &direct_solution) ==
+                                MEASUREMENT_CAL_SOLVER_OK,
+                            "direct solver path succeeds");
+    const measurement_cal_record_t direct_record =
+        measurement_cal_solver_make_record(&direct_solution);
+    measurement_cal_osl_coefficients_t direct_coefficients;
+    failures += expect_true(measurement_cal_get_osl_coefficients(&direct_record.correction,
+                                                                 &direct_coefficients),
+                            "direct OSL coefficients decode");
+    failures += expect_u32(direct_record.condition_id, record.condition_id,
+                           "direct and campaign condition match");
+    failures += expect_complex_near(direct_coefficients.t_open,
+                                    coefficients.t_open,
+                                    0.0001f,
+                                    "direct and campaign t_open match");
+    failures += expect_complex_near(direct_coefficients.t_short,
+                                    coefficients.t_short,
+                                    0.0001f,
+                                    "direct and campaign t_short match");
+    failures += expect_complex_near(direct_coefficients.k,
+                                    coefficients.k,
+                                    0.0001f,
+                                    "direct and campaign k match");
+    failures += expect_complex_near(direct_coefficients.effective_hg_transfer,
+                                    coefficients.effective_hg_transfer,
+                                    0.0001f,
+                                    "direct and campaign HG transfer match");
+
     measurement_cal_set_t candidate;
     measurement_cal_set_init(&candidate,
                              MEASUREMENT_CAL_HARDWARE_REV1,

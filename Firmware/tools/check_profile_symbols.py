@@ -13,6 +13,7 @@ from pathlib import Path
 FORBIDDEN = {
     "PRODUCT": (
         re.compile(r"app_bringup_console"),
+        re.compile(r"app_calibration_campaign"),
         re.compile(r"g_bringup_console"),
         re.compile(r"\blab_"),
     ),

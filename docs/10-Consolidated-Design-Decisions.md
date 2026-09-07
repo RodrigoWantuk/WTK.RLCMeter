@@ -409,8 +409,9 @@ is intentionally split:
 ```text
 app_calibration_service_t:
     product-owned calibration service
-    owns runtime, persistent store scratch, active OSL workflow
-    owns current OSL campaign and explicit candidate lifecycle
+    owns runtime, persistent store scratch, active OSL workflow, and explicit
+    candidate lifecycle
+    does not own current-condition campaign aggregation
 
 app_calibration_session_t:
     application-level OSL capture controller
@@ -420,6 +421,7 @@ app_calibration_session_t:
 app_calibration_campaign_t:
     compact current-condition OSL campaign
     stores OPEN/SHORT/LOAD summaries and one solved condition
+    compiled for host/BRINGUP engineering diagnostics, not PRODUCT
 
 app_calibration_runtime_t:
     active decoded coefficient set
@@ -434,7 +436,8 @@ measurement_cal_store_t:
 app_bringup_console_t:
     bring-up command/dump state only
     pointer to app_calibration_service_t/app_calibration_session_t
-    does not own store scratch, calibration campaign state, or automatic session state
+    owns BRINGUP-only calibration campaign state
+    does not own store scratch or automatic session state
 ```
 
 Calibration store terminal states are acknowledged explicitly. After `DONE`, the
@@ -566,6 +569,11 @@ Phase 08 Stage 3A.2 keeps `-Os` as the PRODUCT size policy after measuring GCC `
 with no linked-image improvement. PRODUCT Debug uses size-optimized code with DWARF
 symbols as the sustainable SWD path; debug sections in the ELF are not programmed as
 loadable Flash, while stepping may be less direct than a non-optimized debug build.
+Phase 08 Stage 3A.3 removes calibration-campaign orchestration from PRODUCT, keeps the
+BRINGUP campaign console-owned, and validates the fixed 33-condition Rev.1 calibration
+domain without materializing the generic requirements array on the PRODUCT stack.
+PRODUCT Release is below the 55296 B Stage 3B handoff target; Stage 3B remains a
+separate not-started task.
 
 ## Localization
 

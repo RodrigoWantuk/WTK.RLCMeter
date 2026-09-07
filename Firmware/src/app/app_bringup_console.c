@@ -2013,13 +2013,12 @@ static void lab_cal_write_terminal(app_bringup_console_t *console)
     if (app_calibration_workflow_result(workflow) == APP_CAL_WORKFLOW_RESULT_OK)
     {
         const bsp_status_t campaign_status =
-            app_calibration_service_campaign_submit_evidence(console->cal_service,
-                                                             app_calibration_workflow_evidence(workflow));
+            app_calibration_campaign_submit_evidence(&console->cal_campaign,
+                                                     app_calibration_workflow_evidence(workflow));
         write_text("CAL_CMP_EV st=");
         write_text(bsp_status_string(campaign_status));
         write_text(" miss=");
-        write_hex8(app_calibration_campaign_missing_mask(
-            app_calibration_service_campaign_const(console->cal_service)));
+        write_hex8(app_calibration_campaign_missing_mask(&console->cal_campaign));
         write_text("\r\n");
     }
 }
@@ -2035,8 +2034,7 @@ static void lab_cal_campaign_status(app_bringup_console_t *console)
         app_calibration_service_candidate_set_const(console->cal_service);
     const measurement_cal_validity_t validity =
         app_calibration_service_candidate_validity(console->cal_service);
-    const app_calibration_campaign_t *campaign =
-        app_calibration_service_campaign_const(console->cal_service);
+    const app_calibration_campaign_t *campaign = &console->cal_campaign;
     write_text("CAL_CMP st=");
     write_text(app_cal_campaign_state_string((campaign != NULL) ? campaign->state :
                                                                APP_CAL_CAMPAIGN_EMPTY));
@@ -2065,7 +2063,7 @@ static void lab_cal_campaign_solve(app_bringup_console_t *console)
     }
     measurement_cal_record_t record;
     const measurement_cal_solver_status_t solve =
-        app_calibration_service_campaign_solve_condition(console->cal_service, &record);
+        app_calibration_campaign_solve_condition(&console->cal_campaign, &record);
     if (solve != MEASUREMENT_CAL_SOLVER_OK)
     {
         write_text("CAL_CMP_SOLVE st=");
@@ -2385,7 +2383,7 @@ static void run_command(app_bringup_console_t *console,
             app_calibration_service_candidate_begin(console->cal_service) :
             BSP_STATUS_OK;
         const bsp_status_t campaign_status =
-            app_calibration_service_campaign_begin_condition(console->cal_service, &cal_campaign_key);
+            app_calibration_campaign_begin_condition(&console->cal_campaign, &cal_campaign_key);
         write_text("CAL_CMP_BEGIN st=");
         write_text((candidate_status == BSP_STATUS_OK) ? bsp_status_string(campaign_status) :
                                                         bsp_status_string(candidate_status));
@@ -2405,6 +2403,10 @@ static void run_command(app_bringup_console_t *console,
     {
         const bsp_status_t status =
             app_calibration_service_candidate_discard((console != NULL) ? console->cal_service : NULL);
+        if ((console != NULL) && (status == BSP_STATUS_OK))
+        {
+            app_calibration_campaign_init(&console->cal_campaign);
+        }
         write_text("CAL_CMP_DISCARD st=");
         write_text(bsp_status_string(status));
         write_text("\r\n");
@@ -2484,6 +2486,7 @@ void app_bringup_console_init(app_bringup_console_t *console)
     console->dump_row = 0u;
     console->dump_source = APP_BRINGUP_METROLOGY_DUMP_NONE;
     console->cal_session = (app_calibration_session_t){0};
+    app_calibration_campaign_init(&console->cal_campaign);
     console->cal_service = NULL;
     console->workspace = NULL;
     console->range_ref = NULL;

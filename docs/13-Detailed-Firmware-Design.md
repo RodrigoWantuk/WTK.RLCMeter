@@ -752,6 +752,7 @@ Runtime ownership is split to keep the STM32F103C8T6 SRAM budget visible:
 app_calibration_service_t:
     product-owned calibration service
     owns runtime + one store scratch + active OSL evidence workflow
+    owns candidate lifecycle, not current-condition campaign aggregation
 
 app_calibration_session_t:
     application-level OSL capture controller
@@ -762,6 +763,7 @@ app_calibration_campaign_t:
     compact current-condition OSL campaign
     stores only OPEN/SHORT/LOAD summaries and one solved condition
     inserts records into an external candidate set
+    compiled for host/BRINGUP engineering diagnostics, not PRODUCT
 
 app_calibration_runtime_t:
     active decoded calibration coefficients and compact provenance
@@ -782,7 +784,8 @@ app_io_workspace_t:
 app_bringup_console_t:
     owns bring-up command state only
     attaches to app_calibration_service_t/app_calibration_session_t
-    does not own calibration store scratch, calibration campaign state, or automatic session state
+    owns BRINGUP-only calibration campaign state
+    does not own calibration store scratch or automatic session state
 ```
 
 The normal calibration store write path must not place multiple complete
@@ -809,8 +812,8 @@ use per-path provisional impedance observables. Missing path evidence is not cou
 stable.
 
 Stage 2B.2 adds the pure `measurement_calibration_solver` and the compact
-`app_calibration_campaign` layer. Stage 2B.2.1 makes the service the campaign owner and
-the active model is `MEASUREMENT_CAL_MODEL_VERSION_CURRENT = 4`: the solver uses
+`app_calibration_campaign` layer for host/BRINGUP engineering flows. Stage 2B.2.1 made
+the active model `MEASUREMENT_CAL_MODEL_VERSION_CURRENT = 4`: the solver uses
 `t = Vx / Vs`, stores `effective_hg_transfer`, `load_z_ohms`, `t_short`, `t_open`, `k`,
 and `reserved` in the existing 80-byte condition record payload, and fits HG from raw
 normalized `t_hg_raw = RET_HG_raw / VEXC_2` after deriving
@@ -819,6 +822,16 @@ normalized `t_hg_raw = RET_HG_raw / VEXC_2` after deriving
 after the inactive W25Q slot has been programmed and verified. `DONE`/`ERROR` store
 states require explicit acknowledgement before scratch reuse. No bring-up/application
 calibration path owns GPIO, K1, range switching, raw DMA storage, or campaign state.
+
+Phase 08 Stage 3A.3 decouples PRODUCT from `app_calibration_campaign`: the product
+wizard converts completed evidence through
+`app_calibration_workflow_standard_from_evidence()`, feeds cached OPEN/SHORT and current
+LOAD standards directly to `measurement_cal_solver_solve()`, inserts the generated OSL
+record through the calibration service candidate API, and commits only after full Rev.1
+validation. BRINGUP keeps a console-owned campaign for `lab cal campaign ...`.
+The Rev.1 calibration domain is fixed at 33 conditions: `10R` supports `100mV` at
+`100Hz/1kHz/10kHz`; every other Rev.1 range supports `100mV` and `500mV` at each of the
+three frequencies. Static assertions freeze the enum order used by this direct mapping.
 
 Pre-Phase 08 cleanup removed embedded execution for development-era direct/affine
 calibration models. `schema_version` remains 2 because the portable byte layout did not
@@ -891,7 +904,7 @@ If a previous manual candidate is still dirty, a new manual wizard does not over
 `app_calibration_session_t`, but it does not own GPIO, K1, range pins, excitation,
 ADC/DMA, W25Q primitives, or OSL math. Every condition capture still uses the existing
 Phase 05 fixed-condition measurement transaction through the session/service boundary.
-The wizard reuses the calibration campaign/solver/store services:
+The wizard reuses the calibration solver/store services directly:
 
 ```text
 wizard condition request
@@ -899,7 +912,7 @@ wizard condition request
     -> Phase 05 measurement capture
     -> app_calibration_workflow_t evidence
     -> compact measurement_cal_solver_standard_t
-    -> app_calibration_campaign_t solve
+    -> measurement_cal_solver_solve()
     -> candidate measurement_cal_set_t
     -> explicit user save
     -> async W25Q commit/verify
@@ -910,7 +923,8 @@ The wizard batches work by range and fixture. For each range it asks for OPEN on
 captures all calibratable conditions for that range, asks for SHORT once, captures all
 conditions, then asks for LOAD once and solves each condition. Only compact OPEN/SHORT
 standards for the current range are cached. The full Rev.1 candidate contains 33 solved
-conditions, dynamically enumerated by `measurement_condition_calibratable()`.
+conditions from the static-asserted fixed Rev.1 domain mapping. `10R + 500mV` is not
+enumerated.
 
 The product controller stores measurement and calibration runtimes in a union because
 automatic measurement and full calibration are mutually exclusive. Both paths borrow the

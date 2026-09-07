@@ -63,7 +63,6 @@ add_library(wtk_firmware_common STATIC
     src/app/app_calibration_runtime.c
     src/app/app_calibration_service.c
     src/app/app_calibration_session.c
-    src/app/app_calibration_campaign.c
     src/app/app_calibration_wizard.c
     src/app/app_calibration_workflow.c
     src/app/app_flash_access.c
@@ -118,6 +117,10 @@ target_include_directories(wtk_firmware_common
 wtk_configure_c_target(wtk_firmware_common)
 wtk_apply_project_warnings(wtk_firmware_common)
 wtk_apply_common_compile_options(wtk_firmware_common)
+
+if((WTK_TARGET_PLATFORM STREQUAL "host") OR (WTK_FIRMWARE_PROFILE STREQUAL "BRINGUP"))
+    target_sources(wtk_firmware_common PRIVATE src/app/app_calibration_campaign.c)
+endif()
 
 if(WTK_TARGET_PLATFORM STREQUAL "host")
     if(WTK_WARNINGS_AS_ERRORS_HOST)

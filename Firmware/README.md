@@ -80,7 +80,7 @@ Release and Debug use `WTK_FIRMWARE_PROFILE=PRODUCT`. Product Debug is deliberat
 compiled size-first (`-Os`) while retaining debug symbols; on the guaranteed 64 KiB
 STM32F103C8T6, "Debug" means observable symbols/assertions, not an `-Og` image.
 Product Release additionally enables GCC LTO through its preset to recover internal
-Flash headroom before later Phase 08 menu/settings work. Bringup uses
+Flash headroom before later Phase 08 resource/UI work. Bringup uses
 `WTK_FIRMWARE_PROFILE=BRINGUP` with the standard `MinSizeRel` optimization build type;
 feature selection is no longer encoded as a custom CMake build type.
 
@@ -498,6 +498,11 @@ stack/heap floor, remaining SRAM, and largest symbols. The soft Flash target is 
 The PRODUCT profile has a 16 KiB preferred accounted-RAM target and a 17 KiB hard gate;
 BRINGUP has an 18 KiB accounted-RAM hard gate. Accounted RAM includes static
 `.data/.bss/.noinit` plus the linker-reserved stack/heap floor.
+
+Phase 08 Stage 3A.3 additionally gates Stage 3B external font/glyph work on PRODUCT
+Release Flash no larger than 55296 B and PRODUCT accounted RAM no larger than 16640 B.
+This gate is achieved by architecture/profile composition, not by relying on extra
+non-guaranteed STM32 Flash.
 
 ## Implementation program
 

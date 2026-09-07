@@ -405,6 +405,8 @@ static bool drain_runtime_teardown(app_product_t *product,
     return false;
 }
 
+#define ENUM_INT(value) ((int)((value) + 0))
+
 static ui_product_measurement_t ui_measurement_from_result(const measurement_session_result_t *result)
 {
     ui_product_measurement_t out = {0};
@@ -428,58 +430,55 @@ static ui_product_measurement_t ui_measurement_from_result(const measurement_ses
     return out;
 }
 
+_Static_assert(ENUM_INT(APP_CAL_WIZARD_IDLE) == ENUM_INT(UI_PRODUCT_WIZARD_IDLE),
+               "wizard state enum mapping");
+_Static_assert(ENUM_INT(APP_CAL_WIZARD_INTRO) == ENUM_INT(UI_PRODUCT_WIZARD_INTRO),
+               "wizard state enum mapping");
+_Static_assert(ENUM_INT(APP_CAL_WIZARD_WAIT_OPEN_FIXTURE) == ENUM_INT(UI_PRODUCT_WIZARD_WAIT_OPEN),
+               "wizard state enum mapping");
+_Static_assert(ENUM_INT(APP_CAL_WIZARD_CAPTURE_OPEN) == ENUM_INT(UI_PRODUCT_WIZARD_CAPTURE_OPEN),
+               "wizard state enum mapping");
+_Static_assert(ENUM_INT(APP_CAL_WIZARD_WAIT_SHORT_FIXTURE) == ENUM_INT(UI_PRODUCT_WIZARD_WAIT_SHORT),
+               "wizard state enum mapping");
+_Static_assert(ENUM_INT(APP_CAL_WIZARD_CAPTURE_SHORT) == ENUM_INT(UI_PRODUCT_WIZARD_CAPTURE_SHORT),
+               "wizard state enum mapping");
+_Static_assert(ENUM_INT(APP_CAL_WIZARD_WAIT_LOAD_FIXTURE) == ENUM_INT(UI_PRODUCT_WIZARD_WAIT_LOAD),
+               "wizard state enum mapping");
+_Static_assert(ENUM_INT(APP_CAL_WIZARD_CAPTURE_LOAD) == ENUM_INT(UI_PRODUCT_WIZARD_CAPTURE_LOAD),
+               "wizard state enum mapping");
+_Static_assert(ENUM_INT(APP_CAL_WIZARD_RANGE_COMPLETE) == ENUM_INT(UI_PRODUCT_WIZARD_RANGE_COMPLETE),
+               "wizard state enum mapping");
+_Static_assert(ENUM_INT(APP_CAL_WIZARD_CONFIRM_SAVE) == ENUM_INT(UI_PRODUCT_WIZARD_CONFIRM_SAVE),
+               "wizard state enum mapping");
+_Static_assert(ENUM_INT(APP_CAL_WIZARD_COMMITTING) == ENUM_INT(UI_PRODUCT_WIZARD_COMMITTING),
+               "wizard state enum mapping");
+_Static_assert(ENUM_INT(APP_CAL_WIZARD_COMPLETE) == ENUM_INT(UI_PRODUCT_WIZARD_COMPLETE),
+               "wizard state enum mapping");
+_Static_assert(ENUM_INT(APP_CAL_WIZARD_FAILED) == ENUM_INT(UI_PRODUCT_WIZARD_FAILED),
+               "wizard state enum mapping");
+_Static_assert(ENUM_INT(APP_CAL_WIZARD_SAFETY_BLOCKED) == ENUM_INT(UI_PRODUCT_WIZARD_SAFETY_BLOCKED),
+               "wizard state enum mapping");
+_Static_assert(ENUM_INT(APP_CAL_WIZARD_CANCELING) == ENUM_INT(UI_PRODUCT_WIZARD_CANCELING),
+               "wizard state enum mapping");
+_Static_assert(ENUM_INT(APP_CAL_WIZARD_CANCELED) == ENUM_INT(UI_PRODUCT_WIZARD_CANCELED),
+               "wizard state enum mapping");
+_Static_assert(ENUM_INT(APP_CAL_STANDARD_OPEN) == ENUM_INT(UI_PRODUCT_WIZARD_STANDARD_OPEN),
+               "wizard standard enum mapping");
+_Static_assert(ENUM_INT(APP_CAL_STANDARD_SHORT) == ENUM_INT(UI_PRODUCT_WIZARD_STANDARD_SHORT),
+               "wizard standard enum mapping");
+_Static_assert(ENUM_INT(APP_CAL_STANDARD_LOAD) == ENUM_INT(UI_PRODUCT_WIZARD_STANDARD_LOAD),
+               "wizard standard enum mapping");
+
 static ui_product_wizard_state_t ui_wizard_state(app_cal_wizard_state_t state)
 {
-    switch (state)
-    {
-    case APP_CAL_WIZARD_INTRO:
-        return UI_PRODUCT_WIZARD_INTRO;
-    case APP_CAL_WIZARD_WAIT_OPEN_FIXTURE:
-        return UI_PRODUCT_WIZARD_WAIT_OPEN;
-    case APP_CAL_WIZARD_CAPTURE_OPEN:
-        return UI_PRODUCT_WIZARD_CAPTURE_OPEN;
-    case APP_CAL_WIZARD_WAIT_SHORT_FIXTURE:
-        return UI_PRODUCT_WIZARD_WAIT_SHORT;
-    case APP_CAL_WIZARD_CAPTURE_SHORT:
-        return UI_PRODUCT_WIZARD_CAPTURE_SHORT;
-    case APP_CAL_WIZARD_WAIT_LOAD_FIXTURE:
-        return UI_PRODUCT_WIZARD_WAIT_LOAD;
-    case APP_CAL_WIZARD_CAPTURE_LOAD:
-        return UI_PRODUCT_WIZARD_CAPTURE_LOAD;
-    case APP_CAL_WIZARD_RANGE_COMPLETE:
-        return UI_PRODUCT_WIZARD_RANGE_COMPLETE;
-    case APP_CAL_WIZARD_CONFIRM_SAVE:
-        return UI_PRODUCT_WIZARD_CONFIRM_SAVE;
-    case APP_CAL_WIZARD_COMMITTING:
-        return UI_PRODUCT_WIZARD_COMMITTING;
-    case APP_CAL_WIZARD_COMPLETE:
-        return UI_PRODUCT_WIZARD_COMPLETE;
-    case APP_CAL_WIZARD_FAILED:
-        return UI_PRODUCT_WIZARD_FAILED;
-    case APP_CAL_WIZARD_SAFETY_BLOCKED:
-        return UI_PRODUCT_WIZARD_SAFETY_BLOCKED;
-    case APP_CAL_WIZARD_CANCELING:
-        return UI_PRODUCT_WIZARD_CANCELING;
-    case APP_CAL_WIZARD_CANCELED:
-        return UI_PRODUCT_WIZARD_CANCELED;
-    case APP_CAL_WIZARD_IDLE:
-    default:
-        return UI_PRODUCT_WIZARD_IDLE;
-    }
+    return (state <= APP_CAL_WIZARD_CANCELED) ? (ui_product_wizard_state_t)state :
+                                                UI_PRODUCT_WIZARD_IDLE;
 }
 
 static ui_product_wizard_standard_t ui_wizard_standard(app_cal_standard_type_t standard)
 {
-    switch (standard)
-    {
-    case APP_CAL_STANDARD_OPEN:
-        return UI_PRODUCT_WIZARD_STANDARD_OPEN;
-    case APP_CAL_STANDARD_SHORT:
-        return UI_PRODUCT_WIZARD_STANDARD_SHORT;
-    case APP_CAL_STANDARD_LOAD:
-    default:
-        return UI_PRODUCT_WIZARD_STANDARD_LOAD;
-    }
+    return (standard <= APP_CAL_STANDARD_LOAD) ? (ui_product_wizard_standard_t)standard :
+                                                 UI_PRODUCT_WIZARD_STANDARD_LOAD;
 }
 
 static void update_wizard_view(app_product_t *product)
@@ -1085,12 +1084,13 @@ void app_product_step(app_product_t *product,
         if (app_calibration_wizard_terminal(wizard_runtime(product)))
         {
             const app_cal_wizard_state_t wizard_state = wizard_runtime(product)->state;
+            const bool active_valid =
+                app_calibration_service_active_valid(product->calibration_service);
             if (wizard_state == APP_CAL_WIZARD_COMPLETE)
             {
                 (void)activate_measurement_runtime(product);
                 set_state(product,
-                          active_calibration_allows_ready(inputs) ||
-                                  app_calibration_service_active_valid(product->calibration_service) ?
+                          active_calibration_allows_ready(inputs) || active_valid ?
                               UI_PRODUCT_STATE_READY :
                               UI_PRODUCT_STATE_CALIBRATION_REQUIRED);
             }
@@ -1098,7 +1098,7 @@ void app_product_step(app_product_t *product,
             {
                 (void)activate_measurement_runtime(product);
                 set_state(product,
-                          app_calibration_service_active_valid(product->calibration_service) ?
+                          active_valid ?
                               UI_PRODUCT_STATE_CALIBRATION_STATUS :
                               UI_PRODUCT_STATE_CALIBRATION_REQUIRED);
             }

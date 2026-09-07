@@ -7,6 +7,7 @@
 #include "bsp/bsp_status.h"
 #include "hardware/hw_metrology_raw.h"
 #include "measurement/measurement_calibration.h"
+#include "measurement/measurement_calibration_solver.h"
 #include "measurement/measurement_dsp.h"
 
 enum
@@ -216,6 +217,9 @@ app_cal_workflow_state_t app_calibration_workflow_state(const app_calibration_wo
 app_cal_workflow_result_t app_calibration_workflow_result(const app_calibration_workflow_t *workflow);
 const app_cal_evidence_t *app_calibration_workflow_evidence(const app_calibration_workflow_t *workflow);
 uint32_t app_calibration_workflow_last_reject_flags(const app_calibration_workflow_t *workflow);
+bsp_status_t app_calibration_workflow_standard_from_evidence(
+    const app_cal_evidence_t *evidence,
+    measurement_cal_solver_standard_t *standard);
 const char *app_cal_standard_type_string(app_cal_standard_type_t type);
 const char *app_cal_workflow_state_string(app_cal_workflow_state_t state);
 const char *app_cal_workflow_result_string(app_cal_workflow_result_t result);

@@ -2,38 +2,30 @@
 
 #include <stddef.h>
 
-#include "measurement/measurement_condition.h"
+#define ENUM_INT(value) ((int)((value) + 0))
 
-static const hw_excitation_freq_t k_frequencies[] = {
-    HW_EXCITATION_FREQ_100HZ,
-    HW_EXCITATION_FREQ_1KHZ,
-    HW_EXCITATION_FREQ_10KHZ,
-};
-
-static const hw_excitation_amp_t k_amplitudes[] = {
-    HW_EXCITATION_AMP_100MVRMS,
-    HW_EXCITATION_AMP_500MVRMS,
-};
+_Static_assert(HW_RANGE_ID_10R == 0, "Rev.1 range order is frozen");
+_Static_assert(HW_RANGE_ID_100R == 1, "Rev.1 range order is frozen");
+_Static_assert(HW_RANGE_ID_1K == 2, "Rev.1 range order is frozen");
+_Static_assert(HW_RANGE_ID_10K == 3, "Rev.1 range order is frozen");
+_Static_assert(HW_RANGE_ID_100K == 4, "Rev.1 range order is frozen");
+_Static_assert(HW_RANGE_ID_1M == 5, "Rev.1 range order is frozen");
+_Static_assert(HW_EXCITATION_FREQ_100HZ == 0, "Rev.1 frequency order is frozen");
+_Static_assert(HW_EXCITATION_FREQ_1KHZ == 1, "Rev.1 frequency order is frozen");
+_Static_assert(HW_EXCITATION_FREQ_10KHZ == 2, "Rev.1 frequency order is frozen");
+_Static_assert(HW_EXCITATION_AMP_100MVRMS == 0, "Rev.1 amplitude order is frozen");
+_Static_assert(HW_EXCITATION_AMP_500MVRMS == 1, "Rev.1 amplitude order is frozen");
+_Static_assert(ENUM_INT(APP_CAL_STANDARD_OPEN) == ENUM_INT(MEASUREMENT_CAL_STANDARD_OPEN),
+               "standard enum mapping");
+_Static_assert(ENUM_INT(APP_CAL_STANDARD_SHORT) == ENUM_INT(MEASUREMENT_CAL_STANDARD_SHORT),
+               "standard enum mapping");
+_Static_assert(ENUM_INT(APP_CAL_STANDARD_LOAD) == ENUM_INT(MEASUREMENT_CAL_STANDARD_LOAD),
+               "standard enum mapping");
+_Static_assert(MEASUREMENT_CONDITION_REV1_MAX_SUPPORTED == 33u, "Rev.1 condition count");
 
 static hw_range_id_t range_from_index(uint8_t index)
 {
-    switch (index)
-    {
-    case 0u:
-        return HW_RANGE_ID_10R;
-    case 1u:
-        return HW_RANGE_ID_100R;
-    case 2u:
-        return HW_RANGE_ID_1K;
-    case 3u:
-        return HW_RANGE_ID_10K;
-    case 4u:
-        return HW_RANGE_ID_100K;
-    case 5u:
-        return HW_RANGE_ID_1M;
-    default:
-        return HW_RANGE_ID_INVALID;
-    }
+    return (index < APP_CAL_WIZARD_RANGE_COUNT) ? (hw_range_id_t)index : HW_RANGE_ID_INVALID;
 }
 
 static bool state_is_capture(app_cal_wizard_state_t state)
@@ -54,20 +46,6 @@ static app_cal_wizard_state_t capture_state_for_standard(app_cal_standard_type_t
     case APP_CAL_STANDARD_LOAD:
     default:
         return APP_CAL_WIZARD_CAPTURE_LOAD;
-    }
-}
-
-static measurement_cal_standard_type_t solver_standard_type(app_cal_standard_type_t standard)
-{
-    switch (standard)
-    {
-    case APP_CAL_STANDARD_OPEN:
-        return MEASUREMENT_CAL_STANDARD_OPEN;
-    case APP_CAL_STANDARD_SHORT:
-        return MEASUREMENT_CAL_STANDARD_SHORT;
-    case APP_CAL_STANDARD_LOAD:
-    default:
-        return MEASUREMENT_CAL_STANDARD_LOAD;
     }
 }
 
@@ -223,28 +201,7 @@ static bsp_status_t solve_load_condition(app_calibration_wizard_t *wizard,
         return BSP_STATUS_INVALID_ARG;
     }
 
-    app_calibration_campaign_t *campaign = app_calibration_service_campaign(wizard->service);
     measurement_cal_record_t record;
-    bsp_status_t status = app_calibration_campaign_begin_condition(campaign, &load->key);
-    if (status != BSP_STATUS_OK)
-    {
-        return status;
-    }
-    status = app_calibration_campaign_submit_standard(campaign, &open->standard);
-    if (status != BSP_STATUS_OK)
-    {
-        return status;
-    }
-    status = app_calibration_campaign_submit_standard(campaign, &shorted->standard);
-    if (status != BSP_STATUS_OK)
-    {
-        return status;
-    }
-    status = app_calibration_campaign_submit_standard(campaign, load);
-    if (status != BSP_STATUS_OK)
-    {
-        return status;
-    }
     wizard->open_temperature_mC = open->standard.temperature_mC;
     wizard->short_temperature_mC = shorted->standard.temperature_mC;
     wizard->load_temperature_mC = load->temperature_mC;
@@ -270,12 +227,20 @@ static bsp_status_t solve_load_condition(app_calibration_wizard_t *wizard,
     wizard->temperature_span_valid = open->standard.temperature_valid &&
                                      shorted->standard.temperature_valid &&
                                      load->temperature_valid;
-    wizard->solver_status = app_calibration_campaign_solve_condition(campaign, &record);
+    const measurement_cal_solver_input_t input = {
+        .open = open->standard,
+        .shorted = shorted->standard,
+        .load = *load,
+    };
+    measurement_cal_solver_solution_t solution;
+    wizard->solver_status = measurement_cal_solver_solve(&input, &solution);
     if (wizard->solver_status != MEASUREMENT_CAL_SOLVER_OK)
     {
         return BSP_STATUS_ERROR;
     }
-    status = app_calibration_service_candidate_insert_record(wizard->service, &record);
+    record = measurement_cal_solver_make_record(&solution);
+    const bsp_status_t status =
+        app_calibration_service_candidate_insert_record(wizard->service, &record);
     if (status == BSP_STATUS_OK)
     {
         wizard->solved_count++;
@@ -289,14 +254,9 @@ static bool validate_complete_candidate(app_calibration_wizard_t *wizard)
     {
         return false;
     }
-    const measurement_cal_set_t *candidate =
-        app_calibration_service_candidate_set_const(wizard->service);
-    const measurement_cal_validity_t validity =
-        app_calibration_service_candidate_validity(wizard->service);
-    return (candidate != NULL) &&
-           (candidate->record_count == MEASUREMENT_CAL_MAX_RECORDS) &&
-           (wizard->solved_count == MEASUREMENT_CAL_MAX_RECORDS) &&
-           (validity.status == MEASUREMENT_CAL_VALIDITY_VALID);
+    return (app_calibration_service_candidate_state(wizard->service) ==
+            APP_CAL_CANDIDATE_COMPLETE) &&
+           (wizard->solved_count == MEASUREMENT_CAL_MAX_RECORDS);
 }
 
 static void begin_range(app_calibration_wizard_t *wizard)
@@ -384,53 +344,46 @@ bsp_status_t app_calibration_wizard_condition_key(hw_range_id_t range_id,
     {
         return BSP_STATUS_INVALID_ARG;
     }
-    uint8_t current = 0u;
-    for (uint8_t f = 0u; f < (uint8_t)(sizeof(k_frequencies) / sizeof(k_frequencies[0])); f++)
+    if (range_id > HW_RANGE_ID_1M)
     {
-        for (uint8_t a = 0u; a < (uint8_t)(sizeof(k_amplitudes) / sizeof(k_amplitudes[0])); a++)
-        {
-            if (measurement_condition_calibratable(range_id, k_frequencies[f], k_amplitudes[a]))
-            {
-                if (current == index)
-                {
-                    *key = measurement_cal_key(MEASUREMENT_CAL_HARDWARE_REV1,
-                                               MEASUREMENT_CAL_MODEL_VERSION_CURRENT,
-                                               range_id,
-                                               k_frequencies[f],
-                                               k_amplitudes[a]);
-                    return BSP_STATUS_OK;
-                }
-                current++;
-            }
-        }
+        return BSP_STATUS_INVALID_ARG;
     }
-    return BSP_STATUS_INVALID_ARG;
+    hw_excitation_freq_t frequency = HW_EXCITATION_FREQ_100HZ;
+    hw_excitation_amp_t amplitude = HW_EXCITATION_AMP_100MVRMS;
+    if (range_id == HW_RANGE_ID_10R)
+    {
+        if (index >= 3u)
+        {
+            return BSP_STATUS_INVALID_ARG;
+        }
+        frequency = (hw_excitation_freq_t)index;
+    }
+    else
+    {
+        if (index >= 6u)
+        {
+            return BSP_STATUS_INVALID_ARG;
+        }
+        frequency = (hw_excitation_freq_t)(index / 2u);
+        amplitude = (hw_excitation_amp_t)(index % 2u);
+    }
+    *key = measurement_cal_key(MEASUREMENT_CAL_HARDWARE_REV1,
+                               MEASUREMENT_CAL_MODEL_VERSION_CURRENT,
+                               range_id,
+                               frequency,
+                               amplitude);
+    return BSP_STATUS_OK;
 }
 
 uint8_t app_calibration_wizard_condition_count(hw_range_id_t range_id)
 {
-    uint8_t count = 0u;
-    for (uint8_t f = 0u; f < (uint8_t)(sizeof(k_frequencies) / sizeof(k_frequencies[0])); f++)
-    {
-        for (uint8_t a = 0u; a < (uint8_t)(sizeof(k_amplitudes) / sizeof(k_amplitudes[0])); a++)
-        {
-            if (measurement_condition_calibratable(range_id, k_frequencies[f], k_amplitudes[a]))
-            {
-                count++;
-            }
-        }
-    }
-    return count;
+    return (range_id > HW_RANGE_ID_1M) ? 0u :
+                                         ((range_id == HW_RANGE_ID_10R) ? 3u : 6u);
 }
 
 uint8_t app_calibration_wizard_total_condition_count(void)
 {
-    uint8_t total = 0u;
-    for (uint8_t r = 0u; r < APP_CAL_WIZARD_RANGE_COUNT; r++)
-    {
-        total = (uint8_t)(total + app_calibration_wizard_condition_count(range_from_index(r)));
-    }
-    return total;
+    return MEASUREMENT_CONDITION_REV1_MAX_SUPPORTED;
 }
 
 bsp_status_t app_calibration_wizard_init(app_calibration_wizard_t *wizard,
@@ -707,12 +660,12 @@ void app_calibration_wizard_step(app_calibration_wizard_t *wizard,
     }
 
     measurement_cal_solver_standard_t standard;
-    if (app_calibration_standard_from_evidence(evidence, &standard) != BSP_STATUS_OK)
+    if (app_calibration_workflow_standard_from_evidence(evidence, &standard) != BSP_STATUS_OK)
     {
         enter_failure(wizard, APP_CAL_WIZARD_ERROR_CONDITION);
         return;
     }
-    standard.standard = solver_standard_type(wizard->standard);
+    standard.standard = (measurement_cal_standard_type_t)wizard->standard;
     if ((wizard->standard == APP_CAL_STANDARD_OPEN) || (wizard->standard == APP_CAL_STANDARD_SHORT))
     {
         if (cache_standard(wizard, &standard) != BSP_STATUS_OK)

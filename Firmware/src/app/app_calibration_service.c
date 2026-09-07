@@ -34,12 +34,26 @@ static void update_candidate_completeness(app_calibration_service_t *service)
     {
         return;
     }
-    const measurement_cal_validity_t validity =
-        app_calibration_service_candidate_validity(service);
-    service->candidate_state = (validity.status == MEASUREMENT_CAL_VALIDITY_VALID) ?
+    const measurement_cal_set_t *candidate = app_calibration_service_candidate_set_const(service);
+    service->candidate_state = ((candidate != NULL) &&
+                                (candidate->record_count == MEASUREMENT_CAL_MAX_RECORDS)) ?
                                    APP_CAL_CANDIDATE_COMPLETE :
                                    APP_CAL_CANDIDATE_PARTIAL;
     service->status = APP_CAL_SERVICE_CANDIDATE_DIRTY;
+}
+
+static bsp_status_t candidate_insert_record(measurement_cal_set_t *candidate,
+                                            const measurement_cal_record_t *record)
+{
+    if ((candidate == NULL) || (record == NULL))
+    {
+        return BSP_STATUS_INVALID_ARG;
+    }
+    if (measurement_cal_set_replace_record(candidate, record))
+    {
+        return BSP_STATUS_OK;
+    }
+    return measurement_cal_set_add_record(candidate, record) ? BSP_STATUS_OK : BSP_STATUS_ERROR;
 }
 
 static bsp_status_t acquire_store_workspace(app_calibration_service_t *service)
@@ -85,7 +99,6 @@ void app_calibration_service_init(app_calibration_service_t *service)
     *service = (app_calibration_service_t){0};
     app_calibration_runtime_init(&service->runtime);
     app_calibration_workflow_init(&service->workflow);
-    app_calibration_campaign_init(&service->campaign);
     service->status = APP_CAL_SERVICE_READY;
     service->candidate_state = APP_CAL_CANDIDATE_NONE;
     service->last_store_status = BSP_STATUS_OK;
@@ -261,17 +274,6 @@ const app_calibration_workflow_t *app_calibration_service_workflow_const(
     return (service == NULL) ? NULL : &service->workflow;
 }
 
-app_calibration_campaign_t *app_calibration_service_campaign(app_calibration_service_t *service)
-{
-    return (service == NULL) ? NULL : &service->campaign;
-}
-
-const app_calibration_campaign_t *app_calibration_service_campaign_const(
-    const app_calibration_service_t *service)
-{
-    return (service == NULL) ? NULL : &service->campaign;
-}
-
 bsp_status_t app_calibration_service_start_workflow(app_calibration_service_t *service,
                                                     const app_cal_workflow_request_t *request)
 {
@@ -316,7 +318,6 @@ bsp_status_t app_calibration_service_candidate_begin(app_calibration_service_t *
                              MEASUREMENT_CAL_HARDWARE_REV1,
                              MEASUREMENT_CAL_MODEL_VERSION_CURRENT,
                              0u);
-    app_calibration_campaign_init(&service->campaign);
     service->candidate_state = APP_CAL_CANDIDATE_BUILDING;
     service->status = APP_CAL_SERVICE_CANDIDATE_DIRTY;
     return BSP_STATUS_OK;
@@ -350,7 +351,6 @@ bsp_status_t app_calibration_service_candidate_discard(app_calibration_service_t
             return release;
         }
     }
-    app_calibration_campaign_init(&service->campaign);
     measurement_cal_set_init(&service->store.scan_set,
                              MEASUREMENT_CAL_HARDWARE_REV1,
                              MEASUREMENT_CAL_MODEL_VERSION_CURRENT,
@@ -387,65 +387,7 @@ const measurement_cal_set_t *app_calibration_service_candidate_set_const(
 measurement_cal_validity_t app_calibration_service_candidate_validity(
     const app_calibration_service_t *service)
 {
-    const measurement_cal_requirements_t requirements = measurement_cal_requirements_rev1_full();
-    return measurement_cal_validate_set((service == NULL) ? NULL : &service->store.scan_set,
-                                        &requirements,
-                                        MEASUREMENT_CAL_HARDWARE_REV1,
-                                        MEASUREMENT_CAL_MODEL_VERSION_CURRENT);
-}
-
-bsp_status_t app_calibration_service_campaign_begin_condition(app_calibration_service_t *service,
-                                                              const measurement_cal_key_t *key)
-{
-    if ((service == NULL) || (key == NULL))
-    {
-        return BSP_STATUS_INVALID_ARG;
-    }
-    if (!candidate_dirty(service))
-    {
-        return BSP_STATUS_BUSY;
-    }
-    if ((service->campaign.state == APP_CAL_CAMPAIGN_COLLECTING) &&
-        (app_calibration_campaign_missing_mask(&service->campaign) != 0u) &&
-        !measurement_cal_key_equal(&service->campaign.key, key))
-    {
-        return BSP_STATUS_BUSY;
-    }
-    return app_calibration_campaign_begin_condition(&service->campaign, key);
-}
-
-bsp_status_t app_calibration_service_campaign_submit_evidence(app_calibration_service_t *service,
-                                                              const app_cal_evidence_t *evidence)
-{
-    if ((service == NULL) || (evidence == NULL))
-    {
-        return BSP_STATUS_INVALID_ARG;
-    }
-    if (!candidate_dirty(service))
-    {
-        return BSP_STATUS_BUSY;
-    }
-    const bsp_status_t status = app_calibration_campaign_submit_evidence(&service->campaign, evidence);
-    if (status == BSP_STATUS_OK)
-    {
-        update_candidate_completeness(service);
-    }
-    return status;
-}
-
-measurement_cal_solver_status_t app_calibration_service_campaign_solve_condition(
-    app_calibration_service_t *service,
-    measurement_cal_record_t *record)
-{
-    if ((service == NULL) || (record == NULL))
-    {
-        return MEASUREMENT_CAL_SOLVER_INVALID_ARG;
-    }
-    if (!candidate_dirty(service))
-    {
-        return MEASUREMENT_CAL_SOLVER_MISSING_STANDARDS;
-    }
-    return app_calibration_campaign_solve_condition(&service->campaign, record);
+    return measurement_cal_validate_rev1_full_set((service == NULL) ? NULL : &service->store.scan_set);
 }
 
 bsp_status_t app_calibration_service_candidate_insert_record(app_calibration_service_t *service,
@@ -460,7 +402,7 @@ bsp_status_t app_calibration_service_candidate_insert_record(app_calibration_ser
     {
         return BSP_STATUS_BUSY;
     }
-    const bsp_status_t status = app_calibration_campaign_insert_record(record, candidate);
+    const bsp_status_t status = candidate_insert_record(candidate, record);
     if (status == BSP_STATUS_OK)
     {
         update_candidate_completeness(service);
@@ -508,12 +450,8 @@ bsp_status_t app_calibration_service_candidate_commit_start(app_calibration_serv
         service->last_store_status = BSP_STATUS_INVALID_ARG;
         return BSP_STATUS_INVALID_ARG;
     }
-    const measurement_cal_requirements_t requirements = measurement_cal_requirements_rev1_full();
     const measurement_cal_validity_t validity =
-        measurement_cal_validate_set(&service->store.scan_set,
-                                     &requirements,
-                                     MEASUREMENT_CAL_HARDWARE_REV1,
-                                     MEASUREMENT_CAL_MODEL_VERSION_CURRENT);
+        measurement_cal_validate_rev1_full_set(&service->store.scan_set);
     if (validity.status != MEASUREMENT_CAL_VALIDITY_VALID)
     {
         service->status = APP_CAL_SERVICE_ERROR;
@@ -530,7 +468,7 @@ bsp_status_t app_calibration_service_candidate_commit_start(app_calibration_serv
     service->store.image = app_io_workspace_calibration_frame(service->workspace);
     service->store.image_capacity = app_io_workspace_calibration_frame_bytes();
     const bsp_status_t status =
-        measurement_cal_store_write_start(&service->store, &service->store.scan_set, &requirements);
+        measurement_cal_store_write_start(&service->store, &service->store.scan_set, NULL);
     service->last_store_status = status;
     if (status == BSP_STATUS_BUSY)
     {
@@ -556,9 +494,8 @@ static bsp_status_t activate_verified_commit(app_calibration_service_t *service)
     service->storage_available = true;
     service->status = APP_CAL_SERVICE_ACTIVE_VALID;
     service->last_store_status = BSP_STATUS_OK;
-    const measurement_cal_requirements_t requirements = measurement_cal_requirements_rev1_full();
     (void)measurement_cal_store_refresh_diagnostics(&service->store,
-                                                    &requirements,
+                                                    NULL,
                                                     MEASUREMENT_CAL_HARDWARE_REV1,
                                                     MEASUREMENT_CAL_MODEL_VERSION_CURRENT,
                                                     service->runtime.slots);

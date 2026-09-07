@@ -76,6 +76,20 @@ static int expect_near(float actual, float expected, float tolerance, const char
     return 0;
 }
 
+static int expect_u32(uint32_t actual, uint32_t expected, const char *message)
+{
+    if (actual != expected)
+    {
+        (void)fprintf(stderr,
+                      "FAIL: %s (got %lu expected %lu)\n",
+                      message,
+                      (unsigned long)actual,
+                      (unsigned long)expected);
+        return 1;
+    }
+    return 0;
+}
+
 static measurement_complex_t cadd(measurement_complex_t a, measurement_complex_t b)
 {
     return measurement_complex_add(a, b);
@@ -680,6 +694,17 @@ static int test_full_supported_matrix_capacity(void)
         measurement_cal_validate_set(&decoded, &req, MEASUREMENT_CAL_HARDWARE_REV1,
                                      MEASUREMENT_CAL_MODEL_VERSION_CURRENT);
     failures += expect_true(validity.status == MEASUREMENT_CAL_VALIDITY_VALID, "full matrix valid");
+    validity = measurement_cal_validate_rev1_full_set(&decoded);
+    failures += expect_true(validity.status == MEASUREMENT_CAL_VALIDITY_VALID,
+                            "compact Rev1 full validator accepts full matrix");
+
+    measurement_cal_set_t incomplete = decoded;
+    incomplete.record_count--;
+    validity = measurement_cal_validate_rev1_full_set(&incomplete);
+    failures += expect_true(validity.status == MEASUREMENT_CAL_VALIDITY_INCOMPLETE,
+                            "compact Rev1 full validator rejects missing condition");
+    failures += expect_u32(validity.missing_required_count, 1u,
+                           "compact Rev1 full validator reports one missing condition");
 
     for (uint8_t i = 0u; i < req.count; i++)
     {

@@ -32,11 +32,10 @@ Phase 07:
     REQUIRES_BENCH_VALIDATION
 
 Immediate next software phase after physical/software handoff:
-    Phase 08 continuation — Stage 3A.2 product UI/application headroom recovery
-    has compacted PRODUCT SRAM and recovered measured Flash, but PRODUCT Release
-    remains above the 55296 B minimum handoff target for external font/glyph work.
-    Stage 3B external fonts/icons/splash remains blocked pending a further
-    deliberate PRODUCT Flash-reduction pass.
+    Phase 08 continuation — Stage 3A.3 calibration-campaign decoupling, fixed Rev.1
+    calibration-domain compaction, and full-set validation hardening recovered the
+    required PRODUCT internal-Flash headroom. Stage 3B external fonts/icons/splash is
+    ready to start next, but remains NOT_STARTED.
 ```
 
 ## Program objectives
@@ -384,12 +383,11 @@ A Rev.1 firmware release should ultimately produce:
 
 ## Immediate next action
 
-Continue Phase 08 with Stage 3B still blocked by PRODUCT internal-Flash headroom. The
-product profile now has the mandatory calibration gate, click-measurement integration
-through Phase 05/06/07, persistent settings, localized Resource Pack v2 text catalogs,
-the calibration wizard UI, shared metrology/storage scratch ownership, compact UI
-snapshots, PRODUCT/BRINGUP RAM gates, STM32 size gates, and linked-symbol
-profile-composition checks. Stage 3A.2 recovered SRAM and some Flash through UI/
-application compaction, but PRODUCT Release has not reached the 55296 B font/glyph
-handoff target. Phase 03A virtual execution remains pending external Wokwi constraints
-and must not be treated as bench validation for analog/metrology behavior.
+Continue Phase 08 with Stage 3B as the next software step. The product profile now has
+the mandatory calibration gate, click-measurement integration through Phase 05/06/07,
+persistent settings, localized Resource Pack v2 text catalogs, the calibration wizard
+UI, shared metrology/storage scratch ownership, compact UI snapshots, PRODUCT/BRINGUP
+RAM gates, STM32 size gates, linked-symbol profile-composition checks, and Stage 3A.3
+headroom recovery below the 55296 B font/glyph handoff target. Phase 03A virtual
+execution remains pending external Wokwi constraints and must not be treated as bench
+validation for analog/metrology behavior.

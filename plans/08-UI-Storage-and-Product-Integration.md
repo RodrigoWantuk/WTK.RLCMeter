@@ -214,7 +214,7 @@ pack, splash asset, graph rendering, or TFT debug-console feature was started he
 
 ## Stage 3A.2 — product Flash/RAM headroom recovery and debug-build strategy
 
-STATUS: IN_PROGRESS
+STATUS: IMPLEMENTED
 
 Implemented software boundary:
 
@@ -308,6 +308,84 @@ Stage 3B authorization:
   Stage 3A.1 baseline is the cost of giving the BRINGUP calibration session a
   console-owned IO callback table after session IO ownership changed to references.
 
+## Stage 3A.3 — calibration campaign decoupling, Rev.1 domain compaction, and final product headroom recovery
+
+STATUS: IMPLEMENTED
+
+Implemented software boundary:
+
+- `app_calibration_service_t` no longer owns `app_calibration_campaign_t`. The product
+  calibration service owns active runtime state, the candidate set, the persistent
+  store transaction, the active OSL evidence workflow, workspace ownership, and service
+  status. It does not own OPEN/SHORT/LOAD campaign aggregation.
+- PRODUCT full calibration solves each condition directly from cached OPEN/SHORT
+  standards plus current LOAD evidence through `measurement_cal_solver_solve()` and
+  `measurement_cal_solver_make_record()`. The OSL mathematics, effective HG transfer,
+  temperature provenance, record payload, and persistence schema/model remain unchanged.
+- Evidence-to-solver-standard normalization moved to
+  `app_calibration_workflow_standard_from_evidence()`, so PRODUCT does not need to link
+  campaign orchestration merely to convert completed Phase 05 evidence.
+- BRINGUP owns a console-local `app_calibration_campaign_t` and retains the existing
+  `lab cal campaign ...` engineering flow. Host tests continue to compile and test the
+  campaign helper.
+- PRODUCT composition excludes `src/app/app_calibration_campaign.c`; the profile-symbol
+  checker rejects `app_calibration_campaign` symbols in PRODUCT.
+- Rev.1 calibration enumeration is direct and fixed by static assertions: ranges
+  `10R/100R/1K/10K/100K/1M` are numeric `0..5`, frequencies `100Hz/1kHz/10kHz` are
+  `0..2`, amplitudes `100mV/500mV` are `0..1`, and `10R + 500mV` remains forbidden.
+  The resulting domain is exactly 33 conditions.
+- PRODUCT UI/wizard enum translations use static-asserted bounded casts where the app,
+  UI, and solver enum orders are intentionally identical.
+- Candidate completeness has a fast path based on candidate record count/service state,
+  but commit, runtime load, and activation still use full Rev.1 validation before a set
+  becomes active.
+- `measurement_cal_validate_rev1_full_set()` validates the fixed 33-condition Rev.1
+  set without materializing `measurement_cal_requirements_t` on PRODUCT stack. Generic
+  requirements remain available for host/engineering tests.
+
+Final local size evidence from clean STM32 builds:
+
+```text
+                       BEFORE      AFTER      DELTA
+PRODUCT Debug Flash     64112      63188       -924
+PRODUCT Debug RAM       16516      16236       -280
+PRODUCT Release Flash   56360      55272      -1088
+PRODUCT Release RAM     16504      16224       -280
+BRINGUP Flash           53924      53460       -464
+BRINGUP RAM             15116      15116          0
+```
+
+Release margins after Stage 3A.3:
+
+```text
+margin to 55296 B Stage 3B handoff target:   24 B
+margin to 57344 B project gate:            2072 B
+margin to 65536 B physical Flash:         10264 B
+PRODUCT RAM margin to 16640 B target:       416 B
+PRODUCT RAM margin to 17408 B gate:        1184 B
+PRODUCT Debug physical Flash margin:       1620 B
+```
+
+Current Rev.1 calibration-domain table:
+
+```text
+Range    Conditions    Frequency order              Amplitudes
+10R      3             100Hz, 1kHz, 10kHz            100mV only
+100R     6             100Hz, 1kHz, 10kHz            100mV, 500mV per frequency
+1K       6             100Hz, 1kHz, 10kHz            100mV, 500mV per frequency
+10K      6             100Hz, 1kHz, 10kHz            100mV, 500mV per frequency
+100K     6             100Hz, 1kHz, 10kHz            100mV, 500mV per frequency
+1M       6             100Hz, 1kHz, 10kHz            100mV, 500mV per frequency
+TOTAL    33
+```
+
+Stage 3B status:
+
+- Stage 3B remains NOT_STARTED.
+- Stage 3B is authorized to start next because PRODUCT Release Flash is below 55296 B,
+  PRODUCT accounted RAM is below 16640 B, PRODUCT campaign symbols are absent, and the
+  software regression suite remains green.
+
 ## Stage 2A — product calibration wizard and active-calibration gate
 
 STATUS: IMPLEMENTED_REQUIRES_BENCH_VALIDATION
@@ -330,13 +408,12 @@ Implemented software boundary:
   contexts because automatic measurement and product calibration are mutually exclusive.
   Both reuse the existing Phase 05 capture path and the single 3072-byte shared
   metrology/storage workspace.
-- `app_calibration_wizard_t` owns the product full-calibration campaign. It prompts once
-  per fixture per range (`OPEN`, `SHORT`, `LOAD`), then auto-advances through all
-  calibratable conditions for that fixture/range.
-- The wizard enumerates calibratable keys dynamically through
-  `measurement_condition_calibratable()`. The current Rev.1 domain is exactly 33
-  conditions: all six ranges, three frequencies, and two amplitudes except the forbidden
-  `10 Ohm + 500 mVrms` combination.
+- `app_calibration_wizard_t` owns the product full-calibration workflow state. It
+  prompts once per fixture per range (`OPEN`, `SHORT`, `LOAD`), then auto-advances
+  through all calibratable conditions for that fixture/range.
+- The wizard now uses the fixed Stage 3A.3 Rev.1 calibration-domain mapping. The
+  current Rev.1 domain is exactly 33 conditions: all six ranges, three frequencies, and
+  two amplitudes except the forbidden `10 Ohm + 500 mVrms` combination.
 - The wizard batches one range at a time and caches only compact OPEN and SHORT
   standards for the current range, up to six per range. It does not retain all raw
   evidence for all 33 conditions.
@@ -344,8 +421,8 @@ Implemented software boundary:
   Stage 2A profile uses nominal pure-real RREF values and remains
   `REQUIRES_BENCH_VALIDATION`; there is no numeric-entry UI in this stage.
 - Evidence-to-solver-standard conversion is reusable outside the bring-up campaign
-  path. The campaign can now accept compact OPEN/SHORT/LOAD standards directly, letting
-  the product wizard solve each condition without duplicating solver math.
+  path. The product wizard solves each condition directly from compact OPEN/SHORT/LOAD
+  standards without duplicating solver math.
 - Candidate creation starts at wizard start. Save is explicit; the candidate is not
   committed to W25Q until the user confirms `CONFIRM_SAVE`. Commit success activates the
   verified set; commit failure preserves the previous active calibration and leaves the
