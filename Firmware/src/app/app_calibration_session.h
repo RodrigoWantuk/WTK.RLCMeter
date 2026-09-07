@@ -49,7 +49,7 @@ typedef struct
 
 typedef struct
 {
-    app_cal_session_io_t io;
+    const app_cal_session_io_t *io;
     app_calibration_service_t *service;
     const bsp_clock_summary_t *clock_summary;
     bsp_status_t clock_status;

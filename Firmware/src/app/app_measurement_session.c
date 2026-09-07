@@ -110,7 +110,7 @@ bsp_status_t app_measurement_session_init(app_measurement_session_t *session,
         return BSP_STATUS_INVALID_ARG;
     }
     *session = (app_measurement_session_t){0};
-    session->io = *io;
+    session->io = io;
     session->state = APP_MEASUREMENT_SESSION_IDLE;
     measurement_auto_session_init(&session->policy);
     return BSP_STATUS_OK;
@@ -194,10 +194,10 @@ app_measurement_event_t app_measurement_session_step(app_measurement_session_t *
         }
         hw_metrology_measure_request_t request = {0};
         make_request(session, &request);
-        const bsp_status_t started = session->io.start_attempt(&request, now_ms, session->io.user);
+        const bsp_status_t started = session->io->start_attempt(&request, now_ms, session->io->user);
         if ((started != BSP_STATUS_OK) && (started != BSP_STATUS_BUSY))
         {
-            submit_phase05_failure(session, session->io.attempt_error(session->io.user), false);
+            submit_phase05_failure(session, session->io->attempt_error(session->io->user), false);
             return take_pending_event(session);
         }
         session->attempt_started = true;
@@ -210,22 +210,22 @@ app_measurement_event_t app_measurement_session_step(app_measurement_session_t *
     {
         if (session->cancel_requested)
         {
-            (void)session->io.attempt_abort(session->io.user);
+            (void)session->io->attempt_abort(session->io->user);
             session->state = APP_MEASUREMENT_SESSION_CANCELING;
             return APP_MEASUREMENT_EVENT_NONE;
         }
-        const bsp_status_t step_status = session->io.step_attempt(now_ms, session->io.user);
-        if (session->io.attempt_done(session->io.user))
+        const bsp_status_t step_status = session->io->step_attempt(now_ms, session->io->user);
+        if (session->io->attempt_done(session->io->user))
         {
             session->state = APP_MEASUREMENT_SESSION_PROCESS_DSP;
             return APP_MEASUREMENT_EVENT_NONE;
         }
         if ((step_status != BSP_STATUS_BUSY) &&
             (step_status != BSP_STATUS_OK) &&
-            !session->io.attempt_active(session->io.user))
+            !session->io->attempt_active(session->io->user))
         {
-            submit_phase05_failure(session, session->io.attempt_error(session->io.user), false);
-            session->io.attempt_acknowledge(session->io.user);
+            submit_phase05_failure(session, session->io->attempt_error(session->io->user), false);
+            session->io->attempt_acknowledge(session->io->user);
             return take_pending_event(session);
         }
         return APP_MEASUREMENT_EVENT_NONE;
@@ -234,21 +234,21 @@ app_measurement_event_t app_measurement_session_step(app_measurement_session_t *
     case APP_MEASUREMENT_SESSION_PROCESS_DSP:
     {
         measurement_attempt_result_t attempt_result;
-        if (!session->io.attempt_dumpable(session->io.user))
+        if (!session->io->attempt_dumpable(session->io->user))
         {
-            submit_phase05_failure(session, session->io.attempt_error(session->io.user), false);
-            session->io.attempt_acknowledge(session->io.user);
+            submit_phase05_failure(session, session->io->attempt_error(session->io->user), false);
+            session->io->attempt_acknowledge(session->io->user);
             return take_pending_event(session);
         }
-        const hw_metrology_block_t *block = session->io.attempt_block(session->io.user);
+        const hw_metrology_block_t *block = session->io->attempt_block(session->io->user);
         const bsp_status_t dsp_status =
-            session->io.process_block(block, &session->current_attempt, &session->dsp_result, session->io.user);
+            session->io->process_block(block, &session->current_attempt, &session->dsp_result, session->io->user);
         attempt_result = app_measurement_attempt_from_dsp(&session->current_attempt,
                                                           &session->dsp_result,
                                                           dsp_status != BSP_STATUS_OK,
                                                           false,
                                                           false);
-        session->io.attempt_acknowledge(session->io.user);
+        session->io->attempt_acknowledge(session->io->user);
         const measurement_auto_event_t policy_event =
             measurement_auto_submit_result(&session->policy, &attempt_result);
         store_policy_event(session, policy_event);
@@ -266,11 +266,11 @@ app_measurement_event_t app_measurement_session_step(app_measurement_session_t *
 
     case APP_MEASUREMENT_SESSION_CANCELING:
     {
-        const bsp_status_t step_status = session->io.step_attempt(now_ms, session->io.user);
-        if (session->io.attempt_done(session->io.user) || !session->io.attempt_active(session->io.user) ||
+        const bsp_status_t step_status = session->io->step_attempt(now_ms, session->io->user);
+        if (session->io->attempt_done(session->io->user) || !session->io->attempt_active(session->io->user) ||
             (step_status == BSP_STATUS_OK))
         {
-            session->io.attempt_acknowledge(session->io.user);
+            session->io->attempt_acknowledge(session->io->user);
             measurement_attempt_result_t canceled =
                 app_measurement_attempt_from_dsp(&session->current_attempt, NULL, false, false, true);
             store_policy_event(session, measurement_auto_submit_result(&session->policy, &canceled));
@@ -298,11 +298,11 @@ bsp_status_t app_measurement_session_cancel(app_measurement_session_t *session)
         return BSP_STATUS_OK;
     }
     session->cancel_requested = true;
-    if (!session->attempt_started || !session->io.attempt_active(session->io.user))
+    if (!session->attempt_started || !session->io->attempt_active(session->io->user))
     {
-        if (session->io.attempt_done(session->io.user))
+        if (session->io->attempt_done(session->io->user))
         {
-            session->io.attempt_acknowledge(session->io.user);
+            session->io->attempt_acknowledge(session->io->user);
         }
         (void)measurement_auto_cancel(&session->policy);
         store_policy_event(session, MEASUREMENT_AUTO_EVENT_FINAL_RESULT);

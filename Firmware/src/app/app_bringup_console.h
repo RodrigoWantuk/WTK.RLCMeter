@@ -61,6 +61,7 @@ typedef struct
     bool busy_observed;
     hw_metrology_session_t session;
     hw_metrology_measure_t measure;
+    app_cal_session_io_t cal_session_io;
     app_calibration_session_t cal_session;
     app_calibration_service_t *cal_service;
     app_io_workspace_t *workspace;

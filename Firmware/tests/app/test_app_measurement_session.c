@@ -23,6 +23,7 @@ typedef struct
 
 typedef struct
 {
+    app_measurement_session_io_t io;
     fake_outcome_t outcomes[MEASUREMENT_AUTO_MAX_ATTEMPTS];
     hw_metrology_measure_request_t requests[MEASUREMENT_AUTO_MAX_ATTEMPTS];
     hw_metrology_block_t block;
@@ -304,9 +305,9 @@ static int start_session(app_measurement_session_t *session, fake_io_t *fake, me
         .hse_ready = true,
         .sysclk_hz = 72000000u,
     };
-    app_measurement_session_io_t io = make_io(fake);
+    fake->io = make_io(fake);
     int failures = 0;
-    failures += expect_true(app_measurement_session_init(session, &io) == BSP_STATUS_OK, "app session init");
+    failures += expect_true(app_measurement_session_init(session, &fake->io) == BSP_STATUS_OK, "app session init");
     failures += expect_true(app_measurement_session_start(session,
                                                          mode,
                                                          sequence,

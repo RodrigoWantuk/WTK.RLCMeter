@@ -562,6 +562,10 @@ Product Release now uses preset-level GCC LTO in addition to size-first compilat
 Product Debug intentionally remains `-Os` plus symbols because the full product image
 must fit the guaranteed 64 KiB Flash. Emergency text remains internal; normal menu and
 localization growth should move behind resource IDs and W25Q resources where practical.
+Phase 08 Stage 3A.2 keeps `-Os` as the PRODUCT size policy after measuring GCC `-Oz`
+with no linked-image improvement. PRODUCT Debug uses size-optimized code with DWARF
+symbols as the sustainable SWD path; debug sections in the ELF are not programmed as
+loadable Flash, while stepping may be less direct than a non-optimized debug build.
 
 ## Localization
 

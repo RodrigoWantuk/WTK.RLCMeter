@@ -42,6 +42,13 @@ The product controller publishes compact UI snapshots instead of duplicating com
 Phase 07 session results inside the display model. The Phase 07 policy remains the
 authoritative source for partial/final measurement data.
 
+PRODUCT owns measurement-session and calibration-session callback tables as static
+immutable shell objects. `app_product_t`, `app_measurement_session_t`, and
+`app_calibration_session_t` keep references to those tables; the referenced IO table
+lifetime must exceed the context lifetime. Host tests use persistent fake IO tables to
+exercise the same contract. This avoids duplicating immutable function-pointer tables in
+the hot application/session contexts.
+
 Product resource health is owned at application level. Fatal normal resource failures
 from text resolution or resource admission latch PRODUCT `RESOURCE_ERROR` and preempt
 new settings persistence, but they do not become hardware safety faults. Deferred W25Q

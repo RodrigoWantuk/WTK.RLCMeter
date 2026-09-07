@@ -15,6 +15,8 @@ typedef struct
 
 typedef struct
 {
+    app_measurement_session_io_t measurement_io;
+    app_cal_session_io_t calibration_io;
     fake_outcome_t outcomes[MEASUREMENT_AUTO_MAX_ATTEMPTS];
     hw_metrology_measure_request_t requests[MEASUREMENT_AUTO_MAX_ATTEMPTS];
     hw_metrology_block_t block;
@@ -472,9 +474,9 @@ static int test_user_cancel_during_calibration_capture_drains_runtime(void)
 static bsp_status_t init_product(app_product_t *product, fake_io_t *fake)
 {
     init_test_cal_service();
-    app_measurement_session_io_t io = make_io(fake);
-    app_cal_session_io_t cal_io = make_cal_io(fake);
-    return app_product_init(product, &g_service, &g_settings, &io, &cal_io);
+    fake->measurement_io = make_io(fake);
+    fake->calibration_io = make_cal_io(fake);
+    return app_product_init(product, &g_service, &g_settings, &fake->measurement_io, &fake->calibration_io);
 }
 
 static app_product_inputs_t inputs_ready(void)
@@ -487,9 +489,7 @@ static app_product_inputs_t inputs_ready(void)
             .measure_allowed = true,
             .primary_blocker = HW_SAFETY_MEASURE_ALLOWED,
         },
-        .battery_state = HW_BATTERY_OK,
         .safety_fault_mask = 0u,
-        .display_ready = true,
         .display_fault = false,
     };
 }
@@ -600,7 +600,6 @@ static int test_ok_gestures_and_measurement_flow(void)
     failures += expect_true(saw_partial, "partial result published while measuring");
     failures += expect_true(view.state == UI_PRODUCT_STATE_RESULT, "measurement reaches result");
     failures += expect_true(view.has_measurement_result && !view.measurement_result_partial, "final result stored");
-    failures += expect_u32(view.measurement_result.primary_attempt_index, 0u, "primary survives refinement");
 
     failures += expect_true(init_product(&product, &fake) == BSP_STATUS_OK, "product init long");
     boot_to_ready(&product, &inputs);
@@ -610,7 +609,7 @@ static int test_ok_gestures_and_measurement_flow(void)
     app_product_step(&product, &inputs, &clock, BSP_STATUS_OK, 25u);
     app_product_make_view(&product, &view);
     failures += expect_true(view.state == UI_PRODUCT_STATE_MENU, "long OK opens menu");
-    failures += expect_u32(view.menu.item_count, 6u, "menu has Stage 3A language entry");
+    failures += expect_u32(view.menu.selected_index, 0u, "menu opens at calibration entry");
     failures += expect_u32(fake.start_count, 2u, "long OK starts no extra measurement");
     return failures;
 }
@@ -856,14 +855,27 @@ int main(int argc, char **argv)
 {
     if ((argc == 2) && (strcmp(argv[1], "--sizes") == 0))
     {
-        (void)printf("app_product_t=%lu\n", (unsigned long)app_product_context_size_bytes());
+        (void)printf("ui_product_measurement_t=%lu\n",
+                     (unsigned long)sizeof(ui_product_measurement_t));
+        (void)printf("ui_product_menu_t=%lu\n", (unsigned long)sizeof(ui_product_menu_t));
+        (void)printf("ui_product_wizard_t=%lu\n", (unsigned long)sizeof(ui_product_wizard_t));
         (void)printf("ui_product_view_t=%lu\n", (unsigned long)sizeof(ui_product_view_t));
         (void)printf("ui_product_t=%lu\n", (unsigned long)sizeof(ui_product_t));
+        (void)printf("app_measurement_session_io_t=%lu\n",
+                     (unsigned long)sizeof(app_measurement_session_io_t));
+        (void)printf("app_measurement_session_t=%lu\n",
+                     (unsigned long)app_measurement_session_size_bytes());
+        (void)printf("app_cal_session_io_t=%lu\n", (unsigned long)sizeof(app_cal_session_io_t));
+        (void)printf("app_calibration_session_t=%lu\n",
+                     (unsigned long)app_calibration_session_context_size_bytes());
+        (void)printf("app_calibration_wizard_t=%lu\n",
+                     (unsigned long)app_calibration_wizard_context_size_bytes());
+        (void)printf("app_product_runtime_union_t=%lu\n",
+                     (unsigned long)sizeof(((app_product_t *)0)->runtime));
+        (void)printf("app_product_t=%lu\n", (unsigned long)app_product_context_size_bytes());
         (void)printf("resource_catalog_t=%lu\n", (unsigned long)sizeof(resource_catalog_t));
         (void)printf("ui_text_catalog_t=%lu\n", (unsigned long)sizeof(ui_text_catalog_t));
         (void)printf("app_settings_service_t=%lu\n", (unsigned long)sizeof(app_settings_service_t));
-        (void)printf("ui_product_measurement_t=%lu\n",
-                     (unsigned long)sizeof(ui_product_measurement_t));
         return 0;
     }
     int failures = 0;

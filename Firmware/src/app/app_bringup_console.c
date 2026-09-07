@@ -1229,7 +1229,7 @@ static bsp_status_t lab_init_calibration_session(app_bringup_console_t *console)
     {
         return BSP_STATUS_INVALID_ARG;
     }
-    const app_cal_session_io_t io = {
+    console->cal_session_io = (app_cal_session_io_t){
         .start_capture = lab_auto_start_attempt,
         .step_capture = lab_auto_step_attempt,
         .capture_active = lab_auto_attempt_active,
@@ -1241,7 +1241,9 @@ static bsp_status_t lab_init_calibration_session(app_bringup_console_t *console)
         .capture_abort = lab_auto_attempt_abort,
         .user = console,
     };
-    return app_calibration_session_init(&console->cal_session, console->cal_service, &io);
+    return app_calibration_session_init(&console->cal_session,
+                                        console->cal_service,
+                                        &console->cal_session_io);
 }
 
 static const char *lab_range_dump_token(hw_range_id_t id)

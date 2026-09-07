@@ -159,7 +159,6 @@ static ui_product_view_t ready_view(uint32_t generation)
         .state = UI_PRODUCT_STATE_READY,
         .page = UI_PRODUCT_PAGE_PRIMARY,
         .generation = generation,
-        .display_ready = true,
     };
 }
 
@@ -247,6 +246,7 @@ static int test_quiet_pause_retains_render_state(void)
     ui_product_t ui;
     ili9341_t display = {.ready = true};
     ui_product_init(&ui);
+    ui_product_set_text_provider(&ui, fake_text_provider, NULL);
     ui_product_view_t view = ready_view(1u);
     ui_product_request(&ui, &view);
     failures += expect_true(ui_product_step(&ui, &display, false) == BSP_STATUS_BUSY,
@@ -284,13 +284,48 @@ static int test_partial_region_and_latest_generation_wins(void)
     failures += expect_true(ui_product_step(&ui, &display, false) == BSP_STATUS_BUSY,
                             "partial update begins");
     ui_product_view_t newest = ready_view(3u);
-    newest.battery_state = UI_PRODUCT_BATTERY_LOW;
     ui_product_request(&ui, &newest);
     failures += expect_true(drain_render(&ui, &display) == 0, "coalesced render completes");
     failures += expect_true(g_partial_clears >= 1u, "same-screen update uses partial clear");
     failures += expect_true(g_full_clears == 1u, "same-screen update does not full clear");
     failures += expect_true(ui_product_step(&ui, &display, false) == BSP_STATUS_OK,
                             "latest generation rendered and queue is bounded");
+    return failures;
+}
+
+static int test_update_during_active_text_restarts_with_newest_generation(void)
+{
+    int failures = 0;
+    reset_render_counters();
+    ui_product_t ui;
+    ili9341_t display = {.ready = true};
+    ui_product_init(&ui);
+    ui_product_set_text_provider(&ui, fake_text_provider, NULL);
+    ui_product_view_t first = ready_view(1u);
+    first.state = UI_PRODUCT_STATE_RESULT;
+    first.has_measurement_result = true;
+    first.measurement_result = (ui_product_measurement_t){
+        .status = MEASUREMENT_AUTO_STATUS_FINAL_OK,
+        .interpretation = MEASUREMENT_INTERPRET_RESISTIVE,
+        .frequency = HW_EXCITATION_FREQ_1KHZ,
+        .amplitude = HW_EXCITATION_AMP_100MVRMS,
+        .magnitude_ohms = 1000.0f,
+        .derived_valid = true,
+    };
+    ui_product_request(&ui, &first);
+    failures += expect_true(ui_product_step(&ui, &display, false) == BSP_STATUS_BUSY,
+                            "result clear starts");
+    while ((g_text_start_count == 0u) && (ui_product_step(&ui, &display, false) == BSP_STATUS_BUSY))
+    {
+    }
+    failures += expect_true(g_text_start_count != 0u, "first result text operation starts");
+    ui_product_view_t newest = ready_view(2u);
+    newest.state = UI_PRODUCT_STATE_MENU;
+    ui_product_request(&ui, &newest);
+    failures += expect_true(drain_render(&ui, &display) == 0, "newest generation drains after active text");
+    failures += expect_true(rendered_text_starts_with("MENU"), "newest view is rendered after text op completes");
+    failures += expect_true(ui_product_step(&ui, &display, false) == BSP_STATUS_OK,
+                            "text update coalesces to latest generation");
     return failures;
 }
 
@@ -369,6 +404,7 @@ int main(void)
     int failures = 0;
     failures += test_quiet_pause_retains_render_state();
     failures += test_partial_region_and_latest_generation_wins();
+    failures += test_update_during_active_text_restarts_with_newest_generation();
     failures += test_details_phase_label_uses_catalog();
     failures += test_resource_error_uses_no_external_text_reads();
     failures += test_normal_resource_failure_is_not_silent_success();

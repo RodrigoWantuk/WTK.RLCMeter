@@ -22,9 +22,7 @@ typedef struct
     int32_t temperature_mC;
     bool temperature_valid;
     hw_safety_result_t safety_result;
-    hw_battery_state_t battery_state;
     uint32_t safety_fault_mask;
-    bool display_ready;
     bool display_fault;
     bool settings_storage_busy;
     resource_status_t resource_status;
@@ -46,8 +44,8 @@ typedef struct
         app_measurement_session_t measurement;
         app_calibration_wizard_t calibration;
     } runtime;
-    app_measurement_session_io_t measurement_io;
-    app_cal_session_io_t calibration_io;
+    const app_measurement_session_io_t *measurement_io;
+    const app_cal_session_io_t *calibration_io;
     app_calibration_service_t *calibration_service;
     app_settings_service_t *settings_service;
     measurement_auto_hint_t next_hint;

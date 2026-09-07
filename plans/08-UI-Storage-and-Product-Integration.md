@@ -212,6 +212,102 @@ Software evidence:
 Stage 3B remains NOT_STARTED. No external font runtime, bitmap font conversion, icon
 pack, splash asset, graph rendering, or TFT debug-console feature was started here.
 
+## Stage 3A.2 — product Flash/RAM headroom recovery and debug-build strategy
+
+STATUS: IN_PROGRESS
+
+Implemented software boundary:
+
+- PRODUCT build optimization policy is explicit: STM32 PRODUCT targets receive one
+  target-level size optimization option through `WTK_PRODUCT_OPTIMIZATION_LEVEL`.
+  The current policy remains `-Os`; measured `-Oz` did not reduce the linked image.
+- `stm32-debug` now uses `-g3` without a conflicting preset optimization flag, so the
+  effective PRODUCT Debug command is size-optimized code plus DWARF symbols. Debug
+  sections in the ELF are not loadable Flash payload; the `.bin` remains the relevant
+  programmed image size.
+- PRODUCT view snapshots no longer carry unused presentation mirrors for battery state,
+  measurement state, display-ready/fault mirrors, session sequence, menu item count,
+  menu dirty state, or unused wizard solver/error/progress fields. Underlying battery,
+  display-fault, measurement, settings, and calibration services remain authoritative.
+- `ui_product_t` now keeps one full pending view snapshot plus compact rendered and
+  rendering generation/state metadata. An active text operation owns its copied line,
+  so newer pending generations may coalesce while one line completes and then restart
+  from the newest view before the next line is prepared.
+- PRODUCT/session/calibration callback tables with static production lifetime are passed
+  by immutable reference instead of copied into the product/session contexts. Host tests
+  keep matching fake IO tables alive for the product/session lifetime.
+- PRODUCT inputs and measurement view snapshots were compacted further by removing fields
+  that current PRODUCT screens do not render or consume.
+- A duplicated calibration-wizard start path in the product controller was consolidated
+  without changing mandatory/manual calibration gate behavior.
+
+Compiler/linker evidence:
+
+- Starting Release command contained redundant optimization intent from the preset and
+  PRODUCT target options; the final effective command contains one terminal `-Os` for
+  PRODUCT sources.
+- `-Oz` with LTO produced the same PRODUCT Release size as `-Os` on the current source,
+  so it was not adopted.
+- `--relax` produced no measurable Flash/RAM change and was not adopted.
+- `-flto-partition=one`, `-fno-inline-functions-called-once`, and `-fno-jump-tables`
+  were measured during the headroom pass and rejected because they increased Flash.
+
+Local size evidence from clean STM32 builds:
+
+```text
+                       BEFORE      AFTER      DELTA
+PRODUCT Debug Flash     64676      64112       -564
+PRODUCT Debug RAM       16788      16516       -272
+PRODUCT Release Flash   57180      56360       -820
+PRODUCT Release RAM     16768      16504       -264
+BRINGUP Flash           53916      53924         +8
+BRINGUP RAM             15116      15116          0
+```
+
+Release margins after Stage 3A.2:
+
+```text
+margin to 57344 B project gate:       984 B
+margin to 65536 B physical Flash:    9176 B
+PRODUCT RAM margin to 17408 B gate:   904 B
+PRODUCT Debug physical Flash margin: 1424 B
+```
+
+Current structure-size evidence:
+
+```text
+ui_product_measurement_t       32 B
+ui_product_menu_t               8 B
+ui_product_wizard_t            11 B
+ui_product_view_t              72 B
+ui_product_t                  176 B
+app_measurement_session_io_t   88 B
+app_measurement_session_t    1704 B
+app_cal_session_io_t           80 B
+app_calibration_session_t     248 B
+app_calibration_wizard_t     1496 B
+app_product_runtime_union_t  1704 B
+app_product_t                1880 B
+resource_catalog_t             72 B
+ui_text_catalog_t              72 B
+app_settings_service_t        200 B
+```
+
+Stage 3B authorization:
+
+- Stage 3B remains NOT_STARTED and is not yet authorized. PRODUCT Release satisfies the
+  current 57344 B hard gate and PRODUCT RAM satisfies the 16640 B Stage 3A.2 target, but
+  PRODUCT Release Flash remains above the 55296 B minimum Stage 3B handoff target.
+- Dominant remaining PRODUCT Flash contributors are the product superloop/application
+  shell, calibration session/wizard/service paths, automatic measurement policy, DSP/
+  calibration processing, and the current fallback-text product renderer. The next
+  highest-value optimization should focus on deliberate product application/UI code
+  compaction or a budgeted calibration/UI split, not on shrinking the already external
+  resource pack.
+- BRINGUP remains within its existing gates. The final +8 B Flash change versus the
+  Stage 3A.1 baseline is the cost of giving the BRINGUP calibration session a
+  console-owned IO callback table after session IO ownership changed to references.
+
 ## Stage 2A — product calibration wizard and active-calibration gate
 
 STATUS: IMPLEMENTED_REQUIRES_BENCH_VALIDATION

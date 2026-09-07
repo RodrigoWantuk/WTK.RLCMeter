@@ -79,14 +79,12 @@ static void sync_settings_view(app_product_t *product)
         (product->view.menu.timeout_seconds != timeout_seconds) ||
         (product->view.menu.sound_enabled != settings.sound_enabled) ||
         (product->view.menu.language_id != settings.language_id) ||
-        (product->view.menu.dirty != app_settings_service_dirty(product->settings_service)) ||
         (product->view.menu.save_failed != app_settings_service_save_failed(product->settings_service)))
     {
         product->view.menu.brightness_percent = settings.brightness_percent;
         product->view.menu.timeout_seconds = timeout_seconds;
         product->view.menu.sound_enabled = settings.sound_enabled;
         product->view.menu.language_id = settings.language_id;
-        product->view.menu.dirty = app_settings_service_dirty(product->settings_service);
         product->view.menu.save_failed = app_settings_service_save_failed(product->settings_service);
         mark_dirty(product);
     }
@@ -94,8 +92,7 @@ static void sync_settings_view(app_product_t *product)
 
 static void set_menu(app_product_t *product,
                      ui_product_state_t state,
-                     uint8_t selected,
-                     uint8_t count)
+                     uint8_t selected)
 {
     if (product == NULL)
     {
@@ -103,7 +100,6 @@ static void set_menu(app_product_t *product,
     }
     product->menu_index = selected;
     product->view.menu.selected_index = selected;
-    product->view.menu.item_count = count;
     sync_settings_view(product);
     set_state(product, state);
     mark_dirty(product);
@@ -148,22 +144,6 @@ static uint8_t clamp_brightness_step(int16_t value)
         return 100u;
     }
     return (uint8_t)(((value + 2) / 5) * 5);
-}
-
-static ui_product_battery_t ui_battery_state(hw_battery_state_t state)
-{
-    switch (state)
-    {
-    case HW_BATTERY_OK:
-        return UI_PRODUCT_BATTERY_OK;
-    case HW_BATTERY_LOW:
-        return UI_PRODUCT_BATTERY_LOW;
-    case HW_BATTERY_CRITICAL:
-        return UI_PRODUCT_BATTERY_CRITICAL;
-    case HW_BATTERY_UNKNOWN:
-    default:
-        return UI_PRODUCT_BATTERY_UNKNOWN;
-    }
 }
 
 static ui_product_blocker_t ui_blocker(hw_safety_primary_blocker_t blocker)
@@ -244,7 +224,38 @@ static app_calibration_wizard_t *wizard_runtime(app_product_t *product)
     return (product == NULL) ? NULL : &product->runtime.calibration;
 }
 
+static bsp_status_t activate_wizard_runtime(app_product_t *product);
 static void update_wizard_view(app_product_t *product);
+
+static void try_start_calibration_wizard(app_product_t *product,
+                                         const app_product_inputs_t *inputs,
+                                         app_cal_wizard_mode_t mode)
+{
+    if ((product == NULL) || (inputs == NULL))
+    {
+        return;
+    }
+    if (app_settings_service_busy(product->settings_service) || inputs->settings_storage_busy)
+    {
+        product->calibration_deferred_for_settings = true;
+        return;
+    }
+    if (activate_wizard_runtime(product) != BSP_STATUS_OK)
+    {
+        return;
+    }
+    product->calibration_deferred_for_settings = false;
+    product->calibration_sequence++;
+    if (app_calibration_wizard_start(wizard_runtime(product),
+                                     mode,
+                                     product->calibration_sequence,
+                                     inputs->temperature_mC,
+                                     inputs->temperature_valid) == BSP_STATUS_OK)
+    {
+        update_wizard_view(product);
+        set_state(product, UI_PRODUCT_STATE_CALIBRATION_WIZARD);
+    }
+}
 
 static bsp_status_t activate_measurement_runtime(app_product_t *product)
 {
@@ -262,7 +273,7 @@ static bsp_status_t activate_measurement_runtime(app_product_t *product)
         return BSP_STATUS_BUSY;
     }
     const bsp_status_t status =
-        app_measurement_session_init(&product->runtime.measurement, &product->measurement_io);
+        app_measurement_session_init(&product->runtime.measurement, product->measurement_io);
     if (status == BSP_STATUS_OK)
     {
         product->runtime_kind = APP_PRODUCT_RUNTIME_MEASUREMENT;
@@ -291,7 +302,7 @@ static bsp_status_t activate_wizard_runtime(app_product_t *product)
     };
     const bsp_status_t status = app_calibration_wizard_init(&product->runtime.calibration,
                                                            product->calibration_service,
-                                                           &product->calibration_io,
+                                                           product->calibration_io,
                                                            &fixture);
     if (status == BSP_STATUS_OK)
     {
@@ -403,9 +414,6 @@ static ui_product_measurement_t ui_measurement_from_result(const measurement_ses
     }
     out.status = (uint8_t)result->status;
     out.interpretation = (uint8_t)result->classification.interpretation;
-    out.confidence = (uint8_t)result->confidence.publication_confidence;
-    out.quality = (uint8_t)result->confidence.measurement_quality;
-    out.qualification = (uint8_t)result->confidence.qualification;
     out.frequency = (uint8_t)result->primary_attempt.config.frequency;
     out.amplitude = (uint8_t)result->primary_attempt.config.amplitude;
     out.resistance_ohms = result->primary_attempt.derived.resistance_ohms;
@@ -414,8 +422,6 @@ static ui_product_measurement_t ui_measurement_from_result(const measurement_ses
     out.phase_rad = result->primary_attempt.derived.phase_rad;
     out.capacitance_f = result->primary_attempt.derived.capacitance_f;
     out.inductance_h = result->primary_attempt.derived.inductance_h;
-    out.attempt_count = result->attempt_count;
-    out.primary_attempt_index = result->primary_attempt_index;
     out.derived_valid = result->primary_attempt.derived.valid;
     out.capacitance_valid = result->primary_attempt.derived.capacitance_valid;
     out.inductance_valid = result->primary_attempt.derived.inductance_valid;
@@ -488,20 +494,13 @@ static void update_wizard_view(app_product_t *product)
         .state = (uint8_t)ui_wizard_state(snapshot.state),
         .mode = (uint8_t)snapshot.mode,
         .standard = (uint8_t)ui_wizard_standard(snapshot.standard),
-        .error = (uint8_t)snapshot.error,
-        .workflow_result = (uint8_t)snapshot.workflow_result,
-        .solver_status = (uint8_t)snapshot.solver_status,
         .range_id = (uint8_t)snapshot.range_id,
         .frequency = (uint8_t)snapshot.frequency,
         .amplitude = (uint8_t)snapshot.amplitude,
-        .range_index = snapshot.range_index,
-        .range_count = snapshot.range_count,
         .condition_index = snapshot.condition_index,
         .condition_count = snapshot.condition_count,
         .solved_count = snapshot.solved_count,
         .total_conditions = snapshot.total_conditions,
-        .accepted = snapshot.accepted,
-        .attempts = snapshot.attempts,
         .mandatory = snapshot.mandatory,
     };
     mark_dirty(product);
@@ -597,15 +596,14 @@ static WTK_NOINLINE void handle_display_editor(app_product_t *product, bool brig
     if (product->request_menu)
     {
         apply_settings(product, &product->edit_entry_settings);
-        set_menu(product, UI_PRODUCT_STATE_DISPLAY_MENU, 0u, APP_PRODUCT_DISPLAY_COUNT);
+        set_menu(product, UI_PRODUCT_STATE_DISPLAY_MENU, 0u);
     }
     else if (product->request_click)
     {
         request_settings_save(product);
         set_menu(product,
                  UI_PRODUCT_STATE_DISPLAY_MENU,
-                 brightness_editor ? APP_PRODUCT_DISPLAY_BRIGHTNESS : APP_PRODUCT_DISPLAY_TIMEOUT,
-                 APP_PRODUCT_DISPLAY_COUNT);
+                 brightness_editor ? APP_PRODUCT_DISPLAY_BRIGHTNESS : APP_PRODUCT_DISPLAY_TIMEOUT);
     }
     clear_requests(product);
 }
@@ -721,8 +719,8 @@ bsp_status_t app_product_init(app_product_t *product,
         return BSP_STATUS_INVALID_ARG;
     }
     *product = (app_product_t){0};
-    product->measurement_io = *measurement_io;
-    product->calibration_io = *calibration_io;
+    product->measurement_io = measurement_io;
+    product->calibration_io = calibration_io;
     product->calibration_service = calibration_service;
     product->settings_service = settings_service;
     product->last_activity_ms = 0u;
@@ -732,19 +730,18 @@ bsp_status_t app_product_init(app_product_t *product,
     {
         return status;
     }
+    const app_settings_t settings = current_settings(product);
     product->view = (ui_product_view_t){
         .state = UI_PRODUCT_STATE_STARTUP,
         .page = UI_PRODUCT_PAGE_PRIMARY,
         .calibration_status = UI_PRODUCT_CAL_UNKNOWN,
         .safety_blocker = UI_PRODUCT_BLOCK_SENSOR,
-        .battery_state = UI_PRODUCT_BATTERY_UNKNOWN,
         .menu = {
             .selected_index = APP_PRODUCT_MAIN_CALIBRATION,
-            .item_count = APP_PRODUCT_MAIN_COUNT,
-            .brightness_percent = current_settings(product).brightness_percent,
-            .timeout_seconds = (uint16_t)current_settings(product).backlight_timeout,
-            .sound_enabled = current_settings(product).sound_enabled,
-            .language_id = current_settings(product).language_id,
+            .brightness_percent = settings.brightness_percent,
+            .timeout_seconds = (uint16_t)settings.backlight_timeout,
+            .sound_enabled = settings.sound_enabled,
+            .language_id = settings.language_id,
         },
         .generation = 1u,
     };
@@ -834,33 +831,20 @@ void app_product_step(app_product_t *product,
     const ui_product_calibration_state_t next_cal =
         ui_cal_state(inputs->calibration_status, inputs->calibration_active_valid);
     const ui_product_blocker_t next_blocker = ui_blocker(inputs->safety_result.primary_blocker);
-    const ui_product_battery_t next_battery = ui_battery_state(inputs->battery_state);
     const bool next_storage_unavailable = inputs->calibration_status == APP_CAL_SERVICE_STORAGE_UNAVAILABLE;
-    const uint8_t next_measurement_state =
-        (product->runtime_kind == APP_PRODUCT_RUNTIME_MEASUREMENT) ?
-            (uint8_t)app_measurement_session_state(measurement_runtime_const(product)) :
-            0u;
     if ((product->view.calibration_status != next_cal) ||
         (product->view.safety_blocker != next_blocker) ||
-        (product->view.battery_state != next_battery) ||
         (product->view.safety_fault_mask != inputs->safety_fault_mask) ||
-        (product->view.display_ready != inputs->display_ready) ||
-        (product->view.display_fault != inputs->display_fault) ||
         (product->view.storage_unavailable != next_storage_unavailable) ||
         (product->view.resource_status != inputs->resource_status) ||
-        (product->view.measurement_state != next_measurement_state) ||
         (product->view.calibration_active_valid != inputs->calibration_active_valid) ||
         (product->view.calibration_sequence != inputs->calibration_active_sequence))
     {
         product->view.calibration_status = (uint8_t)next_cal;
         product->view.safety_blocker = (uint8_t)next_blocker;
-        product->view.battery_state = (uint8_t)next_battery;
         product->view.safety_fault_mask = inputs->safety_fault_mask;
-        product->view.display_ready = inputs->display_ready;
-        product->view.display_fault = inputs->display_fault;
         product->view.storage_unavailable = next_storage_unavailable;
         product->view.resource_status = (uint8_t)inputs->resource_status;
-        product->view.measurement_state = next_measurement_state;
         product->view.calibration_active_valid = inputs->calibration_active_valid;
         product->view.calibration_sequence = inputs->calibration_active_sequence;
         mark_dirty(product);
@@ -953,7 +937,7 @@ void app_product_step(app_product_t *product,
             }
             else
             {
-                set_menu(product, UI_PRODUCT_STATE_MENU, APP_PRODUCT_MAIN_CALIBRATION, APP_PRODUCT_MAIN_COUNT);
+                set_menu(product, UI_PRODUCT_STATE_MENU, APP_PRODUCT_MAIN_CALIBRATION);
             }
         }
         else if (product->request_click)
@@ -966,18 +950,17 @@ void app_product_step(app_product_t *product,
                 }
                 else if (product->menu_index == APP_PRODUCT_MAIN_DISPLAY)
                 {
-                    set_menu(product, UI_PRODUCT_STATE_DISPLAY_MENU, APP_PRODUCT_DISPLAY_BRIGHTNESS, APP_PRODUCT_DISPLAY_COUNT);
+                    set_menu(product, UI_PRODUCT_STATE_DISPLAY_MENU, APP_PRODUCT_DISPLAY_BRIGHTNESS);
                 }
                 else if (product->menu_index == APP_PRODUCT_MAIN_SOUND)
                 {
-                    set_menu(product, UI_PRODUCT_STATE_SOUND_MENU, APP_PRODUCT_SOUND_TOGGLE, APP_PRODUCT_SOUND_COUNT);
+                    set_menu(product, UI_PRODUCT_STATE_SOUND_MENU, APP_PRODUCT_SOUND_TOGGLE);
                 }
                 else if (product->menu_index == APP_PRODUCT_MAIN_LANGUAGE)
                 {
                     set_menu(product,
                              UI_PRODUCT_STATE_LANGUAGE_MENU,
-                             APP_PRODUCT_LANGUAGE_EN,
-                             APP_PRODUCT_LANGUAGE_COUNT);
+                             APP_PRODUCT_LANGUAGE_EN);
                 }
                 else if (product->menu_index == APP_PRODUCT_MAIN_ABOUT)
                 {
@@ -1005,7 +988,7 @@ void app_product_step(app_product_t *product,
                 }
                 else
                 {
-                    set_menu(product, UI_PRODUCT_STATE_MENU, APP_PRODUCT_MAIN_DISPLAY, APP_PRODUCT_MAIN_COUNT);
+                    set_menu(product, UI_PRODUCT_STATE_MENU, APP_PRODUCT_MAIN_DISPLAY);
                 }
             }
             else if (product->view.state == UI_PRODUCT_STATE_SOUND_MENU)
@@ -1023,7 +1006,7 @@ void app_product_step(app_product_t *product,
                 }
                 else
                 {
-                    set_menu(product, UI_PRODUCT_STATE_MENU, APP_PRODUCT_MAIN_SOUND, APP_PRODUCT_MAIN_COUNT);
+                    set_menu(product, UI_PRODUCT_STATE_MENU, APP_PRODUCT_MAIN_SOUND);
                 }
             }
             else if (product->view.state == UI_PRODUCT_STATE_LANGUAGE_MENU)
@@ -1041,7 +1024,7 @@ void app_product_step(app_product_t *product,
                 }
                 else
                 {
-                    set_menu(product, UI_PRODUCT_STATE_MENU, APP_PRODUCT_MAIN_LANGUAGE, APP_PRODUCT_MAIN_COUNT);
+                    set_menu(product, UI_PRODUCT_STATE_MENU, APP_PRODUCT_MAIN_LANGUAGE);
                 }
             }
         }
@@ -1056,7 +1039,7 @@ void app_product_step(app_product_t *product,
     {
         if (product->request_menu || product->request_click)
         {
-            set_menu(product, UI_PRODUCT_STATE_MENU, APP_PRODUCT_MAIN_ABOUT, APP_PRODUCT_MAIN_COUNT);
+            set_menu(product, UI_PRODUCT_STATE_MENU, APP_PRODUCT_MAIN_ABOUT);
         }
         clear_requests(product);
         return;
@@ -1072,24 +1055,7 @@ void app_product_step(app_product_t *product,
                  inputs->calibration_active_valid &&
                  (inputs->calibration_status != APP_CAL_SERVICE_STORAGE_UNAVAILABLE))
         {
-            if (app_settings_service_busy(product->settings_service) || inputs->settings_storage_busy)
-            {
-                product->calibration_deferred_for_settings = true;
-            }
-            else if (activate_wizard_runtime(product) == BSP_STATUS_OK)
-            {
-                product->calibration_deferred_for_settings = false;
-                product->calibration_sequence++;
-                if (app_calibration_wizard_start(wizard_runtime(product),
-                                                 APP_CAL_WIZARD_MODE_MANUAL,
-                                                 product->calibration_sequence,
-                                                 inputs->temperature_mC,
-                                                 inputs->temperature_valid) == BSP_STATUS_OK)
-                {
-                    update_wizard_view(product);
-                    set_state(product, UI_PRODUCT_STATE_CALIBRATION_WIZARD);
-                }
-            }
+            try_start_calibration_wizard(product, inputs, APP_CAL_WIZARD_MODE_MANUAL);
         }
         product->request_click = false;
         product->request_menu = false;
@@ -1163,24 +1129,7 @@ void app_product_step(app_product_t *product,
         if ((inputs->calibration_status != APP_CAL_SERVICE_STORAGE_UNAVAILABLE) &&
             (product->request_click || product->calibration_deferred_for_settings))
         {
-            if (app_settings_service_busy(product->settings_service) || inputs->settings_storage_busy)
-            {
-                product->calibration_deferred_for_settings = true;
-            }
-            else if (activate_wizard_runtime(product) == BSP_STATUS_OK)
-            {
-                product->calibration_deferred_for_settings = false;
-                product->calibration_sequence++;
-                if (app_calibration_wizard_start(wizard_runtime(product),
-                                                 APP_CAL_WIZARD_MODE_MANDATORY,
-                                                 product->calibration_sequence,
-                                                 inputs->temperature_mC,
-                                                 inputs->temperature_valid) == BSP_STATUS_OK)
-                {
-                    update_wizard_view(product);
-                    set_state(product, UI_PRODUCT_STATE_CALIBRATION_WIZARD);
-                }
-            }
+            try_start_calibration_wizard(product, inputs, APP_CAL_WIZARD_MODE_MANDATORY);
         }
         else
         {
@@ -1219,7 +1168,7 @@ void app_product_step(app_product_t *product,
 
     if (product->request_menu)
     {
-        set_menu(product, UI_PRODUCT_STATE_MENU, APP_PRODUCT_MAIN_CALIBRATION, APP_PRODUCT_MAIN_COUNT);
+        set_menu(product, UI_PRODUCT_STATE_MENU, APP_PRODUCT_MAIN_CALIBRATION);
         product->request_menu = false;
         product->request_click = false;
         product->request_page_next = false;
@@ -1291,7 +1240,6 @@ void app_product_step(app_product_t *product,
                       UI_PRODUCT_STATE_RESULT :
                       UI_PRODUCT_STATE_READY);
     }
-    product->view.session_sequence = product->session_sequence;
 }
 
 void app_product_make_view(const app_product_t *product, ui_product_view_t *view)

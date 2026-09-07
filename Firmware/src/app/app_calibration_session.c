@@ -82,7 +82,7 @@ bsp_status_t app_calibration_session_init(app_calibration_session_t *session,
         return BSP_STATUS_INVALID_ARG;
     }
     *session = (app_calibration_session_t){0};
-    session->io = *io;
+    session->io = io;
     session->service = service;
     session->state = APP_CAL_SESSION_IDLE;
     session->last_sample_status = BSP_STATUS_OK;
@@ -159,7 +159,7 @@ app_cal_session_event_t app_calibration_session_step(app_calibration_session_t *
             .amplitude = key.amplitude,
             .range_id = key.range_id,
         };
-        const bsp_status_t started = session->io.start_capture(&request, now_ms, session->io.user);
+        const bsp_status_t started = session->io->start_capture(&request, now_ms, session->io->user);
         (void)app_calibration_workflow_mark_capture_started(wf);
         if ((started != BSP_STATUS_OK) && (started != BSP_STATUS_BUSY))
         {
@@ -177,16 +177,16 @@ app_cal_session_event_t app_calibration_session_step(app_calibration_session_t *
 
     case APP_CAL_SESSION_WAIT_CAPTURE:
     {
-        const bsp_status_t step_status = session->io.step_capture(now_ms, session->io.user);
-        if (!session->io.capture_done(session->io.user))
+        const bsp_status_t step_status = session->io->step_capture(now_ms, session->io->user);
+        if (!session->io->capture_done(session->io->user))
         {
             (void)step_status;
             return APP_CAL_SESSION_EVENT_NONE;
         }
-        if (session->io.capture_dumpable(session->io.user))
+        if (session->io->capture_dumpable(session->io->user))
         {
             session->last_sample_status =
-                app_calibration_workflow_sample_from_block(session->io.capture_block(session->io.user),
+                app_calibration_workflow_sample_from_block(session->io->capture_block(session->io->user),
                                                            &wf->request,
                                                            &session->last_sample);
             (void)app_calibration_workflow_submit_sample(wf, &session->last_sample);
@@ -194,11 +194,11 @@ app_cal_session_event_t app_calibration_session_step(app_calibration_session_t *
         }
         else
         {
-            session->last_reject_flags = reject_from_measure_error(session->io.capture_error(session->io.user));
+            session->last_reject_flags = reject_from_measure_error(session->io->capture_error(session->io->user));
             (void)app_calibration_workflow_submit_failure(wf, session->last_reject_flags);
             session->last_sample_status = BSP_STATUS_ERROR;
         }
-        session->io.capture_acknowledge(session->io.user);
+        session->io->capture_acknowledge(session->io->user);
         session->state = APP_CAL_SESSION_START_CAPTURE;
         session->pending_event = (session->last_reject_flags == APP_CAL_REJECT_NONE) ?
                                      APP_CAL_SESSION_EVENT_CAPTURE_ACCEPTED :
@@ -208,11 +208,11 @@ app_cal_session_event_t app_calibration_session_step(app_calibration_session_t *
 
     case APP_CAL_SESSION_CANCELING:
     {
-        (void)session->io.step_capture(now_ms, session->io.user);
-        if (!session->io.capture_active(session->io.user) ||
-            session->io.capture_done(session->io.user))
+        (void)session->io->step_capture(now_ms, session->io->user);
+        if (!session->io->capture_active(session->io->user) ||
+            session->io->capture_done(session->io->user))
         {
-            session->io.capture_acknowledge(session->io.user);
+            session->io->capture_acknowledge(session->io->user);
             app_calibration_workflow_cancel_complete(wf);
             queue_terminal_event(session);
             return take_event(session);
@@ -242,9 +242,9 @@ bsp_status_t app_calibration_session_cancel(app_calibration_session_t *session)
         return BSP_STATUS_OK;
     }
     const bsp_status_t cancel_status = app_calibration_workflow_cancel(wf);
-    if ((session->state == APP_CAL_SESSION_WAIT_CAPTURE) && session->io.capture_active(session->io.user))
+    if ((session->state == APP_CAL_SESSION_WAIT_CAPTURE) && session->io->capture_active(session->io->user))
     {
-        (void)session->io.capture_abort(session->io.user);
+        (void)session->io->capture_abort(session->io->user);
         session->state = APP_CAL_SESSION_CANCELING;
         return BSP_STATUS_BUSY;
     }

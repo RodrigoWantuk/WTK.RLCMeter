@@ -449,44 +449,45 @@ static void product_latch_metrology_runtime_fault(void *user)
     app_latch_fault(APP_SAFETY_FAULT_METROLOGY_RUNTIME);
 }
 
+static const hw_metrology_measure_io_t g_product_measure_io = {
+    .k1_force_safe = product_k1_force_safe,
+    .k1_request_measure = product_k1_request_measure,
+    .k1_commanded_state = product_k1_commanded_state,
+    .range_request = product_range_request,
+    .range_step = product_range_step,
+    .range_is_ready = product_range_is_ready,
+    .range_current_id = product_range_current_id,
+    .range_safety_state = product_range_safety_state,
+    .range_force_disabled = product_range_force_disabled,
+    .quiet_request = product_quiet_request,
+    .aux_pause = product_aux_pause,
+    .aux_resume = product_aux_resume,
+    .adc_acquire = product_adc_acquire,
+    .adc_start_capture = product_adc_start_capture,
+    .adc_stop = product_adc_stop,
+    .adc_restore = product_adc_restore,
+    .adc_dma_complete = product_adc_dma_complete,
+    .adc_dma_error = product_adc_dma_error,
+    .excitation_off = product_excitation_off,
+    .excitation_neutral = product_excitation_neutral,
+    .excitation_sine = product_excitation_sine,
+    .excitation_mode = product_excitation_mode,
+    .excitation_dma_error = product_excitation_dma_error,
+    .charger_state = product_charger_state,
+    .safety_fault_mask = product_safety_fault_mask,
+    .permit_issue_input = product_permit_issue_input,
+    .permit_validate_input = product_permit_validate_input,
+    .latch_k1_io_fault = product_latch_k1_io_fault,
+    .latch_range_io_fault = product_latch_range_io_fault,
+    .latch_adc_runtime_fault = product_latch_adc_runtime_fault,
+    .latch_metrology_runtime_fault = product_latch_metrology_runtime_fault,
+    .user = NULL,
+};
+
 static bsp_status_t product_init_metrology_measure(void)
 {
-    const hw_metrology_measure_io_t io = {
-        .k1_force_safe = product_k1_force_safe,
-        .k1_request_measure = product_k1_request_measure,
-        .k1_commanded_state = product_k1_commanded_state,
-        .range_request = product_range_request,
-        .range_step = product_range_step,
-        .range_is_ready = product_range_is_ready,
-        .range_current_id = product_range_current_id,
-        .range_safety_state = product_range_safety_state,
-        .range_force_disabled = product_range_force_disabled,
-        .quiet_request = product_quiet_request,
-        .aux_pause = product_aux_pause,
-        .aux_resume = product_aux_resume,
-        .adc_acquire = product_adc_acquire,
-        .adc_start_capture = product_adc_start_capture,
-        .adc_stop = product_adc_stop,
-        .adc_restore = product_adc_restore,
-        .adc_dma_complete = product_adc_dma_complete,
-        .adc_dma_error = product_adc_dma_error,
-        .excitation_off = product_excitation_off,
-        .excitation_neutral = product_excitation_neutral,
-        .excitation_sine = product_excitation_sine,
-        .excitation_mode = product_excitation_mode,
-        .excitation_dma_error = product_excitation_dma_error,
-        .charger_state = product_charger_state,
-        .safety_fault_mask = product_safety_fault_mask,
-        .permit_issue_input = product_permit_issue_input,
-        .permit_validate_input = product_permit_validate_input,
-        .latch_k1_io_fault = product_latch_k1_io_fault,
-        .latch_range_io_fault = product_latch_range_io_fault,
-        .latch_adc_runtime_fault = product_latch_adc_runtime_fault,
-        .latch_metrology_runtime_fault = product_latch_metrology_runtime_fault,
-        .user = NULL,
-    };
     return hw_metrology_measure_init(&g_product_measure,
-                                     &io,
+                                     &g_product_measure_io,
                                      app_io_workspace_metrology_raw_words(&g_io_workspace),
                                      HW_METROLOGY_RAW_WORD_COUNT);
 }
@@ -584,6 +585,33 @@ static bsp_status_t product_auto_process_block(const hw_metrology_block_t *block
                                          result);
 }
 
+static const app_measurement_session_io_t g_product_session_io = {
+    .start_attempt = product_auto_start_attempt,
+    .step_attempt = product_auto_step_attempt,
+    .attempt_active = product_auto_attempt_active,
+    .attempt_done = product_auto_attempt_done,
+    .attempt_dumpable = product_auto_attempt_dumpable,
+    .attempt_block = product_auto_attempt_block,
+    .attempt_error = product_auto_attempt_error,
+    .attempt_acknowledge = product_auto_attempt_acknowledge,
+    .attempt_abort = product_auto_attempt_abort,
+    .process_block = product_auto_process_block,
+    .user = NULL,
+};
+
+static const app_cal_session_io_t g_product_calibration_io = {
+    .start_capture = product_auto_start_attempt,
+    .step_capture = product_auto_step_attempt,
+    .capture_active = product_auto_attempt_active,
+    .capture_done = product_auto_attempt_done,
+    .capture_dumpable = product_auto_attempt_dumpable,
+    .capture_block = product_auto_attempt_block,
+    .capture_error = product_auto_attempt_error,
+    .capture_acknowledge = product_auto_attempt_acknowledge,
+    .capture_abort = product_auto_attempt_abort,
+    .user = NULL,
+};
+
 static bsp_status_t product_init_controller(void)
 {
     const bsp_status_t measure_status = product_init_metrology_measure();
@@ -591,38 +619,13 @@ static bsp_status_t product_init_controller(void)
     {
         return measure_status;
     }
-    const app_measurement_session_io_t session_io = {
-        .start_attempt = product_auto_start_attempt,
-        .step_attempt = product_auto_step_attempt,
-        .attempt_active = product_auto_attempt_active,
-        .attempt_done = product_auto_attempt_done,
-        .attempt_dumpable = product_auto_attempt_dumpable,
-        .attempt_block = product_auto_attempt_block,
-        .attempt_error = product_auto_attempt_error,
-        .attempt_acknowledge = product_auto_attempt_acknowledge,
-        .attempt_abort = product_auto_attempt_abort,
-        .process_block = product_auto_process_block,
-        .user = NULL,
-    };
-    const app_cal_session_io_t calibration_io = {
-        .start_capture = product_auto_start_attempt,
-        .step_capture = product_auto_step_attempt,
-        .capture_active = product_auto_attempt_active,
-        .capture_done = product_auto_attempt_done,
-        .capture_dumpable = product_auto_attempt_dumpable,
-        .capture_block = product_auto_attempt_block,
-        .capture_error = product_auto_attempt_error,
-        .capture_acknowledge = product_auto_attempt_acknowledge,
-        .capture_abort = product_auto_attempt_abort,
-        .user = NULL,
-    };
     ui_product_init(&g_product_ui);
     ui_product_set_text_provider(&g_product_ui, product_text_resolve, NULL);
     return app_product_init(&g_product,
                             &g_calibration_service,
                             &g_settings_service,
-                            &session_io,
-                            &calibration_io);
+                            &g_product_session_io,
+                            &g_product_calibration_io);
 }
 
 static void product_apply_outputs(void)
@@ -887,9 +890,7 @@ static void app_step(void)
         .temperature_mC = ntc_temperature_mC,
         .temperature_valid = product_sensor_snapshot.ntc_temperature_valid,
         .safety_result = g_safety_result,
-        .battery_state = product_sensor_snapshot.battery_state,
         .safety_fault_mask = app_safety_fault_mask(&g_safety_faults),
-        .display_ready = g_display.ready,
         .display_fault = g_product_display_fault || (g_display.init_state == ILI9341_INIT_ERROR),
         .settings_storage_busy =
             !app_flash_access_allowed(&flash_access, APP_FLASH_ACCESS_SETTINGS_MUTATION),

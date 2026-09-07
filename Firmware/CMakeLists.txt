@@ -22,6 +22,8 @@ set_property(CACHE WTK_FIRMWARE_PROFILE PROPERTY STRINGS PRODUCT BRINGUP)
 
 option(WTK_WARNINGS_AS_ERRORS_HOST "Treat warnings as errors for host project targets" ON)
 option(WTK_WARNINGS_AS_ERRORS_STM32 "Treat warnings as errors for STM32 project targets" OFF)
+set(WTK_PRODUCT_OPTIMIZATION_LEVEL "-Os" CACHE STRING "Optimization level for STM32 PRODUCT builds.")
+set_property(CACHE WTK_PRODUCT_OPTIMIZATION_LEVEL PROPERTY STRINGS -Os -Oz)
 
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     set(CMAKE_BUILD_TYPE Debug CACHE STRING "Build type" FORCE)
@@ -138,7 +140,7 @@ elseif(WTK_TARGET_PLATFORM STREQUAL "stm32")
         # firmware must fit the guaranteed 64 KiB STM32F103C8T6 Flash while
         # still preserving symbols for SWD/GDB inspection. Release may also
         # enable preset-level LTO for additional dead-code folding.
-        target_compile_options(wtk_firmware_common PRIVATE -Os -fno-unwind-tables -fno-asynchronous-unwind-tables)
+        target_compile_options(wtk_firmware_common PRIVATE ${WTK_PRODUCT_OPTIMIZATION_LEVEL} -fno-unwind-tables -fno-asynchronous-unwind-tables)
     endif()
 
     add_executable(wtk_rlcmeter
@@ -193,7 +195,7 @@ elseif(WTK_TARGET_PLATFORM STREQUAL "stm32")
         target_compile_options(wtk_rlcmeter PRIVATE -fstack-usage)
     endif()
     if(WTK_FIRMWARE_PROFILE STREQUAL "PRODUCT")
-        target_compile_options(wtk_rlcmeter PRIVATE -Os -fno-unwind-tables -fno-asynchronous-unwind-tables)
+        target_compile_options(wtk_rlcmeter PRIVATE ${WTK_PRODUCT_OPTIMIZATION_LEVEL} -fno-unwind-tables -fno-asynchronous-unwind-tables)
     endif()
 
     if(WTK_WARNINGS_AS_ERRORS_STM32)

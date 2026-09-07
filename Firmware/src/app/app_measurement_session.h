@@ -52,7 +52,7 @@ typedef struct
 
 typedef struct
 {
-    app_measurement_session_io_t io;
+    const app_measurement_session_io_t *io;
     measurement_auto_session_t policy;
     measurement_attempt_config_t current_attempt;
     measurement_calibrated_result_t dsp_result;

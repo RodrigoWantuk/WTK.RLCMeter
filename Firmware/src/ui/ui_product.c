@@ -629,12 +629,6 @@ static bool prepare_display_menu_line(const ui_product_t *ui,
     }
     if (index == 3u)
     {
-        line_set(line,
-                 8u,
-                 94u,
-                 1u,
-                 (view->menu.selected_index == 2u) ? UI_COLOR_GREEN : UI_COLOR_WHITE,
-                 "");
         line_set_id(ui,
                     view,
                     line,
@@ -669,12 +663,6 @@ static bool prepare_sound_menu_line(const ui_product_t *ui,
     }
     if (index == 1u)
     {
-        line_set(line,
-                 8u,
-                 54u,
-                 1u,
-                 (view->menu.selected_index == 0u) ? UI_COLOR_GREEN : UI_COLOR_WHITE,
-                 "");
         line_set_id(ui,
                     view,
                     line,
@@ -687,12 +675,6 @@ static bool prepare_sound_menu_line(const ui_product_t *ui,
     }
     if (index == 2u)
     {
-        line_set(line,
-                 8u,
-                 74u,
-                 1u,
-                 (view->menu.selected_index == 1u) ? UI_COLOR_GREEN : UI_COLOR_WHITE,
-                 "");
         line_set_id(ui,
                     view,
                     line,
@@ -822,12 +804,6 @@ static bool prepare_calibration_status_line(const ui_product_t *ui,
     }
     if (index == 1u)
     {
-        line_set(line,
-                 8u,
-                 54u,
-                 1u,
-                 view->calibration_active_valid ? UI_COLOR_GREEN : UI_COLOR_AMBER,
-                 "");
         line_set_id(ui,
                     view,
                     line,
@@ -1241,7 +1217,7 @@ static void start_render(ui_product_t *ui)
     {
         return;
     }
-    ui->rendering = ui->pending;
+    ui->rendering_generation = ui->pending.generation;
     ui->line_index = 0u;
     ui->text_op.active = false;
     ui->clear_started = false;
@@ -1355,18 +1331,18 @@ bsp_status_t ui_product_step(ui_product_t *ui, const ili9341_t *display, bool qu
         return BSP_STATUS_BUSY;
     }
 
-    if (ui->pending.generation != ui->rendering.generation)
+    if (ui->pending.generation != ui->rendering_generation)
     {
         start_render(ui);
         return BSP_STATUS_BUSY;
     }
 
     ui_product_line_t line;
-    if (!prepare_line(ui, &ui->rendering, ui->line_index, &line))
+    if (!prepare_line(ui, &ui->pending, ui->line_index, &line))
     {
-        ui->rendered_generation = ui->rendering.generation;
-        ui->rendered_state = ui->rendering.state;
-        ui->rendered_page = ui->rendering.page;
+        ui->rendered_generation = ui->rendering_generation;
+        ui->rendered_state = ui->pending.state;
+        ui->rendered_page = ui->pending.page;
         ui->have_rendered = true;
         ui->active = false;
         ui->render_state = UI_PRODUCT_RENDER_IDLE;

@@ -67,14 +67,6 @@ typedef enum
 
 typedef enum
 {
-    UI_PRODUCT_BATTERY_UNKNOWN = 0,
-    UI_PRODUCT_BATTERY_OK,
-    UI_PRODUCT_BATTERY_LOW,
-    UI_PRODUCT_BATTERY_CRITICAL,
-} ui_product_battery_t;
-
-typedef enum
-{
     UI_PRODUCT_WIZARD_IDLE = 0,
     UI_PRODUCT_WIZARD_INTRO,
     UI_PRODUCT_WIZARD_WAIT_OPEN,
@@ -104,9 +96,6 @@ typedef struct
 {
     uint8_t status;
     uint8_t interpretation;
-    uint8_t confidence;
-    uint8_t quality;
-    uint8_t qualification;
     uint8_t frequency;
     uint8_t amplitude;
     float resistance_ohms;
@@ -115,8 +104,6 @@ typedef struct
     float phase_rad;
     float capacitance_f;
     float inductance_h;
-    uint8_t attempt_count;
-    uint8_t primary_attempt_index;
     bool derived_valid;
     bool capacitance_valid;
     bool inductance_valid;
@@ -125,12 +112,10 @@ typedef struct
 typedef struct
 {
     uint8_t selected_index;
-    uint8_t item_count;
     uint8_t brightness_percent;
     uint16_t timeout_seconds;
     bool sound_enabled;
     uint8_t language_id;
-    bool dirty;
     bool save_failed;
 } ui_product_menu_t;
 
@@ -139,20 +124,13 @@ typedef struct
     uint8_t state;
     uint8_t mode;
     uint8_t standard;
-    uint8_t error;
-    uint8_t workflow_result;
-    uint8_t solver_status;
     uint8_t range_id;
     uint8_t frequency;
     uint8_t amplitude;
-    uint8_t range_index;
-    uint8_t range_count;
     uint8_t condition_index;
     uint8_t condition_count;
     uint8_t solved_count;
     uint8_t total_conditions;
-    uint8_t accepted;
-    uint8_t attempts;
     bool mandatory;
 } ui_product_wizard_t;
 
@@ -162,8 +140,6 @@ typedef struct
     uint8_t page;
     uint8_t calibration_status;
     uint8_t safety_blocker;
-    uint8_t battery_state;
-    uint8_t measurement_state;
     ui_product_measurement_t measurement_result;
     ui_product_menu_t menu;
     ui_product_wizard_t wizard;
@@ -171,12 +147,9 @@ typedef struct
     bool measurement_result_partial;
     bool storage_unavailable;
     uint8_t resource_status;
-    bool display_ready;
-    bool display_fault;
     bool calibration_active_valid;
     uint32_t calibration_sequence;
     uint32_t safety_fault_mask;
-    uint32_t session_sequence;
     uint32_t generation;
 } ui_product_view_t;
 
@@ -190,9 +163,9 @@ typedef struct
 {
     ili9341_fill_t clear_fill;
     ui_product_view_t pending;
-    ui_product_view_t rendering;
     ui_fallback_text_op_t text_op;
     uint32_t rendered_generation;
+    uint32_t rendering_generation;
     uint8_t rendered_state;
     uint8_t rendered_page;
     uint8_t line_index;

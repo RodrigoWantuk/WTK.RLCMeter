@@ -92,6 +92,9 @@ index CRC, dense order/completeness, blob bounds, exact blob consumption, and UT
 every string. Runtime lookup then performs one direct index-record read plus the string
 payload read for the requested ID.
 
-The product renderer keeps pending and in-progress `ui_product_view_t` snapshots plus
-only compact rendered state/page metadata. It no longer stores a third full rendered
-view copy in SRAM.
+The product renderer keeps one full pending `ui_product_view_t` snapshot plus compact
+rendered/rendering generation and state/page metadata. The active text operation owns a
+bounded copy of the current line, so an updated pending view may coalesce while that line
+finishes and then restart rendering from the newest generation before preparing the next
+line. This replaces the previous second full in-progress snapshot without changing quiet
+mode deferral or resource-error behavior.
