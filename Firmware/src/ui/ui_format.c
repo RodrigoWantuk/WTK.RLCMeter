@@ -122,13 +122,13 @@ ui_format_status_t ui_format_resistance(float ohms, char *dst, size_t capacity)
     const float magnitude = absf_local(ohms);
     if (magnitude >= 1000000.0f)
     {
-        return write_scaled(ohms, 1000000.0f, "MOhm", dst, capacity);
+        return write_scaled(ohms, 1000000.0f, "MΩ", dst, capacity);
     }
     if (magnitude >= 1000.0f)
     {
-        return write_scaled(ohms, 1000.0f, "kOhm", dst, capacity);
+        return write_scaled(ohms, 1000.0f, "kΩ", dst, capacity);
     }
-    return write_scaled(ohms, 1.0f, "Ohm", dst, capacity);
+    return write_scaled(ohms, 1.0f, "Ω", dst, capacity);
 }
 
 ui_format_status_t ui_format_reactance(float ohms, char *dst, size_t capacity)
@@ -152,7 +152,7 @@ ui_format_status_t ui_format_capacitance(float farads, char *dst, size_t capacit
     }
     if (farads < 1.0e-3f)
     {
-        return write_scaled(farads, 1.0e-6f, "uF", dst, capacity);
+        return write_scaled(farads, 1.0e-6f, "µF", dst, capacity);
     }
     return write_scaled(farads, 1.0e-3f, "mF", dst, capacity);
 }
@@ -165,7 +165,7 @@ ui_format_status_t ui_format_inductance(float henries, char *dst, size_t capacit
     }
     if (henries < 1.0e-3f)
     {
-        return write_scaled(henries, 1.0e-6f, "uH", dst, capacity);
+        return write_scaled(henries, 1.0e-6f, "µH", dst, capacity);
     }
     if (henries < 1.0f)
     {
@@ -182,7 +182,7 @@ ui_format_status_t ui_format_phase_rad(float radians, char *dst, size_t capacity
     }
     const int32_t deg_x10 = (int32_t)((radians * (float)UI_FORMAT_DEG_PER_RAD_X10) +
                                       ((radians >= 0.0f) ? 0.5f : -0.5f));
-    return write_scaled((float)deg_x10 / 10.0f, 1.0f, "deg", dst, capacity);
+    return write_scaled((float)deg_x10 / 10.0f, 1.0f, "°", dst, capacity);
 }
 
 ui_format_status_t ui_format_q(float value, char *dst, size_t capacity)

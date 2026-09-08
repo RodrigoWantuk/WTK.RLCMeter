@@ -225,6 +225,7 @@ typedef struct
     char text[UI_FALLBACK_TEXT_MAX_CHARS];
     bool deferred;
     bool failed;
+    bool emergency;
 } ui_product_line_t;
 
 static resource_status_t resolve_text(const ui_product_t *ui,
@@ -273,6 +274,19 @@ static bool line_resource_status(ui_product_line_t *line, resource_status_t stat
     return status == RESOURCE_STATUS_OK;
 }
 
+static ui_font_role_t font_role_from_scale(uint8_t scale)
+{
+    if (scale >= 3u)
+    {
+        return UI_FONT_ROLE_LARGE;
+    }
+    if (scale == 2u)
+    {
+        return UI_FONT_ROLE_MEDIUM;
+    }
+    return UI_FONT_ROLE_SMALL;
+}
+
 static void line_set(ui_product_line_t *line,
                      uint16_t x,
                      uint16_t y,
@@ -314,6 +328,7 @@ static void line_set_id(const ui_product_t *ui,
     line->y = y;
     line->scale = scale;
     line->color = color;
+    line->emergency = ui_text_is_emergency(id);
     const uint8_t language =
         ((view == NULL) || !ui_language_valid(view->menu.language_id)) ?
             (uint8_t)UI_LANGUAGE_EN :
@@ -1118,6 +1133,7 @@ static bool prepare_line(const ui_product_t *ui,
             (void)append_text(status, sizeof(status), &used, "RS ");
             (void)append_hex8(status, sizeof(status), &used, (uint32_t)(resource_status_t)view->resource_status);
             line_set(line, 8u, 60u, 1u, UI_COLOR_AMBER, status);
+            line->emergency = true;
             return true;
         }
         return false;
@@ -1199,6 +1215,7 @@ static bool prepare_line(const ui_product_t *ui,
                 return false;
             }
             line_set(line, 8u, 24u, 1u, UI_COLOR_RED, fault);
+            line->emergency = true;
             return true;
         }
     }
@@ -1220,6 +1237,7 @@ static void start_render(ui_product_t *ui)
     ui->rendering_generation = ui->pending.generation;
     ui->line_index = 0u;
     ui->text_op.active = false;
+    ui->font_text_op.active = false;
     ui->clear_started = false;
     ui->render_state = UI_PRODUCT_RENDER_CLEAR;
     ui->active = true;
@@ -1254,6 +1272,14 @@ void ui_product_set_text_provider(ui_product_t *ui,
     {
         ui->resolve_text = resolve;
         ui->resolve_text_context = context;
+    }
+}
+
+void ui_product_set_font_catalog(ui_product_t *ui, ui_font_catalog_t *catalog)
+{
+    if (ui != NULL)
+    {
+        ui->font_catalog = catalog;
     }
 }
 
@@ -1331,6 +1357,23 @@ bsp_status_t ui_product_step(ui_product_t *ui, const ili9341_t *display, bool qu
         return BSP_STATUS_BUSY;
     }
 
+    if (ui->font_text_op.active)
+    {
+        const bsp_status_t text_status = ui_font_text_step(display, &ui->font_text_op);
+        if ((text_status != BSP_STATUS_OK) && (text_status != BSP_STATUS_BUSY))
+        {
+            ui->active = false;
+            ui->render_state = UI_PRODUCT_RENDER_IDLE;
+            return text_status;
+        }
+        if (ui->font_text_op.active || (text_status == BSP_STATUS_BUSY))
+        {
+            return BSP_STATUS_BUSY;
+        }
+        ui->line_index++;
+        return BSP_STATUS_BUSY;
+    }
+
     if (ui->pending.generation != ui->rendering_generation)
     {
         start_render(ui);
@@ -1363,14 +1406,36 @@ bsp_status_t ui_product_step(ui_product_t *ui, const ili9341_t *display, bool qu
         ui->render_state = UI_PRODUCT_RENDER_IDLE;
         return BSP_STATUS_ERROR;
     }
-    ui_fallback_text_scaled_start(&ui->text_op,
-                                  line.x,
-                                  line.y,
-                                  line.text,
-                                  line.scale,
-                                  line.color,
-                                  UI_COLOR_BLACK);
-    if (!ui->text_op.active)
+    if (line.emergency)
+    {
+        ui_fallback_text_scaled_start(&ui->text_op,
+                                      line.x,
+                                      line.y,
+                                      line.text,
+                                      line.scale,
+                                      line.color,
+                                      UI_COLOR_BLACK);
+        if (!ui->text_op.active)
+        {
+            ui->line_index++;
+        }
+        return BSP_STATUS_BUSY;
+    }
+    if ((ui->font_catalog == NULL) || !ui_font_catalog_ready(ui->font_catalog))
+    {
+        ui->active = false;
+        ui->render_state = UI_PRODUCT_RENDER_IDLE;
+        return BSP_STATUS_ERROR;
+    }
+    ui_font_text_start(&ui->font_text_op,
+                       ui->font_catalog,
+                       font_role_from_scale(line.scale),
+                       line.x,
+                       line.y,
+                       line.text,
+                       line.color,
+                       UI_COLOR_BLACK);
+    if (!ui->font_text_op.active)
     {
         ui->line_index++;
     }

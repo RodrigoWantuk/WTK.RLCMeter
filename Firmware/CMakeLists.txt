@@ -103,6 +103,7 @@ add_library(wtk_firmware_common STATIC
     src/storage/storage_crc32.c
     src/storage/storage_layout.c
     src/ui/ui_fallback_font.c
+    src/ui/ui_font.c
     src/ui/ui_format.c
     src/ui/ui_product.c
     src/ui/ui_text_catalog.c

@@ -7,6 +7,7 @@
 #include "drivers/ili9341.h"
 #include "measurement/measurement_engine.h"
 #include "ui/ui_fallback_renderer.h"
+#include "ui/ui_font.h"
 #include "ui/ui_text.h"
 
 typedef enum
@@ -164,6 +165,8 @@ typedef struct
     ili9341_fill_t clear_fill;
     ui_product_view_t pending;
     ui_fallback_text_op_t text_op;
+    ui_font_text_op_t font_text_op;
+    ui_font_catalog_t *font_catalog;
     uint32_t rendered_generation;
     uint32_t rendering_generation;
     uint8_t rendered_state;
@@ -181,6 +184,7 @@ void ui_product_init(ui_product_t *ui);
 void ui_product_set_text_provider(ui_product_t *ui,
                                   ui_product_text_resolve_fn resolve,
                                   void *context);
+void ui_product_set_font_catalog(ui_product_t *ui, ui_font_catalog_t *catalog);
 void ui_product_request(ui_product_t *ui, const ui_product_view_t *view);
 bsp_status_t ui_product_step(ui_product_t *ui, const ili9341_t *display, bool quiet);
 uint32_t ui_product_context_size_bytes(void);

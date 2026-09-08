@@ -11,13 +11,19 @@ enum
 {
     RESOURCE_PACK_MAGIC = 0x32505257u, /* "WRP2" little-endian */
     RESOURCE_PACK_SCHEMA_VERSION = 2u,
-    RESOURCE_PACK_API_VERSION = 2u,
+    RESOURCE_PACK_API_VERSION = 3u,
     RESOURCE_PACK_HEADER_SIZE = 44u,
     RESOURCE_PACK_ENTRY_WIRE_SIZE = 32u,
     RESOURCE_TEXT_TABLE_HEADER_SIZE = 24u,
     RESOURCE_TEXT_TABLE_RECORD_SIZE = 8u,
     RESOURCE_TEXT_TABLE_MAGIC = 0x54585457u, /* "WTXT" little-endian */
     RESOURCE_TEXT_TABLE_VERSION = 1u,
+    RESOURCE_FONT_A1_HEADER_SIZE = 32u,
+    RESOURCE_FONT_A1_RECORD_SIZE = 20u,
+    RESOURCE_FONT_A1_MAGIC = 0x31414657u, /* "WFA1" little-endian */
+    RESOURCE_FONT_A1_VERSION = 1u,
+    RESOURCE_FONT_A1_MAX_GLYPH_WIDTH = 32u,
+    RESOURCE_FONT_A1_MAX_GLYPH_HEIGHT = 32u,
 };
 
 typedef enum
@@ -45,6 +51,7 @@ typedef enum
 typedef enum
 {
     RESOURCE_FORMAT_TEXT_TABLE_UTF8_V1 = 1u,
+    RESOURCE_FORMAT_FONT_BITMAP_A1_V1 = 2u,
 } resource_format_t;
 
 typedef enum
@@ -57,6 +64,9 @@ typedef enum
 {
     RESOURCE_ID_TEXT_EN = 0x00010001u,
     RESOURCE_ID_TEXT_PT_BR = 0x00010002u,
+    RESOURCE_ID_FONT_UI_SMALL = 0x00020001u,
+    RESOURCE_ID_FONT_UI_MEDIUM = 0x00020002u,
+    RESOURCE_ID_FONT_UI_LARGE = 0x00020003u,
 } resource_id_t;
 
 typedef struct
@@ -110,6 +120,37 @@ typedef struct
     uint32_t byte_offset;
 } resource_text_record_t;
 
+typedef struct
+{
+    uint32_t magic;
+    uint16_t version;
+    uint16_t header_size;
+    uint16_t glyph_count;
+    uint16_t glyph_record_size;
+    int8_t ascent;
+    int8_t descent;
+    uint8_t line_height;
+    uint8_t reserved0;
+    uint32_t index_offset;
+    uint32_t bitmap_offset;
+    uint32_t index_crc32;
+    uint32_t flags;
+} resource_font_a1_header_t;
+
+typedef struct
+{
+    uint32_t codepoint;
+    uint32_t bitmap_offset;
+    uint16_t bitmap_size;
+    uint8_t width;
+    uint8_t height;
+    int8_t advance_x;
+    int8_t bearing_x;
+    int8_t bearing_y;
+    uint8_t row_stride;
+    uint16_t reserved0;
+} resource_font_a1_record_t;
+
 typedef bsp_status_t (*resource_read_fn)(uint32_t address, void *dst, size_t size, void *user);
 
 typedef struct
@@ -150,6 +191,17 @@ resource_status_t resource_store_decode_text_record(const uint8_t src[RESOURCE_T
                                                     const resource_text_table_header_t *header,
                                                     uint32_t payload_size,
                                                     resource_text_record_t *record);
+void resource_store_encode_font_a1_header(uint8_t dst[RESOURCE_FONT_A1_HEADER_SIZE],
+                                          const resource_font_a1_header_t *header);
+resource_status_t resource_store_decode_font_a1_header(const uint8_t src[RESOURCE_FONT_A1_HEADER_SIZE],
+                                                       uint32_t payload_size,
+                                                       resource_font_a1_header_t *header);
+void resource_store_encode_font_a1_record(uint8_t dst[RESOURCE_FONT_A1_RECORD_SIZE],
+                                          const resource_font_a1_record_t *record);
+resource_status_t resource_store_decode_font_a1_record(const uint8_t src[RESOURCE_FONT_A1_RECORD_SIZE],
+                                                       const resource_font_a1_header_t *header,
+                                                       uint32_t payload_size,
+                                                       resource_font_a1_record_t *record);
 
 resource_status_t resource_catalog_mount(resource_catalog_t *catalog,
                                          const resource_catalog_io_t *io,

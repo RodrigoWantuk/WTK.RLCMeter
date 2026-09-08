@@ -44,6 +44,7 @@
 #include "storage/resource_store.h"
 #include "storage/resource_w25q_adapter.h"
 #include "storage/storage_layout.h"
+#include "ui/ui_font.h"
 #include "ui/ui_text_catalog.h"
 
 #if WTK_DIAGNOSTIC_LOG_LEVEL_DEFAULT >= 4u
@@ -85,6 +86,7 @@ static ui_product_t g_product_ui;
 static hw_metrology_measure_t g_product_measure;
 static resource_catalog_t g_resource_catalog;
 static ui_text_catalog_t g_text_catalog;
+static ui_font_catalog_t g_font_catalog;
 static resource_w25q_reader_t g_resource_reader;
 static resource_status_t g_resource_status = RESOURCE_STATUS_MISSING;
 static uint16_t g_product_ccr_table[HW_EXCITATION_LUT_POINTS];
@@ -621,6 +623,7 @@ static bsp_status_t product_init_controller(void)
     }
     ui_product_init(&g_product_ui);
     ui_product_set_text_provider(&g_product_ui, product_text_resolve, NULL);
+    ui_product_set_font_catalog(&g_product_ui, &g_font_catalog);
     return app_product_init(&g_product,
                             &g_calibration_service,
                             &g_settings_service,
@@ -1001,6 +1004,7 @@ void app_shell_run(void)
 #else
     app_settings_service_use_defaults(&g_settings_service);
     ui_text_catalog_init(&g_text_catalog);
+    ui_font_catalog_init(&g_font_catalog);
     g_resource_status = RESOURCE_STATUS_MISSING;
     g_product_output_tone_sequence = 0u;
     g_product_output_backlight_percent = UINT8_MAX;
@@ -1083,6 +1087,10 @@ void app_shell_run(void)
             if (g_resource_status == RESOURCE_STATUS_OK)
             {
                 g_resource_status = ui_text_catalog_validate_required_languages(&g_resource_catalog);
+            }
+            if (g_resource_status == RESOURCE_STATUS_OK)
+            {
+                g_resource_status = ui_font_catalog_mount(&g_font_catalog, &g_resource_catalog);
             }
             if (g_resource_status == RESOURCE_STATUS_OK)
             {

@@ -53,10 +53,12 @@ exercise the same contract. This avoids duplicating immutable function-pointer t
 the hot application/session contexts.
 
 Product resource health is owned at application level. Fatal normal resource failures
-from text resolution or resource admission latch PRODUCT `RESOURCE_ERROR` and preempt
-new settings persistence, but they do not become hardware safety faults. Deferred W25Q
-access caused by quiet mode or active settings/calibration mutation remains transient
-backpressure.
+from text/font resolution or resource admission latch PRODUCT `RESOURCE_ERROR` and
+preempt new settings persistence, but they do not become hardware safety faults.
+Deferred W25Q access caused by quiet mode or active settings/calibration mutation
+remains transient backpressure. Phase 08 Stage 3B.1 admission validates both text
+catalogs and all three external A1 font roles before normal PRODUCT UI rendering is
+allowed; emergency presentation remains internal and W25Q-independent.
 
 Phase 08 Stage 2A.1 hardens asynchronous ownership:
 

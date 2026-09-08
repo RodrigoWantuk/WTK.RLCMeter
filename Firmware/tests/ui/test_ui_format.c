@@ -28,17 +28,17 @@ static int test_si_units(void)
     int failures = 0;
     char text[24];
     failures += expect_status(ui_format_resistance(987.34f, text, sizeof(text)), UI_FORMAT_STATUS_OK, "ohm status");
-    failures += expect_text(text, "987.3 Ohm", "ohm text");
+    failures += expect_text(text, "987.3 Ω", "ohm text");
     failures += expect_status(ui_format_resistance(12340.0f, text, sizeof(text)), UI_FORMAT_STATUS_OK, "kohm status");
-    failures += expect_text(text, "12.3 kOhm", "kohm text");
+    failures += expect_text(text, "12.3 kΩ", "kohm text");
     failures += expect_status(ui_format_resistance(2200000.0f, text, sizeof(text)), UI_FORMAT_STATUS_OK, "Mohm status");
-    failures += expect_text(text, "2.2 MOhm", "Mohm text");
+    failures += expect_text(text, "2.2 MΩ", "Mohm text");
     failures += expect_status(ui_format_capacitance(0.000001f, text, sizeof(text)), UI_FORMAT_STATUS_OK, "cap status");
-    failures += expect_text(text, "1.0 uF", "cap text");
+    failures += expect_text(text, "1.0 µF", "cap text");
     failures += expect_status(ui_format_inductance(0.00047f, text, sizeof(text)), UI_FORMAT_STATUS_OK, "ind status");
-    failures += expect_text(text, "470.0 uH", "ind text");
+    failures += expect_text(text, "470.0 µH", "ind text");
     failures += expect_status(ui_format_phase_rad(1.5707963f, text, sizeof(text)), UI_FORMAT_STATUS_OK, "phase status");
-    failures += expect_text(text, "90.0 deg", "phase text");
+    failures += expect_text(text, "90.0 °", "phase text");
     return failures;
 }
 

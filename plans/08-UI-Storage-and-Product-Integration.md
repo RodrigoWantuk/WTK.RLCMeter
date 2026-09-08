@@ -381,10 +381,111 @@ TOTAL    33
 
 Stage 3B status:
 
-- Stage 3B remains NOT_STARTED.
-- Stage 3B is authorized to start next because PRODUCT Release Flash is below 55296 B,
-  PRODUCT accounted RAM is below 16640 B, PRODUCT campaign symbols are absent, and the
-  software regression suite remains green.
+- Stage 3B.1 was authorized from this baseline because PRODUCT Release Flash was below
+  55296 B, PRODUCT accounted RAM was below 16640 B, PRODUCT campaign symbols were
+  absent, and the software regression suite remained green.
+
+## Stage 3B.1 — external A1 bitmap font runtime
+
+STATUS: IMPLEMENTED_REQUIRES_BENCH_VALIDATION
+
+Implemented software boundary:
+
+- Resource Pack v2 keeps its outer schema version `2`; the product resource API is now
+  version `3` because normal PRODUCT typography requires external font resources.
+  Text-only API v2 packs are intentionally rejected as `INCOMPATIBLE_API`.
+- Font resources use stable role IDs:
+  `RESOURCE_ID_FONT_UI_SMALL = 0x00020001`,
+  `RESOURCE_ID_FONT_UI_MEDIUM = 0x00020002`, and
+  `RESOURCE_ID_FONT_UI_LARGE = 0x00020003`.
+- Stage 3B.1 implements only `RESOURCE_FORMAT_FONT_BITMAP_A1_V1`. A1 bits are
+  row-major, MSB-first inside each byte, opaque, and uncompressed:
+  `0 = background`, `1 = foreground`.
+- The font payload is an explicit little-endian wire format, not a serialized C
+  structure. Header bytes are:
+  `magic u32`, `version u16`, `header_size u16`, `glyph_count u16`,
+  `glyph_record_size u16`, `ascent i8`, `descent i8`, `line_height u8`,
+  `reserved0 u8`, `index_offset u32`, `bitmap_offset u32`, `index_crc32 u32`,
+  `flags u32`.
+- Each glyph record is 20 bytes:
+  `codepoint u32`, `bitmap_offset u32`, `bitmap_size u16`, `width u8`,
+  `height u8`, `advance_x i8`, `bearing_x i8`, `bearing_y i8`,
+  `row_stride u8`, and four reserved zero bytes split as `reserved0 u16`
+  plus trailing padding. Kerning is not part of v1; rendering advances by
+  `cursor_x += advance_x`.
+- Firmware admission validates resource type/format, full payload CRC, font
+  magic/version/header, glyph record size, index CRC, strictly increasing Unicode
+  scalar codepoints, required SPACE and `?`, bounded metrics, bounded bitmap offsets,
+  exact row stride, exact bitmap size, and exact bitmap consumption.
+- Runtime stores only mounted-face metadata and performs binary search over the W25Q
+  glyph index. It does not cache the full glyph table or bitmap data in SRAM.
+- Glyph rendering reads at most one complete bounded A1 glyph into stack scratch
+  (`<= 128 B`) and expands one RGB565 row (`<= 64 B`) at a time. There is still no
+  framebuffer or heap allocation.
+- PRODUCT normal screens now render with the external role fonts:
+  scale 1 maps to `FONT_UI_SMALL`, scale 2 to `FONT_UI_MEDIUM`, and scale 3 to
+  `FONT_UI_LARGE`. This includes READY, RESULT primary value, MENU, ABOUT, and
+  calibration-wizard screens.
+- Emergency `RESOURCE_ERROR`/fault rendering remains internal and W25Q-independent.
+  Fatal normal font/resource failures drive PRODUCT presentation to `RESOURCE_ERROR`
+  without becoming a safety fault.
+- Font/resource reads remain subordinate to the existing W25Q access policy. Quiet
+  mode and settings/calibration mutations defer resource reads; UI rendering is paused
+  before starting glyph reads or TFT glyph writes during quiet.
+- The checked-in deterministic source font is
+  `Firmware/assets/font/wtk-pixel-base.json`. It is a provisional project-owned A1
+  pixel source extended for EN/PT-BR and technical symbols; Stage 3B.2 may replace
+  the artwork without changing the MCU font ABI.
+- The builder derives required glyph coverage from both text catalogs plus the frozen
+  technical-symbol set (`0-9`, letters, punctuation, `%`, `|`, `=`, `?`, `Ω`, `µ`,
+  `°`, `±`, `·`) and emits three offline-scaled role fonts.
+- Portuguese (Brazil) product text restores accents such as `CALIBRAÇÃO`,
+  `SEGURANÇA`, `TENSÃO`, and `PORTUGUÊS` while preserving the dense text ID ABI and
+  31-byte string bound.
+
+Measured software evidence:
+
+- Generated Resource Pack v2/API v3 size: 17016 B, entry count 5, SHA-256
+  `86F490DED180276A499E4AB38DA3F283C4E22845BA499C886FE560EC901D25BC`.
+- Font payloads: SMALL 2914 B, MEDIUM 5140 B, LARGE 6624 B. Each contains 107 glyphs
+  and a 2140-byte index. Bitmap bytes are 742 B, 2968 B, and 4452 B respectively.
+- Host Debug CTest: 33/33 passed.
+- Host Release CTest: 33/33 passed.
+- Python tooling unittest: 48/48 passed.
+- Wokwi lint-only remains required for final handoff evidence; full virtual execution
+  still depends on `WOKWI_CLI_TOKEN` and is not physical validation.
+- Clean STM32 builds after Stage 3B.1:
+
+```text
+                       BEFORE      AFTER      DELTA
+PRODUCT Debug Flash     63188      65116      +1928
+PRODUCT Debug RAM       16236      16460       +224
+PRODUCT Release Flash   55272      57028      +1756
+PRODUCT Release RAM     16224      16440       +216
+BRINGUP Flash           53460      53460          0
+BRINGUP RAM             15116      15116          0
+```
+
+Stage 3B.1 budget status:
+
+- PRODUCT Release remains below the hard 57344 B gate by 316 B and below physical
+  65536 B Flash by 8508 B.
+- PRODUCT accounted RAM remains below the 17408 B hard gate by 968 B and below the
+  16640 B Stage 3B.2 authorization RAM gate by 200 B.
+- PRODUCT Release Flash is above the 56832 B review threshold and above the 56320 B
+  Stage 3B.2 authorization gate. Stage 3B.1 is implemented, but Stage 3B.2 remains
+  `NOT_STARTED / BLOCKED_BY_FLASH_HEADROOM` until a size-recovery pass creates room
+  for icons/splash/final typography.
+
+Remaining Stage 3B.2/product work:
+
+- final font artwork/source replacement;
+- icons, splash/startup artwork, optional image resources, graph pages, and TFT debug
+  console;
+- resource provisioning/manufacturing flow for programming the existing RESOURCE_PACK
+  partition while preserving the W25Q mutable tail;
+- physical W25Q/TFT SPI timing, glyph visual quality, and quiet-mode interaction
+  validation.
 
 ## Stage 2A — product calibration wizard and active-calibration gate
 

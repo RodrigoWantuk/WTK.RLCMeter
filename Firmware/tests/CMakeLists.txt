@@ -536,6 +536,24 @@ endif()
 
 add_test(NAME wtk_ui_utf8_test COMMAND wtk_ui_utf8_test)
 
+add_executable(wtk_ui_font_test
+    ui/test_ui_font.c
+)
+target_link_libraries(wtk_ui_font_test PRIVATE wtk_firmware_common)
+target_include_directories(wtk_ui_font_test PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src
+    ${CMAKE_CURRENT_SOURCE_DIR}
+)
+wtk_configure_c_target(wtk_ui_font_test)
+wtk_apply_project_warnings(wtk_ui_font_test)
+wtk_apply_common_compile_options(wtk_ui_font_test)
+
+if(WTK_WARNINGS_AS_ERRORS_HOST)
+    wtk_treat_warnings_as_errors(wtk_ui_font_test)
+endif()
+
+add_test(NAME wtk_ui_font_test COMMAND wtk_ui_font_test)
+
 add_executable(wtk_ui_product_test
     ui/test_ui_product.c
 )

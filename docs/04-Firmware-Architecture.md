@@ -286,8 +286,10 @@ product profile must fit the guaranteed C8 Flash. Product Release also enables G
 from its preset to recover dead-code headroom before the remaining Phase 08 resource/UI
 features are added. Phase 08 Stage 3A.3 removes PRODUCT calibration-campaign
 orchestration, compacts fixed Rev.1 calibration-domain validation, and brings PRODUCT
-Release below the 55296 B Stage 3B handoff target while leaving Stage 3B itself
-not started.
+Release below the 55296 B Stage 3B handoff target. Phase 08 Stage 3B.1 then adds the
+external A1 font runtime and remains below the hard 57344 B PRODUCT gate, but Stage
+3B.2 final typography/icons/splash remains blocked until Release Flash headroom is
+recovered below its authorization gate.
 
 ## Build and editor policy
 

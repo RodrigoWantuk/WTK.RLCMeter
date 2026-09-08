@@ -579,16 +579,20 @@ separate not-started task.
 
 Initial planned UI languages are Portuguese and English.
 
-UI logic uses stable resource/text IDs rather than scattering translated literals through screen code. Phase 08 Stage 3A stores normal product text in Resource Pack v2 UTF-8 catalogs in W25Q, one text-table resource per language. The selected language is a stable settings field, currently English or Portuguese (Brazil). Fundamental fallback safety/error text remains internally available so missing, corrupt, deferred, or incompatible resources cannot suppress fail-safe diagnostics.
+UI logic uses stable resource/text IDs rather than scattering translated literals through screen code. Phase 08 Stage 3A stores normal product text in Resource Pack v2 UTF-8 catalogs in W25Q, one text-table resource per language. Phase 08 Stage 3B.1 adds W25Q-resident A1 bitmap font resources for normal typography. The selected language is a stable settings field, currently English or Portuguese (Brazil). Fundamental fallback safety/error text remains internally available so missing, corrupt, deferred, or incompatible resources cannot suppress fail-safe diagnostics.
 
-Resource Pack v2 API version 2 uses dense text catalogs for the current fallback-renderer
-contract: text IDs `0x0001..0x0038`, every ID present in every required language, and
-each UTF-8 string no longer than 31 payload bytes. Firmware validates both EN and PT-BR
-catalogs at resource admission, including text payload CRC, text-table header, dense
-index shape, index CRC, record bounds, and UTF-8 for every string. Normal text-resource
-failures propagate to the PRODUCT `RESOURCE_ERROR` state; emergency screens render from
-internal text and do not perform W25Q resource reads. `RESOURCE_STATUS_DEFERRED` is
-backpressure, not a fatal resource error.
+Resource Pack v2 API version 3 uses dense text catalogs plus three required font-role
+resources. Text IDs remain `0x0001..0x0038`, every ID is present in every required
+language, and each UTF-8 string is no longer than 31 payload bytes. Firmware validates
+both EN and PT-BR catalogs at resource admission, including text payload CRC,
+text-table header, dense index shape, index CRC, record bounds, and UTF-8 for every
+string. It also validates `FONT_UI_SMALL`, `FONT_UI_MEDIUM`, and `FONT_UI_LARGE` as
+`FONT_BITMAP_A1_V1`: a 32-byte `WFA1` header, sorted 20-byte glyph records, row-major
+MSB-first A1 bitmaps, 32x32 maximum glyphs, payload CRC, index CRC, required SPACE,
+and required `?`. Normal text/font resource failures propagate to the PRODUCT
+`RESOURCE_ERROR` state; emergency screens render from internal text and do not perform
+W25Q resource reads. `RESOURCE_STATUS_DEFERRED` is backpressure, not a fatal resource
+error.
 
 Resource Pack v2 is an explicit little-endian wire format with CRC-protected header, entry table, and payloads. Runtime code decodes fields by width and offset; persistent resources are not raw compiler-dependent C structs.
 

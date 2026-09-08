@@ -47,6 +47,12 @@ The resource pack occupies the lower address range before that mutable tail.
 
 Because W25Q and ILI9341 share SPI, storage/resource access must release Flash CS before TFT transfer begins. A small fixed scratch buffer is shared by resource streaming; installed font/resource size must not scale SRAM usage.
 
+Phase 08 Stage 3B.1 extends Resource Pack v2 to PRODUCT API version 3. The outer pack
+schema and W25Q layout do not change, but PRODUCT admission now requires the EN/PT-BR
+text tables plus three `FONT_BITMAP_A1_V1` resources. A1 fonts use CRC-checked
+payloads, sorted glyph records, bounded 32x32 glyph geometry, and stable role IDs
+rather than physical Flash offsets.
+
 ## Rules
 
 - never trust Flash contents without validation;

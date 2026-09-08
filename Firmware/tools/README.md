@@ -19,11 +19,12 @@ Host-side tools that support firmware, assets, calibration, and diagnostics.
   verifies CRC/commit state, and prints record keys and correction coefficients.
 - `firmware_size.py`: reports STM32 ELF Flash/RAM usage, reserved stack/heap floor,
   largest symbols, optional JSON output, and Release/Bringup size-budget gates.
-- `build_resource_pack.py`: builds the deterministic Resource Pack v2 binary from
-  `assets/resource_manifest.json`.
+- `build_resource_pack.py`: builds the deterministic Resource Pack v2/API v3 binary
+  from `assets/resource_manifest.json`, including EN/PT-BR text resources and the
+  SMALL/MEDIUM/LARGE external A1 font roles.
 - `inspect_resource_pack.py`: validates Resource Pack v2 header, entry table, payload
-  CRCs, required EN/PT-BR text resources, dense text IDs, text index CRCs, bounds, and
-  UTF-8 before printing a concise summary.
+  CRCs, required EN/PT-BR text resources, dense text IDs, text index CRCs, bounds,
+  UTF-8, and font A1 header/index/bitmap semantics before printing a concise summary.
 - `resource_pack_format.py`: shared host-side Resource Pack v2 encoder/inspector logic
   used by the builder and Python unit tests.
 

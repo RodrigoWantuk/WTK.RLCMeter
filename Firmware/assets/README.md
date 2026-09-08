@@ -22,6 +22,11 @@ Files in this directory are source inputs. Firmware consumes packed/generated re
 - Stage 3A.1 freezes the current text-catalog semantic ABI as dense IDs
   `0x0001..0x0038`, every ID present in English and Portuguese (Brazil), and each
   UTF-8 string no longer than 31 bytes.
+- Stage 3B.1 adds a repository-owned deterministic A1 bitmap font source at
+  `font/wtk-pixel-base.json`. The builder emits `FONT_UI_SMALL`, `FONT_UI_MEDIUM`,
+  and `FONT_UI_LARGE` W25Q font resources from that source.
+- The Resource Pack outer schema remains version 2. PRODUCT resource API version is
+  now 3 because firmware requires text catalogs plus the three external font roles.
 - Build the binary pack with:
 
 ```bash
@@ -31,7 +36,11 @@ python Firmware/tools/build_resource_pack.py Firmware/assets/resource_manifest.j
 Generated pack binaries are build artifacts; the checked-in source of truth is the
 manifest plus JSON catalog input files.
 
-Authoring fonts such as TTF/OTF are never parsed by STM32 firmware. Development-host tooling converts them into compact MCU-oriented font resources containing rasterized glyph data, glyph metrics, supported symbols, and optional simple compression.
+Authoring fonts such as TTF/OTF are never parsed by STM32 firmware. Development-host
+tooling converts them into compact MCU-oriented font resources containing rasterized
+glyph data, glyph metrics, supported symbols, and optional simple compression. Stage
+3B.1 uses a project-owned JSON pixel source as a provisional license-clean font, not
+the final product typography.
 
 ## Rules
 

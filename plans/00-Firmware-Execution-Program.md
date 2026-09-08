@@ -383,11 +383,12 @@ A Rev.1 firmware release should ultimately produce:
 
 ## Immediate next action
 
-Continue Phase 08 with Stage 3B as the next software step. The product profile now has
-the mandatory calibration gate, click-measurement integration through Phase 05/06/07,
-persistent settings, localized Resource Pack v2 text catalogs, the calibration wizard
-UI, shared metrology/storage scratch ownership, compact UI snapshots, PRODUCT/BRINGUP
-RAM gates, STM32 size gates, linked-symbol profile-composition checks, and Stage 3A.3
-headroom recovery below the 55296 B font/glyph handoff target. Phase 03A virtual
+Continue Phase 08 after Stage 3B.1. The product profile now has the mandatory
+calibration gate, click-measurement integration through Phase 05/06/07, persistent
+settings, localized Resource Pack v2/API v3 text and A1 font resources, the calibration
+wizard UI, shared metrology/storage scratch ownership, compact UI snapshots,
+PRODUCT/BRINGUP RAM gates, STM32 size gates, and linked-symbol profile-composition
+checks. Stage 3B.2 final typography/icons/splash remains blocked until PRODUCT Release
+Flash headroom is recovered below the Stage 3B.2 authorization gate. Phase 03A virtual
 execution remains pending external Wokwi constraints and must not be treated as bench
 validation for analog/metrology behavior.

@@ -7,9 +7,14 @@
 static uint32_t g_pixels_written;
 static uint32_t g_text_chars_written;
 static uint32_t g_text_start_count;
+static uint32_t g_font_chars_written;
+static uint32_t g_font_start_count;
 static uint32_t g_full_clears;
 static uint32_t g_partial_clears;
 static char g_started_text[16][UI_FALLBACK_TEXT_MAX_CHARS];
+static char g_started_font_text[16][UI_FONT_TEXT_MAX_CHARS];
+static ui_font_role_t g_started_font_roles[16];
+static bool g_font_ready;
 
 static resource_status_t g_provider_status;
 static uint32_t g_provider_calls;
@@ -153,6 +158,65 @@ bsp_status_t ui_fallback_text_scaled_step(const ili9341_t *display,
     return BSP_STATUS_BUSY;
 }
 
+bool ui_font_catalog_ready(const ui_font_catalog_t *catalog)
+{
+    return (catalog != NULL) && g_font_ready;
+}
+
+void ui_font_text_start(ui_font_text_op_t *op,
+                        ui_font_catalog_t *catalog,
+                        ui_font_role_t role,
+                        uint16_t x,
+                        uint16_t y,
+                        const char *text,
+                        uint16_t fg_rgb565,
+                        uint16_t bg_rgb565)
+{
+    (void)catalog;
+    (void)x;
+    (void)y;
+    (void)fg_rgb565;
+    (void)bg_rgb565;
+    if (op == NULL)
+    {
+        return;
+    }
+    *op = (ui_font_text_op_t){0};
+    if (text == NULL)
+    {
+        return;
+    }
+    if (g_font_start_count < (uint32_t)(sizeof(g_started_font_text) / sizeof(g_started_font_text[0])))
+    {
+        (void)snprintf(g_started_font_text[g_font_start_count],
+                       sizeof(g_started_font_text[g_font_start_count]),
+                       "%s",
+                       text);
+        g_started_font_roles[g_font_start_count] = role;
+    }
+    g_font_start_count++;
+    (void)snprintf(op->text, sizeof(op->text), "%s", text);
+    op->role = role;
+    op->active = op->text[0] != '\0';
+}
+
+bsp_status_t ui_font_text_step(const ili9341_t *display, ui_font_text_op_t *op)
+{
+    (void)display;
+    if ((op == NULL) || !op->active)
+    {
+        return BSP_STATUS_INVALID_ARG;
+    }
+    g_font_chars_written++;
+    op->byte_index++;
+    if ((op->byte_index >= (sizeof(op->text) - 1u)) || (op->text[op->byte_index] == '\0'))
+    {
+        op->active = false;
+        return BSP_STATUS_OK;
+    }
+    return BSP_STATUS_BUSY;
+}
+
 static ui_product_view_t ready_view(uint32_t generation)
 {
     return (ui_product_view_t){
@@ -167,11 +231,22 @@ static void reset_render_counters(void)
     g_pixels_written = 0u;
     g_text_chars_written = 0u;
     g_text_start_count = 0u;
+    g_font_chars_written = 0u;
+    g_font_start_count = 0u;
     g_full_clears = 0u;
     g_partial_clears = 0u;
     (void)memset(g_started_text, 0, sizeof(g_started_text));
+    (void)memset(g_started_font_text, 0, sizeof(g_started_font_text));
+    (void)memset(g_started_font_roles, 0, sizeof(g_started_font_roles));
+    g_font_ready = true;
     g_provider_status = RESOURCE_STATUS_OK;
     g_provider_calls = 0u;
+}
+
+static void attach_external_font(ui_product_t *ui)
+{
+    static ui_font_catalog_t catalog;
+    ui_product_set_font_catalog(ui, &catalog);
 }
 
 static resource_status_t fake_text_provider(void *context,
@@ -222,6 +297,18 @@ static bool rendered_text_starts_with(const char *prefix)
     return false;
 }
 
+static bool rendered_font_text_starts_with(const char *prefix)
+{
+    for (uint32_t i = 0u; i < g_font_start_count; i++)
+    {
+        if (strncmp(g_started_font_text[i], prefix, strlen(prefix)) == 0)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
 static int drain_render(ui_product_t *ui, const ili9341_t *display)
 {
     for (uint32_t i = 0u; i < 2000u; i++)
@@ -247,12 +334,14 @@ static int test_quiet_pause_retains_render_state(void)
     ili9341_t display = {.ready = true};
     ui_product_init(&ui);
     ui_product_set_text_provider(&ui, fake_text_provider, NULL);
+    attach_external_font(&ui);
     ui_product_view_t view = ready_view(1u);
     ui_product_request(&ui, &view);
     failures += expect_true(ui_product_step(&ui, &display, false) == BSP_STATUS_BUSY,
                             "render starts");
     const uint32_t pixels_before_quiet = g_pixels_written;
     const uint32_t chars_before_quiet = g_text_chars_written;
+    const uint32_t font_chars_before_quiet = g_font_chars_written;
     for (uint8_t i = 0u; i < 4u; i++)
     {
         failures += expect_true(ui_product_step(&ui, &display, true) == BSP_STATUS_BUSY,
@@ -262,6 +351,8 @@ static int test_quiet_pause_retains_render_state(void)
                             "quiet writes no pixels");
     failures += expect_true(g_text_chars_written == chars_before_quiet,
                             "quiet writes no text");
+    failures += expect_true(g_font_chars_written == font_chars_before_quiet,
+                            "quiet writes no external text");
     failures += expect_true(drain_render(&ui, &display) == 0, "render resumes after quiet");
     return failures;
 }
@@ -273,6 +364,7 @@ static int test_partial_region_and_latest_generation_wins(void)
     ui_product_t ui;
     ili9341_t display = {.ready = true};
     ui_product_init(&ui);
+    attach_external_font(&ui);
 
     ui_product_view_t first = ready_view(1u);
     ui_product_request(&ui, &first);
@@ -301,6 +393,7 @@ static int test_update_during_active_text_restarts_with_newest_generation(void)
     ili9341_t display = {.ready = true};
     ui_product_init(&ui);
     ui_product_set_text_provider(&ui, fake_text_provider, NULL);
+    attach_external_font(&ui);
     ui_product_view_t first = ready_view(1u);
     first.state = UI_PRODUCT_STATE_RESULT;
     first.has_measurement_result = true;
@@ -315,15 +408,15 @@ static int test_update_during_active_text_restarts_with_newest_generation(void)
     ui_product_request(&ui, &first);
     failures += expect_true(ui_product_step(&ui, &display, false) == BSP_STATUS_BUSY,
                             "result clear starts");
-    while ((g_text_start_count == 0u) && (ui_product_step(&ui, &display, false) == BSP_STATUS_BUSY))
+    while ((g_font_start_count == 0u) && (ui_product_step(&ui, &display, false) == BSP_STATUS_BUSY))
     {
     }
-    failures += expect_true(g_text_start_count != 0u, "first result text operation starts");
+    failures += expect_true(g_font_start_count != 0u, "first result text operation starts");
     ui_product_view_t newest = ready_view(2u);
     newest.state = UI_PRODUCT_STATE_MENU;
     ui_product_request(&ui, &newest);
     failures += expect_true(drain_render(&ui, &display) == 0, "newest generation drains after active text");
-    failures += expect_true(rendered_text_starts_with("MENU"), "newest view is rendered after text op completes");
+    failures += expect_true(rendered_font_text_starts_with("MENU"), "newest view is rendered after text op completes");
     failures += expect_true(ui_product_step(&ui, &display, false) == BSP_STATUS_OK,
                             "text update coalesces to latest generation");
     return failures;
@@ -337,6 +430,7 @@ static int test_details_phase_label_uses_catalog(void)
     ili9341_t display = {.ready = true};
     ui_product_init(&ui);
     ui_product_set_text_provider(&ui, fake_text_provider, NULL);
+    attach_external_font(&ui);
     ui_product_view_t view = ready_view(10u);
     view.state = UI_PRODUCT_STATE_RESULT;
     view.page = UI_PRODUCT_PAGE_DETAILS;
@@ -355,7 +449,7 @@ static int test_details_phase_label_uses_catalog(void)
     };
     ui_product_request(&ui, &view);
     failures += expect_true(drain_render(&ui, &display) == 0, "details render drains");
-    failures += expect_true(rendered_text_starts_with("FASE "), "PHASE label is localized");
+    failures += expect_true(rendered_font_text_starts_with("FASE "), "PHASE label is localized");
     return failures;
 }
 
@@ -373,6 +467,7 @@ static int test_resource_error_uses_no_external_text_reads(void)
     ui_product_request(&ui, &view);
     failures += expect_true(drain_render(&ui, &display) == 0, "resource error render drains");
     failures += expect_true(g_provider_calls == 0u, "resource error uses emergency internal text only");
+    failures += expect_true(g_font_start_count == 0u, "resource error uses zero external font text");
     failures += expect_true(rendered_text_starts_with("RESOURCE ERROR"), "emergency text drawn");
     return failures;
 }
@@ -386,6 +481,7 @@ static int test_normal_resource_failure_is_not_silent_success(void)
     ili9341_t display = {.ready = true};
     ui_product_init(&ui);
     ui_product_set_text_provider(&ui, fake_text_provider, NULL);
+    attach_external_font(&ui);
     ui_product_view_t view = ready_view(30u);
     view.state = UI_PRODUCT_STATE_MENU;
     ui_product_request(&ui, &view);
@@ -399,6 +495,25 @@ static int test_normal_resource_failure_is_not_silent_success(void)
     return failures;
 }
 
+static int test_normal_text_uses_external_font_roles(void)
+{
+    int failures = 0;
+    reset_render_counters();
+    ui_product_t ui;
+    ili9341_t display = {.ready = true};
+    ui_product_init(&ui);
+    ui_product_set_text_provider(&ui, fake_text_provider, NULL);
+    attach_external_font(&ui);
+    ui_product_view_t view = ready_view(40u);
+    view.state = UI_PRODUCT_STATE_READY;
+    ui_product_request(&ui, &view);
+    failures += expect_true(drain_render(&ui, &display) == 0, "ready render drains");
+    failures += expect_true(g_font_start_count == 1u, "ready uses external font once");
+    failures += expect_true(g_started_font_roles[0] == UI_FONT_ROLE_LARGE, "scale 3 maps to large font");
+    failures += expect_true(g_text_start_count == 0u, "ready does not use emergency fallback");
+    return failures;
+}
+
 int main(void)
 {
     int failures = 0;
@@ -408,5 +523,6 @@ int main(void)
     failures += test_details_phase_label_uses_catalog();
     failures += test_resource_error_uses_no_external_text_reads();
     failures += test_normal_resource_failure_is_not_silent_success();
+    failures += test_normal_text_uses_external_font_roles();
     return failures == 0 ? 0 : 1;
 }

@@ -12,17 +12,29 @@ import zlib
 
 PACK_MAGIC = 0x32505257
 PACK_SCHEMA_VERSION = 2
-PACK_API_VERSION = 2
+PACK_API_VERSION = 3
 PACK_HEADER_SIZE = 44
 PACK_ENTRY_SIZE = 32
 TEXT_MAGIC = 0x54585457
 TEXT_VERSION = 1
 TEXT_HEADER_SIZE = 24
 TEXT_RECORD_SIZE = 8
+FONT_MAGIC = 0x31414657
+FONT_VERSION = 1
+FONT_HEADER_SIZE = 32
+FONT_RECORD_SIZE = 20
+FONT_MAX_WIDTH = 32
+FONT_MAX_HEIGHT = 32
 
-RESOURCE_IDS = {"TEXT_EN": 0x00010001, "TEXT_PT_BR": 0x00010002}
-RESOURCE_TYPES = {"TEXT_TABLE": 1}
-RESOURCE_FORMATS = {"TEXT_TABLE_UTF8_V1": 1}
+RESOURCE_IDS = {
+    "TEXT_EN": 0x00010001,
+    "TEXT_PT_BR": 0x00010002,
+    "FONT_UI_SMALL": 0x00020001,
+    "FONT_UI_MEDIUM": 0x00020002,
+    "FONT_UI_LARGE": 0x00020003,
+}
+RESOURCE_TYPES = {"TEXT_TABLE": 1, "FONT_BITMAP_A1": 2}
+RESOURCE_FORMATS = {"TEXT_TABLE_UTF8_V1": 1, "FONT_BITMAP_A1_V1": 2}
 LANGUAGE_IDS = {"en": 1, "pt-BR": 2}
 TEXT_ID_FIRST = 0x0001
 TEXT_ID_LAST = 0x0038
@@ -32,6 +44,12 @@ REQUIRED_LANGUAGE_RESOURCE_IDS = {
     "en": RESOURCE_IDS["TEXT_EN"],
     "pt-BR": RESOURCE_IDS["TEXT_PT_BR"],
 }
+REQUIRED_FONT_RESOURCE_IDS = (
+    RESOURCE_IDS["FONT_UI_SMALL"],
+    RESOURCE_IDS["FONT_UI_MEDIUM"],
+    RESOURCE_IDS["FONT_UI_LARGE"],
+)
+TECHNICAL_SYMBOLS = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz .,;:-+/()%|=?Ωµ°±·"
 
 
 @dataclass(frozen=True)
@@ -134,6 +152,158 @@ def build_text_payload(path: Path) -> bytes:
     return header + bytes(index) + bytes(blob)
 
 
+def _unicode_scalar_valid(codepoint: int) -> bool:
+    return 0 <= codepoint <= 0x10FFFF and not (0xD800 <= codepoint <= 0xDFFF)
+
+
+def _glyph_key_to_codepoint(key: str) -> int:
+    if key.startswith("U+"):
+        return int(key[2:], 16)
+    if len(key) == 1:
+        return ord(key)
+    raise ValueError(f"invalid glyph key {key!r}")
+
+
+def _normalize_rows(rows: list[str]) -> tuple[str, ...]:
+    if not rows:
+        raise ValueError("glyph rows cannot be empty")
+    width = len(rows[0])
+    if width == 0:
+        raise ValueError("glyph width cannot be zero")
+    normalized = []
+    for row in rows:
+        if len(row) != width:
+            raise ValueError("glyph rows must have equal width")
+        if any(ch not in ".1#" for ch in row):
+            raise ValueError("glyph rows must use '.', '1', or '#")
+        normalized.append("".join("1" if ch in "1#" else "." for ch in row))
+    return tuple(normalized)
+
+
+def _scale_rows(rows: tuple[str, ...], scale: int) -> tuple[str, ...]:
+    if scale <= 0:
+        raise ValueError("font scale must be positive")
+    scaled: list[str] = []
+    for row in rows:
+        out = "".join(ch * scale for ch in row)
+        for _ in range(scale):
+            scaled.append(out)
+    return tuple(scaled)
+
+
+def _pack_a1_rows(rows: tuple[str, ...]) -> bytes:
+    if not rows:
+        return b""
+    width = len(rows[0])
+    row_stride = (width + 7) // 8
+    packed = bytearray()
+    for row in rows:
+        for byte_index in range(row_stride):
+            value = 0
+            for bit in range(8):
+                col = (byte_index * 8) + bit
+                if col < width and row[col] == "1":
+                    value |= 1 << (7 - bit)
+            packed.append(value)
+    return bytes(packed)
+
+
+def _load_font_source(path: Path) -> dict[int, tuple[str, ...]]:
+    data = json.loads(path.read_text(encoding="utf-8"))
+    glyphs: dict[int, tuple[str, ...]] = {}
+    for key, rows in data.get("glyphs", {}).items():
+        codepoint = _glyph_key_to_codepoint(key)
+        if not _unicode_scalar_valid(codepoint) or codepoint in glyphs:
+            raise ValueError(f"invalid or duplicate glyph codepoint {key!r}")
+        glyphs[codepoint] = _normalize_rows(list(rows))
+    for key, target in data.get("aliases", {}).items():
+        codepoint = _glyph_key_to_codepoint(key)
+        target_codepoint = _glyph_key_to_codepoint(str(target))
+        if codepoint in glyphs:
+            raise ValueError(f"duplicate glyph/alias {key!r}")
+        if target_codepoint not in glyphs:
+            raise ValueError(f"alias {key!r} targets missing glyph {target!r}")
+        glyphs[codepoint] = glyphs[target_codepoint]
+    return glyphs
+
+
+def required_font_codepoints(manifest_path: Path) -> set[int]:
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    base = manifest_path.parent
+    codepoints = {ord(ch) for ch in TECHNICAL_SYMBOLS}
+    for spec in manifest["resources"]:
+        if spec.get("type") != "TEXT_TABLE":
+            continue
+        data = json.loads((base / spec["path"]).read_text(encoding="utf-8"))
+        for text in data["strings"].values():
+            codepoints.update(ord(ch) for ch in str(text))
+    return codepoints
+
+
+def build_font_payload(path: Path, scale: int, required_codepoints: set[int]) -> bytes:
+    glyphs = _load_font_source(path)
+    required = set(required_codepoints)
+    required.update((ord(" "), ord("?")))
+    missing = sorted(codepoint for codepoint in required if codepoint not in glyphs)
+    if missing:
+        missing_text = ", ".join(f"U+{codepoint:04X}" for codepoint in missing[:16])
+        raise ValueError(f"font {path} missing required glyphs: {missing_text}")
+
+    records = []
+    bitmap = bytearray()
+    for codepoint in sorted(glyphs):
+        rows = glyphs[codepoint]
+        scaled = _scale_rows(rows, scale)
+        width = len(scaled[0])
+        height = len(scaled)
+        if width > FONT_MAX_WIDTH or height > FONT_MAX_HEIGHT:
+            raise ValueError(f"glyph U+{codepoint:04X} exceeds {FONT_MAX_WIDTH}x{FONT_MAX_HEIGHT}")
+        if codepoint == ord(" "):
+            width = 0
+            height = 0
+            row_stride = 0
+            glyph_bytes = b""
+            bitmap_offset = 0
+        else:
+            row_stride = (width + 7) // 8
+            glyph_bytes = _pack_a1_rows(scaled)
+            if len(glyph_bytes) != row_stride * height:
+                raise ValueError("internal font bitmap size mismatch")
+            bitmap_offset = len(bitmap)
+            bitmap.extend(glyph_bytes)
+        advance = 6 * scale
+        if advance > 127:
+            raise ValueError("font advance exceeds int8")
+        records.append((codepoint, bitmap_offset, len(glyph_bytes), width, height, advance, 0, height, row_stride))
+
+    index = bytearray()
+    previous = -1
+    for record in records:
+        codepoint = record[0]
+        if codepoint <= previous:
+            raise ValueError("font codepoints must be strictly increasing")
+        previous = codepoint
+        index.extend(struct.pack("<IIHBBbbbBH", *record, 0))
+        index.extend(b"\x00\x00")
+    header = struct.pack(
+        "<IHHHHbbBBIIII",
+        FONT_MAGIC,
+        FONT_VERSION,
+        FONT_HEADER_SIZE,
+        len(records),
+        FONT_RECORD_SIZE,
+        7 * scale,
+        1 * scale,
+        8 * scale,
+        0,
+        FONT_HEADER_SIZE,
+        FONT_HEADER_SIZE + len(index),
+        crc32(bytes(index)),
+        0,
+    )
+    return header + bytes(index) + bytes(bitmap)
+
+
 def build_pack(manifest_path: Path) -> bytes:
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     if manifest.get("schema_version") != PACK_SCHEMA_VERSION:
@@ -144,6 +314,11 @@ def build_pack(manifest_path: Path) -> bytes:
     for language, resource_id in REQUIRED_LANGUAGE_RESOURCE_IDS.items():
         if found_languages.get(language) != resource_id:
             raise ValueError(f"manifest missing required {language} text resource")
+    found_fonts = {RESOURCE_IDS.get(spec.get("id", "")) for spec in resources if spec.get("type") == "FONT_BITMAP_A1"}
+    for resource_id in REQUIRED_FONT_RESOURCE_IDS:
+        if resource_id not in found_fonts:
+            raise ValueError(f"manifest missing required font resource 0x{resource_id:08X}")
+    required_codepoints = required_font_codepoints(manifest_path)
     specs = sorted(resources, key=lambda item: RESOURCE_IDS[item["id"]])
     data_offset = PACK_HEADER_SIZE + (len(specs) * PACK_ENTRY_SIZE)
     payloads: list[bytes] = []
@@ -155,15 +330,20 @@ def build_pack(manifest_path: Path) -> bytes:
         if resource_id <= previous_id:
             raise ValueError("resource ids must be unique and sorted")
         previous_id = resource_id
-        if spec["type"] != "TEXT_TABLE":
-            raise ValueError("Stage 3A builder only supports text tables")
-        if spec.get("language") not in LANGUAGE_IDS:
-            raise ValueError("text resource must declare a supported language")
-        payload = build_text_payload(base / spec["path"])
-        declared_language = spec["language"]
-        payload_language = struct.unpack("<IHHBBHIII", payload[:TEXT_HEADER_SIZE])[3]
-        if LANGUAGE_IDS[declared_language] != payload_language:
-            raise ValueError(f"text resource {spec['id']} language does not match payload")
+        if spec["type"] == "TEXT_TABLE":
+            if spec.get("language") not in LANGUAGE_IDS:
+                raise ValueError("text resource must declare a supported language")
+            payload = build_text_payload(base / spec["path"])
+            declared_language = spec["language"]
+            payload_language = struct.unpack("<IHHBBHIII", payload[:TEXT_HEADER_SIZE])[3]
+            if LANGUAGE_IDS[declared_language] != payload_language:
+                raise ValueError(f"text resource {spec['id']} language does not match payload")
+        elif spec["type"] == "FONT_BITMAP_A1":
+            if spec["format"] != "FONT_BITMAP_A1_V1":
+                raise ValueError("unsupported font format")
+            payload = build_font_payload(base / spec["path"], int(spec["scale"]), required_codepoints)
+        else:
+            raise ValueError(f"unsupported resource type {spec['type']!r}")
         entries.append(
             ResourceEntry(
                 resource_id=resource_id,
@@ -203,6 +383,7 @@ def inspect_pack(data: bytes) -> dict[str, object]:
         raise ValueError("entry table CRC mismatch")
     entries = []
     seen_language_resources: dict[int, int] = {}
+    seen_font_resources: set[int] = set()
     for index in range(count):
         fields = struct.unpack("<IHHIIIIII", table[index * PACK_ENTRY_SIZE : (index + 1) * PACK_ENTRY_SIZE])
         resource_id, resource_type, fmt, flags, payload_offset, payload_size, payload_crc32, aux_offset, aux_size = fields
@@ -221,6 +402,13 @@ def inspect_pack(data: bytes) -> dict[str, object]:
                 raise ValueError("unsupported text format")
             language_id = _inspect_text_payload(payload, resource_id)
             seen_language_resources[language_id] = resource_id
+        elif resource_type == RESOURCE_TYPES["FONT_BITMAP_A1"]:
+            if fmt != RESOURCE_FORMATS["FONT_BITMAP_A1_V1"]:
+                raise ValueError("unsupported font format")
+            font_info = _inspect_font_payload(payload)
+            seen_font_resources.add(resource_id)
+        else:
+            raise ValueError("unsupported resource type")
         entries.append(
             {
                 "resource_id": resource_id,
@@ -230,11 +418,15 @@ def inspect_pack(data: bytes) -> dict[str, object]:
                 "payload_size": payload_size,
                 "payload_crc32": payload_crc32,
                 "language_id": language_id,
+                "font": font_info if resource_type == RESOURCE_TYPES["FONT_BITMAP_A1"] else None,
             }
         )
     for language, resource_id in REQUIRED_LANGUAGE_RESOURCE_IDS.items():
         if seen_language_resources.get(LANGUAGE_IDS[language]) != resource_id:
             raise ValueError(f"missing required {language} text table")
+    for resource_id in REQUIRED_FONT_RESOURCE_IDS:
+        if resource_id not in seen_font_resources:
+            raise ValueError(f"missing required font resource 0x{resource_id:08X}")
     return {
         "schema_version": schema,
         "resource_api_version": api,
@@ -289,3 +481,89 @@ def _inspect_text_payload(payload: bytes, resource_id: int) -> int:
     if blob_offset + cursor != len(payload):
         raise ValueError("text blob contains unreferenced bytes")
     return language_id
+
+
+def _inspect_font_payload(payload: bytes) -> dict[str, object]:
+    if len(payload) < FONT_HEADER_SIZE:
+        raise ValueError("font payload too small")
+    magic, version, header_size, glyph_count, record_size, ascent, descent, line_height, reserved0, index_offset, bitmap_offset, index_crc, flags = struct.unpack(
+        "<IHHHHbbBBIIII", payload[:FONT_HEADER_SIZE]
+    )
+    index_size = glyph_count * FONT_RECORD_SIZE
+    if (
+        magic != FONT_MAGIC
+        or version != FONT_VERSION
+        or header_size != FONT_HEADER_SIZE
+        or record_size != FONT_RECORD_SIZE
+        or glyph_count == 0
+        or ascent <= 0
+        or descent < 0
+        or line_height <= 0
+        or reserved0 != 0
+        or flags != 0
+        or index_offset != FONT_HEADER_SIZE
+        or bitmap_offset != FONT_HEADER_SIZE + index_size
+        or bitmap_offset > len(payload)
+    ):
+        raise ValueError("invalid font header")
+    index = payload[index_offset:bitmap_offset]
+    if len(index) != index_size or crc32(index) != index_crc:
+        raise ValueError("font index CRC mismatch")
+    previous = -1
+    bitmap_cursor = 0
+    required = {ord(" "), ord("?")}
+    max_width = 0
+    max_height = 0
+    first_codepoint = None
+    last_codepoint = None
+    for i in range(glyph_count):
+        record = index[i * FONT_RECORD_SIZE : (i + 1) * FONT_RECORD_SIZE]
+        codepoint, bitmap_rel, bitmap_size, width, height, advance, bearing_x, bearing_y, row_stride, reserved = struct.unpack(
+            "<IIHBBbbbBH", record[:18]
+        )
+        if record[18:] != b"\x00\x00":
+            raise ValueError("font record padding is nonzero")
+        if (
+            not _unicode_scalar_valid(codepoint)
+            or codepoint <= previous
+            or reserved != 0
+            or advance <= 0
+            or bearing_y < 0
+            or bearing_y > ascent
+            or width > FONT_MAX_WIDTH
+            or height > FONT_MAX_HEIGHT
+        ):
+            raise ValueError("invalid font glyph record")
+        previous = codepoint
+        first_codepoint = codepoint if first_codepoint is None else first_codepoint
+        last_codepoint = codepoint
+        required.discard(codepoint)
+        if width == 0 or height == 0:
+            if width != 0 or height != 0 or row_stride != 0 or bitmap_size != 0 or bitmap_rel != 0:
+                raise ValueError("invalid blank font glyph")
+            continue
+        expected_stride = (width + 7) // 8
+        if row_stride != expected_stride or bitmap_size != expected_stride * height:
+            raise ValueError("invalid font bitmap size")
+        if bitmap_rel != bitmap_cursor or bitmap_offset + bitmap_rel + bitmap_size > len(payload):
+            raise ValueError("font glyph bitmap out of bounds")
+        bitmap_cursor += bitmap_size
+        max_width = max(max_width, width)
+        max_height = max(max_height, height)
+    if required:
+        raise ValueError("font missing SPACE or '?'")
+    if bitmap_offset + bitmap_cursor != len(payload):
+        raise ValueError("font bitmap contains unreferenced bytes")
+    return {
+        "glyph_count": glyph_count,
+        "ascent": ascent,
+        "descent": descent,
+        "line_height": line_height,
+        "first_codepoint": first_codepoint,
+        "last_codepoint": last_codepoint,
+        "max_width": max_width,
+        "max_height": max_height,
+        "index_bytes": index_size,
+        "bitmap_bytes": bitmap_cursor,
+        "index_crc32": index_crc,
+    }

@@ -33,6 +33,20 @@ def main() -> int:
                 f"size={entry['payload_size']} "
                 f"crc=0x{entry['payload_crc32']:08X}"
             )
+            if entry.get("font") is not None:
+                font = entry["font"]
+                print(
+                    "  font "
+                    f"glyphs={font['glyph_count']} "
+                    f"line={font['line_height']} "
+                    f"ascent={font['ascent']} "
+                    f"descent={font['descent']} "
+                    f"range=U+{font['first_codepoint']:04X}..U+{font['last_codepoint']:04X} "
+                    f"max={font['max_width']}x{font['max_height']} "
+                    f"index={font['index_bytes']} "
+                    f"bitmap={font['bitmap_bytes']} "
+                    f"index_crc=0x{font['index_crc32']:08X}"
+                )
     return 0
 
 

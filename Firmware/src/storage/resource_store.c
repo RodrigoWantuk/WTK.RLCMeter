@@ -36,6 +36,11 @@ static void put_u32(uint8_t *dst, uint32_t value)
     dst[3] = (uint8_t)((value >> 24u) & 0xFFu);
 }
 
+static void put_i8(uint8_t *dst, int8_t value)
+{
+    dst[0] = (uint8_t)value;
+}
+
 static uint16_t get_u16(const uint8_t *src)
 {
     return (uint16_t)((uint16_t)src[0] | ((uint16_t)src[1] << 8u));
@@ -47,6 +52,11 @@ static uint32_t get_u32(const uint8_t *src)
            ((uint32_t)src[1] << 8u) |
            ((uint32_t)src[2] << 16u) |
            ((uint32_t)src[3] << 24u);
+}
+
+static int8_t get_i8(const uint8_t *src)
+{
+    return (int8_t)src[0];
 }
 
 static bool span_valid(uint32_t total, uint32_t offset, uint32_t size)
@@ -305,6 +315,153 @@ resource_status_t resource_store_decode_text_record(const uint8_t src[RESOURCE_T
         return RESOURCE_STATUS_CORRUPT;
     }
     return RESOURCE_STATUS_OK;
+}
+
+void resource_store_encode_font_a1_header(uint8_t dst[RESOURCE_FONT_A1_HEADER_SIZE],
+                                          const resource_font_a1_header_t *header)
+{
+    if ((dst == NULL) || (header == NULL))
+    {
+        return;
+    }
+    memset(dst, 0, RESOURCE_FONT_A1_HEADER_SIZE);
+    put_u32(&dst[0], header->magic);
+    put_u16(&dst[4], header->version);
+    put_u16(&dst[6], header->header_size);
+    put_u16(&dst[8], header->glyph_count);
+    put_u16(&dst[10], header->glyph_record_size);
+    put_i8(&dst[12], header->ascent);
+    put_i8(&dst[13], header->descent);
+    dst[14] = header->line_height;
+    dst[15] = header->reserved0;
+    put_u32(&dst[16], header->index_offset);
+    put_u32(&dst[20], header->bitmap_offset);
+    put_u32(&dst[24], header->index_crc32);
+    put_u32(&dst[28], header->flags);
+}
+
+resource_status_t resource_store_decode_font_a1_header(const uint8_t src[RESOURCE_FONT_A1_HEADER_SIZE],
+                                                       uint32_t payload_size,
+                                                       resource_font_a1_header_t *header)
+{
+    if ((src == NULL) || (header == NULL))
+    {
+        return RESOURCE_STATUS_INVALID_ARG;
+    }
+    *header = (resource_font_a1_header_t){
+        .magic = get_u32(&src[0]),
+        .version = get_u16(&src[4]),
+        .header_size = get_u16(&src[6]),
+        .glyph_count = get_u16(&src[8]),
+        .glyph_record_size = get_u16(&src[10]),
+        .ascent = get_i8(&src[12]),
+        .descent = get_i8(&src[13]),
+        .line_height = src[14],
+        .reserved0 = src[15],
+        .index_offset = get_u32(&src[16]),
+        .bitmap_offset = get_u32(&src[20]),
+        .index_crc32 = get_u32(&src[24]),
+        .flags = get_u32(&src[28]),
+    };
+    const uint32_t index_bytes =
+        (uint32_t)header->glyph_count * (uint32_t)RESOURCE_FONT_A1_RECORD_SIZE;
+    if ((header->magic != RESOURCE_FONT_A1_MAGIC) ||
+        (header->version != RESOURCE_FONT_A1_VERSION) ||
+        (header->header_size != RESOURCE_FONT_A1_HEADER_SIZE) ||
+        (header->glyph_record_size != RESOURCE_FONT_A1_RECORD_SIZE) ||
+        (header->glyph_count == 0u) ||
+        (header->ascent <= 0) ||
+        (header->descent < 0) ||
+        (header->line_height == 0u) ||
+        (header->reserved0 != 0u) ||
+        (header->flags != 0u) ||
+        !span_valid(payload_size, header->index_offset, index_bytes) ||
+        !span_valid(payload_size, header->bitmap_offset, 1u) ||
+        (header->index_offset < RESOURCE_FONT_A1_HEADER_SIZE) ||
+        (header->bitmap_offset < (header->index_offset + index_bytes)))
+    {
+        return RESOURCE_STATUS_CORRUPT;
+    }
+    return RESOURCE_STATUS_OK;
+}
+
+void resource_store_encode_font_a1_record(uint8_t dst[RESOURCE_FONT_A1_RECORD_SIZE],
+                                          const resource_font_a1_record_t *record)
+{
+    if ((dst == NULL) || (record == NULL))
+    {
+        return;
+    }
+    memset(dst, 0, RESOURCE_FONT_A1_RECORD_SIZE);
+    put_u32(&dst[0], record->codepoint);
+    put_u32(&dst[4], record->bitmap_offset);
+    put_u16(&dst[8], record->bitmap_size);
+    dst[10] = record->width;
+    dst[11] = record->height;
+    put_i8(&dst[12], record->advance_x);
+    put_i8(&dst[13], record->bearing_x);
+    put_i8(&dst[14], record->bearing_y);
+    dst[15] = record->row_stride;
+    put_u16(&dst[16], record->reserved0);
+}
+
+static bool unicode_scalar_valid(uint32_t codepoint)
+{
+    return (codepoint <= 0x10FFFFu) &&
+           !((codepoint >= 0xD800u) && (codepoint <= 0xDFFFu));
+}
+
+resource_status_t resource_store_decode_font_a1_record(const uint8_t src[RESOURCE_FONT_A1_RECORD_SIZE],
+                                                       const resource_font_a1_header_t *header,
+                                                       uint32_t payload_size,
+                                                       resource_font_a1_record_t *record)
+{
+    if ((src == NULL) || (header == NULL) || (record == NULL))
+    {
+        return RESOURCE_STATUS_INVALID_ARG;
+    }
+    *record = (resource_font_a1_record_t){
+        .codepoint = get_u32(&src[0]),
+        .bitmap_offset = get_u32(&src[4]),
+        .bitmap_size = get_u16(&src[8]),
+        .width = src[10],
+        .height = src[11],
+        .advance_x = get_i8(&src[12]),
+        .bearing_x = get_i8(&src[13]),
+        .bearing_y = get_i8(&src[14]),
+        .row_stride = src[15],
+        .reserved0 = get_u16(&src[16]),
+    };
+    if (!unicode_scalar_valid(record->codepoint) ||
+        (record->reserved0 != 0u) ||
+        (src[18] != 0u) ||
+        (src[19] != 0u) ||
+        (record->advance_x <= 0) ||
+        (record->width > RESOURCE_FONT_A1_MAX_GLYPH_WIDTH) ||
+        (record->height > RESOURCE_FONT_A1_MAX_GLYPH_HEIGHT))
+    {
+        return RESOURCE_STATUS_CORRUPT;
+    }
+    if ((record->width == 0u) || (record->height == 0u))
+    {
+        return ((record->width == 0u) &&
+                (record->height == 0u) &&
+                (record->row_stride == 0u) &&
+                (record->bitmap_size == 0u) &&
+                (record->bitmap_offset == 0u)) ?
+                   RESOURCE_STATUS_OK :
+                   RESOURCE_STATUS_CORRUPT;
+    }
+    const uint8_t expected_stride = (uint8_t)((record->width + 7u) / 8u);
+    if ((record->row_stride != expected_stride) ||
+        (record->bitmap_size != ((uint16_t)record->row_stride * (uint16_t)record->height)))
+    {
+        return RESOURCE_STATUS_CORRUPT;
+    }
+    const uint32_t bitmap_bytes = payload_size - header->bitmap_offset;
+    return span_valid(bitmap_bytes, record->bitmap_offset, record->bitmap_size) ?
+               RESOURCE_STATUS_OK :
+               RESOURCE_STATUS_CORRUPT;
 }
 
 resource_status_t resource_catalog_mount(resource_catalog_t *catalog,

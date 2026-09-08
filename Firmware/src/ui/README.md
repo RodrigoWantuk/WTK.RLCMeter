@@ -103,3 +103,21 @@ Phase 08 Stage 3A.3 recovers PRODUCT Flash headroom below the Stage 3B handoff g
 without adding external font, glyph, icon, splash, graph, or TFT debug-console runtime.
 Those resources remain Stage 3B/later work and must continue to live outside MCU
 internal Flash where practical.
+
+## Phase 08 Stage 3B.1 external A1 fonts
+
+Normal PRODUCT text now renders through W25Q-resident `FONT_BITMAP_A1_V1` resources.
+The three stable UI roles are `FONT_UI_SMALL`, `FONT_UI_MEDIUM`, and `FONT_UI_LARGE`;
+legacy scale values 1/2/3 map to those roles so existing screen geometry stays stable.
+
+The font wire format is explicit little-endian data: a 32-byte `WFA1` header, sorted
+20-byte glyph records, and row-major MSB-first A1 bitmap data. Glyph dimensions are
+bounded to 32x32 pixels, so one glyph uses at most 128 bytes of A1 scratch plus one
+32-pixel RGB565 row while rendering. Firmware validates payload CRC, index CRC,
+record order, Unicode scalar values, metrics, bitmap bounds, exact bitmap use, SPACE,
+and `?` before accepting a font face.
+
+Normal text rendering preserves `RESOURCE_STATUS_DEFERRED`, so quiet mode and W25Q
+mutation policy can pause glyph lookup/reads without converting them into fatal errors.
+Emergency `RESOURCE_ERROR` and fault text deliberately stays on the internal fallback
+renderer and performs zero W25Q/font reads.
