@@ -684,9 +684,9 @@ bringup test:  1 sector
   remains authoritative over the buzzer.
 - A small About page reports firmware version, hardware compatibility, short git commit,
   and calibration schema.
-- `ui_text_id_t` and `ui_text_fallback()` provide stable text IDs and internal fallback
-  strings for normal menu/settings/About text. External W25Q resource text remains a
-  later Stage 3 concern.
+- `ui_text_id_t` provides stable text IDs. Normal menu/settings/maintenance text is
+  expected to come from the W25Q Resource Pack; only emergency/safety/fault wording
+  remains as internal fallback text.
 
 Post-09A product-menu continuation:
 
@@ -710,6 +710,7 @@ Post-09A product-menu continuation:
 - Internal text fallback has been reduced to emergency/safety/fault wording and a
   compact placeholder for normal resource failures. Normal menu/service text belongs in
   the W25Q Resource Pack so richer screens do not consume proportional internal Flash.
+  Maintenance status labels are part of the same external text catalog.
 
 Software evidence:
 

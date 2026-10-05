@@ -60,6 +60,11 @@
     "0x0039": "DIAGNOSTICOS",
     "0x003A": "MANUTENCAO",
     "0x003B": "LINK PC",
-    "0x003C": "RECURSOS"
+    "0x003C": "RECURSOS",
+    "0x003D": "STATUS",
+    "0x003E": "PACOTE V1",
+    "0x003F": "VIA MENU",
+    "0x0040": "API PACOTE 3",
+    "0x0041": "CRC OK"
   }
 }

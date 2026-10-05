@@ -942,17 +942,17 @@ static bool prepare_pc_link_status_line(const ui_product_t *ui,
     }
     if (index == 1u)
     {
-        line_set(line, 8u, 54u, 1u, UI_COLOR_GREEN, "READY");
+        line_set_id(ui, view, line, 8u, 54u, 1u, UI_COLOR_GREEN, UI_TEXT_ID_READY);
         return true;
     }
     if (index == 2u)
     {
-        line_set(line, 8u, 74u, 1u, UI_COLOR_WHITE, "PACK V1");
+        line_set_id(ui, view, line, 8u, 74u, 1u, UI_COLOR_WHITE, UI_TEXT_ID_PACK_V1);
         return true;
     }
     if (index == 3u)
     {
-        line_set(line, 8u, 94u, 1u, UI_COLOR_WHITE, "MENU");
+        line_set_id(ui, view, line, 8u, 94u, 1u, UI_COLOR_WHITE, UI_TEXT_ID_MENU_DRIVEN);
         return true;
     }
     return false;
@@ -976,19 +976,23 @@ static bool prepare_resource_status_line(const ui_product_t *ui,
     {
         char row[32] = {0};
         size_t used = 0u;
-        (void)append_text(row, sizeof(row), &used, "STATUS ");
+        resource_status_t status = RESOURCE_STATUS_NOT_FOUND;
+        if (!append_label_space(ui, view, UI_TEXT_ID_STATUS, row, sizeof(row), &used, &status))
+        {
+            return line_set_resource_pending(line, 8u, 54u, 1u, UI_COLOR_AMBER, status);
+        }
         (void)append_u32(row, sizeof(row), &used, view->resource_status);
         line_set(line, 8u, 54u, 1u, view->resource_status == RESOURCE_STATUS_OK ? UI_COLOR_GREEN : UI_COLOR_AMBER, row);
         return true;
     }
     if (index == 2u)
     {
-        line_set(line, 8u, 74u, 1u, UI_COLOR_WHITE, "PACK API 3");
+        line_set_id(ui, view, line, 8u, 74u, 1u, UI_COLOR_WHITE, UI_TEXT_ID_PACK_API_3);
         return true;
     }
     if (index == 3u)
     {
-        line_set(line, 8u, 94u, 1u, UI_COLOR_WHITE, "CRC OK");
+        line_set_id(ui, view, line, 8u, 94u, 1u, UI_COLOR_WHITE, UI_TEXT_ID_CRC_OK);
         return true;
     }
     return false;

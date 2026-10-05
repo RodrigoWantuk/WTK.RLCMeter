@@ -598,7 +598,7 @@ Initial planned UI languages are Portuguese and English.
 UI logic uses stable resource/text IDs rather than scattering translated literals through screen code. Phase 08 Stage 3A stores normal product text in Resource Pack v2 UTF-8 catalogs in W25Q, one text-table resource per language. Phase 08 Stage 3B.1 adds W25Q-resident A1 bitmap font resources for normal typography. The selected language is a stable settings field, currently English or Portuguese (Brazil). Since Phase 09A, missing, corrupt, or incompatible normal resources are a product warning rather than an operation blocker: emergency/safety/fault wording stays internal, while normal menu/service wording is expected to come from W25Q and may degrade to compact placeholders if the resource pack is absent or corrupt.
 
 Resource Pack v2 API version 3 uses dense text catalogs plus three required font-role
-resources. Text IDs remain `0x0001..0x003C`, every ID is present in every required
+resources. Text IDs remain `0x0001..0x0041`, every ID is present in every required
 language, and each UTF-8 string is no longer than 31 payload bytes. Firmware validates
 both EN and PT-BR catalogs at resource admission, including text payload CRC,
 text-table header, dense index shape, index CRC, record bounds, and UTF-8 for every

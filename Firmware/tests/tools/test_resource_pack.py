@@ -98,9 +98,9 @@ class ResourcePackTests(unittest.TestCase):
         resource_header = (src / "storage" / "resource_store.h").read_text(encoding="utf-8")
         text_header = (src / "ui" / "ui_text.h").read_text(encoding="utf-8")
         self.assertRegex(resource_header, r"RESOURCE_PACK_API_VERSION\s*=\s*3u")
-        self.assertRegex(text_header, r"UI_TEXT_ID_LAST\s*=\s*UI_TEXT_ID_RESOURCES")
+        self.assertRegex(text_header, r"UI_TEXT_ID_LAST\s*=\s*UI_TEXT_ID_CRC_OK")
         self.assertRegex(text_header, r"UI_TEXT_MAX_BYTES\s*=\s*31u")
-        last_match = re.search(r"UI_TEXT_ID_RESOURCES\s*=\s*0x([0-9A-Fa-f]+)u", text_header)
+        last_match = re.search(r"UI_TEXT_ID_CRC_OK\s*=\s*0x([0-9A-Fa-f]+)u", text_header)
         self.assertIsNotNone(last_match)
         self.assertEqual(int(last_match.group(1), 16), resource_pack_format.TEXT_ID_LAST)
 
@@ -114,7 +114,7 @@ class ResourcePackTests(unittest.TestCase):
         self.assertEqual(info["resource_api_version"], 3)
         self.assertEqual(info["entry_count"], 5)
         self.assertEqual(info["text_id_first"], 0x0001)
-        self.assertEqual(info["text_id_last"], 0x003C)
+        self.assertEqual(info["text_id_last"], 0x0041)
         self.assertEqual(info["text_max_bytes"], 31)
         self.assertEqual(
             [entry["resource_id"] for entry in info["entries"]],
@@ -172,7 +172,7 @@ class ResourcePackTests(unittest.TestCase):
             (root / "text").mkdir()
             self._write_font_source(root)
             self._write_catalog(root, "en", "en.json")
-            self._write_catalog(root, "pt-BR", "pt-BR.json", {"0x003C": "X" * 32})
+            self._write_catalog(root, "pt-BR", "pt-BR.json", {"0x0041": "X" * 32})
             with self.assertRaisesRegex(ValueError, "exceeds"):
                 resource_pack_format.build_pack(self._write_manifest(root))
 
@@ -182,7 +182,7 @@ class ResourcePackTests(unittest.TestCase):
             self._write_font_source(root)
             self._write_catalog(root, "en", "en.json")
             missing = {f"0x{text_id:04X}": "X" for text_id in resource_pack_format.REQUIRED_TEXT_IDS}
-            del missing["0x003C"]
+            del missing["0x0041"]
             (root / "text" / "pt-BR.json").write_text(
                 json.dumps({"language": "pt-BR", "strings": missing}),
                 encoding="utf-8",
