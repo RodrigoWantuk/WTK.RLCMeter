@@ -522,6 +522,8 @@ static bool prepare_menu_line(const ui_product_t *ui,
         UI_TEXT_ID_DISPLAY,
         UI_TEXT_ID_SOUND,
         UI_TEXT_ID_LANGUAGE,
+        UI_TEXT_ID_DIAGNOSTICS,
+        UI_TEXT_ID_MAINTENANCE,
         UI_TEXT_ID_ABOUT,
         UI_TEXT_ID_BACK,
     };
@@ -805,6 +807,99 @@ static bool prepare_about_line(const ui_product_t *ui,
         }
         (void)append_u32(row, sizeof(row), &used, WTK_CALIBRATION_SCHEMA_VERSION);
         line_set(line, 8u, 114u, 1u, UI_COLOR_WHITE, row);
+        return true;
+    }
+    return false;
+}
+
+static bool prepare_diagnostics_line(const ui_product_t *ui,
+                                     const ui_product_view_t *view,
+                                     uint8_t index,
+                                     ui_product_line_t *line)
+{
+    if ((view == NULL) || (line == NULL))
+    {
+        return false;
+    }
+    if (index == 0u)
+    {
+        line_set_id(ui, view, line, 8u, 16u, 2u, UI_COLOR_CYAN, UI_TEXT_ID_DIAGNOSTICS);
+        return true;
+    }
+    if (index == 1u)
+    {
+        char row[32] = {0};
+        size_t used = 0u;
+        (void)append_text(row, sizeof(row), &used, "FAULT ");
+        (void)append_hex8(row, sizeof(row), &used, view->safety_fault_mask);
+        line_set(line, 8u, 54u, 1u, view->safety_fault_mask == 0u ? UI_COLOR_WHITE : UI_COLOR_AMBER, row);
+        return true;
+    }
+    if (index == 2u)
+    {
+        char row[32] = {0};
+        size_t used = 0u;
+        resource_status_t status = RESOURCE_STATUS_OK;
+        if (!append_label_space(ui, view, UI_TEXT_ID_CALIBRATION, row, sizeof(row), &used, &status))
+        {
+            return line_set_resource_pending(line, 8u, 74u, 1u, UI_COLOR_WHITE, status);
+        }
+        status = append_label(ui,
+                              view,
+                              view->calibration_active_valid ? UI_TEXT_ID_ACTIVE : UI_TEXT_ID_REQUIRED,
+                              row,
+                              sizeof(row),
+                              &used);
+        if (status != RESOURCE_STATUS_OK)
+        {
+            return line_set_resource_pending(line, 8u, 74u, 1u, UI_COLOR_WHITE, status);
+        }
+        line_set(line, 8u, 74u, 1u, view->calibration_active_valid ? UI_COLOR_GREEN : UI_COLOR_AMBER, row);
+        return true;
+    }
+    if (index == 3u)
+    {
+        char row[32] = {0};
+        size_t used = 0u;
+        resource_status_t status = RESOURCE_STATUS_OK;
+        if (!append_label_space(ui, view, UI_TEXT_ID_RESOURCES, row, sizeof(row), &used, &status))
+        {
+            return line_set_resource_pending(line, 8u, 94u, 1u, UI_COLOR_WHITE, status);
+        }
+        (void)append_u32(row, sizeof(row), &used, view->resource_status);
+        line_set(line, 8u, 94u, 1u, view->resource_status == RESOURCE_STATUS_OK ? UI_COLOR_GREEN : UI_COLOR_AMBER, row);
+        return true;
+    }
+    return false;
+}
+
+static bool prepare_maintenance_line(const ui_product_t *ui,
+                                     const ui_product_view_t *view,
+                                     uint8_t index,
+                                     ui_product_line_t *line)
+{
+    if ((view == NULL) || (line == NULL))
+    {
+        return false;
+    }
+    if (index == 0u)
+    {
+        line_set_id(ui, view, line, 8u, 16u, 2u, UI_COLOR_CYAN, UI_TEXT_ID_MAINTENANCE);
+        return true;
+    }
+    if (index == 1u)
+    {
+        line_set_id(ui, view, line, 8u, 54u, 1u, UI_COLOR_WHITE, UI_TEXT_ID_PC_LINK);
+        return true;
+    }
+    if (index == 2u)
+    {
+        line_set_id(ui, view, line, 8u, 74u, 1u, UI_COLOR_WHITE, UI_TEXT_ID_RESOURCES);
+        return true;
+    }
+    if (index == 3u)
+    {
+        line_set_id(ui, view, line, 8u, 104u, 1u, UI_COLOR_GREEN, UI_TEXT_ID_BACK);
         return true;
     }
     return false;
@@ -1161,6 +1256,10 @@ static bool prepare_line(const ui_product_t *ui,
         return prepare_sound_menu_line(ui, view, index, line);
     case UI_PRODUCT_STATE_LANGUAGE_MENU:
         return prepare_language_menu_line(ui, view, index, line);
+    case UI_PRODUCT_STATE_DIAGNOSTICS:
+        return prepare_diagnostics_line(ui, view, index, line);
+    case UI_PRODUCT_STATE_MAINTENANCE:
+        return prepare_maintenance_line(ui, view, index, line);
     case UI_PRODUCT_STATE_ABOUT:
         return prepare_about_line(ui, view, index, line);
     case UI_PRODUCT_STATE_CALIBRATION_STATUS:
@@ -1476,6 +1575,10 @@ const char *ui_product_state_string(ui_product_state_t state)
         return "SOUND_MENU";
     case UI_PRODUCT_STATE_LANGUAGE_MENU:
         return "LANGUAGE_MENU";
+    case UI_PRODUCT_STATE_DIAGNOSTICS:
+        return "DIAGNOSTICS";
+    case UI_PRODUCT_STATE_MAINTENANCE:
+        return "MAINTENANCE";
     case UI_PRODUCT_STATE_ABOUT:
         return "ABOUT";
     case UI_PRODUCT_STATE_RESOURCE_ERROR:

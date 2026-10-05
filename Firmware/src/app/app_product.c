@@ -16,6 +16,8 @@ enum
     APP_PRODUCT_MAIN_DISPLAY,
     APP_PRODUCT_MAIN_SOUND,
     APP_PRODUCT_MAIN_LANGUAGE,
+    APP_PRODUCT_MAIN_DIAGNOSTICS,
+    APP_PRODUCT_MAIN_MAINTENANCE,
     APP_PRODUCT_MAIN_ABOUT,
     APP_PRODUCT_MAIN_BACK,
     APP_PRODUCT_MAIN_COUNT,
@@ -962,6 +964,14 @@ void app_product_step(app_product_t *product,
                              UI_PRODUCT_STATE_LANGUAGE_MENU,
                              APP_PRODUCT_LANGUAGE_EN);
                 }
+                else if (product->menu_index == APP_PRODUCT_MAIN_DIAGNOSTICS)
+                {
+                    set_state(product, UI_PRODUCT_STATE_DIAGNOSTICS);
+                }
+                else if (product->menu_index == APP_PRODUCT_MAIN_MAINTENANCE)
+                {
+                    set_state(product, UI_PRODUCT_STATE_MAINTENANCE);
+                }
                 else if (product->menu_index == APP_PRODUCT_MAIN_ABOUT)
                 {
                     set_state(product, UI_PRODUCT_STATE_ABOUT);
@@ -1040,6 +1050,26 @@ void app_product_step(app_product_t *product,
         if (product->request_menu || product->request_click)
         {
             set_menu(product, UI_PRODUCT_STATE_MENU, APP_PRODUCT_MAIN_ABOUT);
+        }
+        clear_requests(product);
+        return;
+    }
+
+    if (product->view.state == UI_PRODUCT_STATE_DIAGNOSTICS)
+    {
+        if (product->request_menu || product->request_click)
+        {
+            set_menu(product, UI_PRODUCT_STATE_MENU, APP_PRODUCT_MAIN_DIAGNOSTICS);
+        }
+        clear_requests(product);
+        return;
+    }
+
+    if (product->view.state == UI_PRODUCT_STATE_MAINTENANCE)
+    {
+        if (product->request_menu || product->request_click)
+        {
+            set_menu(product, UI_PRODUCT_STATE_MENU, APP_PRODUCT_MAIN_MAINTENANCE);
         }
         clear_requests(product);
         return;

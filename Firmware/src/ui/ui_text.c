@@ -154,6 +154,14 @@ const char *ui_text_emergency(ui_text_id_t id)
         return "SEQUENCE";
     case UI_TEXT_ID_RANGE:
         return "RANGE";
+    case UI_TEXT_ID_DIAGNOSTICS:
+        return "DIAG";
+    case UI_TEXT_ID_MAINTENANCE:
+        return "SERVICE";
+    case UI_TEXT_ID_PC_LINK:
+        return "PC LINK";
+    case UI_TEXT_ID_RESOURCES:
+        return "RESOURCES";
     default:
         return "?";
     }

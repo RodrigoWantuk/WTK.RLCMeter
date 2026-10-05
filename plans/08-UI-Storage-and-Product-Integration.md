@@ -688,6 +688,17 @@ bringup test:  1 sector
   strings for normal menu/settings/About text. External W25Q resource text remains a
   later Stage 3 concern.
 
+Post-09A product-menu continuation:
+
+- The executable main menu now exposes Calibration, Display, Sound, Language,
+  Diagnostics, Maintenance, About, and Back. Diagnostics is a TFT status page for
+  fault/calibration/resource evidence. Maintenance is the reserved product entry for
+  future PC-link/resource/settings service flows; it does not yet perform upload,
+  reset, or Flash mutation actions.
+- The added Diagnostics/Maintenance entries are navigation/status only. They do not
+  energize K1, switch ranges, issue measurement permits, write Flash, or require UART
+  for ordinary product operation.
+
 Software evidence:
 
 - Host tests cover the rebalanced W25Q layout, settings defaults/validation, A/B

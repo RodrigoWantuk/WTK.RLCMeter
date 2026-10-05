@@ -255,7 +255,8 @@ Calibration
 Display
 Sound
 Language
-Debug
+Diagnostics
+Maintenance
 About
 ```
 
@@ -280,8 +281,8 @@ Calibration
 Back
 ```
 
-The full Display/Sound/Language/Debug/About menu remains planned, but is not part of
-the Stage 2A executable product menu. The Calibration entry shows active/required
+The full Display/Sound/Language/Diagnostics/Maintenance/About menu was staged after
+the initial Stage 2A executable subset. The Calibration entry shows active/required
 status and starts the full range-batched OSL wizard.
 
 The wizard flow is:
