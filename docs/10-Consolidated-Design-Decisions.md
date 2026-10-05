@@ -578,6 +578,12 @@ domain without materializing the generic requirements array on the PRODUCT stack
 PRODUCT Release is below the 55296 B Stage 3B handoff target; Stage 3B remains a
 separate not-started task.
 
+PRODUCT Release uses a compact boot UART banner: one SAFE_BOOT line plus an explicit
+clock-fault marker only when the clock initialization did not report success. Detailed
+version, reset, clock-tree, SWD, and watchdog banner fields remain compiled into Debug
+and BRINGUP profiles for engineering diagnostics. Normal product operation and
+calibration flows must not depend on the UART banner.
+
 ## Localization
 
 Initial planned UI languages are Portuguese and English.

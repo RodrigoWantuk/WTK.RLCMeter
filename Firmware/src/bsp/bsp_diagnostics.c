@@ -2,15 +2,25 @@
 
 #include <stdint.h>
 
+#include "wtk_build_config.h"
+
+#if (WTK_ENABLE_BRINGUP_CONSOLE != 0) || (WTK_DIAGNOSTIC_LOG_LEVEL_DEFAULT >= 4u)
+#define BSP_DIAGNOSTICS_DETAILED_BOOT_BANNER 1
+#else
+#define BSP_DIAGNOSTICS_DETAILED_BOOT_BANNER 0
+#endif
+
+#if BSP_DIAGNOSTICS_DETAILED_BOOT_BANNER
 #include "app/app_version.h"
 #include "bsp/bsp_clock.h"
 #include "bsp/bsp_gpio.h"
 #include "bsp/bsp_reset.h"
 #include "bsp/bsp_status.h"
+#endif
+
 #include "bsp/bsp_time.h"
 #include "bsp/bsp_uart.h"
 #include "bsp/bsp_watchdog.h"
-#include "wtk_build_config.h"
 
 static bsp_log_level_t g_log_level = (bsp_log_level_t)WTK_DIAGNOSTIC_LOG_LEVEL_DEFAULT;
 
@@ -99,6 +109,7 @@ void bsp_diagnostics_write(bsp_log_level_t level, const char *message)
 
 void bsp_diagnostics_boot_banner(bsp_reset_reason_t reset_reason, bsp_status_t clock_status)
 {
+#if BSP_DIAGNOSTICS_DETAILED_BOOT_BANNER
     const wtk_app_version_info_t *const version = wtk_app_version_get();
     const bsp_clock_summary_t *const clock = bsp_clock_get_summary();
 
@@ -119,6 +130,15 @@ void bsp_diagnostics_boot_banner(bsp_reset_reason_t reset_reason, bsp_status_t c
     bsp_diagnostics_write_key_value_text("swd", bsp_gpio_swd_preserved() ? "PRESERVED" : "UNKNOWN");
     bsp_diagnostics_write_key_value_text("boot_state", "SAFE_BOOT");
     bsp_diagnostics_write_key_value_text("watchdog_policy", "IWDG_START_AFTER_UART_BANNER");
+#else
+    (void)reset_reason;
+
+    write_text("\r\nWTK.RLCMeter SAFE_BOOT\r\n");
+    if (clock_status != BSP_STATUS_OK)
+    {
+        write_text("clock_fault\r\n");
+    }
+#endif
 }
 
 void bsp_diagnostics_step(void)
