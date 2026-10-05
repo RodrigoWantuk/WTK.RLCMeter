@@ -889,17 +889,106 @@ static bool prepare_maintenance_line(const ui_product_t *ui,
     }
     if (index == 1u)
     {
-        line_set_id(ui, view, line, 8u, 54u, 1u, UI_COLOR_WHITE, UI_TEXT_ID_PC_LINK);
+        line_set_id(ui,
+                    view,
+                    line,
+                    8u,
+                    54u,
+                    1u,
+                    (view->menu.selected_index == 0u) ? UI_COLOR_GREEN : UI_COLOR_WHITE,
+                    UI_TEXT_ID_PC_LINK);
         return true;
     }
     if (index == 2u)
     {
-        line_set_id(ui, view, line, 8u, 74u, 1u, UI_COLOR_WHITE, UI_TEXT_ID_RESOURCES);
+        line_set_id(ui,
+                    view,
+                    line,
+                    8u,
+                    74u,
+                    1u,
+                    (view->menu.selected_index == 1u) ? UI_COLOR_GREEN : UI_COLOR_WHITE,
+                    UI_TEXT_ID_RESOURCES);
         return true;
     }
     if (index == 3u)
     {
-        line_set_id(ui, view, line, 8u, 104u, 1u, UI_COLOR_GREEN, UI_TEXT_ID_BACK);
+        line_set_id(ui,
+                    view,
+                    line,
+                    8u,
+                    104u,
+                    1u,
+                    (view->menu.selected_index == 2u) ? UI_COLOR_GREEN : UI_COLOR_WHITE,
+                    UI_TEXT_ID_BACK);
+        return true;
+    }
+    return false;
+}
+
+static bool prepare_pc_link_status_line(const ui_product_t *ui,
+                                        const ui_product_view_t *view,
+                                        uint8_t index,
+                                        ui_product_line_t *line)
+{
+    if ((view == NULL) || (line == NULL))
+    {
+        return false;
+    }
+    if (index == 0u)
+    {
+        line_set_id(ui, view, line, 8u, 16u, 2u, UI_COLOR_CYAN, UI_TEXT_ID_PC_LINK);
+        return true;
+    }
+    if (index == 1u)
+    {
+        line_set(line, 8u, 54u, 1u, UI_COLOR_GREEN, "READY");
+        return true;
+    }
+    if (index == 2u)
+    {
+        line_set(line, 8u, 74u, 1u, UI_COLOR_WHITE, "PACK V1");
+        return true;
+    }
+    if (index == 3u)
+    {
+        line_set(line, 8u, 94u, 1u, UI_COLOR_WHITE, "MENU");
+        return true;
+    }
+    return false;
+}
+
+static bool prepare_resource_status_line(const ui_product_t *ui,
+                                         const ui_product_view_t *view,
+                                         uint8_t index,
+                                         ui_product_line_t *line)
+{
+    if ((view == NULL) || (line == NULL))
+    {
+        return false;
+    }
+    if (index == 0u)
+    {
+        line_set_id(ui, view, line, 8u, 16u, 2u, UI_COLOR_CYAN, UI_TEXT_ID_RESOURCES);
+        return true;
+    }
+    if (index == 1u)
+    {
+        char row[32] = {0};
+        size_t used = 0u;
+        (void)append_text(row, sizeof(row), &used, "STATUS ");
+        (void)append_u32(row, sizeof(row), &used, view->resource_status);
+        line_set(line, 8u, 54u, 1u, view->resource_status == RESOURCE_STATUS_OK ? UI_COLOR_GREEN : UI_COLOR_AMBER, row);
+        return true;
+    }
+    if (index == 2u)
+    {
+        line_set(line, 8u, 74u, 1u, UI_COLOR_WHITE, "PACK API 3");
+        return true;
+    }
+    if (index == 3u)
+    {
+        line_set(line, 8u, 94u, 1u, UI_COLOR_WHITE, "CRC OK");
         return true;
     }
     return false;
@@ -1260,6 +1349,10 @@ static bool prepare_line(const ui_product_t *ui,
         return prepare_diagnostics_line(ui, view, index, line);
     case UI_PRODUCT_STATE_MAINTENANCE:
         return prepare_maintenance_line(ui, view, index, line);
+    case UI_PRODUCT_STATE_PC_LINK_STATUS:
+        return prepare_pc_link_status_line(ui, view, index, line);
+    case UI_PRODUCT_STATE_RESOURCE_STATUS:
+        return prepare_resource_status_line(ui, view, index, line);
     case UI_PRODUCT_STATE_ABOUT:
         return prepare_about_line(ui, view, index, line);
     case UI_PRODUCT_STATE_CALIBRATION_STATUS:
@@ -1579,6 +1672,10 @@ const char *ui_product_state_string(ui_product_state_t state)
         return "DIAGNOSTICS";
     case UI_PRODUCT_STATE_MAINTENANCE:
         return "MAINTENANCE";
+    case UI_PRODUCT_STATE_PC_LINK_STATUS:
+        return "PC_LINK";
+    case UI_PRODUCT_STATE_RESOURCE_STATUS:
+        return "RESOURCES";
     case UI_PRODUCT_STATE_ABOUT:
         return "ABOUT";
     case UI_PRODUCT_STATE_RESOURCE_ERROR:

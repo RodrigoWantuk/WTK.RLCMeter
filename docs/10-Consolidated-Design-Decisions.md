@@ -210,8 +210,9 @@ About
 
 `Diagnostics` is a product-visible status page for fault, calibration, resource, and
 other service evidence that can be shown safely on the TFT. `Maintenance` is the future
-owner for PC-link/resource/settings service flows; ordinary measurement and calibration
-must not depend on UART.
+owner for PC-link/resource/settings service flows; it currently exposes safe PC Link
+and Resources status pages before any write/commit action exists. Ordinary measurement
+and calibration must not depend on UART.
 
 Menu interaction:
 

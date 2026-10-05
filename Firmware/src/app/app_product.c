@@ -32,6 +32,10 @@ enum
     APP_PRODUCT_LANGUAGE_PT_BR,
     APP_PRODUCT_LANGUAGE_BACK,
     APP_PRODUCT_LANGUAGE_COUNT,
+    APP_PRODUCT_MAINTENANCE_PC_LINK = 0,
+    APP_PRODUCT_MAINTENANCE_RESOURCES,
+    APP_PRODUCT_MAINTENANCE_BACK,
+    APP_PRODUCT_MAINTENANCE_COUNT,
 };
 
 static void mark_dirty(app_product_t *product);
@@ -119,6 +123,8 @@ static uint8_t state_menu_count(ui_product_state_t state)
         return APP_PRODUCT_SOUND_COUNT;
     case UI_PRODUCT_STATE_LANGUAGE_MENU:
         return APP_PRODUCT_LANGUAGE_COUNT;
+    case UI_PRODUCT_STATE_MAINTENANCE:
+        return APP_PRODUCT_MAINTENANCE_COUNT;
     case UI_PRODUCT_STATE_MENU:
     default:
         return APP_PRODUCT_MAIN_COUNT;
@@ -131,6 +137,7 @@ static bool state_is_menu_like(ui_product_state_t state)
            (state == UI_PRODUCT_STATE_DISPLAY_MENU) ||
            (state == UI_PRODUCT_STATE_SOUND_MENU) ||
            (state == UI_PRODUCT_STATE_LANGUAGE_MENU) ||
+           (state == UI_PRODUCT_STATE_MAINTENANCE) ||
            (state == UI_PRODUCT_STATE_BRIGHTNESS_EDIT) ||
            (state == UI_PRODUCT_STATE_TIMEOUT_EDIT);
 }
@@ -970,7 +977,7 @@ void app_product_step(app_product_t *product,
                 }
                 else if (product->menu_index == APP_PRODUCT_MAIN_MAINTENANCE)
                 {
-                    set_state(product, UI_PRODUCT_STATE_MAINTENANCE);
+                    set_menu(product, UI_PRODUCT_STATE_MAINTENANCE, APP_PRODUCT_MAINTENANCE_PC_LINK);
                 }
                 else if (product->menu_index == APP_PRODUCT_MAIN_ABOUT)
                 {
@@ -1037,6 +1044,21 @@ void app_product_step(app_product_t *product,
                     set_menu(product, UI_PRODUCT_STATE_MENU, APP_PRODUCT_MAIN_LANGUAGE);
                 }
             }
+            else if (product->view.state == UI_PRODUCT_STATE_MAINTENANCE)
+            {
+                if (product->menu_index == APP_PRODUCT_MAINTENANCE_PC_LINK)
+                {
+                    set_state(product, UI_PRODUCT_STATE_PC_LINK_STATUS);
+                }
+                else if (product->menu_index == APP_PRODUCT_MAINTENANCE_RESOURCES)
+                {
+                    set_state(product, UI_PRODUCT_STATE_RESOURCE_STATUS);
+                }
+                else
+                {
+                    set_menu(product, UI_PRODUCT_STATE_MENU, APP_PRODUCT_MAIN_MAINTENANCE);
+                }
+            }
         }
         product->request_click = false;
         product->request_menu = false;
@@ -1065,11 +1087,21 @@ void app_product_step(app_product_t *product,
         return;
     }
 
-    if (product->view.state == UI_PRODUCT_STATE_MAINTENANCE)
+    if (product->view.state == UI_PRODUCT_STATE_PC_LINK_STATUS)
     {
         if (product->request_menu || product->request_click)
         {
-            set_menu(product, UI_PRODUCT_STATE_MENU, APP_PRODUCT_MAIN_MAINTENANCE);
+            set_menu(product, UI_PRODUCT_STATE_MAINTENANCE, APP_PRODUCT_MAINTENANCE_PC_LINK);
+        }
+        clear_requests(product);
+        return;
+    }
+
+    if (product->view.state == UI_PRODUCT_STATE_RESOURCE_STATUS)
+    {
+        if (product->request_menu || product->request_click)
+        {
+            set_menu(product, UI_PRODUCT_STATE_MAINTENANCE, APP_PRODUCT_MAINTENANCE_RESOURCES);
         }
         clear_requests(product);
         return;

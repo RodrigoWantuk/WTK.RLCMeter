@@ -290,7 +290,9 @@ PC-link resource provisioning and future settings/service tools. The initial PC-
 contract is a framed protocol for Resource Pack transfer and validation; it is not a
 replacement for menu-driven calibration. UART may carry service data when explicitly
 requested, but ordinary measurement, calibration, settings, and safety flows must remain
-usable from the product UI.
+usable from the product UI. The first executable Maintenance UI is a submenu with PC
+Link and Resources status pages only; enabling a write/commit action requires a later
+explicit service-flow stage.
 
 The wizard flow is:
 

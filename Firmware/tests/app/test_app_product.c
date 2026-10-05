@@ -851,7 +851,35 @@ static int test_diagnostics_and_maintenance_menu_pages(void)
     app_product_step(&product, &inputs, &clock, BSP_STATUS_OK, 12u);
     app_product_make_view(&product, &view);
     failures += expect_true(view.state == UI_PRODUCT_STATE_MAINTENANCE, "maintenance page opens");
+    failures += expect_u32(view.menu.selected_index, 0u, "pc link selected");
+    click_ok(&product);
+    app_product_step(&product, &inputs, &clock, BSP_STATUS_OK, 13u);
+    app_product_make_view(&product, &view);
+    failures += expect_true(view.state == UI_PRODUCT_STATE_PC_LINK_STATUS, "pc link status opens");
     failures += expect_u32(fake.start_count, 0u, "maintenance starts no measurement");
+    click_ok(&product);
+    app_product_step(&product, &inputs, &clock, BSP_STATUS_OK, 14u);
+    send_button(&product, BUTTON_ID_DOWN, BUTTON_EVENT_PRESS);
+    app_product_step(&product, &inputs, &clock, BSP_STATUS_OK, 15u);
+    app_product_make_view(&product, &view);
+    failures += expect_true(view.state == UI_PRODUCT_STATE_MAINTENANCE, "pc link returns to maintenance");
+    failures += expect_u32(view.menu.selected_index, 1u, "resources selected");
+    click_ok(&product);
+    app_product_step(&product, &inputs, &clock, BSP_STATUS_OK, 16u);
+    app_product_make_view(&product, &view);
+    failures += expect_true(view.state == UI_PRODUCT_STATE_RESOURCE_STATUS, "resource status opens");
+    failures += expect_u32(fake.start_count, 0u, "resource status starts no measurement");
+    click_ok(&product);
+    app_product_step(&product, &inputs, &clock, BSP_STATUS_OK, 17u);
+    send_button(&product, BUTTON_ID_DOWN, BUTTON_EVENT_PRESS);
+    app_product_step(&product, &inputs, &clock, BSP_STATUS_OK, 18u);
+    app_product_make_view(&product, &view);
+    failures += expect_u32(view.menu.selected_index, 2u, "maintenance back selected");
+    click_ok(&product);
+    app_product_step(&product, &inputs, &clock, BSP_STATUS_OK, 19u);
+    app_product_make_view(&product, &view);
+    failures += expect_true(view.state == UI_PRODUCT_STATE_MENU, "maintenance back returns to main menu");
+    failures += expect_u32(view.menu.selected_index, 5u, "main menu keeps maintenance selected");
     return failures;
 }
 

@@ -695,7 +695,9 @@ Post-09A product-menu continuation:
   fault/calibration/resource evidence. Maintenance is the reserved product entry for
   future PC-link/resource/settings service flows; it does not yet perform upload,
   reset, or Flash mutation actions.
-- The added Diagnostics/Maintenance entries are navigation/status only. They do not
+- The added Diagnostics/Maintenance entries are safe product UI only. Maintenance now
+  behaves as a submenu with PC Link, Resources, and Back. PC Link and Resources open
+  status pages for the service/provisioning substrate; they do not yet start upload,
   energize K1, switch ranges, issue measurement permits, write Flash, or require UART
   for ordinary product operation.
 - PC-link v1 now has a pure, host-tested Resource Pack transfer substrate:
