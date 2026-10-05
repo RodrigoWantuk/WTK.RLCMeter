@@ -595,7 +595,7 @@ flows must not depend on the UART banner.
 
 Initial planned UI languages are Portuguese and English.
 
-UI logic uses stable resource/text IDs rather than scattering translated literals through screen code. Phase 08 Stage 3A stores normal product text in Resource Pack v2 UTF-8 catalogs in W25Q, one text-table resource per language. Phase 08 Stage 3B.1 adds W25Q-resident A1 bitmap font resources for normal typography. The selected language is a stable settings field, currently English or Portuguese (Brazil). Since Phase 09A, missing, corrupt, or incompatible normal resources are a product warning rather than an operation blocker: core screens use internal English fallback text and the minimal fallback renderer, while safety and calibration gates remain hard blockers.
+UI logic uses stable resource/text IDs rather than scattering translated literals through screen code. Phase 08 Stage 3A stores normal product text in Resource Pack v2 UTF-8 catalogs in W25Q, one text-table resource per language. Phase 08 Stage 3B.1 adds W25Q-resident A1 bitmap font resources for normal typography. The selected language is a stable settings field, currently English or Portuguese (Brazil). Since Phase 09A, missing, corrupt, or incompatible normal resources are a product warning rather than an operation blocker: emergency/safety/fault wording stays internal, while normal menu/service wording is expected to come from W25Q and may degrade to compact placeholders if the resource pack is absent or corrupt.
 
 Resource Pack v2 API version 3 uses dense text catalogs plus three required font-role
 resources. Text IDs remain `0x0001..0x003C`, every ID is present in every required

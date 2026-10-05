@@ -487,7 +487,7 @@ static int test_normal_resource_failure_uses_internal_fallback(void)
     ui_product_request(&ui, &view);
     failures += expect_true(drain_render(&ui, &display) == 0, "normal resource corruption drains");
     failures += expect_true(g_font_start_count == 0u, "fallback avoids external font");
-    failures += expect_true(rendered_text_starts_with("MENU"), "fallback draws internal menu text");
+    failures += expect_true(rendered_text_starts_with("?"), "normal fallback uses compact placeholder text");
     return failures;
 }
 

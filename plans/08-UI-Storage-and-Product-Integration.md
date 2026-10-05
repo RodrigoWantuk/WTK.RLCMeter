@@ -707,6 +707,9 @@ Post-09A product-menu continuation:
   not yet mutate W25Q from PRODUCT. A deterministic PC-side tool can emit the framed
   stream and optionally send it through a serial port when an operator explicitly uses
   that maintenance path.
+- Internal text fallback has been reduced to emergency/safety/fault wording and a
+  compact placeholder for normal resource failures. Normal menu/service text belongs in
+  the W25Q Resource Pack so richer screens do not consume proportional internal Flash.
 
 Software evidence:
 

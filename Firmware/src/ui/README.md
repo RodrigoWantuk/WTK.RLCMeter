@@ -121,5 +121,7 @@ and `?` before accepting a font face.
 Normal text rendering preserves `RESOURCE_STATUS_DEFERRED`, so quiet mode and W25Q
 mutation policy can pause glyph lookup/reads without converting them into fatal errors.
 If text lookup fails or the external font catalog is not ready, normal lines use the
-internal fallback text/renderer instead of aborting rendering. Emergency fault text also
-stays on the internal fallback renderer and performs zero W25Q/font reads.
+internal fallback renderer. Full normal menu/service wording is not duplicated in MCU
+Flash; corrupt or missing normal resources may therefore render compact placeholders
+while the Diagnostics page exposes resource status. Emergency/safety/fault text stays
+internal and performs zero W25Q/font reads.
