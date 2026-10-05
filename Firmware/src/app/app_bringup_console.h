@@ -8,6 +8,7 @@
 #include "app/app_calibration_service.h"
 #include "app/app_calibration_session.h"
 #include "app/app_io_workspace.h"
+#include "app/app_measurement_session.h"
 #include "app/app_safety_fault.h"
 #include "drivers/ili9341.h"
 #include "drivers/w25q.h"
@@ -65,6 +66,10 @@ typedef struct
     app_cal_session_io_t cal_session_io;
     app_calibration_session_t cal_session;
     app_calibration_campaign_t cal_campaign;
+    app_measurement_session_io_t auto_session_io;
+    app_measurement_session_t auto_session;
+    measurement_auto_hint_t auto_hint;
+    uint32_t auto_sequence;
     app_calibration_service_t *cal_service;
     app_io_workspace_t *workspace;
     app_bringup_metrology_dump_source_t dump_source;

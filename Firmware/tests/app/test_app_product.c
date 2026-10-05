@@ -808,7 +808,7 @@ static int test_sound_menu_toggle_updates_output(void)
     return failures;
 }
 
-static int test_resource_error_blocks_pending_language_save(void)
+static int test_resource_error_is_warning_not_operation_blocker(void)
 {
     int failures = 0;
     fake_io_t fake = {0};
@@ -842,12 +842,12 @@ static int test_resource_error_blocks_pending_language_save(void)
     app_product_step(&product, &inputs, &clock, BSP_STATUS_OK, 11u);
     ui_product_view_t view;
     app_product_make_view(&product, &view);
-    failures += expect_true(view.state == UI_PRODUCT_STATE_RESOURCE_ERROR,
-                            "resource error has priority over settings save");
-    failures += expect_true(app_settings_service_dirty(&g_settings),
-                            "bad language setting not acknowledged as persisted");
-    failures += expect_true(!app_settings_service_save_failed(&g_settings),
-                            "settings save is not started after resource failure");
+    failures += expect_true(view.state != UI_PRODUCT_STATE_RESOURCE_ERROR,
+                            "resource error does not preempt product operation");
+    failures += expect_true(view.resource_status == RESOURCE_STATUS_CORRUPT,
+                            "resource warning remains visible in view metadata");
+    failures += expect_true(view.safety_fault_mask == 0u,
+                            "resource warning is not a safety fault");
     return failures;
 }
 
@@ -886,7 +886,7 @@ int main(int argc, char **argv)
     failures += test_display_menu_brightness_preview_no_step_persist();
     failures += test_backlight_timeout_wake_consumes_ok_gesture();
     failures += test_sound_menu_toggle_updates_output();
-    failures += test_resource_error_blocks_pending_language_save();
+    failures += test_resource_error_is_warning_not_operation_blocker();
     failures += test_fault_during_measurement_capture_drains_runtime();
     failures += test_calibration_validity_loss_drains_measurement();
     failures += test_fault_during_calibration_capture_drains_runtime();

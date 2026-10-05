@@ -82,9 +82,10 @@ stable text IDs backed by Resource Pack v2 text catalogs in W25Q.
 
 Resource text lookup is explicitly tri-state: `OK`, `DEFERRED`, or `ERROR`. `DEFERRED`
 lets quiet mode or W25Q mutation policy pause rendering without losing the pending
-text operation. Missing, corrupt, or incompatible resource packs put PRODUCT UI into
-the emergency `RESOURCE_ERROR` presentation; this is a product-operation blocker, not
-a safety fault.
+text operation. Since Phase 09A, missing, corrupt, or incompatible normal resource packs
+do not block PRODUCT operation. Core screens fall back to internal English text and the
+minimal fallback renderer while exposing resource status as a warning; safety and
+calibration gates remain independent hard blockers.
 
 Resource Pack v2 API version 2 uses dense text IDs `0x0001..0x0038` for both EN and
 PT-BR. Admission validates both language resources, including payload CRC, text header,
@@ -119,5 +120,6 @@ and `?` before accepting a font face.
 
 Normal text rendering preserves `RESOURCE_STATUS_DEFERRED`, so quiet mode and W25Q
 mutation policy can pause glyph lookup/reads without converting them into fatal errors.
-Emergency `RESOURCE_ERROR` and fault text deliberately stays on the internal fallback
-renderer and performs zero W25Q/font reads.
+If text lookup fails or the external font catalog is not ready, normal lines use the
+internal fallback text/renderer instead of aborting rendering. Emergency fault text also
+stays on the internal fallback renderer and performs zero W25Q/font reads.

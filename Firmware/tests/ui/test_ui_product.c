@@ -468,11 +468,11 @@ static int test_resource_error_uses_no_external_text_reads(void)
     failures += expect_true(drain_render(&ui, &display) == 0, "resource error render drains");
     failures += expect_true(g_provider_calls == 0u, "resource error uses emergency internal text only");
     failures += expect_true(g_font_start_count == 0u, "resource error uses zero external font text");
-    failures += expect_true(rendered_text_starts_with("RESOURCE ERROR"), "emergency text drawn");
+    failures += expect_true(rendered_text_starts_with("RESOURCE ERR"), "emergency text drawn");
     return failures;
 }
 
-static int test_normal_resource_failure_is_not_silent_success(void)
+static int test_normal_resource_failure_uses_internal_fallback(void)
 {
     int failures = 0;
     reset_render_counters();
@@ -485,13 +485,28 @@ static int test_normal_resource_failure_is_not_silent_success(void)
     ui_product_view_t view = ready_view(30u);
     view.state = UI_PRODUCT_STATE_MENU;
     ui_product_request(&ui, &view);
-    bsp_status_t status = BSP_STATUS_BUSY;
-    for (uint32_t i = 0u; i < 2000u && status == BSP_STATUS_BUSY; i++)
-    {
-        status = ui_product_step(&ui, &display, false);
-    }
-    failures += expect_true(status == BSP_STATUS_ERROR, "normal resource corruption fails render");
-    failures += expect_true(!rendered_text_starts_with("?"), "normal fatal resource error is not '?'");
+    failures += expect_true(drain_render(&ui, &display) == 0, "normal resource corruption drains");
+    failures += expect_true(g_font_start_count == 0u, "fallback avoids external font");
+    failures += expect_true(rendered_text_starts_with("MENU"), "fallback draws internal menu text");
+    return failures;
+}
+
+static int test_missing_font_uses_internal_fallback(void)
+{
+    int failures = 0;
+    reset_render_counters();
+    g_font_ready = false;
+    ui_product_t ui;
+    ili9341_t display = {.ready = true};
+    ui_product_init(&ui);
+    ui_product_set_text_provider(&ui, fake_text_provider, NULL);
+    attach_external_font(&ui);
+    ui_product_view_t view = ready_view(31u);
+    view.state = UI_PRODUCT_STATE_READY;
+    ui_product_request(&ui, &view);
+    failures += expect_true(drain_render(&ui, &display) == 0, "missing font drains");
+    failures += expect_true(g_font_start_count == 0u, "missing font avoids external font text");
+    failures += expect_true(g_text_start_count > 0u, "provider text is rendered by fallback");
     return failures;
 }
 
@@ -522,7 +537,8 @@ int main(void)
     failures += test_update_during_active_text_restarts_with_newest_generation();
     failures += test_details_phase_label_uses_catalog();
     failures += test_resource_error_uses_no_external_text_reads();
-    failures += test_normal_resource_failure_is_not_silent_success();
+    failures += test_normal_resource_failure_uses_internal_fallback();
+    failures += test_missing_font_uses_internal_fallback();
     failures += test_normal_text_uses_external_font_roles();
     return failures == 0 ? 0 : 1;
 }

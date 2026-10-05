@@ -274,12 +274,14 @@ formatting, calibration-record inspection, synthetic policy analysis, raw-captur
 replay, and coefficient comparison belong in host tools and tests where they are not
 limited by the 64 KiB MCU Flash budget.
 
-STM32 Release and Bringup builds report Flash/RAM budgets after linking. The project
-hard gate is 56 KiB Flash, with a 48 KiB soft target and the silicon limit remaining
-64 KiB. RAM reports distinguish static `.data/.bss/.noinit` from the linker-reserved
-stack/heap floor. PRODUCT builds use a 16 KiB preferred accounted-RAM target and a
-17 KiB hard gate; BRINGUP uses an 18 KiB hard gate. Accounted RAM includes the
-linker-reserved stack/heap floor.
+STM32 Release and Bringup builds report Flash/RAM budgets after linking. PRODUCT keeps
+the 56 KiB Flash hard gate, with a 48 KiB soft target and the physical silicon limit
+remaining 64 KiB. Phase 09A authorizes the BRINGUP profile to use the physical 64 KiB
+Flash limit so the bench image can link the automatic measurement engine and diagnostic
+output needed for first-board measurements. RAM reports distinguish static
+`.data/.bss/.noinit` from the linker-reserved stack/heap floor. PRODUCT builds use a
+16 KiB preferred accounted-RAM target and a 17 KiB hard gate; BRINGUP uses an 18 KiB
+hard gate. Accounted RAM includes the linker-reserved stack/heap floor.
 
 Product Debug is intentionally size-first (`-Os` plus debug symbols) because the full
 product profile must fit the guaranteed C8 Flash. Product Release also enables GCC LTO

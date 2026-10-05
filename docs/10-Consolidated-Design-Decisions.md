@@ -472,10 +472,13 @@ The BSP no longer owns hidden raw sample storage, and the calibration store no l
 contains an internal frame image. This saves one full 3072-byte buffer in PRODUCT builds
 without changing the Phase 05 raw data format or the persistent calibration schema.
 
-PRODUCT builds have a 16 KiB preferred accounted-RAM target and a 17 KiB hard gate.
-BRINGUP builds have an 18 KiB accounted-RAM hard gate. These gates include static
-`.data/.bss/.noinit` plus the linker-reserved stack/heap floor and are enforced by
-`Firmware/tools/firmware_size.py`.
+PRODUCT builds keep the 56 KiB project Flash hard gate, a 16 KiB preferred
+accounted-RAM target, and a 17 KiB accounted-RAM hard gate. Phase 09A authorizes
+BRINGUP builds to use the full guaranteed 64 KiB physical Flash limit because the bench
+image links the automatic measurement session, calibration campaign commands, and UART
+diagnostics needed for first-board measurements. BRINGUP still has an 18 KiB
+accounted-RAM hard gate. These gates include static `.data/.bss/.noinit` plus the
+linker-reserved stack/heap floor and are enforced by `Firmware/tools/firmware_size.py`.
 
 ### Compact product rendering state
 
@@ -579,7 +582,7 @@ separate not-started task.
 
 Initial planned UI languages are Portuguese and English.
 
-UI logic uses stable resource/text IDs rather than scattering translated literals through screen code. Phase 08 Stage 3A stores normal product text in Resource Pack v2 UTF-8 catalogs in W25Q, one text-table resource per language. Phase 08 Stage 3B.1 adds W25Q-resident A1 bitmap font resources for normal typography. The selected language is a stable settings field, currently English or Portuguese (Brazil). Fundamental fallback safety/error text remains internally available so missing, corrupt, deferred, or incompatible resources cannot suppress fail-safe diagnostics.
+UI logic uses stable resource/text IDs rather than scattering translated literals through screen code. Phase 08 Stage 3A stores normal product text in Resource Pack v2 UTF-8 catalogs in W25Q, one text-table resource per language. Phase 08 Stage 3B.1 adds W25Q-resident A1 bitmap font resources for normal typography. The selected language is a stable settings field, currently English or Portuguese (Brazil). Since Phase 09A, missing, corrupt, or incompatible normal resources are a product warning rather than an operation blocker: core screens use internal English fallback text and the minimal fallback renderer, while safety and calibration gates remain hard blockers.
 
 Resource Pack v2 API version 3 uses dense text catalogs plus three required font-role
 resources. Text IDs remain `0x0001..0x0038`, every ID is present in every required

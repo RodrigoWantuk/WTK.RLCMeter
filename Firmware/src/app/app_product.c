@@ -206,7 +206,8 @@ static bool state_accepts_measurement_request(ui_product_state_t state)
 
 static bool resource_status_is_fatal(resource_status_t status)
 {
-    return (status != RESOURCE_STATUS_OK) && (status != RESOURCE_STATUS_DEFERRED);
+    (void)status;
+    return false;
 }
 
 static app_measurement_session_t *measurement_runtime(app_product_t *product)

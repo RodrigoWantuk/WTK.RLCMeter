@@ -31,11 +31,20 @@ Phase 07:
     qualification remains
     REQUIRES_BENCH_VALIDATION
 
-Immediate next software phase after physical/software handoff:
-    Phase 08 continuation — Stage 3A.3 calibration-campaign decoupling, fixed Rev.1
-    calibration-domain compaction, and full-set validation hardening recovered the
-    required PRODUCT internal-Flash headroom. Stage 3B external fonts/icons/splash is
-    ready to start next, but remains NOT_STARTED.
+Phase 08:
+    Stage 3B.1 external A1 font runtime implemented. Further visual polish such as
+    icons, splash, graphs, and final typography is intentionally frozen for the
+    physical MVP.
+
+Phase 09A:
+    bench-usable MVP software implemented; BRINGUP can run an end-to-end automatic
+    measurement with explicit ideal-calibration fallback, PRODUCT keeps the real
+    calibration gate, and physical board evidence remains REQUIRES_BENCH_VALIDATION.
+
+Immediate next action:
+    flash stm32-bringup on the first assembled Rev.1 board and execute the Phase 09A
+    bench guide. Do not start another feature phase before collecting first-board
+    evidence.
 ```
 
 ## Program objectives

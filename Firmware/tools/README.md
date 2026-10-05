@@ -18,7 +18,8 @@ Host-side tools that support firmware, assets, calibration, and diagnostics.
 - `inspect_calibration_record.py`: decodes the Phase 07 Stage 2A calibration frame,
   verifies CRC/commit state, and prints record keys and correction coefficients.
 - `firmware_size.py`: reports STM32 ELF Flash/RAM usage, reserved stack/heap floor,
-  largest symbols, optional JSON output, and Release/Bringup size-budget gates.
+  largest symbols, optional JSON output, PRODUCT size gates, and the Phase 09A BRINGUP
+  physical-MVP size gate.
 - `build_resource_pack.py`: builds the deterministic Resource Pack v2/API v3 binary
   from `assets/resource_manifest.json`, including EN/PT-BR text resources and the
   SMALL/MEDIUM/LARGE external A1 font roles.

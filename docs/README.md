@@ -21,6 +21,7 @@ The documentation deliberately separates **existing Rev.1 hardware**, **planned 
 13. [`13-Detailed-Firmware-Design.md`](13-Detailed-Firmware-Design.md) — module contracts, data structures, persistence, DSP, and fault behavior.
 14. [`14-Future-Extensions.md`](14-Future-Extensions.md) — Kelvin/4-wire, high voltage, USB, guard, K2, and other concepts outside Rev.1.
 15. [`15-Measurement-Operating-Modes.md`](15-Measurement-Operating-Modes.md) — Click and Live measurement semantics, scheduling, result publication, UI interaction, and safety boundaries.
+16. [`16-Rev1-MVP-Bench-Guide.md`](16-Rev1-MVP-Bench-Guide.md) — first-board BRINGUP/Product procedure for the bench-usable Rev.1 MVP.
 
 AI-assisted firmware execution is planned separately under [`../plans`](../plans/).
 

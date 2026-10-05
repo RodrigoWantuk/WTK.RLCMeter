@@ -31,9 +31,11 @@ Application layer for the firmware.
   need it.
 - `app_bringup_console.c/.h`: bring-up-profile UART command surface for physical board diagnostics.
 
-`app_bringup_console.c/.h` is compiled only for `WTK_FIRMWARE_PROFILE=BRINGUP`. It
-does not own product calibration validity or automatic measurement-session state; host
-tests/tools remain the place for rich policy analysis and verbose presentation.
+`app_bringup_console.c/.h` is compiled only for `WTK_FIRMWARE_PROFILE=BRINGUP`. Phase
+09A gives it a narrow automatic measurement command that reuses `app_measurement_session_t`
+and the existing Phase 05/06/07 chain with explicit ideal-calibration fallback for bench
+debugging. PRODUCT remains the owner of normal product calibration validity and does
+not enable ideal fallback.
 
 The calibration service borrows `app_io_workspace_t` only while loading/scanning or while
 an asynchronous commit is in progress. Commit ownership is released after the terminal
@@ -52,13 +54,12 @@ lifetime must exceed the context lifetime. Host tests use persistent fake IO tab
 exercise the same contract. This avoids duplicating immutable function-pointer tables in
 the hot application/session contexts.
 
-Product resource health is owned at application level. Fatal normal resource failures
-from text/font resolution or resource admission latch PRODUCT `RESOURCE_ERROR` and
-preempt new settings persistence, but they do not become hardware safety faults.
-Deferred W25Q access caused by quiet mode or active settings/calibration mutation
-remains transient backpressure. Phase 08 Stage 3B.1 admission validates both text
-catalogs and all three external A1 font roles before normal PRODUCT UI rendering is
-allowed; emergency presentation remains internal and W25Q-independent.
+Product resource health is owned at application level. Since Phase 09A, missing,
+corrupt, or incompatible normal text/font resources are presentation warnings rather
+than product-operation blockers. PRODUCT falls back to internal English text and the
+minimal fallback renderer for core screens while preserving safety and calibration
+gates. Deferred W25Q access caused by quiet mode or active settings/calibration mutation
+remains transient backpressure.
 
 Phase 08 Stage 2A.1 hardens asynchronous ownership:
 

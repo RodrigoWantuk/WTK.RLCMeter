@@ -14,6 +14,7 @@ FLASH_SILICON_BYTES = 64 * 1024
 RAM_SILICON_BYTES = 20 * 1024
 PROJECT_FLASH_SOFT_BYTES = 48 * 1024
 PROJECT_FLASH_HARD_BYTES = 56 * 1024
+BRINGUP_FLASH_HARD_BYTES = FLASH_SILICON_BYTES
 PRODUCT_RAM_PREFERRED_BYTES = 16 * 1024
 PRODUCT_RAM_HARD_BYTES = 17 * 1024
 BRINGUP_RAM_HARD_BYTES = 18 * 1024
@@ -101,6 +102,13 @@ def ram_limits_for_budget(budget: str) -> tuple[int | None, int | None]:
     return None, None
 
 
+def flash_hard_limit_for_budget(budget: str) -> int:
+    budget_name = normalized_budget_name(budget)
+    if budget_name == "bringup":
+        return BRINGUP_FLASH_HARD_BYTES
+    return PROJECT_FLASH_HARD_BYTES
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("elf", type=Path)
@@ -129,6 +137,7 @@ def main() -> int:
     ram_remaining_bytes = RAM_SILICON_BYTES - ram_accounted_bytes
     budget_name = normalized_budget_name(args.budget)
     ram_preferred_bytes, ram_hard_bytes = ram_limits_for_budget(budget_name)
+    flash_hard_bytes = flash_hard_limit_for_budget(budget_name)
     report = {
         "elf": str(args.elf),
         "budget": budget_name,
@@ -144,7 +153,9 @@ def main() -> int:
         "largest_symbols": nm,
         "budgets": {
             "flash_soft_bytes": PROJECT_FLASH_SOFT_BYTES,
-            "flash_hard_bytes": PROJECT_FLASH_HARD_BYTES,
+            "flash_hard_bytes": flash_hard_bytes,
+            "product_flash_hard_bytes": PROJECT_FLASH_HARD_BYTES,
+            "bringup_flash_hard_bytes": BRINGUP_FLASH_HARD_BYTES,
             "flash_silicon_bytes": FLASH_SILICON_BYTES,
             "ram_silicon_bytes": RAM_SILICON_BYTES,
             "product_ram_preferred_bytes": PRODUCT_RAM_PREFERRED_BYTES,
@@ -152,7 +163,7 @@ def main() -> int:
             "bringup_ram_hard_bytes": BRINGUP_RAM_HARD_BYTES,
         },
         "gates": {
-            "flash_hard_ok": size["flash_bytes"] <= PROJECT_FLASH_HARD_BYTES,
+            "flash_hard_ok": size["flash_bytes"] <= flash_hard_bytes,
             "flash_soft_ok": size["flash_bytes"] <= PROJECT_FLASH_SOFT_BYTES,
             "ram_silicon_ok": ram_accounted_bytes <= RAM_SILICON_BYTES,
             "ram_preferred_ok": True if ram_preferred_bytes is None else ram_accounted_bytes <= ram_preferred_bytes,
@@ -186,10 +197,10 @@ def main() -> int:
 
     failed = False
     if budget_name in {"product", "bringup"}:
-        if size["flash_bytes"] > PROJECT_FLASH_HARD_BYTES:
+        if size["flash_bytes"] > flash_hard_bytes:
             print(
-                f"error: Flash {size['flash_bytes']} B exceeds project hard gate "
-                f"{PROJECT_FLASH_HARD_BYTES} B",
+                f"error: Flash {size['flash_bytes']} B exceeds profile hard gate "
+                f"{flash_hard_bytes} B",
                 file=sys.stderr,
             )
             failed = True

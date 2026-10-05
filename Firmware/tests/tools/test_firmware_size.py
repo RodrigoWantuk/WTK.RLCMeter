@@ -22,11 +22,19 @@ class FirmwareSizeToolTest(unittest.TestCase):
             firmware_size.ram_limits_for_budget("release"),
             firmware_size.ram_limits_for_budget("product"),
         )
+        self.assertEqual(
+            firmware_size.flash_hard_limit_for_budget("release"),
+            firmware_size.flash_hard_limit_for_budget("product"),
+        )
 
     def test_bringup_budget_uses_separate_hard_ram_gate(self):
         preferred, hard = firmware_size.ram_limits_for_budget("bringup")
         self.assertIsNone(preferred)
         self.assertEqual(hard, 18 * 1024)
+
+    def test_bringup_flash_gate_is_physical_mvp_limit(self):
+        self.assertEqual(firmware_size.flash_hard_limit_for_budget("product"), 56 * 1024)
+        self.assertEqual(firmware_size.flash_hard_limit_for_budget("bringup"), 64 * 1024)
 
     def test_unbudgeted_build_has_no_project_ram_gate(self):
         self.assertEqual(firmware_size.ram_limits_for_budget("none"), (None, None))

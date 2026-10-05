@@ -335,7 +335,14 @@ static void line_set_id(const ui_product_t *ui,
             view->menu.language_id;
     const resource_status_t status =
         resolve_text(ui, (ui_language_id_t)language, id, line->text, sizeof(line->text));
-    (void)line_resource_status(line, status);
+    if (!line_resource_status(line, status) && (status != RESOURCE_STATUS_DEFERRED))
+    {
+        size_t used = 0u;
+        line->text[0] = '\0';
+        (void)append_text(line->text, sizeof(line->text), &used, ui_text_emergency(id));
+        line->emergency = true;
+        line->failed = false;
+    }
 }
 
 static bool line_set_resource_pending(ui_product_line_t *line,
@@ -1402,11 +1409,13 @@ bsp_status_t ui_product_step(ui_product_t *ui, const ili9341_t *display, bool qu
     }
     if (line.failed)
     {
-        ui->active = false;
-        ui->render_state = UI_PRODUCT_RENDER_IDLE;
-        return BSP_STATUS_ERROR;
+        size_t used = 0u;
+        line.text[0] = '\0';
+        (void)append_text(line.text, sizeof(line.text), &used, "?");
+        line.emergency = true;
+        line.failed = false;
     }
-    if (line.emergency)
+    if (line.emergency || (ui->font_catalog == NULL) || !ui_font_catalog_ready(ui->font_catalog))
     {
         ui_fallback_text_scaled_start(&ui->text_op,
                                       line.x,
@@ -1420,12 +1429,6 @@ bsp_status_t ui_product_step(ui_product_t *ui, const ili9341_t *display, bool qu
             ui->line_index++;
         }
         return BSP_STATUS_BUSY;
-    }
-    if ((ui->font_catalog == NULL) || !ui_font_catalog_ready(ui->font_catalog))
-    {
-        ui->active = false;
-        ui->render_state = UI_PRODUCT_RENDER_IDLE;
-        return BSP_STATUS_ERROR;
     }
     ui_font_text_start(&ui->font_text_op,
                        ui->font_catalog,
