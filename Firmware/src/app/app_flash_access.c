@@ -12,13 +12,17 @@ bool app_flash_access_allowed(const app_flash_access_snapshot_t *snapshot,
     switch (operation)
     {
     case APP_FLASH_ACCESS_CALIBRATION_MUTATION:
-        return !snapshot->quiet && !snapshot->settings_mutation;
+        return !snapshot->quiet && !snapshot->settings_mutation && !snapshot->resource_mutation;
     case APP_FLASH_ACCESS_SETTINGS_MUTATION:
-        return !snapshot->quiet && !snapshot->calibration_mutation;
+        return !snapshot->quiet && !snapshot->calibration_mutation && !snapshot->resource_mutation;
+    case APP_FLASH_ACCESS_RESOURCE_MUTATION:
+        return !snapshot->quiet && !snapshot->calibration_mutation && !snapshot->settings_mutation;
     case APP_FLASH_ACCESS_RESOURCE_READ:
-        return !snapshot->quiet && !snapshot->calibration_mutation && !snapshot->settings_mutation;
+        return !snapshot->quiet && !snapshot->calibration_mutation && !snapshot->settings_mutation &&
+               !snapshot->resource_mutation;
     case APP_FLASH_ACCESS_GENERIC_POLL:
-        return !snapshot->quiet && !snapshot->calibration_mutation && !snapshot->settings_mutation;
+        return !snapshot->quiet && !snapshot->calibration_mutation && !snapshot->settings_mutation &&
+               !snapshot->resource_mutation;
     default:
         return false;
     }

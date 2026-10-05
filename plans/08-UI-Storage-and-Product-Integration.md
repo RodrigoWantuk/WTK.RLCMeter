@@ -703,10 +703,12 @@ Post-09A product-menu continuation:
 - PC-link v1 now has a pure, host-tested Resource Pack transfer substrate:
   little-endian `PLC1` frames, payload CRC32, bounded 128-byte payloads,
   `RESOURCE_BEGIN`, monotonic-offset `RESOURCE_CHUNK`, `RESOURCE_END`, and
-  `ABORT`. The substrate validates Resource Pack size, CRC32, and API version but does
-  not yet mutate W25Q from PRODUCT. A deterministic PC-side tool can emit the framed
-  stream and optionally send it through a serial port when an operator explicitly uses
-  that maintenance path.
+  `ABORT`. The protocol substrate validates Resource Pack size, CRC32, and API
+  version. A cooperative update substrate can erase/program/poll W25Q through injected
+  callbacks and shared workspace staging, but PRODUCT serial command integration is
+  still a later step. A deterministic PC-side tool can emit the framed stream and
+  optionally send it through a serial port when an operator explicitly uses that
+  maintenance path.
 - Internal text fallback has been reduced to emergency/safety/fault wording and a
   compact placeholder for normal resource failures. Normal menu/service text belongs in
   the W25Q Resource Pack so richer screens do not consume proportional internal Flash.

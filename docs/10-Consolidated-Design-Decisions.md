@@ -617,10 +617,12 @@ rather than ad hoc UART text. PC-link v1 frames are little-endian `PLC1` records
 version, type, sequence, bounded payload length, and payload CRC32. The first
 implemented command family is Resource Pack transfer: `RESOURCE_BEGIN`,
 monotonic-offset `RESOURCE_CHUNK`, and `RESOURCE_END`. Firmware validates pack size,
-pack CRC32, resource API version, chunk order, and abort semantics before any future
-writer is allowed to mutate W25Q. This protocol supports a PC manufacturing/service
-tool, but normal product measurement and calibration remain menu-driven and do not
-depend on UART.
+pack CRC32, resource API version, chunk order, and abort semantics. The cooperative
+Resource Pack update substrate erases/programs/polls W25Q through injected callbacks,
+splits writes at W25Q page boundaries, and stages one bounded PC-link payload in the
+shared IO workspace rather than buffering an entire pack in SRAM. This protocol supports
+a PC manufacturing/service tool, but normal product measurement and calibration remain
+menu-driven and do not depend on UART.
 
 ## Debug console
 

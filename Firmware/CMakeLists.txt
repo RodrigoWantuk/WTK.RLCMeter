@@ -70,6 +70,7 @@ add_library(wtk_firmware_common STATIC
     src/app/app_measurement_session.c
     src/app/app_pc_link_protocol.c
     src/app/app_product.c
+    src/app/app_resource_update.c
     src/app/app_settings_service.c
     src/app/app_version.c
     src/bsp/bsp_adc_common.c

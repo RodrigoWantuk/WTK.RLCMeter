@@ -24,11 +24,17 @@ Application layer for the firmware.
 - `app_safety_fault.c/.h`: latched internal safety-fault bitmask.
 - `app_measurement_session.c/.h`: automatic measurement-session controller used by product policy and host tests.
 - `app_io_workspace.c/.h`: one explicit 3072-byte scratch arena with exclusive owners
-  for Phase 05 raw metrology capture and calibration-store frame serialization.
+  for Phase 05 raw metrology capture, calibration-store frame serialization, and
+  Resource Pack update frame staging.
 - `app_pc_link_protocol.c/.h`: pure PC-link v1 frame and Resource Pack transfer
   validator for future Maintenance/service provisioning. It validates framing, CRC,
   API version, monotonic offsets, completion, and abort semantics without owning UART
   or mutating W25Q.
+- `app_resource_update.c/.h`: cooperative Resource Pack W25Q update substrate. It
+  consumes validated PC-link resource frames, erases/programs/polls through injected
+  storage callbacks, splits page programs at W25Q page boundaries, and uses the shared
+  workspace instead of allocating a second pack buffer. PRODUCT serial command
+  integration remains a later step.
 - `app_calibration_*`: product-owned calibration runtime, store lifecycle, OSL workflow,
   and calibration wizard/session state. The product service does not own campaign
   aggregation state; BRINGUP owns that helper explicitly when its diagnostic commands

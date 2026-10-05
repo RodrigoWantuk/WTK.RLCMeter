@@ -45,12 +45,17 @@ int main(void)
                             "raw view available");
     failures += expect_true(app_io_workspace_calibration_frame(&workspace) != NULL,
                             "calibration view available");
+    failures += expect_true(app_io_workspace_resource_update_frame(&workspace) != NULL,
+                            "resource update frame view available");
     failures += expect_u32((uint32_t)app_io_workspace_metrology_word_count(),
                            HW_METROLOGY_RAW_WORD_COUNT,
                            "raw word count exported");
     failures += expect_u32((uint32_t)app_io_workspace_calibration_frame_bytes(),
                            MEASUREMENT_CAL_MAX_FRAME_BYTES,
                            "calibration frame size exported");
+    failures += expect_u32((uint32_t)app_io_workspace_resource_update_frame_bytes(),
+                           APP_PC_LINK_MAX_PAYLOAD_BYTES,
+                           "resource update frame size exported");
 
     failures += expect_true(app_io_workspace_acquire(&workspace,
                                                      APP_IO_WORKSPACE_OWNER_METROLOGY) == BSP_STATUS_OK,
@@ -73,6 +78,15 @@ int main(void)
     failures += expect_true(app_io_workspace_release(&workspace,
                                                      APP_IO_WORKSPACE_OWNER_CALIBRATION_STORE) == BSP_STATUS_OK,
                             "store release succeeds");
+    failures += expect_true(app_io_workspace_acquire(&workspace,
+                                                     APP_IO_WORKSPACE_OWNER_RESOURCE_UPDATE) == BSP_STATUS_OK,
+                            "resource update acquire succeeds after release");
+    failures += expect_true(app_io_workspace_acquire(&workspace,
+                                                     APP_IO_WORKSPACE_OWNER_METROLOGY) == BSP_STATUS_BUSY,
+                            "metrology blocked while resource update owns workspace");
+    failures += expect_true(app_io_workspace_release(&workspace,
+                                                     APP_IO_WORKSPACE_OWNER_RESOURCE_UPDATE) == BSP_STATUS_OK,
+                            "resource update release succeeds");
 
     return failures;
 }

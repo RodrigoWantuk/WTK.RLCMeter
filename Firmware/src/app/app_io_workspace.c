@@ -6,6 +6,8 @@ _Static_assert(sizeof(app_io_workspace_storage_t) == HW_METROLOGY_RAW_BUFFER_BYT
                "shared workspace must fit the canonical raw capture");
 _Static_assert(MEASUREMENT_CAL_MAX_FRAME_BYTES <= sizeof(app_io_workspace_storage_t),
                "shared workspace must fit one calibration frame image");
+_Static_assert(APP_PC_LINK_MAX_PAYLOAD_BYTES <= sizeof(app_io_workspace_storage_t),
+               "shared workspace must fit one PC-link resource frame payload");
 _Static_assert(alignof(app_io_workspace_storage_t) >= alignof(uint32_t),
                "shared workspace must preserve uint32_t raw-buffer alignment");
 
@@ -63,6 +65,11 @@ uint8_t *app_io_workspace_calibration_frame(app_io_workspace_t *workspace)
     return (workspace == NULL) ? NULL : workspace->storage.calibration_frame;
 }
 
+uint8_t *app_io_workspace_resource_update_frame(app_io_workspace_t *workspace)
+{
+    return (workspace == NULL) ? NULL : workspace->storage.resource_update_frame;
+}
+
 size_t app_io_workspace_metrology_word_count(void)
 {
     return HW_METROLOGY_RAW_WORD_COUNT;
@@ -71,6 +78,11 @@ size_t app_io_workspace_metrology_word_count(void)
 size_t app_io_workspace_calibration_frame_bytes(void)
 {
     return MEASUREMENT_CAL_MAX_FRAME_BYTES;
+}
+
+size_t app_io_workspace_resource_update_frame_bytes(void)
+{
+    return APP_PC_LINK_MAX_PAYLOAD_BYTES;
 }
 
 uint32_t app_io_workspace_storage_size_bytes(void)
