@@ -285,6 +285,13 @@ The full Display/Sound/Language/Diagnostics/Maintenance/About menu was staged af
 the initial Stage 2A executable subset. The Calibration entry shows active/required
 status and starts the full range-batched OSL wizard.
 
+Maintenance is the user-visible service entry point for non-measurement tasks such as
+PC-link resource provisioning and future settings/service tools. The initial PC-link
+contract is a framed protocol for Resource Pack transfer and validation; it is not a
+replacement for menu-driven calibration. UART may carry service data when explicitly
+requested, but ordinary measurement, calibration, settings, and safety flows must remain
+usable from the product UI.
+
 The wizard flow is:
 
 ```text

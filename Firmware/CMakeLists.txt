@@ -68,6 +68,7 @@ add_library(wtk_firmware_common STATIC
     src/app/app_flash_access.c
     src/app/app_io_workspace.c
     src/app/app_measurement_session.c
+    src/app/app_pc_link_protocol.c
     src/app/app_product.c
     src/app/app_settings_service.c
     src/app/app_version.c

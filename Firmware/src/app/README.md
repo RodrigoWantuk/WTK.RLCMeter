@@ -25,6 +25,10 @@ Application layer for the firmware.
 - `app_measurement_session.c/.h`: automatic measurement-session controller used by product policy and host tests.
 - `app_io_workspace.c/.h`: one explicit 3072-byte scratch arena with exclusive owners
   for Phase 05 raw metrology capture and calibration-store frame serialization.
+- `app_pc_link_protocol.c/.h`: pure PC-link v1 frame and Resource Pack transfer
+  validator for future Maintenance/service provisioning. It validates framing, CRC,
+  API version, monotonic offsets, completion, and abort semantics without owning UART
+  or mutating W25Q.
 - `app_calibration_*`: product-owned calibration runtime, store lifecycle, OSL workflow,
   and calibration wizard/session state. The product service does not own campaign
   aggregation state; BRINGUP owns that helper explicitly when its diagnostic commands

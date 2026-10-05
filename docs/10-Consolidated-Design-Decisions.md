@@ -597,7 +597,7 @@ Initial planned UI languages are Portuguese and English.
 UI logic uses stable resource/text IDs rather than scattering translated literals through screen code. Phase 08 Stage 3A stores normal product text in Resource Pack v2 UTF-8 catalogs in W25Q, one text-table resource per language. Phase 08 Stage 3B.1 adds W25Q-resident A1 bitmap font resources for normal typography. The selected language is a stable settings field, currently English or Portuguese (Brazil). Since Phase 09A, missing, corrupt, or incompatible normal resources are a product warning rather than an operation blocker: core screens use internal English fallback text and the minimal fallback renderer, while safety and calibration gates remain hard blockers.
 
 Resource Pack v2 API version 3 uses dense text catalogs plus three required font-role
-resources. Text IDs remain `0x0001..0x0038`, every ID is present in every required
+resources. Text IDs remain `0x0001..0x003C`, every ID is present in every required
 language, and each UTF-8 string is no longer than 31 payload bytes. Firmware validates
 both EN and PT-BR catalogs at resource admission, including text payload CRC,
 text-table header, dense index shape, index CRC, record bounds, and UTF-8 for every
@@ -610,6 +610,16 @@ W25Q resource reads. `RESOURCE_STATUS_DEFERRED` is backpressure, not a fatal res
 error.
 
 Resource Pack v2 is an explicit little-endian wire format with CRC-protected header, entry table, and payloads. Runtime code decodes fields by width and offset; persistent resources are not raw compiler-dependent C structs.
+
+Maintenance PC-link resource provisioning uses a separate framed protocol contract
+rather than ad hoc UART text. PC-link v1 frames are little-endian `PLC1` records with
+version, type, sequence, bounded payload length, and payload CRC32. The first
+implemented command family is Resource Pack transfer: `RESOURCE_BEGIN`,
+monotonic-offset `RESOURCE_CHUNK`, and `RESOURCE_END`. Firmware validates pack size,
+pack CRC32, resource API version, chunk order, and abort semantics before any future
+writer is allowed to mutate W25Q. This protocol supports a PC manufacturing/service
+tool, but normal product measurement and calibration remain menu-driven and do not
+depend on UART.
 
 ## Debug console
 

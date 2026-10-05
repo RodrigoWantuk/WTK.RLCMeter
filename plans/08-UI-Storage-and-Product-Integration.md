@@ -698,6 +698,13 @@ Post-09A product-menu continuation:
 - The added Diagnostics/Maintenance entries are navigation/status only. They do not
   energize K1, switch ranges, issue measurement permits, write Flash, or require UART
   for ordinary product operation.
+- PC-link v1 now has a pure, host-tested Resource Pack transfer substrate:
+  little-endian `PLC1` frames, payload CRC32, bounded 128-byte payloads,
+  `RESOURCE_BEGIN`, monotonic-offset `RESOURCE_CHUNK`, `RESOURCE_END`, and
+  `ABORT`. The substrate validates Resource Pack size, CRC32, and API version but does
+  not yet mutate W25Q from PRODUCT. A deterministic PC-side tool can emit the framed
+  stream and optionally send it through a serial port when an operator explicitly uses
+  that maintenance path.
 
 Software evidence:
 

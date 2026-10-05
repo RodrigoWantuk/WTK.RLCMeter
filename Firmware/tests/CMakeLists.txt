@@ -250,6 +250,24 @@ endif()
 
 add_test(NAME wtk_app_io_workspace_test COMMAND wtk_app_io_workspace_test)
 
+add_executable(wtk_app_pc_link_protocol_test
+    app/test_app_pc_link_protocol.c
+)
+target_link_libraries(wtk_app_pc_link_protocol_test PRIVATE wtk_firmware_common)
+target_include_directories(wtk_app_pc_link_protocol_test PRIVATE
+    "${PROJECT_SOURCE_DIR}/src"
+    "${PROJECT_BINARY_DIR}/generated"
+)
+wtk_configure_c_target(wtk_app_pc_link_protocol_test)
+wtk_apply_project_warnings(wtk_app_pc_link_protocol_test)
+wtk_apply_common_compile_options(wtk_app_pc_link_protocol_test)
+
+if(WTK_WARNINGS_AS_ERRORS_HOST)
+    wtk_treat_warnings_as_errors(wtk_app_pc_link_protocol_test)
+endif()
+
+add_test(NAME wtk_app_pc_link_protocol_test COMMAND wtk_app_pc_link_protocol_test)
+
 add_executable(wtk_bsp_adc_core_test
     bsp/test_bsp_adc_core.c
 )
