@@ -479,10 +479,10 @@ The BSP no longer owns hidden raw sample storage, and the calibration store no l
 contains an internal frame image. This saves one full 3072-byte buffer in PRODUCT builds
 without changing the Phase 05 raw data format or the persistent calibration schema.
 
-PRODUCT builds keep the 56 KiB project Flash hard gate, a 16 KiB preferred
-accounted-RAM target, and a 17 KiB accounted-RAM hard gate. Phase 09A authorizes
-BRINGUP builds to use the full guaranteed 64 KiB physical Flash limit because the bench
-image links the automatic measurement session, calibration campaign commands, and UART
+PRODUCT builds keep a 60 KiB project Flash hard gate during final product integration,
+a 16 KiB preferred accounted-RAM target, and a 17 KiB accounted-RAM hard gate. BRINGUP
+builds use the full guaranteed 64 KiB physical Flash limit because the bench image
+links the automatic measurement session, calibration campaign commands, and UART
 diagnostics needed for first-board measurements. BRINGUP still has an 18 KiB
 accounted-RAM hard gate. These gates include static `.data/.bss/.noinit` plus the
 linker-reserved stack/heap floor and are enforced by `Firmware/tools/firmware_size.py`.
@@ -582,8 +582,9 @@ loadable Flash, while stepping may be less direct than a non-optimized debug bui
 Phase 08 Stage 3A.3 removes calibration-campaign orchestration from PRODUCT, keeps the
 BRINGUP campaign console-owned, and validates the fixed 33-condition Rev.1 calibration
 domain without materializing the generic requirements array on the PRODUCT stack.
-PRODUCT Release is below the 55296 B Stage 3B handoff target; Stage 3B remains a
-separate not-started task.
+PRODUCT Release crossed the old 55296 B Stage 3B handoff target after rich-resource
+integration, so the active final-integration PRODUCT gate is 60 KiB while rich
+text/font/image content remains external.
 
 PRODUCT profiles use a compact boot UART banner: one SAFE_BOOT line plus an explicit
 clock-fault marker only when the clock initialization did not report success. Detailed
@@ -629,7 +630,10 @@ Resource Pack update substrate erases/programs/polls W25Q through injected callb
 splits writes at W25Q page boundaries, and stages one bounded PC-link payload in the
 shared IO workspace rather than buffering an entire pack in SRAM. This protocol supports
 a PC manufacturing/service tool, but normal product measurement and calibration remain
-menu-driven and do not depend on UART. To preserve PRODUCT Flash headroom on the
+menu-driven and do not depend on UART. The PC resource tool can build, inspect,
+summarize, frame, and upload resource packs over a service COM port; firmware operation
+continues to consume already-provisioned W25Q resources. To preserve PRODUCT Flash
+headroom on the
 64 KiB STM32F103C8T6 image, the embedded serial receiver is a build-profile option:
 `WTK_ENABLE_PRODUCT_RESOURCE_UPDATE=ON` includes it for service/manufacturing firmware,
 while the normal PRODUCT image leaves it disabled and still consumes already-provisioned

@@ -222,6 +222,28 @@ class ResourcePackTests(unittest.TestCase):
             self.assertEqual(frame_type, pc_link_resource_pack.FRAME_RESOURCE_BEGIN)
             self.assertEqual(sequence, 1)
 
+            bundle_pack = root / "bundle.wrp2"
+            bundle_summary = root / "bundle.summary.json"
+            bundle_stream = root / "bundle.wpc"
+            self.assertEqual(
+                resource_pack_tool.main(
+                    [
+                        "bundle",
+                        str(manifest),
+                        "-o",
+                        str(bundle_pack),
+                        "--summary",
+                        str(bundle_summary),
+                        "--stream",
+                        str(bundle_stream),
+                    ]
+                ),
+                0,
+            )
+            self.assertEqual(bundle_pack.read_bytes(), pack_path.read_bytes())
+            self.assertEqual(json.loads(bundle_summary.read_text(encoding="utf-8"))["sha256"], summary["sha256"])
+            self.assertEqual(bundle_stream.read_bytes(), stream)
+
     def test_resource_pack_tool_inspect_rejects_corrupt_pack(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             pack_path = Path(tmpdir) / "bad.wrp2"

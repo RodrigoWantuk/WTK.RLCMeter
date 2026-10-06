@@ -643,13 +643,24 @@ static int test_menu_calibration_status_and_dirty_candidate(void)
                             "menu calibration opens status screen");
     failures += expect_true(view.calibration_active_valid, "status exposes active calibration validity");
     failures += expect_u32(view.calibration_sequence, 1u, "status exposes active calibration sequence");
+    failures += expect_u32(view.menu.calibration_load_preset, 0u, "calibration load preset defaults nominal");
+
+    send_button(&product, BUTTON_ID_DOWN, BUTTON_EVENT_PRESS);
+    app_product_step(&product, &inputs, &clock, BSP_STATUS_OK, 5u);
+    app_product_make_view(&product, &view);
+    failures += expect_u32(view.menu.calibration_load_preset, 1u, "calibration status cycles load preset forward");
+
+    send_button(&product, BUTTON_ID_UP, BUTTON_EVENT_PRESS);
+    app_product_step(&product, &inputs, &clock, BSP_STATUS_OK, 6u);
+    app_product_make_view(&product, &view);
+    failures += expect_u32(view.menu.calibration_load_preset, 0u, "calibration status cycles load preset backward");
 
     failures += expect_true(app_calibration_service_candidate_begin(&g_service) == BSP_STATUS_OK,
                             "dirty candidate setup");
     inputs.calibration_status = APP_CAL_SERVICE_CANDIDATE_DIRTY;
     inputs.calibration_active_valid = true;
     click_ok(&product);
-    app_product_step(&product, &inputs, &clock, BSP_STATUS_OK, 5u);
+    app_product_step(&product, &inputs, &clock, BSP_STATUS_OK, 7u);
     app_product_make_view(&product, &view);
     failures += expect_true(view.state == UI_PRODUCT_STATE_CALIBRATION_STATUS,
                             "dirty candidate prevents overwriting manual wizard start");

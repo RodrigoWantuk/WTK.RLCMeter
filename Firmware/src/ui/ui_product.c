@@ -16,7 +16,25 @@ enum
     UI_COLOR_RED = 0xF800u,
     UI_COLOR_CYAN = 0x07FFu,
     UI_COLOR_GREEN = 0x07E0u,
+#if WTK_ENABLE_PRODUCT_RICH_IMAGES
+    UI_PRODUCT_SPLASH_WIDTH = 64u,
+    UI_PRODUCT_SPLASH_HEIGHT = 32u,
+#endif
 };
+
+static const char *cal_load_preset_token(uint8_t preset)
+{
+    switch (preset)
+    {
+    case 1u:
+        return "E12 LOW";
+    case 2u:
+        return "E12 HIGH";
+    case 0u:
+    default:
+        return "NOMINAL";
+    }
+}
 
 static const char *freq_token(hw_excitation_freq_t frequency)
 {
@@ -1039,7 +1057,20 @@ static bool prepare_calibration_status_line(const ui_product_t *ui,
     }
     if (index == 3u)
     {
-        line_set_id(ui, view, line, 8u, 104u, 1u, UI_COLOR_GREEN, UI_TEXT_ID_FULL_CALIBRATION);
+        char text[32] = {0};
+        size_t used = 0u;
+        resource_status_t status = RESOURCE_STATUS_OK;
+        if (!append_label_space(ui, view, UI_TEXT_ID_LOAD, text, sizeof(text), &used, &status))
+        {
+            return line_set_resource_pending(line, 8u, 94u, 1u, UI_COLOR_WHITE, status);
+        }
+        (void)append_text(text, sizeof(text), &used, cal_load_preset_token(view->menu.calibration_load_preset));
+        line_set(line, 8u, 94u, 1u, UI_COLOR_WHITE, text);
+        return true;
+    }
+    if (index == 4u)
+    {
+        line_set_id(ui, view, line, 8u, 118u, 1u, UI_COLOR_GREEN, UI_TEXT_ID_FULL_CALIBRATION);
         return true;
     }
     return false;
@@ -1280,7 +1311,7 @@ static bool prepare_line(const ui_product_t *ui,
     case UI_PRODUCT_STATE_STARTUP:
         if (index == 0u)
         {
-            line_set_id(ui, view, line, 8u, 24u, 3u, UI_COLOR_WHITE, UI_TEXT_ID_WTK_RLCMETER);
+            line_set_id(ui, view, line, 8u, 64u, 2u, UI_COLOR_WHITE, UI_TEXT_ID_WTK_RLCMETER);
             return true;
         }
         return false;
@@ -1441,9 +1472,24 @@ static void start_render(ui_product_t *ui)
     ui->line_index = 0u;
     ui->text_op.active = false;
     ui->font_text_op.active = false;
+    ui->image_op.active = false;
     ui->clear_started = false;
+    ui->image_started = false;
     ui->render_state = UI_PRODUCT_RENDER_CLEAR;
     ui->active = true;
+}
+
+static bool state_has_image(const ui_product_t *ui)
+{
+#if WTK_ENABLE_PRODUCT_RICH_IMAGES
+    return (ui != NULL) &&
+           ((ui_product_state_t)ui->pending.state == UI_PRODUCT_STATE_STARTUP) &&
+           (ui->image_catalog != NULL) &&
+           ui_image_catalog_splash_ready(ui->image_catalog);
+#else
+    (void)ui;
+    return false;
+#endif
 }
 
 static void start_clear_region(ui_product_t *ui)
@@ -1483,6 +1529,14 @@ void ui_product_set_font_catalog(ui_product_t *ui, ui_font_catalog_t *catalog)
     if (ui != NULL)
     {
         ui->font_catalog = catalog;
+    }
+}
+
+void ui_product_set_image_catalog(ui_product_t *ui, ui_image_catalog_t *catalog)
+{
+    if (ui != NULL)
+    {
+        ui->image_catalog = catalog;
     }
 }
 
@@ -1532,8 +1586,47 @@ bsp_status_t ui_product_step(ui_product_t *ui, const ili9341_t *display, bool qu
         {
             return BSP_STATUS_BUSY;
         }
+        ui->render_state = state_has_image(ui) ? UI_PRODUCT_RENDER_IMAGE : UI_PRODUCT_RENDER_TEXT;
+        return BSP_STATUS_BUSY;
+    }
+
+    if (ui->render_state == UI_PRODUCT_RENDER_IMAGE)
+    {
+#if WTK_ENABLE_PRODUCT_RICH_IMAGES
+        if (!ui->image_started)
+        {
+            const uint16_t x = (uint16_t)((ILI9341_WIDTH - UI_PRODUCT_SPLASH_WIDTH) / 2u);
+            ui_image_rle_start(&ui->image_op,
+                               ui->image_catalog,
+                               RESOURCE_ID_IMAGE_SPLASH,
+                               x,
+                               18u);
+            ui->image_started = true;
+            if (!ui->image_op.active)
+            {
+                ui->render_state = UI_PRODUCT_RENDER_TEXT;
+                return BSP_STATUS_BUSY;
+            }
+        }
+        const bsp_status_t image_status = ui_image_rle_step(display,
+                                                            &ui->image_op,
+                                                            ILI9341_FILL_CHUNK_PIXELS);
+        if ((image_status != BSP_STATUS_OK) && (image_status != BSP_STATUS_BUSY))
+        {
+            ui->active = false;
+            ui->render_state = UI_PRODUCT_RENDER_IDLE;
+            return image_status;
+        }
+        if (ui->image_op.active || (image_status == BSP_STATUS_BUSY))
+        {
+            return BSP_STATUS_BUSY;
+        }
         ui->render_state = UI_PRODUCT_RENDER_TEXT;
         return BSP_STATUS_BUSY;
+#else
+        ui->render_state = UI_PRODUCT_RENDER_TEXT;
+        return BSP_STATUS_BUSY;
+#endif
     }
 
     if (ui->render_state != UI_PRODUCT_RENDER_TEXT)

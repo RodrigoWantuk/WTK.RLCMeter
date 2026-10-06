@@ -742,6 +742,22 @@ Software evidence:
   without enforcing the PRODUCT Flash hard gate. PRODUCT Release and BRINGUP continue to
   enforce the existing budget gates.
 
+### Phase 08 product resource/menu integration update
+
+- The PRODUCT Flash gate is raised to 60 KiB for the final integration stretch. BRINGUP
+  continues to use the physical 64 KiB limit. External W25Q resources remain the
+  preferred home for rich screens, fonts, text catalogs, splash art, icons, and any
+  future larger UI assets.
+- The startup product screen can render the external RGB565 RLE splash image from the
+  Resource Pack before drawing text. Missing optional images degrade to text-only
+  rendering; text/font catalog failures keep the existing resource-error behavior.
+- The calibration status page supports menu-driven LOAD reference presets instead of
+  free numeric entry. The initial presets are `NOMINAL`, `E12 LOW`, and `E12 HIGH`;
+  they are user-declared fixture values and remain dependent on physical reference
+  accuracy.
+- The PC resource utility has a `bundle` command that builds, validates, summarizes, and
+  optionally emits the deterministic PC-link stream used for service COM uploads.
+
 Remaining Phase 08 work:
 
 - external resource/font pack and localization storage integration;

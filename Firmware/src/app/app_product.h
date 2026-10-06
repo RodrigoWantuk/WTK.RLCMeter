@@ -56,6 +56,7 @@ typedef struct
     uint32_t last_activity_ms;
     uint32_t tone_sequence;
     uint8_t menu_index;
+    uint8_t calibration_load_preset;
     uint8_t runtime_kind;
     uint8_t runtime_teardown_kind;
     uint8_t runtime_teardown_target_state;

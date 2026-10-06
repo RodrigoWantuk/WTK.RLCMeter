@@ -36,10 +36,55 @@ enum
     APP_PRODUCT_MAINTENANCE_RESOURCES,
     APP_PRODUCT_MAINTENANCE_BACK,
     APP_PRODUCT_MAINTENANCE_COUNT,
+    APP_PRODUCT_CAL_LOAD_PRESET_NOMINAL = 0u,
+    APP_PRODUCT_CAL_LOAD_PRESET_E12_LOW,
+    APP_PRODUCT_CAL_LOAD_PRESET_E12_HIGH,
+    APP_PRODUCT_CAL_LOAD_PRESET_COUNT,
 };
 
 static void mark_dirty(app_product_t *product);
 static void set_state(app_product_t *product, ui_product_state_t state);
+
+static float calibration_load_preset_value(uint8_t preset, hw_range_id_t range_id)
+{
+    static const float nominal[] = {10.0f, 100.0f, 1000.0f, 10000.0f, 100000.0f, 1000000.0f};
+    static const float e12_low[] = {12.0f, 120.0f, 1200.0f, 12000.0f, 120000.0f, 820000.0f};
+    static const float e12_high[] = {47.0f, 470.0f, 4700.0f, 47000.0f, 470000.0f, 1000000.0f};
+    if (range_id > HW_RANGE_ID_1M)
+    {
+        return 0.0f;
+    }
+    const uint8_t index = (uint8_t)range_id;
+    if (preset == APP_PRODUCT_CAL_LOAD_PRESET_E12_LOW)
+    {
+        return e12_low[index];
+    }
+    if (preset == APP_PRODUCT_CAL_LOAD_PRESET_E12_HIGH)
+    {
+        return e12_high[index];
+    }
+    return nominal[index];
+}
+
+static bsp_status_t product_calibration_load_z(hw_range_id_t range_id,
+                                               hw_excitation_freq_t frequency,
+                                               measurement_complex_t *z_ohms,
+                                               void *user)
+{
+    (void)frequency;
+    app_product_t *product = (app_product_t *)user;
+    if ((product == NULL) || (z_ohms == NULL) || (range_id > HW_RANGE_ID_1M))
+    {
+        return BSP_STATUS_INVALID_ARG;
+    }
+    const float ohms = calibration_load_preset_value(product->calibration_load_preset, range_id);
+    if (ohms <= 0.0f)
+    {
+        return BSP_STATUS_INVALID_ARG;
+    }
+    *z_ohms = measurement_complex(ohms, 0.0f);
+    return BSP_STATUS_OK;
+}
 
 static ui_product_calibration_state_t ui_cal_state(app_cal_service_status_t status,
                                                   bool calibration_active_valid)
@@ -85,12 +130,14 @@ static void sync_settings_view(app_product_t *product)
         (product->view.menu.timeout_seconds != timeout_seconds) ||
         (product->view.menu.sound_enabled != settings.sound_enabled) ||
         (product->view.menu.language_id != settings.language_id) ||
+        (product->view.menu.calibration_load_preset != product->calibration_load_preset) ||
         (product->view.menu.save_failed != app_settings_service_save_failed(product->settings_service)))
     {
         product->view.menu.brightness_percent = settings.brightness_percent;
         product->view.menu.timeout_seconds = timeout_seconds;
         product->view.menu.sound_enabled = settings.sound_enabled;
         product->view.menu.language_id = settings.language_id;
+        product->view.menu.calibration_load_preset = product->calibration_load_preset;
         product->view.menu.save_failed = app_settings_service_save_failed(product->settings_service);
         mark_dirty(product);
     }
@@ -307,8 +354,8 @@ static bsp_status_t activate_wizard_runtime(app_product_t *product)
         return BSP_STATUS_BUSY;
     }
     const app_cal_fixture_profile_t fixture = {
-        .load_z = app_calibration_fixture_profile_default_load,
-        .user = NULL,
+        .load_z = product_calibration_load_z,
+        .user = product,
     };
     const bsp_status_t status = app_calibration_wizard_init(&product->runtime.calibration,
                                                            product->calibration_service,
@@ -734,6 +781,7 @@ bsp_status_t app_product_init(app_product_t *product,
     product->settings_service = settings_service;
     product->last_activity_ms = 0u;
     product->wake_consume_button = BUTTON_ID_COUNT;
+    product->calibration_load_preset = APP_PRODUCT_CAL_LOAD_PRESET_NOMINAL;
     const bsp_status_t status = activate_measurement_runtime(product);
     if (status != BSP_STATUS_OK)
     {
@@ -751,6 +799,7 @@ bsp_status_t app_product_init(app_product_t *product,
             .timeout_seconds = (uint16_t)settings.backlight_timeout,
             .sound_enabled = settings.sound_enabled,
             .language_id = settings.language_id,
+            .calibration_load_preset = product->calibration_load_preset,
         },
         .generation = 1u,
     };
@@ -1112,6 +1161,24 @@ void app_product_step(app_product_t *product,
         if (product->request_menu)
         {
             set_state(product, UI_PRODUCT_STATE_MENU);
+        }
+        else if (product->request_page_next || product->request_page_prev)
+        {
+            if (product->request_page_next)
+            {
+                product->calibration_load_preset =
+                    (uint8_t)((product->calibration_load_preset + 1u) %
+                              APP_PRODUCT_CAL_LOAD_PRESET_COUNT);
+            }
+            else
+            {
+                product->calibration_load_preset =
+                    (product->calibration_load_preset == 0u) ?
+                        (uint8_t)(APP_PRODUCT_CAL_LOAD_PRESET_COUNT - 1u) :
+                        (uint8_t)(product->calibration_load_preset - 1u);
+            }
+            sync_settings_view(product);
+            mark_dirty(product);
         }
         else if ((product->request_click || product->calibration_deferred_for_settings) &&
                  inputs->calibration_active_valid &&

@@ -20,7 +20,7 @@ Files in this directory are source inputs. Firmware consumes packed/generated re
   numeric text IDs. Firmware does not depend on enum ordinal order or physical Flash
   offsets.
 - Stage 3A.1 freezes the current text-catalog semantic ABI as dense IDs
-  `0x0001..0x0038`, every ID present in English and Portuguese (Brazil), and each
+  `0x0001..0x0041`, every ID present in English and Portuguese (Brazil), and each
   UTF-8 string no longer than 31 bytes.
 - Stage 3B.1 adds a repository-owned deterministic A1 bitmap font source at
   `font/wtk-pixel-base.json`. The builder emits `FONT_UI_SMALL`, `FONT_UI_MEDIUM`,
@@ -32,8 +32,9 @@ Files in this directory are source inputs. Firmware consumes packed/generated re
   optional resources; normal boot still requires only the text catalogs and font
   roles.
 - `image/wtk-splash-rle.json` is the first external image source. It is a compact
-  provisional splash resource used to exercise the image pipeline; later final artwork
-  can replace it without changing firmware IDs.
+  provisional splash resource used by the PRODUCT startup screen; later final artwork
+  can replace it without changing firmware IDs. Larger rich screens and icons should
+  follow this external-resource pattern rather than consuming MCU Flash.
 - The Resource Pack outer schema remains version 2. PRODUCT resource API version is
   now 3 because firmware requires text catalogs plus the three external font roles
   and defines optional external image resources.

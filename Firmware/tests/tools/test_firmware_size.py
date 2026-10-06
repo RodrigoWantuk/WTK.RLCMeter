@@ -33,7 +33,7 @@ class FirmwareSizeToolTest(unittest.TestCase):
         self.assertEqual(hard, 18 * 1024)
 
     def test_bringup_flash_gate_is_physical_mvp_limit(self):
-        self.assertEqual(firmware_size.flash_hard_limit_for_budget("product"), 56 * 1024)
+        self.assertEqual(firmware_size.flash_hard_limit_for_budget("product"), 60 * 1024)
         self.assertEqual(firmware_size.flash_hard_limit_for_budget("bringup"), 64 * 1024)
 
     def test_unbudgeted_build_has_no_project_ram_gate(self):

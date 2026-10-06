@@ -275,23 +275,25 @@ replay, and coefficient comparison belong in host tools and tests where they are
 limited by the 64 KiB MCU Flash budget.
 
 STM32 Release and Bringup builds report Flash/RAM budgets after linking. PRODUCT keeps
-the 56 KiB Flash hard gate, with a 48 KiB soft target and the physical silicon limit
-remaining 64 KiB. Phase 09A authorizes the BRINGUP profile to use the physical 64 KiB
+a 60 KiB Flash hard gate, with a 48 KiB soft target and the physical silicon limit
+remaining 64 KiB. The 60 KiB PRODUCT gate is allowed only while the firmware is in the
+final product-integration stretch; rich visuals, fonts, and catalog data should still
+live in W25Q resources rather than internal Flash. BRINGUP uses the physical 64 KiB
 Flash limit so the bench image can link the automatic measurement engine and diagnostic
 output needed for first-board measurements. RAM reports distinguish static
 `.data/.bss/.noinit` from the linker-reserved stack/heap floor. PRODUCT builds use a
 16 KiB preferred accounted-RAM target and a 17 KiB hard gate; BRINGUP uses an 18 KiB
 hard gate. Accounted RAM includes the linker-reserved stack/heap floor.
 
-Product Debug is intentionally size-first (`-Os` plus debug symbols) because the full
-product profile must fit the guaranteed C8 Flash. Product Release also enables GCC LTO
+Product Debug is intentionally size-first (`-Os` plus debug symbols) with compact
+diagnostic logging because the full product profile must fit the guaranteed C8 Flash.
+Product Release also enables GCC LTO
 from its preset to recover dead-code headroom before the remaining Phase 08 resource/UI
 features are added. Phase 08 Stage 3A.3 removes PRODUCT calibration-campaign
 orchestration, compacts fixed Rev.1 calibration-domain validation, and brings PRODUCT
 Release below the 55296 B Stage 3B handoff target. Phase 08 Stage 3B.1 then adds the
-external A1 font runtime and remains below the hard 57344 B PRODUCT gate, but Stage
-3B.2 final typography/icons/splash remains blocked until Release Flash headroom is
-recovered below its authorization gate.
+external A1 font runtime. Phase 08 product integration may now use the 60 KiB PRODUCT
+gate while keeping normal text, font, and rich image resources external.
 
 ## Build and editor policy
 

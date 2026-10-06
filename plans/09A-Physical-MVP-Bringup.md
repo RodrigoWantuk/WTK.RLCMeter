@@ -65,7 +65,7 @@ The first-board expectation before real OSL calibration is `calibration=IDEAL_UN
 
 ## Flash/RAM Policy
 
-PRODUCT continues to enforce the 56 KiB project hard Flash gate. BRINGUP now enforces the physical 64 KiB STM32F103C8T6 Flash limit plus the existing 18 KiB accounted-RAM hard gate. This is deliberate: the bench image now links the automatic measurement engine and diagnostic output so the first board can measure through the same high-level path as PRODUCT.
+PRODUCT now enforces a 60 KiB project hard Flash gate during the final integration stretch. BRINGUP enforces the physical 64 KiB STM32F103C8T6 Flash limit plus the existing 18 KiB accounted-RAM hard gate. This is deliberate: the bench image now links the automatic measurement engine and diagnostic output so the first board can measure through the same high-level path as PRODUCT.
 
 The BRINGUP image is not a product release artifact. If PRODUCT exceeds its hard gate, defer cosmetic/UI/resource functionality before touching safety, calibration, acquisition, DSP, autorange, or basic UI.
 

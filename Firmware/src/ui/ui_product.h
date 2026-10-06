@@ -8,6 +8,7 @@
 #include "measurement/measurement_engine.h"
 #include "ui/ui_fallback_renderer.h"
 #include "ui/ui_font.h"
+#include "ui/ui_image.h"
 #include "ui/ui_text.h"
 
 typedef enum
@@ -48,6 +49,7 @@ typedef enum
 {
     UI_PRODUCT_RENDER_IDLE = 0,
     UI_PRODUCT_RENDER_CLEAR,
+    UI_PRODUCT_RENDER_IMAGE,
     UI_PRODUCT_RENDER_TEXT,
 } ui_product_render_state_t;
 
@@ -121,6 +123,7 @@ typedef struct
     uint16_t timeout_seconds;
     bool sound_enabled;
     uint8_t language_id;
+    uint8_t calibration_load_preset;
     bool save_failed;
 } ui_product_menu_t;
 
@@ -170,7 +173,9 @@ typedef struct
     ui_product_view_t pending;
     ui_fallback_text_op_t text_op;
     ui_font_text_op_t font_text_op;
+    ui_image_rle_op_t image_op;
     ui_font_catalog_t *font_catalog;
+    ui_image_catalog_t *image_catalog;
     uint32_t rendered_generation;
     uint32_t rendering_generation;
     uint8_t rendered_state;
@@ -182,6 +187,7 @@ typedef struct
     bool active;
     bool have_rendered;
     bool clear_started;
+    bool image_started;
 } ui_product_t;
 
 void ui_product_init(ui_product_t *ui);
@@ -189,6 +195,7 @@ void ui_product_set_text_provider(ui_product_t *ui,
                                   ui_product_text_resolve_fn resolve,
                                   void *context);
 void ui_product_set_font_catalog(ui_product_t *ui, ui_font_catalog_t *catalog);
+void ui_product_set_image_catalog(ui_product_t *ui, ui_image_catalog_t *catalog);
 void ui_product_request(ui_product_t *ui, const ui_product_view_t *view);
 bsp_status_t ui_product_step(ui_product_t *ui, const ili9341_t *display, bool quiet);
 uint32_t ui_product_context_size_bytes(void);

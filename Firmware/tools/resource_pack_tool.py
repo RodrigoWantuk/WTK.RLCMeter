@@ -84,6 +84,20 @@ def cmd_frame(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_bundle(args: argparse.Namespace) -> int:
+    pack = build_pack(args.manifest)
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    args.output.write_bytes(pack)
+    summary = pack_summary(pack)
+    write_summary(args.summary, summary)
+    if args.stream is not None:
+        frames = iter_resource_frames(pack, args.chunk_size)
+        write_stream(frames, args.stream)
+        print(f"stream={args.stream} frames={len(frames)} bytes={sum(len(frame) for frame in frames)}")
+    print(f"pack={args.output} bytes={summary['size_bytes']} sha256={summary['sha256']}")
+    return 0
+
+
 def cmd_upload(args: argparse.Namespace) -> int:
     pack = args.pack.read_bytes()
     frames = iter_resource_frames(pack, args.chunk_size)
@@ -112,6 +126,14 @@ def build_parser() -> argparse.ArgumentParser:
     frame.add_argument("-o", "--output", type=Path, required=True)
     frame.add_argument("--chunk-size", type=int, default=120)
     frame.set_defaults(func=cmd_frame)
+
+    bundle = sub.add_parser("bundle", help="build, validate, summarize, and optionally frame a Resource Pack")
+    bundle.add_argument("manifest", type=Path)
+    bundle.add_argument("-o", "--output", type=Path, required=True)
+    bundle.add_argument("--summary", type=Path, required=True)
+    bundle.add_argument("--stream", type=Path, help="optional deterministic PC-link framed stream output")
+    bundle.add_argument("--chunk-size", type=int, default=120)
+    bundle.set_defaults(func=cmd_bundle)
 
     upload = sub.add_parser("upload", help="upload a Resource Pack over serial using PC-link ACKs")
     upload.add_argument("pack", type=Path)
