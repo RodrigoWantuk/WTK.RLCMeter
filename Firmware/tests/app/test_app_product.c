@@ -894,7 +894,7 @@ static int test_diagnostics_and_maintenance_menu_pages(void)
     return failures;
 }
 
-static int test_resource_error_is_warning_not_operation_blocker(void)
+static int test_missing_resources_force_pc_link_upload_mode(void)
 {
     int failures = 0;
     fake_io_t fake = {0};
@@ -903,37 +903,30 @@ static int test_resource_error_is_warning_not_operation_blocker(void)
     const bsp_clock_summary_t clock = {.source = BSP_CLOCK_SOURCE_HSE_PLL,
                                        .sysclk_hz = 72000000u,
                                        .hse_ready = true};
+    inputs.resource_status = RESOURCE_STATUS_MISSING;
     failures += expect_true(init_product(&product, &fake) == BSP_STATUS_OK,
-                            "product init language resource error");
-    boot_to_ready(&product, &inputs);
-    send_button(&product, BUTTON_ID_OK, BUTTON_EVENT_PRESS);
-    send_button(&product, BUTTON_ID_OK, BUTTON_EVENT_LONG_PRESS);
-    send_button(&product, BUTTON_ID_OK, BUTTON_EVENT_RELEASE);
-    app_product_step(&product, &inputs, &clock, BSP_STATUS_OK, 3u);
-    for (uint32_t i = 0u; i < 3u; i++)
-    {
-        send_button(&product, BUTTON_ID_DOWN, BUTTON_EVENT_PRESS);
-        app_product_step(&product, &inputs, &clock, BSP_STATUS_OK, 4u + i);
-    }
-    click_ok(&product);
-    app_product_step(&product, &inputs, &clock, BSP_STATUS_OK, 8u);
-    send_button(&product, BUTTON_ID_DOWN, BUTTON_EVENT_PRESS);
-    app_product_step(&product, &inputs, &clock, BSP_STATUS_OK, 9u);
-    click_ok(&product);
-    app_product_step(&product, &inputs, &clock, BSP_STATUS_OK, 10u);
-    failures += expect_true(app_settings_service_dirty(&g_settings),
-                            "language change is dirty before persistence");
-
-    inputs.resource_status = RESOURCE_STATUS_CORRUPT;
-    app_product_step(&product, &inputs, &clock, BSP_STATUS_OK, 11u);
+                            "product init missing resources");
+    app_product_step(&product, &inputs, &clock, BSP_STATUS_OK, 0u);
     ui_product_view_t view;
     app_product_make_view(&product, &view);
-    failures += expect_true(view.state != UI_PRODUCT_STATE_RESOURCE_ERROR,
-                            "resource error does not preempt product operation");
-    failures += expect_true(view.resource_status == RESOURCE_STATUS_CORRUPT,
-                            "resource warning remains visible in view metadata");
+    failures += expect_true(view.state == UI_PRODUCT_STATE_PC_LINK_STATUS,
+                            "missing resources enter upload mode from boot");
+    failures += expect_true(view.resource_status == RESOURCE_STATUS_MISSING,
+                            "missing resource status remains visible");
     failures += expect_true(view.safety_fault_mask == 0u,
-                            "resource warning is not a safety fault");
+                            "resource upload mode is not a safety fault");
+    click_ok(&product);
+    app_product_step(&product, &inputs, &clock, BSP_STATUS_OK, 1u);
+    app_product_make_view(&product, &view);
+    failures += expect_true(view.state == UI_PRODUCT_STATE_PC_LINK_STATUS,
+                            "upload mode is the only accessible product screen without resources");
+    failures += expect_u32(fake.start_count, 0u, "upload mode starts no measurement");
+
+    inputs.resource_status = RESOURCE_STATUS_OK;
+    app_product_step(&product, &inputs, &clock, BSP_STATUS_OK, 2u);
+    app_product_make_view(&product, &view);
+    failures += expect_true(view.state == UI_PRODUCT_STATE_STARTUP,
+                            "valid resources release normal boot flow");
     return failures;
 }
 
@@ -973,7 +966,7 @@ int main(int argc, char **argv)
     failures += test_backlight_timeout_wake_consumes_ok_gesture();
     failures += test_sound_menu_toggle_updates_output();
     failures += test_diagnostics_and_maintenance_menu_pages();
-    failures += test_resource_error_is_warning_not_operation_blocker();
+    failures += test_missing_resources_force_pc_link_upload_mode();
     failures += test_fault_during_measurement_capture_drains_runtime();
     failures += test_calibration_validity_loss_drains_measurement();
     failures += test_fault_during_calibration_capture_drains_runtime();

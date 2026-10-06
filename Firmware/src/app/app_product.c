@@ -257,10 +257,9 @@ static bool state_accepts_measurement_request(ui_product_state_t state)
     return (state == UI_PRODUCT_STATE_READY) || (state == UI_PRODUCT_STATE_RESULT);
 }
 
-static bool resource_status_is_fatal(resource_status_t status)
+static bool resource_status_requires_upload(resource_status_t status)
 {
-    (void)status;
-    return false;
+    return status != RESOURCE_STATUS_OK;
 }
 
 static app_measurement_session_t *measurement_runtime(app_product_t *product)
@@ -923,12 +922,13 @@ void app_product_step(app_product_t *product,
         return;
     }
 
-    if (resource_status_is_fatal(inputs->resource_status))
+    if (resource_status_requires_upload(inputs->resource_status))
     {
-        set_state(product, UI_PRODUCT_STATE_RESOURCE_ERROR);
+        product->resource_upload_required = true;
+        set_state(product, UI_PRODUCT_STATE_PC_LINK_STATUS);
         if (runtime_active(product))
         {
-            begin_runtime_teardown(product, UI_PRODUCT_STATE_RESOURCE_ERROR);
+            begin_runtime_teardown(product, UI_PRODUCT_STATE_PC_LINK_STATUS);
             (void)drain_runtime_teardown(product,
                                          &inputs->safety_result,
                                          clock_summary,
@@ -1135,9 +1135,21 @@ void app_product_step(app_product_t *product,
 
     if (product->view.state == UI_PRODUCT_STATE_PC_LINK_STATUS)
     {
-        if (product->request_menu || product->request_click)
+        if (!resource_status_requires_upload((resource_status_t)product->view.resource_status))
         {
-            set_menu(product, UI_PRODUCT_STATE_MAINTENANCE, APP_PRODUCT_MAINTENANCE_PC_LINK);
+            if (product->resource_upload_required)
+            {
+                product->resource_upload_required = false;
+                set_state(product, UI_PRODUCT_STATE_STARTUP);
+            }
+            else if (product->request_menu || product->request_click)
+            {
+                set_menu(product, UI_PRODUCT_STATE_MAINTENANCE, APP_PRODUCT_MAINTENANCE_PC_LINK);
+            }
+        }
+        else if (product->request_menu || product->request_click)
+        {
+            mark_dirty(product);
         }
         clear_requests(product);
         return;

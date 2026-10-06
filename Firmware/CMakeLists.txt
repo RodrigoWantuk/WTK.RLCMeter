@@ -25,13 +25,8 @@ option(WTK_WARNINGS_AS_ERRORS_STM32 "Treat warnings as errors for STM32 project 
 set(WTK_PRODUCT_OPTIMIZATION_LEVEL "-Os" CACHE STRING "Optimization level for STM32 PRODUCT builds.")
 set_property(CACHE WTK_PRODUCT_OPTIMIZATION_LEVEL PROPERTY STRINGS -Os -Oz)
 option(WTK_ENABLE_PRODUCT_RESOURCE_UPDATE
-       "Include the PRODUCT PC-link resource-pack update receiver. Disabled in normal PRODUCT images to preserve Flash headroom."
+       "Force the PRODUCT PC-link resource-pack update receiver outside the default Release product image."
        OFF)
-if(WTK_ENABLE_PRODUCT_RESOURCE_UPDATE)
-    set(WTK_ENABLE_PRODUCT_RESOURCE_UPDATE_VALUE 1)
-else()
-    set(WTK_ENABLE_PRODUCT_RESOURCE_UPDATE_VALUE 0)
-endif()
 
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     set(CMAKE_BUILD_TYPE Debug CACHE STRING "Build type" FORCE)
@@ -44,6 +39,13 @@ if(NOT WTK_BUILD_TYPE)
     set(WTK_BUILD_TYPE "MultiConfig")
 endif()
 string(TOUPPER "${WTK_FIRMWARE_PROFILE}" WTK_FIRMWARE_PROFILE)
+
+if(WTK_ENABLE_PRODUCT_RESOURCE_UPDATE OR
+   (WTK_FIRMWARE_PROFILE STREQUAL "PRODUCT" AND WTK_BUILD_TYPE STREQUAL "Release"))
+    set(WTK_ENABLE_PRODUCT_RESOURCE_UPDATE_VALUE 1)
+else()
+    set(WTK_ENABLE_PRODUCT_RESOURCE_UPDATE_VALUE 0)
+endif()
 
 if(WTK_BUILD_TYPE STREQUAL "Lab")
     message(FATAL_ERROR "CMAKE_BUILD_TYPE=Lab is obsolete. Use a standard build type plus WTK_FIRMWARE_PROFILE=BRINGUP.")
@@ -236,8 +238,7 @@ elseif(WTK_TARGET_PLATFORM STREQUAL "stm32")
     if(WTK_FIRMWARE_PROFILE STREQUAL "BRINGUP")
         set(WTK_SIZE_BUDGET "bringup")
     elseif(WTK_FIRMWARE_PROFILE STREQUAL "PRODUCT" AND
-           NOT WTK_BUILD_TYPE STREQUAL "Debug" AND
-           NOT WTK_ENABLE_PRODUCT_RESOURCE_UPDATE)
+           NOT WTK_BUILD_TYPE STREQUAL "Debug")
         set(WTK_SIZE_BUDGET "product")
     endif()
 

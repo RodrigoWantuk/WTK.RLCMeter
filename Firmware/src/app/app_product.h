@@ -69,6 +69,7 @@ typedef struct
     bool settings_save_requested;
     bool measurement_deferred_for_settings;
     bool calibration_deferred_for_settings;
+    bool resource_upload_required;
     bool backlight_sleeping;
     bool wake_consume_active;
     button_id_t wake_consume_button;

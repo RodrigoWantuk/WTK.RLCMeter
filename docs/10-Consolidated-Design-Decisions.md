@@ -596,7 +596,7 @@ flows must not depend on the UART banner.
 
 Initial planned UI languages are Portuguese and English.
 
-UI logic uses stable resource/text IDs rather than scattering translated literals through screen code. Phase 08 Stage 3A stores normal product text in Resource Pack v2 UTF-8 catalogs in W25Q, one text-table resource per language. Phase 08 Stage 3B.1 adds W25Q-resident A1 bitmap font resources for normal typography. The selected language is a stable settings field, currently English or Portuguese (Brazil). Since Phase 09A, missing, corrupt, or incompatible normal resources are a product warning rather than an operation blocker: emergency/safety/fault wording stays internal, while normal menu/service wording is expected to come from W25Q and may degrade to compact placeholders if the resource pack is absent or corrupt.
+UI logic uses stable resource/text IDs rather than scattering translated literals through screen code. Phase 08 Stage 3A stores normal product text in Resource Pack v2 UTF-8 catalogs in W25Q, one text-table resource per language. Phase 08 Stage 3B.1 adds W25Q-resident A1 bitmap font resources for normal typography. The selected language is a stable settings field, currently English or Portuguese (Brazil). Required text/font resource failures now force the internal emergency-font PC-link upload screen rather than allowing ordinary product navigation with placeholders. Emergency/safety/fault/provisioning wording stays internal; normal menu/service wording is expected to come from W25Q once a valid Resource Pack mounts.
 
 Resource Pack v2 API version 3 uses dense text catalogs plus three required font-role
 resources. Text IDs remain `0x0001..0x0041`, every ID is present in every required
@@ -606,10 +606,10 @@ text-table header, dense index shape, index CRC, record bounds, and UTF-8 for ev
 string. It also validates `FONT_UI_SMALL`, `FONT_UI_MEDIUM`, and `FONT_UI_LARGE` as
 `FONT_BITMAP_A1_V1`: a 32-byte `WFA1` header, sorted 20-byte glyph records, row-major
 MSB-first A1 bitmaps, 32x32 maximum glyphs, payload CRC, index CRC, required SPACE,
-and required `?`. Normal text/font resource failures propagate to the PRODUCT
-`RESOURCE_ERROR` state; emergency screens render from internal text and do not perform
-W25Q resource reads. `RESOURCE_STATUS_DEFERRED` is backpressure, not a fatal resource
-error.
+and required `?`. Normal text/font resource failures force the PRODUCT PC-link upload
+state until a valid pack is installed; emergency screens render from internal text and
+do not perform W25Q resource reads. `RESOURCE_STATUS_DEFERRED` is backpressure during
+resource mutation and keeps the product in upload/provisioning mode.
 
 The same API version permits optional rich image resources as `RGB565_IMAGE` /
 `IMAGE_RGB565_RLE_V1`. The image payload is a CRC-checked `WIM1` header followed by
@@ -631,14 +631,16 @@ splits writes at W25Q page boundaries, and stages one bounded PC-link payload in
 shared IO workspace rather than buffering an entire pack in SRAM. This protocol supports
 a PC manufacturing/service tool, but normal product measurement and calibration remain
 menu-driven and do not depend on UART. The PC resource tool can build, inspect,
-summarize, frame, and upload resource packs over a service COM port; firmware operation
-continues to consume already-provisioned W25Q resources. To preserve PRODUCT Flash
-headroom on the
-64 KiB STM32F103C8T6 image, the embedded serial receiver is a build-profile option:
-`WTK_ENABLE_PRODUCT_RESOURCE_UPDATE=ON` includes it for service/manufacturing firmware,
-while the normal PRODUCT image leaves it disabled and still consumes already-provisioned
-W25Q resources. The service image remains bounded by the physical linker memory map but
-is not treated as the normal product-size-gated release image.
+summarize, frame, and upload resource packs over a service COM port. The embedded
+receiver is included in PRODUCT Release because a blank or corrupt W25Q must be
+recoverable from boot without an already-installed resource pack. PRODUCT Debug keeps
+the receiver out by default so it still links on the physical 64 KiB MCU while
+preserving debug symbols; a forced service/debug build with
+`WTK_ENABLE_PRODUCT_RESOURCE_UPDATE=ON` currently exceeds physical Flash. When required
+resources are missing, corrupt, incompatible, or deferred during an update, the product
+controller forces the internal emergency-font PC-link upload screen and blocks normal
+navigation until a valid pack mounts. The Release receiver remains subject to the
+PRODUCT 60 KiB Flash hard gate and the physical STM32F103C8T6 linker map.
 
 Product settings schema v3 stores the menu-selected calibration LOAD preset. Existing
 schema v2 settings remain readable and map that new field to the `NOMINAL` preset, so

@@ -432,9 +432,10 @@ Implemented software boundary:
   scale 1 maps to `FONT_UI_SMALL`, scale 2 to `FONT_UI_MEDIUM`, and scale 3 to
   `FONT_UI_LARGE`. This includes READY, RESULT primary value, MENU, ABOUT, and
   calibration-wizard screens.
-- Emergency `RESOURCE_ERROR`/fault rendering remains internal and W25Q-independent.
-  Fatal normal font/resource failures drive PRODUCT presentation to `RESOURCE_ERROR`
-  without becoming a safety fault.
+- Emergency fault/provisioning rendering remains internal and W25Q-independent.
+  Required normal font/resource failures drive PRODUCT presentation to the PC-link
+  upload screen without becoming a safety fault; ordinary menus remain blocked until a
+  valid Resource Pack mounts.
 - Font/resource reads remain subordinate to the existing W25Q access policy. Quiet
   mode and settings/calibration mutations defer resource reads; UI rendering is paused
   before starting glyph reads or TFT glyph writes during quiet.
@@ -488,8 +489,8 @@ Remaining Stage 3B.2/product work:
 - final font artwork/source replacement;
 - icons, splash/startup artwork, optional image resources, graph pages, and TFT debug
   console;
-- resource provisioning/manufacturing flow for programming the existing RESOURCE_PACK
-  partition while preserving the W25Q mutable tail;
+- physical resource provisioning/manufacturing flow for programming the existing
+  RESOURCE_PACK partition while preserving the W25Q mutable tail;
 - physical W25Q/TFT SPI timing, glyph visual quality, and quiet-mode interaction
   validation.
 
@@ -711,14 +712,16 @@ Post-09A product-menu continuation:
   `RESOURCE_BEGIN`, monotonic-offset `RESOURCE_CHUNK`, `RESOURCE_END`, and
   `ABORT`. The protocol substrate validates Resource Pack size, CRC32, and API
   version. A cooperative update substrate can erase/program/poll W25Q through injected
-  callbacks and shared workspace staging. PRODUCT serial receiver integration now
-  exists behind `WTK_ENABLE_PRODUCT_RESOURCE_UPDATE=ON`; the default PRODUCT image keeps
-  it disabled because including the receiver currently exceeds the 57,344 B hard Flash
-  gate. A service/manufacturing image with the receiver enabled is still constrained by
-  the STM32 linker memory map, but it is not classified as the normal size-gated product
-  release. A deterministic PC-side tool can emit the framed stream and, for a service or
-  manufacturing build with the receiver enabled, sends each frame over a serial port and
-  waits for the firmware status frame before sending the next one.
+  callbacks and shared workspace staging. PRODUCT Release includes the serial receiver
+  by default because a blank/corrupt W25Q Resource Pack must be recoverable from the
+  boot UI. PRODUCT Debug keeps the receiver out by default so it still links on the
+  physical 64 KiB MCU while preserving debug symbols; a forced service/debug build with
+  `WTK_ENABLE_PRODUCT_RESOURCE_UPDATE=ON` currently exceeds physical Flash. If the
+  required resources are missing, corrupt, incompatible, or deferred during update, the
+  product controller forces the internal emergency-font PC-link upload screen and
+  blocks normal product navigation until a valid pack mounts. A deterministic PC-side
+  tool can emit the framed stream and sends each frame over a serial port while waiting
+  for the firmware status frame before sending the next one.
 - `resource_pack_tool.py` is the PC-side wrapper for this workflow. It can build a
   Resource Pack from the source manifest, write a deterministic JSON summary with
   SHA-256 and entry metadata, inspect an existing pack, emit a `.wpc` framed stream,
@@ -726,9 +729,10 @@ Post-09A product-menu continuation:
   maintenance/provisioning tool, not a dependency for normal menu-driven measurement or
   calibration.
 - Internal text fallback has been reduced to emergency/safety/fault wording and a
-  compact placeholder for normal resource failures. Normal menu/service text belongs in
-  the W25Q Resource Pack so richer screens do not consume proportional internal Flash.
-  Maintenance status labels are part of the same external text catalog.
+  compact upload/provisioning wording. Normal menu/service text belongs in the W25Q
+  Resource Pack so richer screens do not consume proportional internal Flash.
+  Maintenance status labels are part of the same external text catalog once the pack is
+  valid.
 
 Software evidence:
 
@@ -1358,6 +1362,34 @@ Do not allow UI feature growth to consume metrology buffer margin silently.
 
 Large fonts/icons/localization belong in W25Q rather than internal MCU `.rodata` unless a specific fallback resource is intentionally internal.
 
+## Resource provisioning boot-gate update
+
+PRODUCT Release now includes the PC-link Resource Pack receiver by default. A blank,
+missing, corrupt, incompatible, or in-progress W25Q Resource Pack forces the product
+controller into the internal emergency-font PC-link upload screen from boot. Normal
+product navigation, calibration UI, and measurement UI remain blocked until the required
+Resource Pack mounts successfully. This mode is not a safety fault and does not energize
+K1, switch ranges, or issue measurement permits.
+
+PRODUCT Debug keeps the receiver disabled by default so it still links on the physical
+64 KiB MCU while preserving debug symbols. A forced Debug/service build with
+`WTK_ENABLE_PRODUCT_RESOURCE_UPDATE=ON` currently exceeds physical Flash and is not the
+default debug profile.
+
+Measured local build evidence for this update:
+
+```text
+Host Debug CTest:      36/36 PASS
+Host Release CTest:    36/36 PASS
+Python tools unittest: 59 PASS
+
+STM32 PRODUCT Debug:   Flash 63700 B, RAM accounted 16560 B
+                       resource receiver disabled by default
+STM32 PRODUCT Release: Flash 60652 B, RAM accounted 16996 B
+                       resource receiver enabled; below 60 KiB hard gate
+STM32 BRINGUP:         Flash 62296 B, RAM accounted 16612 B
+```
+
 ## Task 24 — Responsiveness and quiet-mode review
 
 Measure or instrument worst-case `*_step()` latency.
@@ -1407,7 +1439,8 @@ Ensure:
 13. switch Português/English without rebuilding firmware;
 14. enable debug console and verify it appears as an additional normal result page;
 15. compare TFT recent-event console with the higher-volume UART log;
-16. boot with missing/corrupt external resource pack and verify emergency fallback diagnostics;
+16. boot with missing/corrupt external resource pack and verify the emergency PC-link
+    upload screen is the only accessible product UI until a valid pack is installed;
 17. render custom W25Q-resident fonts/large numeric glyphs with bounded SRAM;
 18. test charger insertion/residual faults during UI operation;
 19. review diagnostics against DMM/scope/UART values;

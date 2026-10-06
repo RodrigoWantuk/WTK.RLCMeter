@@ -955,22 +955,28 @@ static bool prepare_pc_link_status_line(const ui_product_t *ui,
     }
     if (index == 0u)
     {
-        line_set_id(ui, view, line, 8u, 16u, 2u, UI_COLOR_CYAN, UI_TEXT_ID_PC_LINK);
+        (void)ui;
+        (void)view;
+        line_set(line, 8u, 16u, 2u, UI_COLOR_CYAN, "PC LINK");
+        line->emergency = true;
         return true;
     }
     if (index == 1u)
     {
-        line_set_id(ui, view, line, 8u, 54u, 1u, UI_COLOR_GREEN, UI_TEXT_ID_READY);
+        line_set(line, 8u, 54u, 1u, UI_COLOR_GREEN, "READY");
+        line->emergency = true;
         return true;
     }
     if (index == 2u)
     {
-        line_set_id(ui, view, line, 8u, 74u, 1u, UI_COLOR_WHITE, UI_TEXT_ID_PACK_V1);
+        line_set(line, 8u, 74u, 1u, UI_COLOR_WHITE, "UPLOAD");
+        line->emergency = true;
         return true;
     }
     if (index == 3u)
     {
-        line_set_id(ui, view, line, 8u, 94u, 1u, UI_COLOR_WHITE, UI_TEXT_ID_MENU_DRIVEN);
+        line_set(line, 8u, 94u, 1u, UI_COLOR_WHITE, "SEND PACK");
+        line->emergency = true;
         return true;
     }
     return false;
