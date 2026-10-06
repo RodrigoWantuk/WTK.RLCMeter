@@ -103,9 +103,9 @@ Implemented software boundary:
   resource with stable resource IDs and a sorted stable text-ID index.
 - The deterministic host builder emits English and Portuguese (Brazil) text catalogs
   from JSON sources and rejects incomplete required text catalogs.
-- PRODUCT settings schema is now version 2 and stores the selected language as a stable
-  language ID. Older settings records are intentionally treated as incompatible and
-  defaulted.
+- PRODUCT settings schema is now version 3 and stores the selected language plus the
+  menu-selected calibration LOAD preset. Schema v2 records remain readable and map the
+  new preset field to `NOMINAL`.
 - PRODUCT UI includes a Language menu with English, Portuguese (Brazil), and Back.
   Normal product menu/status labels resolve through the external text provider. The
   internal fallback retains only emergency/minimal diagnostic text.
@@ -753,8 +753,8 @@ Software evidence:
   rendering; text/font catalog failures keep the existing resource-error behavior.
 - The calibration status page supports menu-driven LOAD reference presets instead of
   free numeric entry. The initial presets are `NOMINAL`, `E12 LOW`, and `E12 HIGH`;
-  they are user-declared fixture values and remain dependent on physical reference
-  accuracy.
+  they are user-declared fixture values, persist in PRODUCT settings, and remain
+  dependent on physical reference accuracy.
 - The PC resource utility has a `bundle` command that builds, validates, summarizes, and
   optionally emits the deterministic PC-link stream used for service COM uploads.
 

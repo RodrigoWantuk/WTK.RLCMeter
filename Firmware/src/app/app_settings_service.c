@@ -9,7 +9,8 @@
 
 enum
 {
-    SETTINGS_SCHEMA_VERSION = 2u,
+    SETTINGS_SCHEMA_VERSION = 3u,
+    SETTINGS_MIN_SCHEMA_VERSION = 2u,
     SETTINGS_HEADER_SIZE = 24u,
     SETTINGS_PAYLOAD_OFFSET = 24u,
     SETTINGS_PAYLOAD_SIZE = 8u,
@@ -69,6 +70,7 @@ static bool settings_equal(const app_settings_t *a, const app_settings_t *b)
            (a->brightness_percent == b->brightness_percent) &&
            (a->backlight_timeout == b->backlight_timeout) &&
            (a->language_id == b->language_id) &&
+           (a->calibration_load_preset == b->calibration_load_preset) &&
            (a->sound_enabled == b->sound_enabled);
 }
 
@@ -78,6 +80,7 @@ app_settings_t app_settings_defaults(void)
         .brightness_percent = 25u,
         .backlight_timeout = APP_BACKLIGHT_TIMEOUT_60S,
         .language_id = (uint8_t)UI_LANGUAGE_EN,
+        .calibration_load_preset = (uint8_t)APP_SETTINGS_CAL_LOAD_PRESET_NOMINAL,
         .sound_enabled = true,
     };
 }
@@ -138,13 +141,19 @@ app_backlight_timeout_t app_backlight_timeout_prev(app_backlight_timeout_t timeo
     }
 }
 
+bool app_settings_calibration_load_preset_valid(uint8_t preset)
+{
+    return preset < (uint8_t)APP_SETTINGS_CAL_LOAD_PRESET_COUNT;
+}
+
 bool app_settings_validate(const app_settings_t *settings)
 {
     return (settings != NULL) &&
            (settings->brightness_percent >= 5u) &&
            (settings->brightness_percent <= 100u) &&
            app_backlight_timeout_valid(settings->backlight_timeout) &&
-           ui_language_valid(settings->language_id);
+           ui_language_valid(settings->language_id) &&
+           app_settings_calibration_load_preset_valid(settings->calibration_load_preset);
 }
 
 static void serialize_payload(uint8_t *payload, const app_settings_t *settings)
@@ -152,14 +161,13 @@ static void serialize_payload(uint8_t *payload, const app_settings_t *settings)
     payload[0] = settings->brightness_percent;
     payload[1] = settings->sound_enabled ? 1u : 0u;
     payload[2] = settings->language_id;
-    payload[3] = 0u;
+    payload[3] = settings->calibration_load_preset;
     put_u32(&payload[4], (uint32_t)settings->backlight_timeout);
 }
 
-static bool decode_payload(const uint8_t *payload, app_settings_t *settings)
+static bool decode_payload(const uint8_t *payload, uint16_t schema_version, app_settings_t *settings)
 {
-    if ((payload == NULL) || (settings == NULL) || (payload[1] > 1u) ||
-        (payload[3] != 0u))
+    if ((payload == NULL) || (settings == NULL) || (payload[1] > 1u))
     {
         return false;
     }
@@ -167,6 +175,8 @@ static bool decode_payload(const uint8_t *payload, app_settings_t *settings)
         .brightness_percent = payload[0],
         .sound_enabled = payload[1] != 0u,
         .language_id = payload[2],
+        .calibration_load_preset =
+            (schema_version <= 2u) ? (uint8_t)APP_SETTINGS_CAL_LOAD_PRESET_NOMINAL : payload[3],
         .backlight_timeout = (app_backlight_timeout_t)get_u32(&payload[4]),
     };
     return app_settings_validate(settings);
@@ -210,7 +220,9 @@ static app_settings_slot_status_t inspect_frame(const uint8_t frame[SETTINGS_FRA
     {
         return APP_SETTINGS_SLOT_CORRUPT;
     }
-    if ((get_u16(&frame[4]) != SETTINGS_SCHEMA_VERSION) ||
+    const uint16_t schema_version = get_u16(&frame[4]);
+    if ((schema_version < SETTINGS_MIN_SCHEMA_VERSION) ||
+        (schema_version > SETTINGS_SCHEMA_VERSION) ||
         (get_u16(&frame[6]) != SETTINGS_HEADER_SIZE) ||
         (get_u16(&frame[8]) != SETTINGS_FRAME_SIZE) ||
         (get_u16(&frame[10]) != SETTINGS_PAYLOAD_SIZE))
@@ -226,7 +238,7 @@ static app_settings_slot_status_t inspect_frame(const uint8_t frame[SETTINGS_FRA
         return APP_SETTINGS_SLOT_CORRUPT;
     }
     app_settings_t decoded;
-    if (!decode_payload(&frame[SETTINGS_PAYLOAD_OFFSET], &decoded))
+    if (!decode_payload(&frame[SETTINGS_PAYLOAD_OFFSET], schema_version, &decoded))
     {
         return APP_SETTINGS_SLOT_SEMANTIC_INVALID;
     }

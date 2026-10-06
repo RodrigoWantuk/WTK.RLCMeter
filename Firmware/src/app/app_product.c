@@ -36,10 +36,6 @@ enum
     APP_PRODUCT_MAINTENANCE_RESOURCES,
     APP_PRODUCT_MAINTENANCE_BACK,
     APP_PRODUCT_MAINTENANCE_COUNT,
-    APP_PRODUCT_CAL_LOAD_PRESET_NOMINAL = 0u,
-    APP_PRODUCT_CAL_LOAD_PRESET_E12_LOW,
-    APP_PRODUCT_CAL_LOAD_PRESET_E12_HIGH,
-    APP_PRODUCT_CAL_LOAD_PRESET_COUNT,
 };
 
 static void mark_dirty(app_product_t *product);
@@ -55,11 +51,11 @@ static float calibration_load_preset_value(uint8_t preset, hw_range_id_t range_i
         return 0.0f;
     }
     const uint8_t index = (uint8_t)range_id;
-    if (preset == APP_PRODUCT_CAL_LOAD_PRESET_E12_LOW)
+    if (preset == (uint8_t)APP_SETTINGS_CAL_LOAD_PRESET_E12_LOW)
     {
         return e12_low[index];
     }
-    if (preset == APP_PRODUCT_CAL_LOAD_PRESET_E12_HIGH)
+    if (preset == (uint8_t)APP_SETTINGS_CAL_LOAD_PRESET_E12_HIGH)
     {
         return e12_high[index];
     }
@@ -125,6 +121,7 @@ static void sync_settings_view(app_product_t *product)
         return;
     }
     const app_settings_t settings = current_settings(product);
+    product->calibration_load_preset = settings.calibration_load_preset;
     const uint16_t timeout_seconds = (uint16_t)settings.backlight_timeout;
     if ((product->view.menu.brightness_percent != settings.brightness_percent) ||
         (product->view.menu.timeout_seconds != timeout_seconds) ||
@@ -781,13 +778,13 @@ bsp_status_t app_product_init(app_product_t *product,
     product->settings_service = settings_service;
     product->last_activity_ms = 0u;
     product->wake_consume_button = BUTTON_ID_COUNT;
-    product->calibration_load_preset = APP_PRODUCT_CAL_LOAD_PRESET_NOMINAL;
     const bsp_status_t status = activate_measurement_runtime(product);
     if (status != BSP_STATUS_OK)
     {
         return status;
     }
     const app_settings_t settings = current_settings(product);
+    product->calibration_load_preset = settings.calibration_load_preset;
     product->view = (ui_product_view_t){
         .state = UI_PRODUCT_STATE_STARTUP,
         .page = UI_PRODUCT_PAGE_PRIMARY,
@@ -1168,17 +1165,19 @@ void app_product_step(app_product_t *product,
             {
                 product->calibration_load_preset =
                     (uint8_t)((product->calibration_load_preset + 1u) %
-                              APP_PRODUCT_CAL_LOAD_PRESET_COUNT);
+                              (uint8_t)APP_SETTINGS_CAL_LOAD_PRESET_COUNT);
             }
             else
             {
                 product->calibration_load_preset =
                     (product->calibration_load_preset == 0u) ?
-                        (uint8_t)(APP_PRODUCT_CAL_LOAD_PRESET_COUNT - 1u) :
+                        (uint8_t)(APP_SETTINGS_CAL_LOAD_PRESET_COUNT - 1u) :
                         (uint8_t)(product->calibration_load_preset - 1u);
             }
-            sync_settings_view(product);
-            mark_dirty(product);
+            app_settings_t settings = current_settings(product);
+            settings.calibration_load_preset = product->calibration_load_preset;
+            apply_settings(product, &settings);
+            request_settings_save(product);
         }
         else if ((product->request_click || product->calibration_deferred_for_settings) &&
                  inputs->calibration_active_valid &&

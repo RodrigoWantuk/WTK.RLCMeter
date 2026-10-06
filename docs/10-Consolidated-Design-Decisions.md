@@ -640,6 +640,10 @@ while the normal PRODUCT image leaves it disabled and still consumes already-pro
 W25Q resources. The service image remains bounded by the physical linker memory map but
 is not treated as the normal product-size-gated release image.
 
+Product settings schema v3 stores the menu-selected calibration LOAD preset. Existing
+schema v2 settings remain readable and map that new field to the `NOMINAL` preset, so
+older boards do not require a factory reset merely to boot the updated firmware.
+
 ## Debug console
 
 Debug settings include at least console enable/disable and log level.

@@ -19,11 +19,20 @@ typedef enum
     APP_BACKLIGHT_TIMEOUT_300S = 300,
 } app_backlight_timeout_t;
 
+typedef enum
+{
+    APP_SETTINGS_CAL_LOAD_PRESET_NOMINAL = 0,
+    APP_SETTINGS_CAL_LOAD_PRESET_E12_LOW,
+    APP_SETTINGS_CAL_LOAD_PRESET_E12_HIGH,
+    APP_SETTINGS_CAL_LOAD_PRESET_COUNT,
+} app_settings_cal_load_preset_t;
+
 typedef struct
 {
     uint8_t brightness_percent;
     app_backlight_timeout_t backlight_timeout;
     uint8_t language_id;
+    uint8_t calibration_load_preset;
     bool sound_enabled;
 } app_settings_t;
 
@@ -111,6 +120,7 @@ typedef struct
 app_settings_t app_settings_defaults(void);
 bool app_settings_validate(const app_settings_t *settings);
 bool app_backlight_timeout_valid(app_backlight_timeout_t timeout);
+bool app_settings_calibration_load_preset_valid(uint8_t preset);
 app_backlight_timeout_t app_backlight_timeout_next(app_backlight_timeout_t timeout);
 app_backlight_timeout_t app_backlight_timeout_prev(app_backlight_timeout_t timeout);
 

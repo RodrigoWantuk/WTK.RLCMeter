@@ -295,6 +295,10 @@ Release below the 55296 B Stage 3B handoff target. Phase 08 Stage 3B.1 then adds
 external A1 font runtime. Phase 08 product integration may now use the 60 KiB PRODUCT
 gate while keeping normal text, font, and rich image resources external.
 
+Product settings use a transactional two-slot W25Q record. Schema v3 adds the
+menu-selected calibration LOAD preset; schema v2 records remain readable and default
+that field to `NOMINAL`.
+
 ## Build and editor policy
 
 The repository must eventually support:

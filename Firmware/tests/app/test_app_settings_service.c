@@ -197,11 +197,15 @@ static int test_defaults_validation_and_roundtrip(void)
     failures += expect_u32(settings->brightness_percent, 25u, "default brightness");
     failures += expect_u32((uint32_t)settings->backlight_timeout, 60u, "default timeout");
     failures += expect_u32(settings->language_id, UI_LANGUAGE_EN, "default language");
+    failures += expect_u32(settings->calibration_load_preset,
+                           APP_SETTINGS_CAL_LOAD_PRESET_NOMINAL,
+                           "default load preset");
     failures += expect_true(settings->sound_enabled, "default sound enabled");
 
     app_settings_t changed = {.brightness_percent = 55u,
                               .backlight_timeout = APP_BACKLIGHT_TIMEOUT_120S,
                               .language_id = (uint8_t)UI_LANGUAGE_PT_BR,
+                              .calibration_load_preset = (uint8_t)APP_SETTINGS_CAL_LOAD_PRESET_E12_HIGH,
                               .sound_enabled = false};
     failures += expect_true(app_settings_service_set(&service, &changed) == BSP_STATUS_OK,
                             "set valid settings");
@@ -220,6 +224,9 @@ static int test_defaults_validation_and_roundtrip(void)
     failures += expect_u32(settings->brightness_percent, 55u, "reload brightness");
     failures += expect_u32((uint32_t)settings->backlight_timeout, 120u, "reload timeout");
     failures += expect_u32(settings->language_id, UI_LANGUAGE_PT_BR, "reload language");
+    failures += expect_u32(settings->calibration_load_preset,
+                           APP_SETTINGS_CAL_LOAD_PRESET_E12_HIGH,
+                           "reload load preset");
     failures += expect_true(!settings->sound_enabled, "reload sound disabled");
 
     changed.brightness_percent = 4u;
@@ -229,6 +236,10 @@ static int test_defaults_validation_and_roundtrip(void)
     changed.backlight_timeout = (app_backlight_timeout_t)45u;
     failures += expect_true(app_settings_service_set(&loaded, &changed) == BSP_STATUS_INVALID_ARG,
                             "unsupported timeout rejected");
+    changed = *settings;
+    changed.calibration_load_preset = (uint8_t)APP_SETTINGS_CAL_LOAD_PRESET_COUNT;
+    failures += expect_true(app_settings_service_set(&loaded, &changed) == BSP_STATUS_INVALID_ARG,
+                            "unsupported load preset rejected");
     return failures;
 }
 
