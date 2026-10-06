@@ -713,6 +713,12 @@ Post-09A product-menu continuation:
   release. A deterministic PC-side tool can emit the framed stream and, for a service or
   manufacturing build with the receiver enabled, sends each frame over a serial port and
   waits for the firmware status frame before sending the next one.
+- `resource_pack_tool.py` is the PC-side wrapper for this workflow. It can build a
+  Resource Pack from the source manifest, write a deterministic JSON summary with
+  SHA-256 and entry metadata, inspect an existing pack, emit a `.wpc` framed stream,
+  and upload over a serial port using the firmware ACK/status response. This is a
+  maintenance/provisioning tool, not a dependency for normal menu-driven measurement or
+  calibration.
 - Internal text fallback has been reduced to emergency/safety/fault wording and a
   compact placeholder for normal resource failures. Normal menu/service text belongs in
   the W25Q Resource Pack so richer screens do not consume proportional internal Flash.

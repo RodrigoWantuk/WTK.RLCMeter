@@ -17,6 +17,18 @@ assert SPEC.loader is not None
 sys.modules[SPEC.name] = resource_pack_format
 SPEC.loader.exec_module(resource_pack_format)
 
+PC_LINK_SPEC = importlib.util.spec_from_file_location("pc_link_resource_pack", TOOLS / "pc_link_resource_pack.py")
+pc_link_resource_pack = importlib.util.module_from_spec(PC_LINK_SPEC)
+assert PC_LINK_SPEC.loader is not None
+sys.modules[PC_LINK_SPEC.name] = pc_link_resource_pack
+PC_LINK_SPEC.loader.exec_module(pc_link_resource_pack)
+
+TOOL_SPEC = importlib.util.spec_from_file_location("resource_pack_tool", TOOLS / "resource_pack_tool.py")
+resource_pack_tool = importlib.util.module_from_spec(TOOL_SPEC)
+assert TOOL_SPEC.loader is not None
+sys.modules[TOOL_SPEC.name] = resource_pack_tool
+TOOL_SPEC.loader.exec_module(resource_pack_tool)
+
 
 class ResourcePackTests(unittest.TestCase):
     def _write_catalog(self, root: Path, language: str, filename: str, override: Optional[dict[str, str]] = None) -> None:
@@ -128,6 +140,39 @@ class ResourcePackTests(unittest.TestCase):
             self.assertEqual(font["index_bytes"], font["glyph_count"] * resource_pack_format.FONT_RECORD_SIZE)
             self.assertLessEqual(font["max_width"], resource_pack_format.FONT_MAX_WIDTH)
             self.assertLessEqual(font["max_height"], resource_pack_format.FONT_MAX_HEIGHT)
+
+    def test_resource_pack_tool_builds_summary_and_stream(self):
+        manifest = Path(__file__).resolve().parents[2] / "assets" / "resource_manifest.json"
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            pack_path = root / "wtk_resources.wrp2"
+            summary_path = root / "wtk_resources.summary.json"
+            stream_path = root / "wtk_resources.wpc"
+
+            self.assertEqual(
+                resource_pack_tool.main(["build", str(manifest), "-o", str(pack_path), "--summary", str(summary_path)]),
+                0,
+            )
+            summary = json.loads(summary_path.read_text(encoding="utf-8"))
+            self.assertEqual(summary["schema_version"], 2)
+            self.assertEqual(summary["resource_api_version"], 3)
+            self.assertEqual(summary["size_bytes"], len(pack_path.read_bytes()))
+            self.assertEqual(summary["entry_count"], 5)
+            self.assertEqual(len(summary["sha256"]), 64)
+
+            self.assertEqual(resource_pack_tool.main(["frame", str(pack_path), "-o", str(stream_path)]), 0)
+            stream = stream_path.read_bytes()
+            first_frame_size = pc_link_resource_pack.HEADER_SIZE + 12
+            frame_type, sequence, _payload = pc_link_resource_pack.decode_frame(stream[:first_frame_size])
+            self.assertEqual(frame_type, pc_link_resource_pack.FRAME_RESOURCE_BEGIN)
+            self.assertEqual(sequence, 1)
+
+    def test_resource_pack_tool_inspect_rejects_corrupt_pack(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            pack_path = Path(tmpdir) / "bad.wrp2"
+            pack_path.write_bytes(b"not-a-resource-pack")
+            with self.assertRaises(ValueError):
+                resource_pack_tool.main(["inspect", str(pack_path)])
 
     def test_corrupt_header_crc_fails_inspection(self):
         manifest = Path(__file__).resolve().parents[2] / "assets" / "resource_manifest.json"

@@ -33,6 +33,20 @@ Files in this directory are source inputs. Firmware consumes packed/generated re
 python Firmware/tools/build_resource_pack.py Firmware/assets/resource_manifest.json -o Firmware/build/resources/wtk_resources.bin
 ```
 
+The preferred product-facing PC utility wraps build, inspection, framed-stream
+generation, and optional serial upload:
+
+```bash
+python Firmware/tools/resource_pack_tool.py build Firmware/assets/resource_manifest.json -o Firmware/build/resources/wtk_resources.wrp2 --summary Firmware/build/resources/wtk_resources.summary.json
+python Firmware/tools/resource_pack_tool.py inspect Firmware/build/resources/wtk_resources.wrp2
+python Firmware/tools/resource_pack_tool.py frame Firmware/build/resources/wtk_resources.wrp2 -o Firmware/build/resources/wtk_resources.wpc
+python Firmware/tools/resource_pack_tool.py upload Firmware/build/resources/wtk_resources.wrp2 --port COM5
+```
+
+The upload subcommand expects a service/manufacturing firmware image built with
+`WTK_ENABLE_PRODUCT_RESOURCE_UPDATE=ON`. Normal product measurement, calibration, and
+menus remain menu-driven and do not depend on UART.
+
 Generated pack binaries are build artifacts; the checked-in source of truth is the
 manifest plus JSON catalog input files.
 
