@@ -622,7 +622,12 @@ Resource Pack update substrate erases/programs/polls W25Q through injected callb
 splits writes at W25Q page boundaries, and stages one bounded PC-link payload in the
 shared IO workspace rather than buffering an entire pack in SRAM. This protocol supports
 a PC manufacturing/service tool, but normal product measurement and calibration remain
-menu-driven and do not depend on UART.
+menu-driven and do not depend on UART. To preserve PRODUCT Flash headroom on the
+64 KiB STM32F103C8T6 image, the embedded serial receiver is a build-profile option:
+`WTK_ENABLE_PRODUCT_RESOURCE_UPDATE=ON` includes it for service/manufacturing firmware,
+while the normal PRODUCT image leaves it disabled and still consumes already-provisioned
+W25Q resources. The service image remains bounded by the physical linker memory map but
+is not treated as the normal product-size-gated release image.
 
 ## Debug console
 

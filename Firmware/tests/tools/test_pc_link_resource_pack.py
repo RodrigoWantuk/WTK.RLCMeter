@@ -71,6 +71,46 @@ class PcLinkResourcePackTests(unittest.TestCase):
             pc_link_resource_pack.write_stream(frames, output)
             self.assertEqual(output.read_bytes(), b"".join(frames))
 
+    def test_decode_frame_rejects_bad_crc(self):
+        frame = bytearray(pc_link_resource_pack.encode_frame(pc_link_resource_pack.FRAME_RESOURCE_BEGIN, 1, b"abc"))
+        frame[-1] ^= 0x55
+        with self.assertRaises(ValueError):
+            pc_link_resource_pack.decode_frame(bytes(frame))
+
+    def test_reads_status_frame(self):
+        payload = struct.pack("<HHHH", 7, pc_link_resource_pack.PC_STATUS_OK, pc_link_resource_pack.UPDATE_STATUS_OK, 3)
+        frame = pc_link_resource_pack.encode_frame(pc_link_resource_pack.FRAME_STATUS, 7, payload)
+
+        class FakeLink:
+            def __init__(self, data):
+                self._data = bytearray(data)
+
+            def read(self, size):
+                chunk = bytes(self._data[:size])
+                del self._data[:size]
+                return chunk
+
+        sequence, pc_status, update_status, update_state = pc_link_resource_pack.read_status_frame(FakeLink(frame))
+        self.assertEqual(sequence, 7)
+        self.assertEqual(pc_status, pc_link_resource_pack.PC_STATUS_OK)
+        self.assertEqual(update_status, pc_link_resource_pack.UPDATE_STATUS_OK)
+        self.assertEqual(update_state, 3)
+
+    def test_status_frame_requires_status_type(self):
+        frame = pc_link_resource_pack.encode_frame(pc_link_resource_pack.FRAME_RESOURCE_END, 2, b"")
+
+        class FakeLink:
+            def __init__(self, data):
+                self._data = bytearray(data)
+
+            def read(self, size):
+                chunk = bytes(self._data[:size])
+                del self._data[:size]
+                return chunk
+
+        with self.assertRaises(ValueError):
+            pc_link_resource_pack.read_status_frame(FakeLink(frame))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -33,8 +33,10 @@ Application layer for the firmware.
 - `app_resource_update.c/.h`: cooperative Resource Pack W25Q update substrate. It
   consumes validated PC-link resource frames, erases/programs/polls through injected
   storage callbacks, splits page programs at W25Q page boundaries, and uses the shared
-  workspace instead of allocating a second pack buffer. PRODUCT serial command
-  integration remains a later step.
+  workspace instead of allocating a second pack buffer. PRODUCT serial receiver
+  integration is available only when `WTK_ENABLE_PRODUCT_RESOURCE_UPDATE=ON`, which is
+  intended for manufacturing/service firmware images; the normal PRODUCT image keeps
+  this path disabled to preserve internal Flash headroom.
 - `app_calibration_*`: product-owned calibration runtime, store lifecycle, OSL workflow,
   and calibration wizard/session state. The product service does not own campaign
   aggregation state; BRINGUP owns that helper explicitly when its diagnostic commands

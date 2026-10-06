@@ -84,6 +84,7 @@ app_resource_update_status_t app_resource_update_accept_frame(app_resource_updat
 app_resource_update_status_t app_resource_update_step(app_resource_update_t *update,
                                                       uint32_t now_ms);
 void app_resource_update_abort(app_resource_update_t *update);
+bool app_resource_update_active(const app_resource_update_t *update);
 bool app_resource_update_busy(const app_resource_update_t *update);
 bool app_resource_update_complete(const app_resource_update_t *update);
 app_resource_update_state_t app_resource_update_state(const app_resource_update_t *update);

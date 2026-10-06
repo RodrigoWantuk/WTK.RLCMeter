@@ -139,7 +139,10 @@ static app_resource_update_status_t accept_chunk(app_resource_update_t *update,
         return APP_RESOURCE_UPDATE_STATUS_PROTOCOL;
     }
 
-    (void)memcpy(update->scratch, frame->payload, frame->payload_length);
+    if (update->scratch != frame->payload)
+    {
+        (void)memcpy(update->scratch, frame->payload, frame->payload_length);
+    }
     update->chunk_offset = offset;
     update->chunk_payload_length = frame->payload_length;
     update->chunk_written = 0u;
@@ -390,6 +393,17 @@ bool app_resource_update_busy(const app_resource_update_t *update)
            (update->state == APP_RESOURCE_UPDATE_ERASE_POLL) ||
            (update->state == APP_RESOURCE_UPDATE_PROGRAM_START) ||
            (update->state == APP_RESOURCE_UPDATE_PROGRAM_POLL);
+}
+
+bool app_resource_update_active(const app_resource_update_t *update)
+{
+    if (update == NULL)
+    {
+        return false;
+    }
+    return (update->state != APP_RESOURCE_UPDATE_IDLE) &&
+           (update->state != APP_RESOURCE_UPDATE_COMPLETE) &&
+           (update->state != APP_RESOURCE_UPDATE_ERROR);
 }
 
 bool app_resource_update_complete(const app_resource_update_t *update)

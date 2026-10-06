@@ -4,7 +4,13 @@
 #include "app/app_calibration_service.h"
 #include "app/app_flash_access.h"
 #include "app/app_io_workspace.h"
+#if !WTK_ENABLE_BRINGUP_CONSOLE && WTK_ENABLE_PRODUCT_RESOURCE_UPDATE
+#include "app/app_pc_link_protocol.h"
+#endif
 #include "app/app_product.h"
+#if !WTK_ENABLE_BRINGUP_CONSOLE && WTK_ENABLE_PRODUCT_RESOURCE_UPDATE
+#include "app/app_resource_update.h"
+#endif
 #include "app/app_safety_fault.h"
 #include "app/app_settings_service.h"
 #include "bsp/bsp_adc.h"
@@ -57,6 +63,12 @@
 #define APP_VERBOSE_DIAG_HEX8(key, value) ((void)0)
 #endif
 
+#if defined(__GNUC__)
+#define APP_NOINLINE __attribute__((noinline))
+#else
+#define APP_NOINLINE
+#endif
+
 typedef enum
 {
     APP_SAFETY_SAFE_CHECK = 0,
@@ -89,6 +101,19 @@ static ui_text_catalog_t g_text_catalog;
 static ui_font_catalog_t g_font_catalog;
 static resource_w25q_reader_t g_resource_reader;
 static resource_status_t g_resource_status = RESOURCE_STATUS_MISSING;
+#if WTK_ENABLE_PRODUCT_RESOURCE_UPDATE
+static app_resource_update_t g_resource_update;
+static uint8_t g_pc_link_frame[APP_PC_LINK_HEADER_SIZE + APP_PC_LINK_MAX_PAYLOAD_BYTES];
+static uint16_t g_pc_link_received = 0u;
+static uint16_t g_pc_link_expected = APP_PC_LINK_HEADER_SIZE;
+static uint16_t g_pc_link_pending_sequence = 0u;
+static app_pc_link_status_t g_pc_link_pending_protocol_status = APP_PC_LINK_STATUS_OK;
+static app_resource_update_status_t g_pc_link_pending_update_status = APP_RESOURCE_UPDATE_STATUS_OK;
+static bool g_pc_link_frame_ready = false;
+static bool g_pc_link_ack_deferred = false;
+static bool g_resource_update_configured = false;
+static bool g_resource_update_workspace_acquired = false;
+#endif
 static uint16_t g_product_ccr_table[HW_EXCITATION_LUT_POINTS];
 static uint32_t g_product_output_tone_sequence = 0u;
 static uint8_t g_product_output_backlight_percent = UINT8_MAX;
@@ -172,8 +197,359 @@ static app_flash_access_snapshot_t product_flash_access_snapshot(void *user)
         .quiet = hw_peripherals_quiet_requested(),
         .calibration_mutation = app_calibration_service_busy(&g_calibration_service),
         .settings_mutation = app_settings_service_busy(&g_settings_service),
+#if WTK_ENABLE_PRODUCT_RESOURCE_UPDATE
+        .resource_mutation = app_resource_update_active(&g_resource_update),
+#else
+        .resource_mutation = false,
+#endif
     };
 }
+
+static APP_NOINLINE resource_status_t product_mount_resource_pack(void)
+{
+    if (!g_flash.detected)
+    {
+        return RESOURCE_STATUS_MISSING;
+    }
+    storage_partition_t resource_partition;
+    if (!storage_layout_partition(g_flash.part.capacity_bytes,
+                                  STORAGE_PARTITION_RESOURCE_PACK,
+                                  &resource_partition))
+    {
+        return RESOURCE_STATUS_CORRUPT;
+    }
+
+    g_resource_reader = (resource_w25q_reader_t){
+        .flash = &g_flash,
+        .policy_snapshot = product_flash_access_snapshot,
+        .policy_user = NULL,
+    };
+    const resource_catalog_io_t resource_io = resource_w25q_catalog_io(&g_resource_reader);
+    resource_status_t status = resource_catalog_mount(&g_resource_catalog,
+                                                      &resource_io,
+                                                      resource_partition.start,
+                                                      resource_partition.size);
+    if (status == RESOURCE_STATUS_OK)
+    {
+        status = ui_text_catalog_validate_required_languages(&g_resource_catalog);
+    }
+    if (status == RESOURCE_STATUS_OK)
+    {
+        status = ui_font_catalog_mount(&g_font_catalog, &g_resource_catalog);
+    }
+    if (status == RESOURCE_STATUS_OK)
+    {
+        const uint8_t language_id = app_settings_service_current(&g_settings_service)->language_id;
+        status = ui_text_catalog_select_language(&g_text_catalog,
+                                                 &g_resource_catalog,
+                                                 language_id);
+    }
+    return status;
+}
+
+#if WTK_ENABLE_PRODUCT_RESOURCE_UPDATE
+static bsp_status_t product_resource_erase_start(uint32_t address, uint32_t now_ms, void *user)
+{
+    (void)user;
+    const w25q_status_t status = w25q_device_sector_erase_start(&g_flash, address, now_ms);
+    if (status == W25Q_STATUS_BUSY)
+    {
+        return BSP_STATUS_BUSY;
+    }
+    return (status == W25Q_STATUS_OK) ? BSP_STATUS_OK : BSP_STATUS_ERROR;
+}
+
+static bsp_status_t product_resource_program_start(uint32_t address,
+                                                   const void *src,
+                                                   size_t size,
+                                                   uint32_t now_ms,
+                                                   void *user)
+{
+    (void)user;
+    const w25q_status_t status = w25q_device_page_program_start(&g_flash, address, src, size, now_ms);
+    if (status == W25Q_STATUS_BUSY)
+    {
+        return BSP_STATUS_BUSY;
+    }
+    return (status == W25Q_STATUS_OK) ? BSP_STATUS_OK : BSP_STATUS_ERROR;
+}
+
+static bsp_status_t product_resource_poll(uint32_t now_ms, void *user)
+{
+    (void)user;
+    const w25q_status_t status = w25q_device_poll(&g_flash, now_ms);
+    if (status == W25Q_STATUS_BUSY)
+    {
+        return BSP_STATUS_BUSY;
+    }
+    return (status == W25Q_STATUS_OK) ? BSP_STATUS_OK : BSP_STATUS_ERROR;
+}
+
+static uint16_t app_read_le16(const uint8_t *src)
+{
+    return (uint16_t)((uint16_t)src[0] | ((uint16_t)src[1] << 8));
+}
+
+static uint32_t app_read_le32(const uint8_t *src)
+{
+    return (uint32_t)src[0] |
+           ((uint32_t)src[1] << 8) |
+           ((uint32_t)src[2] << 16) |
+           ((uint32_t)src[3] << 24);
+}
+
+static void app_write_le16(uint8_t *dst, uint16_t value)
+{
+    dst[0] = (uint8_t)(value & 0xFFu);
+    dst[1] = (uint8_t)((value >> 8) & 0xFFu);
+}
+
+static void product_pc_link_reset_rx(void)
+{
+    g_pc_link_received = 0u;
+    g_pc_link_expected = APP_PC_LINK_HEADER_SIZE;
+    g_pc_link_frame_ready = false;
+}
+
+static APP_NOINLINE void product_pc_link_send_status(uint16_t sequence,
+                                                     app_pc_link_status_t protocol_status,
+                                                     app_resource_update_status_t update_status)
+{
+    uint8_t payload[8] = {0};
+    uint8_t header[APP_PC_LINK_HEADER_SIZE];
+    app_write_le16(&payload[0], sequence);
+    app_write_le16(&payload[2], (uint16_t)protocol_status);
+    app_write_le16(&payload[4], (uint16_t)update_status);
+    app_write_le16(&payload[6], (uint16_t)app_resource_update_state(&g_resource_update));
+    app_pc_link_encode_header(header,
+                              APP_PC_LINK_FRAME_STATUS,
+                              0u,
+                              sequence,
+                              payload,
+                              (uint16_t)sizeof(payload));
+    (void)bsp_uart_write((const char *)header, sizeof(header));
+    (void)bsp_uart_write((const char *)payload, sizeof(payload));
+}
+
+static void product_resource_update_release_workspace(void)
+{
+    if (g_resource_update_workspace_acquired)
+    {
+        (void)app_io_workspace_release(&g_io_workspace, APP_IO_WORKSPACE_OWNER_RESOURCE_UPDATE);
+        g_resource_update_workspace_acquired = false;
+    }
+}
+
+static APP_NOINLINE app_resource_update_status_t product_resource_update_begin(const app_pc_link_frame_t *frame,
+                                                                               uint32_t now_ms)
+{
+    if (!g_flash.detected)
+    {
+        return APP_RESOURCE_UPDATE_STATUS_FLASH;
+    }
+    const app_flash_access_snapshot_t access = product_flash_access_snapshot(NULL);
+    if (!app_flash_access_allowed(&access, APP_FLASH_ACCESS_RESOURCE_MUTATION))
+    {
+        return APP_RESOURCE_UPDATE_STATUS_BUSY;
+    }
+
+    storage_partition_t resource_partition;
+    if (!storage_layout_partition(g_flash.part.capacity_bytes,
+                                  STORAGE_PARTITION_RESOURCE_PACK,
+                                  &resource_partition))
+    {
+        return APP_RESOURCE_UPDATE_STATUS_OUT_OF_RANGE;
+    }
+    if (app_io_workspace_acquire(&g_io_workspace,
+                                 APP_IO_WORKSPACE_OWNER_RESOURCE_UPDATE) != BSP_STATUS_OK)
+    {
+        return APP_RESOURCE_UPDATE_STATUS_BUSY;
+    }
+    g_resource_update_workspace_acquired = true;
+    const app_resource_update_io_t io = {
+        .erase_start = product_resource_erase_start,
+        .program_start = product_resource_program_start,
+        .poll = product_resource_poll,
+        .user = NULL,
+    };
+    app_resource_update_init(&g_resource_update,
+                             &io,
+                             &resource_partition,
+                             app_io_workspace_resource_update_frame(&g_io_workspace),
+                             app_io_workspace_resource_update_frame_bytes());
+    g_resource_update_configured = true;
+    g_resource_status = RESOURCE_STATUS_DEFERRED;
+    return app_resource_update_accept_frame(&g_resource_update, frame, now_ms);
+}
+
+static APP_NOINLINE app_resource_update_status_t product_pc_link_process_frame(const app_pc_link_frame_t *frame,
+                                                                               uint32_t now_ms)
+{
+    if (frame == NULL)
+    {
+        g_pc_link_pending_protocol_status = APP_PC_LINK_STATUS_INVALID_ARG;
+        return APP_RESOURCE_UPDATE_STATUS_INVALID_ARG;
+    }
+    if (g_product.view.state != UI_PRODUCT_STATE_PC_LINK_STATUS)
+    {
+        g_pc_link_pending_protocol_status = APP_PC_LINK_STATUS_UNEXPECTED_FRAME;
+        return APP_RESOURCE_UPDATE_STATUS_PROTOCOL;
+    }
+    if (frame->type == APP_PC_LINK_FRAME_RESOURCE_BEGIN)
+    {
+        g_pc_link_pending_protocol_status = APP_PC_LINK_STATUS_OK;
+        return product_resource_update_begin(frame, now_ms);
+    }
+    if (!g_resource_update_configured)
+    {
+        g_pc_link_pending_protocol_status = APP_PC_LINK_STATUS_NOT_ACTIVE;
+        return APP_RESOURCE_UPDATE_STATUS_PROTOCOL;
+    }
+
+    const app_resource_update_status_t status =
+        app_resource_update_accept_frame(&g_resource_update, frame, now_ms);
+    g_pc_link_pending_protocol_status = app_resource_update_last_protocol_status(&g_resource_update);
+    if (frame->type == APP_PC_LINK_FRAME_ABORT)
+    {
+        product_resource_update_release_workspace();
+        g_resource_update_configured = false;
+        g_resource_status = product_mount_resource_pack();
+    }
+    return status;
+}
+
+static void product_pc_link_finish_update_if_terminal(void)
+{
+    const app_resource_update_state_t state = app_resource_update_state(&g_resource_update);
+    if (state == APP_RESOURCE_UPDATE_COMPLETE)
+    {
+        product_resource_update_release_workspace();
+        g_resource_update_configured = false;
+        g_resource_status = product_mount_resource_pack();
+    }
+    else if (state == APP_RESOURCE_UPDATE_ERROR)
+    {
+        product_resource_update_release_workspace();
+        g_resource_update_configured = false;
+        g_resource_status = RESOURCE_STATUS_CORRUPT;
+    }
+}
+
+static APP_NOINLINE void product_pc_link_step_update(uint32_t now_ms)
+{
+    if (!g_resource_update_configured)
+    {
+        return;
+    }
+    const app_resource_update_status_t status = app_resource_update_step(&g_resource_update, now_ms);
+    if ((status != APP_RESOURCE_UPDATE_STATUS_OK) &&
+        (status != APP_RESOURCE_UPDATE_STATUS_BUSY) &&
+        (status != APP_RESOURCE_UPDATE_STATUS_COMPLETE))
+    {
+        g_pc_link_pending_update_status = status;
+    }
+    if (g_pc_link_ack_deferred &&
+        !app_resource_update_busy(&g_resource_update))
+    {
+        if (g_pc_link_pending_update_status == APP_RESOURCE_UPDATE_STATUS_OK)
+        {
+            g_pc_link_pending_update_status =
+                app_resource_update_complete(&g_resource_update) ?
+                    APP_RESOURCE_UPDATE_STATUS_COMPLETE :
+                    app_resource_update_last_error(&g_resource_update);
+        }
+        product_pc_link_send_status(g_pc_link_pending_sequence,
+                                    g_pc_link_pending_protocol_status,
+                                    g_pc_link_pending_update_status);
+        g_pc_link_ack_deferred = false;
+        product_pc_link_finish_update_if_terminal();
+    }
+}
+
+static APP_NOINLINE void product_pc_link_decode_ready_frame(uint32_t now_ms)
+{
+    app_pc_link_frame_t frame;
+    app_pc_link_status_t pc_status =
+        app_pc_link_decode_frame(g_pc_link_frame, g_pc_link_expected, &frame);
+    uint16_t sequence = 0u;
+    if (g_pc_link_expected >= APP_PC_LINK_HEADER_SIZE)
+    {
+        sequence = app_read_le16(&g_pc_link_frame[8]);
+    }
+    app_resource_update_status_t update_status = APP_RESOURCE_UPDATE_STATUS_PROTOCOL;
+    if (pc_status == APP_PC_LINK_STATUS_OK)
+    {
+        update_status = product_pc_link_process_frame(&frame, now_ms);
+        pc_status = g_pc_link_pending_protocol_status;
+    }
+
+    g_pc_link_pending_sequence = sequence;
+    g_pc_link_pending_protocol_status = pc_status;
+    g_pc_link_pending_update_status = update_status;
+    product_pc_link_reset_rx();
+
+    if ((update_status == APP_RESOURCE_UPDATE_STATUS_OK) &&
+        app_resource_update_busy(&g_resource_update))
+    {
+        g_pc_link_ack_deferred = true;
+        return;
+    }
+
+    product_pc_link_send_status(sequence, pc_status, update_status);
+    product_pc_link_finish_update_if_terminal();
+}
+
+static APP_NOINLINE void product_pc_link_step_rx(uint32_t now_ms)
+{
+    if (g_pc_link_ack_deferred || g_pc_link_frame_ready)
+    {
+        return;
+    }
+    for (uint8_t i = 0u; i < 16u; i++)
+    {
+        uint8_t byte = 0u;
+        const bsp_status_t status = bsp_uart_try_read_byte(&byte);
+        if (status != BSP_STATUS_OK)
+        {
+            break;
+        }
+        if (g_pc_link_received < sizeof(g_pc_link_frame))
+        {
+            g_pc_link_frame[g_pc_link_received] = byte;
+            g_pc_link_received++;
+        }
+        if (g_pc_link_received == APP_PC_LINK_HEADER_SIZE)
+        {
+            const uint16_t payload_length = app_read_le16(&g_pc_link_frame[10]);
+            if ((app_read_le32(&g_pc_link_frame[0]) != APP_PC_LINK_MAGIC) ||
+                (g_pc_link_frame[4] != APP_PC_LINK_VERSION) ||
+                (payload_length > APP_PC_LINK_MAX_PAYLOAD_BYTES))
+            {
+                const uint16_t sequence = app_read_le16(&g_pc_link_frame[8]);
+                const app_pc_link_status_t pc_status =
+                    (app_read_le32(&g_pc_link_frame[0]) != APP_PC_LINK_MAGIC) ?
+                        APP_PC_LINK_STATUS_BAD_MAGIC :
+                        ((g_pc_link_frame[4] != APP_PC_LINK_VERSION) ?
+                             APP_PC_LINK_STATUS_UNSUPPORTED_VERSION :
+                             APP_PC_LINK_STATUS_PAYLOAD_TOO_LARGE);
+                product_pc_link_send_status(sequence,
+                                            pc_status,
+                                            APP_RESOURCE_UPDATE_STATUS_PROTOCOL);
+                product_pc_link_reset_rx();
+                break;
+            }
+            g_pc_link_expected = (uint16_t)(APP_PC_LINK_HEADER_SIZE + payload_length);
+        }
+        if ((g_pc_link_received >= APP_PC_LINK_HEADER_SIZE) &&
+            (g_pc_link_received == g_pc_link_expected))
+        {
+            g_pc_link_frame_ready = true;
+            product_pc_link_decode_ready_frame(now_ms);
+            break;
+        }
+    }
+}
+#endif
 
 static resource_status_t product_text_resolve(void *context,
                                               ui_language_id_t language,
@@ -914,6 +1290,10 @@ static void app_step(void)
     {
         g_product_display_fault = true;
     }
+#if WTK_ENABLE_PRODUCT_RESOURCE_UPDATE
+    product_pc_link_step_update(now_ms);
+    product_pc_link_step_rx(now_ms);
+#endif
     flash_access = product_flash_access_snapshot(NULL);
     if (app_flash_access_allowed(&flash_access, APP_FLASH_ACCESS_GENERIC_POLL))
     {
@@ -1069,41 +1449,7 @@ void app_shell_run(void)
             app_settings_service_use_defaults(&g_settings_service);
         }
         APP_VERBOSE_DIAG_TEXT("settings", bsp_status_string(settings_load_status));
-        storage_partition_t resource_partition;
-        if (storage_layout_partition(g_flash.part.capacity_bytes,
-                                     STORAGE_PARTITION_RESOURCE_PACK,
-                                     &resource_partition))
-        {
-            g_resource_reader = (resource_w25q_reader_t){
-                .flash = &g_flash,
-                .policy_snapshot = product_flash_access_snapshot,
-                .policy_user = NULL,
-            };
-            const resource_catalog_io_t resource_io = resource_w25q_catalog_io(&g_resource_reader);
-            g_resource_status = resource_catalog_mount(&g_resource_catalog,
-                                                       &resource_io,
-                                                       resource_partition.start,
-                                                       resource_partition.size);
-            if (g_resource_status == RESOURCE_STATUS_OK)
-            {
-                g_resource_status = ui_text_catalog_validate_required_languages(&g_resource_catalog);
-            }
-            if (g_resource_status == RESOURCE_STATUS_OK)
-            {
-                g_resource_status = ui_font_catalog_mount(&g_font_catalog, &g_resource_catalog);
-            }
-            if (g_resource_status == RESOURCE_STATUS_OK)
-            {
-                const uint8_t language_id = app_settings_service_current(&g_settings_service)->language_id;
-                g_resource_status = ui_text_catalog_select_language(&g_text_catalog,
-                                                                    &g_resource_catalog,
-                                                                    language_id);
-            }
-        }
-        else
-        {
-            g_resource_status = RESOURCE_STATUS_CORRUPT;
-        }
+        g_resource_status = product_mount_resource_pack();
         APP_VERBOSE_DIAG_TEXT("resources", resource_status_string(g_resource_status));
 #endif
     }

@@ -705,10 +705,14 @@ Post-09A product-menu continuation:
   `RESOURCE_BEGIN`, monotonic-offset `RESOURCE_CHUNK`, `RESOURCE_END`, and
   `ABORT`. The protocol substrate validates Resource Pack size, CRC32, and API
   version. A cooperative update substrate can erase/program/poll W25Q through injected
-  callbacks and shared workspace staging, but PRODUCT serial command integration is
-  still a later step. A deterministic PC-side tool can emit the framed stream and
-  optionally send it through a serial port when an operator explicitly uses that
-  maintenance path.
+  callbacks and shared workspace staging. PRODUCT serial receiver integration now
+  exists behind `WTK_ENABLE_PRODUCT_RESOURCE_UPDATE=ON`; the default PRODUCT image keeps
+  it disabled because including the receiver currently exceeds the 57,344 B hard Flash
+  gate. A service/manufacturing image with the receiver enabled is still constrained by
+  the STM32 linker memory map, but it is not classified as the normal size-gated product
+  release. A deterministic PC-side tool can emit the framed stream and, for a service or
+  manufacturing build with the receiver enabled, sends each frame over a serial port and
+  waits for the firmware status frame before sending the next one.
 - Internal text fallback has been reduced to emergency/safety/fault wording and a
   compact placeholder for normal resource failures. Normal menu/service text belongs in
   the W25Q Resource Pack so richer screens do not consume proportional internal Flash.
