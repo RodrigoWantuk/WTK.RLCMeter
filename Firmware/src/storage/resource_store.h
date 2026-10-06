@@ -24,6 +24,12 @@ enum
     RESOURCE_FONT_A1_VERSION = 1u,
     RESOURCE_FONT_A1_MAX_GLYPH_WIDTH = 32u,
     RESOURCE_FONT_A1_MAX_GLYPH_HEIGHT = 32u,
+    RESOURCE_IMAGE_RGB565_RLE_HEADER_SIZE = 32u,
+    RESOURCE_IMAGE_RGB565_RLE_RECORD_SIZE = 4u,
+    RESOURCE_IMAGE_RGB565_RLE_MAGIC = 0x314D4957u, /* "WIM1" little-endian */
+    RESOURCE_IMAGE_RGB565_RLE_VERSION = 1u,
+    RESOURCE_IMAGE_RGB565_MAX_WIDTH = 320u,
+    RESOURCE_IMAGE_RGB565_MAX_HEIGHT = 240u,
 };
 
 typedef enum
@@ -52,6 +58,7 @@ typedef enum
 {
     RESOURCE_FORMAT_TEXT_TABLE_UTF8_V1 = 1u,
     RESOURCE_FORMAT_FONT_BITMAP_A1_V1 = 2u,
+    RESOURCE_FORMAT_IMAGE_RGB565_RLE_V1 = 3u,
 } resource_format_t;
 
 typedef enum
@@ -67,6 +74,7 @@ typedef enum
     RESOURCE_ID_FONT_UI_SMALL = 0x00020001u,
     RESOURCE_ID_FONT_UI_MEDIUM = 0x00020002u,
     RESOURCE_ID_FONT_UI_LARGE = 0x00020003u,
+    RESOURCE_ID_IMAGE_SPLASH = 0x00030001u,
 } resource_id_t;
 
 typedef struct
@@ -151,6 +159,21 @@ typedef struct
     uint16_t reserved0;
 } resource_font_a1_record_t;
 
+typedef struct
+{
+    uint32_t magic;
+    uint16_t version;
+    uint16_t header_size;
+    uint16_t width;
+    uint16_t height;
+    uint16_t flags;
+    uint16_t reserved0;
+    uint32_t command_offset;
+    uint32_t command_size;
+    uint32_t decoded_pixel_count;
+    uint32_t command_crc32;
+} resource_image_rgb565_rle_header_t;
+
 typedef bsp_status_t (*resource_read_fn)(uint32_t address, void *dst, size_t size, void *user);
 
 typedef struct
@@ -202,6 +225,12 @@ resource_status_t resource_store_decode_font_a1_record(const uint8_t src[RESOURC
                                                        const resource_font_a1_header_t *header,
                                                        uint32_t payload_size,
                                                        resource_font_a1_record_t *record);
+void resource_store_encode_image_rgb565_rle_header(uint8_t dst[RESOURCE_IMAGE_RGB565_RLE_HEADER_SIZE],
+                                                   const resource_image_rgb565_rle_header_t *header);
+resource_status_t resource_store_decode_image_rgb565_rle_header(
+    const uint8_t src[RESOURCE_IMAGE_RGB565_RLE_HEADER_SIZE],
+    uint32_t payload_size,
+    resource_image_rgb565_rle_header_t *header);
 
 resource_status_t resource_catalog_mount(resource_catalog_t *catalog,
                                          const resource_catalog_io_t *io,

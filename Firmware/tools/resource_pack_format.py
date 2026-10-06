@@ -25,6 +25,12 @@ FONT_HEADER_SIZE = 32
 FONT_RECORD_SIZE = 20
 FONT_MAX_WIDTH = 32
 FONT_MAX_HEIGHT = 32
+IMAGE_MAGIC = 0x314D4957
+IMAGE_VERSION = 1
+IMAGE_HEADER_SIZE = 32
+IMAGE_RLE_RECORD_SIZE = 4
+IMAGE_MAX_WIDTH = 320
+IMAGE_MAX_HEIGHT = 240
 
 RESOURCE_IDS = {
     "TEXT_EN": 0x00010001,
@@ -32,9 +38,10 @@ RESOURCE_IDS = {
     "FONT_UI_SMALL": 0x00020001,
     "FONT_UI_MEDIUM": 0x00020002,
     "FONT_UI_LARGE": 0x00020003,
+    "IMAGE_SPLASH": 0x00030001,
 }
-RESOURCE_TYPES = {"TEXT_TABLE": 1, "FONT_BITMAP_A1": 2}
-RESOURCE_FORMATS = {"TEXT_TABLE_UTF8_V1": 1, "FONT_BITMAP_A1_V1": 2}
+RESOURCE_TYPES = {"TEXT_TABLE": 1, "FONT_BITMAP_A1": 2, "RGB565_IMAGE": 4}
+RESOURCE_FORMATS = {"TEXT_TABLE_UTF8_V1": 1, "FONT_BITMAP_A1_V1": 2, "IMAGE_RGB565_RLE_V1": 3}
 LANGUAGE_IDS = {"en": 1, "pt-BR": 2}
 TEXT_ID_FIRST = 0x0001
 TEXT_ID_LAST = 0x0041
@@ -304,6 +311,59 @@ def build_font_payload(path: Path, scale: int, required_codepoints: set[int]) ->
     return header + bytes(index) + bytes(bitmap)
 
 
+def _parse_rgb565(value: object) -> int:
+    if isinstance(value, str):
+        text = value.strip()
+        if text.startswith("#"):
+            if len(text) != 7:
+                raise ValueError(f"invalid RGB color {value!r}")
+            red = int(text[1:3], 16)
+            green = int(text[3:5], 16)
+            blue = int(text[5:7], 16)
+            return ((red >> 3) << 11) | ((green >> 2) << 5) | (blue >> 3)
+        return int(text, 0)
+    return int(value)
+
+
+def build_image_payload(path: Path) -> bytes:
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if data.get("format") != "IMAGE_RGB565_RLE_V1":
+        raise ValueError("unsupported image source format")
+    width = int(data["width"])
+    height = int(data["height"])
+    if width <= 0 or height <= 0 or width > IMAGE_MAX_WIDTH or height > IMAGE_MAX_HEIGHT:
+        raise ValueError("image dimensions out of supported bounds")
+    commands = bytearray()
+    pixels = 0
+    for item in data.get("runs", []):
+        if not isinstance(item, list) or len(item) != 2:
+            raise ValueError("image runs must be [count, rgb565] pairs")
+        count = int(item[0])
+        color = _parse_rgb565(item[1])
+        if count <= 0 or count > 0xFFFF or color < 0 or color > 0xFFFF:
+            raise ValueError("invalid image RLE run")
+        commands.extend(struct.pack("<HH", count, color))
+        pixels += count
+    expected_pixels = width * height
+    if pixels != expected_pixels or not commands:
+        raise ValueError("image RLE runs do not cover the declared dimensions")
+    header = struct.pack(
+        "<IHHHHHHIIII",
+        IMAGE_MAGIC,
+        IMAGE_VERSION,
+        IMAGE_HEADER_SIZE,
+        width,
+        height,
+        0,
+        0,
+        IMAGE_HEADER_SIZE,
+        len(commands),
+        expected_pixels,
+        crc32(bytes(commands)),
+    )
+    return header + bytes(commands)
+
+
 def build_pack(manifest_path: Path) -> bytes:
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     if manifest.get("schema_version") != PACK_SCHEMA_VERSION:
@@ -342,6 +402,10 @@ def build_pack(manifest_path: Path) -> bytes:
             if spec["format"] != "FONT_BITMAP_A1_V1":
                 raise ValueError("unsupported font format")
             payload = build_font_payload(base / spec["path"], int(spec["scale"]), required_codepoints)
+        elif spec["type"] == "RGB565_IMAGE":
+            if spec["format"] != "IMAGE_RGB565_RLE_V1":
+                raise ValueError("unsupported image format")
+            payload = build_image_payload(base / spec["path"])
         else:
             raise ValueError(f"unsupported resource type {spec['type']!r}")
         entries.append(
@@ -407,6 +471,10 @@ def inspect_pack(data: bytes) -> dict[str, object]:
                 raise ValueError("unsupported font format")
             font_info = _inspect_font_payload(payload)
             seen_font_resources.add(resource_id)
+        elif resource_type == RESOURCE_TYPES["RGB565_IMAGE"]:
+            if fmt != RESOURCE_FORMATS["IMAGE_RGB565_RLE_V1"]:
+                raise ValueError("unsupported image format")
+            image_info = _inspect_image_payload(payload)
         else:
             raise ValueError("unsupported resource type")
         entries.append(
@@ -419,6 +487,7 @@ def inspect_pack(data: bytes) -> dict[str, object]:
                 "payload_crc32": payload_crc32,
                 "language_id": language_id,
                 "font": font_info if resource_type == RESOURCE_TYPES["FONT_BITMAP_A1"] else None,
+                "image": image_info if resource_type == RESOURCE_TYPES["RGB565_IMAGE"] else None,
             }
         )
     for language, resource_id in REQUIRED_LANGUAGE_RESOURCE_IDS.items():
@@ -566,4 +635,51 @@ def _inspect_font_payload(payload: bytes) -> dict[str, object]:
         "index_bytes": index_size,
         "bitmap_bytes": bitmap_cursor,
         "index_crc32": index_crc,
+    }
+
+
+def _inspect_image_payload(payload: bytes) -> dict[str, object]:
+    if len(payload) < IMAGE_HEADER_SIZE:
+        raise ValueError("image payload too small")
+    magic, version, header_size, width, height, flags, reserved0, command_offset, command_size, decoded_pixels, command_crc = struct.unpack(
+        "<IHHHHHHIIII", payload[:IMAGE_HEADER_SIZE]
+    )
+    expected_pixels = width * height
+    if (
+        magic != IMAGE_MAGIC
+        or version != IMAGE_VERSION
+        or header_size != IMAGE_HEADER_SIZE
+        or width <= 0
+        or height <= 0
+        or width > IMAGE_MAX_WIDTH
+        or height > IMAGE_MAX_HEIGHT
+        or flags != 0
+        or reserved0 != 0
+        or command_offset != IMAGE_HEADER_SIZE
+        or command_size == 0
+        or command_size % IMAGE_RLE_RECORD_SIZE != 0
+        or decoded_pixels != expected_pixels
+        or command_offset + command_size != len(payload)
+    ):
+        raise ValueError("invalid image header")
+    commands = payload[command_offset : command_offset + command_size]
+    if crc32(commands) != command_crc:
+        raise ValueError("image command CRC mismatch")
+    pixels = 0
+    for index in range(0, len(commands), IMAGE_RLE_RECORD_SIZE):
+        count, _color = struct.unpack("<HH", commands[index : index + IMAGE_RLE_RECORD_SIZE])
+        if count == 0:
+            raise ValueError("invalid zero-length image RLE run")
+        pixels += count
+        if pixels > expected_pixels:
+            raise ValueError("image RLE overrun")
+    if pixels != expected_pixels:
+        raise ValueError("image RLE underrun")
+    return {
+        "width": width,
+        "height": height,
+        "decoded_pixels": decoded_pixels,
+        "rle_runs": command_size // IMAGE_RLE_RECORD_SIZE,
+        "command_bytes": command_size,
+        "command_crc32": command_crc,
     }

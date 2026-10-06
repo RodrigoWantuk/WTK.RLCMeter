@@ -25,8 +25,18 @@ Files in this directory are source inputs. Firmware consumes packed/generated re
 - Stage 3B.1 adds a repository-owned deterministic A1 bitmap font source at
   `font/wtk-pixel-base.json`. The builder emits `FONT_UI_SMALL`, `FONT_UI_MEDIUM`,
   and `FONT_UI_LARGE` W25Q font resources from that source.
+- Resource API v3 also admits optional `RGB565_IMAGE` entries in
+  `IMAGE_RGB565_RLE_V1` format for rich screens, icons, and splash artwork. These
+  are 16-bit RGB565 run streams with a CRC-checked image header and command stream,
+  designed for chunked W25Q-to-TFT rendering without a full framebuffer. They are
+  optional resources; normal boot still requires only the text catalogs and font
+  roles.
+- `image/wtk-splash-rle.json` is the first external image source. It is a compact
+  provisional splash resource used to exercise the image pipeline; later final artwork
+  can replace it without changing firmware IDs.
 - The Resource Pack outer schema remains version 2. PRODUCT resource API version is
-  now 3 because firmware requires text catalogs plus the three external font roles.
+  now 3 because firmware requires text catalogs plus the three external font roles
+  and defines optional external image resources.
 - Build the binary pack with:
 
 ```bash

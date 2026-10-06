@@ -29,6 +29,7 @@ def pack_summary(pack: bytes) -> dict[str, object]:
                 "payload_crc32": f"0x{entry['payload_crc32']:08X}",
                 "language_id": entry.get("language_id"),
                 "font": entry.get("font"),
+                "image": entry.get("image"),
             }
             for entry in info["entries"]
         ],

@@ -464,6 +464,70 @@ resource_status_t resource_store_decode_font_a1_record(const uint8_t src[RESOURC
                RESOURCE_STATUS_CORRUPT;
 }
 
+void resource_store_encode_image_rgb565_rle_header(uint8_t dst[RESOURCE_IMAGE_RGB565_RLE_HEADER_SIZE],
+                                                   const resource_image_rgb565_rle_header_t *header)
+{
+    if ((dst == NULL) || (header == NULL))
+    {
+        return;
+    }
+    memset(dst, 0, RESOURCE_IMAGE_RGB565_RLE_HEADER_SIZE);
+    put_u32(&dst[0], header->magic);
+    put_u16(&dst[4], header->version);
+    put_u16(&dst[6], header->header_size);
+    put_u16(&dst[8], header->width);
+    put_u16(&dst[10], header->height);
+    put_u16(&dst[12], header->flags);
+    put_u16(&dst[14], header->reserved0);
+    put_u32(&dst[16], header->command_offset);
+    put_u32(&dst[20], header->command_size);
+    put_u32(&dst[24], header->decoded_pixel_count);
+    put_u32(&dst[28], header->command_crc32);
+}
+
+resource_status_t resource_store_decode_image_rgb565_rle_header(
+    const uint8_t src[RESOURCE_IMAGE_RGB565_RLE_HEADER_SIZE],
+    uint32_t payload_size,
+    resource_image_rgb565_rle_header_t *header)
+{
+    if ((src == NULL) || (header == NULL))
+    {
+        return RESOURCE_STATUS_INVALID_ARG;
+    }
+    *header = (resource_image_rgb565_rle_header_t){
+        .magic = get_u32(&src[0]),
+        .version = get_u16(&src[4]),
+        .header_size = get_u16(&src[6]),
+        .width = get_u16(&src[8]),
+        .height = get_u16(&src[10]),
+        .flags = get_u16(&src[12]),
+        .reserved0 = get_u16(&src[14]),
+        .command_offset = get_u32(&src[16]),
+        .command_size = get_u32(&src[20]),
+        .decoded_pixel_count = get_u32(&src[24]),
+        .command_crc32 = get_u32(&src[28]),
+    };
+    const uint32_t expected_pixels = (uint32_t)header->width * (uint32_t)header->height;
+    if ((header->magic != RESOURCE_IMAGE_RGB565_RLE_MAGIC) ||
+        (header->version != RESOURCE_IMAGE_RGB565_RLE_VERSION) ||
+        (header->header_size != RESOURCE_IMAGE_RGB565_RLE_HEADER_SIZE) ||
+        (header->width == 0u) ||
+        (header->height == 0u) ||
+        (header->width > RESOURCE_IMAGE_RGB565_MAX_WIDTH) ||
+        (header->height > RESOURCE_IMAGE_RGB565_MAX_HEIGHT) ||
+        (header->flags != 0u) ||
+        (header->reserved0 != 0u) ||
+        (header->command_offset != RESOURCE_IMAGE_RGB565_RLE_HEADER_SIZE) ||
+        (header->command_size == 0u) ||
+        ((header->command_size % RESOURCE_IMAGE_RGB565_RLE_RECORD_SIZE) != 0u) ||
+        (header->decoded_pixel_count != expected_pixels) ||
+        !span_valid(payload_size, header->command_offset, header->command_size))
+    {
+        return RESOURCE_STATUS_CORRUPT;
+    }
+    return RESOURCE_STATUS_OK;
+}
+
 resource_status_t resource_catalog_mount(resource_catalog_t *catalog,
                                          const resource_catalog_io_t *io,
                                          uint32_t partition_start,

@@ -401,6 +401,12 @@ Implemented software boundary:
 - Stage 3B.1 implements only `RESOURCE_FORMAT_FONT_BITMAP_A1_V1`. A1 bits are
   row-major, MSB-first inside each byte, opaque, and uncompressed:
   `0 = background`, `1 = foreground`.
+- A later Stage 3B continuation establishes optional `RGB565_IMAGE` resources in
+  `IMAGE_RGB565_RLE_V1` format for richer product screens, icons, and splash artwork.
+  These resources are bounded RGB565 run streams with CRC-checked image headers and
+  command data. The format is designed for chunked W25Q-to-TFT rendering without a
+  RAM framebuffer; wiring those images into final UI screens remains separate from
+  this substrate.
 - The font payload is an explicit little-endian wire format, not a serialized C
   structure. Header bytes are:
   `magic u32`, `version u16`, `header_size u16`, `glyph_count u16`,

@@ -35,6 +35,12 @@
       "format": "FONT_BITMAP_A1_V1",
       "path": "font/wtk-pixel-base.json",
       "scale": 3
+    },
+    {
+      "id": "IMAGE_SPLASH",
+      "type": "RGB565_IMAGE",
+      "format": "IMAGE_RGB565_RLE_V1",
+      "path": "image/wtk-splash-rle.json"
     }
   ]
 }

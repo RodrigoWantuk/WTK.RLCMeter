@@ -210,10 +210,47 @@ static void test_header_and_entry_reject_bad_wire_values(void)
                 "zero resource id rejected");
 }
 
+static void test_rgb565_rle_image_header_decode(void)
+{
+    const resource_image_rgb565_rle_header_t valid = {
+        .magic = RESOURCE_IMAGE_RGB565_RLE_MAGIC,
+        .version = RESOURCE_IMAGE_RGB565_RLE_VERSION,
+        .header_size = RESOURCE_IMAGE_RGB565_RLE_HEADER_SIZE,
+        .width = 8u,
+        .height = 4u,
+        .command_offset = RESOURCE_IMAGE_RGB565_RLE_HEADER_SIZE,
+        .command_size = 8u,
+        .decoded_pixel_count = 32u,
+        .command_crc32 = 0x12345678u,
+    };
+    uint8_t bytes[RESOURCE_IMAGE_RGB565_RLE_HEADER_SIZE];
+    resource_store_encode_image_rgb565_rle_header(bytes, &valid);
+    resource_image_rgb565_rle_header_t decoded;
+    expect_true(resource_store_decode_image_rgb565_rle_header(bytes,
+                                                              RESOURCE_IMAGE_RGB565_RLE_HEADER_SIZE + 8u,
+                                                              &decoded) == RESOURCE_STATUS_OK,
+                "valid RGB565 RLE image header decodes");
+    expect_true(decoded.width == 8u && decoded.height == 4u && decoded.decoded_pixel_count == 32u,
+                "RGB565 RLE image header fields round trip");
+
+    bytes[8] = 0u;
+    expect_true(resource_store_decode_image_rgb565_rle_header(bytes,
+                                                              RESOURCE_IMAGE_RGB565_RLE_HEADER_SIZE + 8u,
+                                                              &decoded) == RESOURCE_STATUS_CORRUPT,
+                "zero image width rejected");
+    resource_store_encode_image_rgb565_rle_header(bytes, &valid);
+    bytes[20] = 7u;
+    expect_true(resource_store_decode_image_rgb565_rle_header(bytes,
+                                                              RESOURCE_IMAGE_RGB565_RLE_HEADER_SIZE + 8u,
+                                                              &decoded) == RESOURCE_STATUS_CORRUPT,
+                "non-record-aligned image command size rejected");
+}
+
 int main(void)
 {
     test_catalog_mount_lookup_and_defer();
     test_header_and_entry_reject_bad_wire_values();
     test_text_catalog_rejects_semantic_corruption();
+    test_rgb565_rle_image_header_decode();
     return (g_failures == 0) ? 0 : 1;
 }

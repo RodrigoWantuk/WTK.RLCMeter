@@ -45,6 +45,24 @@ class ResourcePackTests(unittest.TestCase):
         source = Path(__file__).resolve().parents[2] / "assets" / "font" / "wtk-pixel-base.json"
         shutil.copyfile(source, root / "font" / "wtk-pixel-base.json")
 
+    def _write_image_source(self, root: Path) -> None:
+        (root / "image").mkdir(exist_ok=True)
+        (root / "image" / "splash-rle.json").write_text(
+            json.dumps(
+                {
+                    "format": "IMAGE_RGB565_RLE_V1",
+                    "width": 4,
+                    "height": 4,
+                    "runs": [
+                        [4, "0x0000"],
+                        [8, "#0078D4"],
+                        [4, "0xFFFF"],
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+
     def _write_manifest(self, root: Path, resources: Optional[list[dict[str, str]]] = None) -> Path:
         manifest = root / "manifest.json"
         manifest.write_text(
@@ -110,6 +128,8 @@ class ResourcePackTests(unittest.TestCase):
         resource_header = (src / "storage" / "resource_store.h").read_text(encoding="utf-8")
         text_header = (src / "ui" / "ui_text.h").read_text(encoding="utf-8")
         self.assertRegex(resource_header, r"RESOURCE_PACK_API_VERSION\s*=\s*3u")
+        self.assertRegex(resource_header, r"RESOURCE_FORMAT_IMAGE_RGB565_RLE_V1\s*=\s*3u")
+        self.assertRegex(resource_header, r"RESOURCE_ID_IMAGE_SPLASH\s*=\s*0x00030001u")
         self.assertRegex(text_header, r"UI_TEXT_ID_LAST\s*=\s*UI_TEXT_ID_CRC_OK")
         self.assertRegex(text_header, r"UI_TEXT_MAX_BYTES\s*=\s*31u")
         last_match = re.search(r"UI_TEXT_ID_CRC_OK\s*=\s*0x([0-9A-Fa-f]+)u", text_header)
@@ -124,13 +144,13 @@ class ResourcePackTests(unittest.TestCase):
         info = resource_pack_format.inspect_pack(first)
         self.assertEqual(info["schema_version"], 2)
         self.assertEqual(info["resource_api_version"], 3)
-        self.assertEqual(info["entry_count"], 5)
+        self.assertEqual(info["entry_count"], 6)
         self.assertEqual(info["text_id_first"], 0x0001)
         self.assertEqual(info["text_id_last"], 0x0041)
         self.assertEqual(info["text_max_bytes"], 31)
         self.assertEqual(
             [entry["resource_id"] for entry in info["entries"]],
-            [0x00010001, 0x00010002, 0x00020001, 0x00020002, 0x00020003],
+            [0x00010001, 0x00010002, 0x00020001, 0x00020002, 0x00020003, 0x00030001],
         )
         font_entries = [entry for entry in info["entries"] if entry["font"] is not None]
         self.assertEqual(len(font_entries), 3)
@@ -140,6 +160,38 @@ class ResourcePackTests(unittest.TestCase):
             self.assertEqual(font["index_bytes"], font["glyph_count"] * resource_pack_format.FONT_RECORD_SIZE)
             self.assertLessEqual(font["max_width"], resource_pack_format.FONT_MAX_WIDTH)
             self.assertLessEqual(font["max_height"], resource_pack_format.FONT_MAX_HEIGHT)
+        image_entries = [entry for entry in info["entries"] if entry["image"] is not None]
+        self.assertEqual(len(image_entries), 1)
+        self.assertEqual(image_entries[0]["image"]["width"], 64)
+        self.assertEqual(image_entries[0]["image"]["height"], 32)
+
+    def test_optional_rgb565_rle_image_resource_inspects(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            (root / "text").mkdir()
+            self._write_font_source(root)
+            self._write_image_source(root)
+            self._write_catalog(root, "en", "en.json")
+            self._write_catalog(root, "pt-BR", "pt-BR.json")
+            resources = json.loads(self._write_manifest(root).read_text(encoding="utf-8"))["resources"]
+            resources.append(
+                {
+                    "id": "IMAGE_SPLASH",
+                    "type": "RGB565_IMAGE",
+                    "format": "IMAGE_RGB565_RLE_V1",
+                    "path": "image/splash-rle.json",
+                }
+            )
+            pack = resource_pack_format.build_pack(self._write_manifest(root, resources))
+            info = resource_pack_format.inspect_pack(pack)
+            self.assertEqual(info["entry_count"], 6)
+            image_entries = [entry for entry in info["entries"] if entry["image"] is not None]
+            self.assertEqual(len(image_entries), 1)
+            image = image_entries[0]["image"]
+            self.assertEqual(image["width"], 4)
+            self.assertEqual(image["height"], 4)
+            self.assertEqual(image["decoded_pixels"], 16)
+            self.assertEqual(image["rle_runs"], 3)
 
     def test_resource_pack_tool_builds_summary_and_stream(self):
         manifest = Path(__file__).resolve().parents[2] / "assets" / "resource_manifest.json"
@@ -157,8 +209,11 @@ class ResourcePackTests(unittest.TestCase):
             self.assertEqual(summary["schema_version"], 2)
             self.assertEqual(summary["resource_api_version"], 3)
             self.assertEqual(summary["size_bytes"], len(pack_path.read_bytes()))
-            self.assertEqual(summary["entry_count"], 5)
+            self.assertEqual(summary["entry_count"], 6)
             self.assertEqual(len(summary["sha256"]), 64)
+            image_entries = [entry for entry in summary["entries"] if entry["image"] is not None]
+            self.assertEqual(len(image_entries), 1)
+            self.assertEqual(image_entries[0]["image"]["decoded_pixels"], 2048)
 
             self.assertEqual(resource_pack_tool.main(["frame", str(pack_path), "-o", str(stream_path)]), 0)
             stream = stream_path.read_bytes()
@@ -373,6 +428,46 @@ class ResourcePackTests(unittest.TestCase):
         struct.pack_into("<I", check_header, 32, 0)
         struct.pack_into("<I", data, 32, resource_pack_format.crc32(bytes(check_header)))
         with self.assertRaisesRegex(ValueError, "font index CRC"):
+            resource_pack_format.inspect_pack(bytes(data))
+
+    def test_rgb565_image_semantic_corruption_fails_inspection(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            (root / "text").mkdir()
+            self._write_font_source(root)
+            self._write_image_source(root)
+            self._write_catalog(root, "en", "en.json")
+            self._write_catalog(root, "pt-BR", "pt-BR.json")
+            resources = json.loads(self._write_manifest(root).read_text(encoding="utf-8"))["resources"]
+            resources.append(
+                {
+                    "id": "IMAGE_SPLASH",
+                    "type": "RGB565_IMAGE",
+                    "format": "IMAGE_RGB565_RLE_V1",
+                    "path": "image/splash-rle.json",
+                }
+            )
+            data = bytearray(resource_pack_format.build_pack(self._write_manifest(root, resources)))
+        image_entry_offset = resource_pack_format.PACK_HEADER_SIZE + (5 * resource_pack_format.PACK_ENTRY_SIZE)
+        image_entry = struct.unpack_from("<IHHIIIIII", data, image_entry_offset)
+        payload_offset = image_entry[4]
+        command_crc_offset = payload_offset + 28
+        struct.pack_into("<I", data, command_crc_offset, 0)
+        payload_size = image_entry[5]
+        payload_crc = resource_pack_format.crc32(bytes(data[payload_offset : payload_offset + payload_size]))
+        struct.pack_into("<I", data, image_entry_offset + 20, payload_crc)
+        count = struct.unpack_from("<H", data, 16)[0]
+        table = bytes(
+            data[
+                resource_pack_format.PACK_HEADER_SIZE :
+                resource_pack_format.PACK_HEADER_SIZE + (count * resource_pack_format.PACK_ENTRY_SIZE)
+            ]
+        )
+        struct.pack_into("<I", data, 28, resource_pack_format.crc32(table))
+        check_header = bytearray(data[: resource_pack_format.PACK_HEADER_SIZE])
+        struct.pack_into("<I", check_header, 32, 0)
+        struct.pack_into("<I", data, 32, resource_pack_format.crc32(bytes(check_header)))
+        with self.assertRaisesRegex(ValueError, "image command CRC"):
             resource_pack_format.inspect_pack(bytes(data))
 
 

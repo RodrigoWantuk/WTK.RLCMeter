@@ -610,6 +610,13 @@ and required `?`. Normal text/font resource failures propagate to the PRODUCT
 W25Q resource reads. `RESOURCE_STATUS_DEFERRED` is backpressure, not a fatal resource
 error.
 
+The same API version permits optional rich image resources as `RGB565_IMAGE` /
+`IMAGE_RGB565_RLE_V1`. The image payload is a CRC-checked `WIM1` header followed by
+little-endian `(count, rgb565)` RLE records. Images are bounded to 320x240 and are
+intended for future chunked W25Q-to-TFT rendering without a full framebuffer. PRODUCT
+boot does not require image resources; missing optional images must degrade individual
+screens rather than safety or calibration policy.
+
 Resource Pack v2 is an explicit little-endian wire format with CRC-protected header, entry table, and payloads. Runtime code decodes fields by width and offset; persistent resources are not raw compiler-dependent C structs.
 
 Maintenance PC-link resource provisioning uses a separate framed protocol contract

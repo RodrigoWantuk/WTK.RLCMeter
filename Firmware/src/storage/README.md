@@ -53,6 +53,11 @@ text tables plus three `FONT_BITMAP_A1_V1` resources. A1 fonts use CRC-checked
 payloads, sorted glyph records, bounded 32x32 glyph geometry, and stable role IDs
 rather than physical Flash offsets.
 
+The same API admits optional `RGB565_IMAGE` / `IMAGE_RGB565_RLE_V1` entries. Image
+payloads use a 32-byte `WIM1` header followed by 4-byte `(count, rgb565)` RLE records
+and are bounded to 320x240. They are optional so the product can add rich screens from
+W25Q without making safety, calibration, or boot admission depend on decorative assets.
+
 ## Rules
 
 - never trust Flash contents without validation;
