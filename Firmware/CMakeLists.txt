@@ -115,6 +115,7 @@ add_library(wtk_firmware_common STATIC
     src/ui/ui_fallback_font.c
     src/ui/ui_font.c
     src/ui/ui_format.c
+    src/ui/ui_image.c
     src/ui/ui_product.c
     src/ui/ui_text_catalog.c
     src/ui/ui_text.c

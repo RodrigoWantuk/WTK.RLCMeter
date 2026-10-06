@@ -7,6 +7,7 @@ Graphical user interface for the ILI9341 display.
 ```text
 ui_format.c/.h
 ui_product.c/.h
+ui_image.c/.h
 ```
 
 `ui_format` provides bounded SI/unit formatting for product result views without target
@@ -125,3 +126,12 @@ internal fallback renderer. Full normal menu/service wording is not duplicated i
 Flash; corrupt or missing normal resources may therefore render compact placeholders
 while the Diagnostics page exposes resource status. Emergency/safety/fault text stays
 internal and performs zero W25Q/font reads.
+
+## External RGB565 images
+
+`ui_image` is the runtime substrate for optional rich W25Q image resources. It mounts
+`RESOURCE_ID_IMAGE_SPLASH`, validates the CRC-checked `IMAGE_RGB565_RLE_V1` command
+stream, and renders RGB565 RLE runs to the ILI9341 in bounded chunks. It does not cache
+the full bitmap, does not allocate heap memory, and is not yet wired into normal PRODUCT
+screen sequencing so Flash impact remains explicit when final rich screens start using
+it.
