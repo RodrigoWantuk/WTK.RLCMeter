@@ -62,8 +62,8 @@
     "0x003B": "PC LINK",
     "0x003C": "RESOURCES",
     "0x003D": "STATUS",
-    "0x003E": "PACK V1",
-    "0x003F": "MENU DRIVEN",
+    "0x003E": "PACK V3",
+    "0x003F": "MENU CONTROL",
     "0x0040": "PACK API 3",
     "0x0041": "CRC OK"
   }

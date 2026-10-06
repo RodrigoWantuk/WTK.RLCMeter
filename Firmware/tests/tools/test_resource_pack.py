@@ -29,6 +29,12 @@ assert TOOL_SPEC.loader is not None
 sys.modules[TOOL_SPEC.name] = resource_pack_tool
 TOOL_SPEC.loader.exec_module(resource_pack_tool)
 
+SPLASH_SPEC = importlib.util.spec_from_file_location("generate_splash_asset", TOOLS / "generate_splash_asset.py")
+generate_splash_asset = importlib.util.module_from_spec(SPLASH_SPEC)
+assert SPLASH_SPEC.loader is not None
+sys.modules[SPLASH_SPEC.name] = generate_splash_asset
+SPLASH_SPEC.loader.exec_module(generate_splash_asset)
+
 
 class ResourcePackTests(unittest.TestCase):
     def _write_catalog(self, root: Path, language: str, filename: str, override: Optional[dict[str, str]] = None) -> None:
@@ -164,6 +170,36 @@ class ResourcePackTests(unittest.TestCase):
         self.assertEqual(len(image_entries), 1)
         self.assertEqual(image_entries[0]["image"]["width"], 64)
         self.assertEqual(image_entries[0]["image"]["height"], 32)
+
+    def test_splash_generator_outputs_valid_compact_64x32_rle(self):
+        canvas = generate_splash_asset.build_canvas()
+        runs = generate_splash_asset.rle_encode(canvas)
+        self.assertEqual(len(canvas), 32)
+        self.assertTrue(all(len(row) == 64 for row in canvas))
+        self.assertEqual(sum(int(run[0]) for run in runs), 64 * 32)
+        self.assertGreater(len(runs), 100)
+        self.assertLess(len(runs), 700)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "splash-rle.json"
+            path.write_text(
+                json.dumps(
+                    {
+                        "format": "IMAGE_RGB565_RLE_V1",
+                        "width": 64,
+                        "height": 32,
+                        "runs": runs,
+                    }
+                ),
+                encoding="utf-8",
+            )
+            payload = resource_pack_format.build_image_payload(path)
+        _, _, _, width, height, _, _, _, command_size, decoded_pixels, _ = struct.unpack(
+            "<IHHHHHHIIII", payload[: resource_pack_format.IMAGE_HEADER_SIZE]
+        )
+        self.assertEqual(width, 64)
+        self.assertEqual(height, 32)
+        self.assertEqual(decoded_pixels, 2048)
+        self.assertEqual(command_size, len(runs) * resource_pack_format.IMAGE_RLE_RECORD_SIZE)
 
     def test_optional_rgb565_rle_image_resource_inspects(self):
         with tempfile.TemporaryDirectory() as tmpdir:
