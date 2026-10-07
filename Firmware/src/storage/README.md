@@ -55,7 +55,7 @@ rather than physical Flash offsets.
 
 The same API admits optional `RGB565_IMAGE` / `IMAGE_RGB565_RLE_V1` entries. Image
 payloads use a 32-byte `WIM1` header followed by 4-byte `(count, rgb565)` RLE records
-and are bounded to 320x240. They are optional so the product can add rich screens from
+and are bounded to 320x320, enough for portrait 240x320 ILI9341 resources. They are optional so the product can add rich screens from
 W25Q without making safety, calibration, or boot admission depend on decorative assets.
 
 ## Rules

@@ -613,7 +613,7 @@ resource mutation and keeps the product in upload/provisioning mode.
 
 The same API version permits optional rich image resources as `RGB565_IMAGE` /
 `IMAGE_RGB565_RLE_V1`. The image payload is a CRC-checked `WIM1` header followed by
-little-endian `(count, rgb565)` RLE records. Images are bounded to 320x240 and are
+little-endian `(count, rgb565)` RLE records. Images are bounded to 320x320 and are
 intended for future chunked W25Q-to-TFT rendering without a full framebuffer. PRODUCT
 boot does not require image resources; missing optional images must degrade individual
 screens rather than safety or calibration policy.

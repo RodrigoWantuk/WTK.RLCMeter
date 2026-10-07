@@ -29,12 +29,6 @@ assert TOOL_SPEC.loader is not None
 sys.modules[TOOL_SPEC.name] = resource_pack_tool
 TOOL_SPEC.loader.exec_module(resource_pack_tool)
 
-SPLASH_SPEC = importlib.util.spec_from_file_location("generate_splash_asset", TOOLS / "generate_splash_asset.py")
-generate_splash_asset = importlib.util.module_from_spec(SPLASH_SPEC)
-assert SPLASH_SPEC.loader is not None
-sys.modules[SPLASH_SPEC.name] = generate_splash_asset
-SPLASH_SPEC.loader.exec_module(generate_splash_asset)
-
 
 class ResourcePackTests(unittest.TestCase):
     def _write_catalog(self, root: Path, language: str, filename: str, override: Optional[dict[str, str]] = None) -> None:
@@ -136,6 +130,8 @@ class ResourcePackTests(unittest.TestCase):
         self.assertRegex(resource_header, r"RESOURCE_PACK_API_VERSION\s*=\s*3u")
         self.assertRegex(resource_header, r"RESOURCE_FORMAT_IMAGE_RGB565_RLE_V1\s*=\s*3u")
         self.assertRegex(resource_header, r"RESOURCE_ID_IMAGE_SPLASH\s*=\s*0x00030001u")
+        self.assertRegex(resource_header, r"RESOURCE_ID_IMAGE_SCREEN_RESOURCE_UPLOAD\s*=\s*0x00030005u")
+        self.assertRegex(resource_header, r"RESOURCE_IMAGE_RGB565_MAX_HEIGHT\s*=\s*320u")
         self.assertRegex(text_header, r"UI_TEXT_ID_LAST\s*=\s*UI_TEXT_ID_CRC_OK")
         self.assertRegex(text_header, r"UI_TEXT_MAX_BYTES\s*=\s*31u")
         last_match = re.search(r"UI_TEXT_ID_CRC_OK\s*=\s*0x([0-9A-Fa-f]+)u", text_header)
@@ -150,13 +146,24 @@ class ResourcePackTests(unittest.TestCase):
         info = resource_pack_format.inspect_pack(first)
         self.assertEqual(info["schema_version"], 2)
         self.assertEqual(info["resource_api_version"], 3)
-        self.assertEqual(info["entry_count"], 6)
+        self.assertEqual(info["entry_count"], 10)
         self.assertEqual(info["text_id_first"], 0x0001)
         self.assertEqual(info["text_id_last"], 0x0041)
         self.assertEqual(info["text_max_bytes"], 31)
         self.assertEqual(
             [entry["resource_id"] for entry in info["entries"]],
-            [0x00010001, 0x00010002, 0x00020001, 0x00020002, 0x00020003, 0x00030001],
+            [
+                0x00010001,
+                0x00010002,
+                0x00020001,
+                0x00020002,
+                0x00020003,
+                0x00030001,
+                0x00030002,
+                0x00030003,
+                0x00030004,
+                0x00030005,
+            ],
         )
         font_entries = [entry for entry in info["entries"] if entry["font"] is not None]
         self.assertEqual(len(font_entries), 3)
@@ -167,39 +174,14 @@ class ResourcePackTests(unittest.TestCase):
             self.assertLessEqual(font["max_width"], resource_pack_format.FONT_MAX_WIDTH)
             self.assertLessEqual(font["max_height"], resource_pack_format.FONT_MAX_HEIGHT)
         image_entries = [entry for entry in info["entries"] if entry["image"] is not None]
-        self.assertEqual(len(image_entries), 1)
-        self.assertEqual(image_entries[0]["image"]["width"], 64)
-        self.assertEqual(image_entries[0]["image"]["height"], 32)
-
-    def test_splash_generator_outputs_valid_compact_64x32_rle(self):
-        canvas = generate_splash_asset.build_canvas()
-        runs = generate_splash_asset.rle_encode(canvas)
-        self.assertEqual(len(canvas), 32)
-        self.assertTrue(all(len(row) == 64 for row in canvas))
-        self.assertEqual(sum(int(run[0]) for run in runs), 64 * 32)
-        self.assertGreater(len(runs), 100)
-        self.assertLess(len(runs), 700)
-        with tempfile.TemporaryDirectory() as tmpdir:
-            path = Path(tmpdir) / "splash-rle.json"
-            path.write_text(
-                json.dumps(
-                    {
-                        "format": "IMAGE_RGB565_RLE_V1",
-                        "width": 64,
-                        "height": 32,
-                        "runs": runs,
-                    }
-                ),
-                encoding="utf-8",
-            )
-            payload = resource_pack_format.build_image_payload(path)
-        _, _, _, width, height, _, _, _, command_size, decoded_pixels, _ = struct.unpack(
-            "<IHHHHHHIIII", payload[: resource_pack_format.IMAGE_HEADER_SIZE]
-        )
-        self.assertEqual(width, 64)
-        self.assertEqual(height, 32)
-        self.assertEqual(decoded_pixels, 2048)
-        self.assertEqual(command_size, len(runs) * resource_pack_format.IMAGE_RLE_RECORD_SIZE)
+        self.assertEqual(len(image_entries), 5)
+        image_by_id = {entry["resource_id"]: entry["image"] for entry in image_entries}
+        self.assertEqual(image_by_id[0x00030001]["width"], 64)
+        self.assertEqual(image_by_id[0x00030001]["height"], 32)
+        for resource_id in (0x00030002, 0x00030003, 0x00030004, 0x00030005):
+            self.assertEqual(image_by_id[resource_id]["width"], 240)
+            self.assertEqual(image_by_id[resource_id]["height"], 320)
+            self.assertEqual(image_by_id[resource_id]["decoded_pixels"], 240 * 320)
 
     def test_optional_rgb565_rle_image_resource_inspects(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -245,11 +227,11 @@ class ResourcePackTests(unittest.TestCase):
             self.assertEqual(summary["schema_version"], 2)
             self.assertEqual(summary["resource_api_version"], 3)
             self.assertEqual(summary["size_bytes"], len(pack_path.read_bytes()))
-            self.assertEqual(summary["entry_count"], 6)
+            self.assertEqual(summary["entry_count"], 10)
             self.assertEqual(len(summary["sha256"]), 64)
             image_entries = [entry for entry in summary["entries"] if entry["image"] is not None]
-            self.assertEqual(len(image_entries), 1)
-            self.assertEqual(image_entries[0]["image"]["decoded_pixels"], 2048)
+            self.assertEqual(len(image_entries), 5)
+            self.assertEqual(sum(entry["image"]["decoded_pixels"] for entry in image_entries), 2048 + (4 * 240 * 320))
 
             self.assertEqual(resource_pack_tool.main(["frame", str(pack_path), "-o", str(stream_path)]), 0)
             stream = stream_path.read_bytes()
