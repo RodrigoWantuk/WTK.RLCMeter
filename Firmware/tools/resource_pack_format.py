@@ -12,7 +12,7 @@ import zlib
 
 PACK_MAGIC = 0x32505257
 PACK_SCHEMA_VERSION = 2
-PACK_API_VERSION = 3
+PACK_API_VERSION = 4
 PACK_HEADER_SIZE = 44
 PACK_ENTRY_SIZE = 32
 TEXT_MAGIC = 0x54585457
@@ -48,7 +48,7 @@ RESOURCE_TYPES = {"TEXT_TABLE": 1, "FONT_BITMAP_A1": 2, "RGB565_IMAGE": 4}
 RESOURCE_FORMATS = {"TEXT_TABLE_UTF8_V1": 1, "FONT_BITMAP_A1_V1": 2, "IMAGE_RGB565_RLE_V1": 3}
 LANGUAGE_IDS = {"en": 1, "pt-BR": 2}
 TEXT_ID_FIRST = 0x0001
-TEXT_ID_LAST = 0x0041
+TEXT_ID_LAST = 0x0059
 TEXT_MAX_BYTES = 31
 REQUIRED_TEXT_IDS = tuple(range(TEXT_ID_FIRST, TEXT_ID_LAST + 1))
 REQUIRED_LANGUAGE_RESOURCE_IDS = {
@@ -219,14 +219,15 @@ def _pack_a1_rows(rows: tuple[str, ...]) -> bytes:
     return bytes(packed)
 
 
-def _load_font_source(path: Path) -> dict[int, tuple[str, ...]]:
+def _load_font_source(path: Path) -> tuple[dict[int, tuple[tuple[str, ...], dict]], dict]:
     data = json.loads(path.read_text(encoding="utf-8"))
-    glyphs: dict[int, tuple[str, ...]] = {}
-    for key, rows in data.get("glyphs", {}).items():
+    glyphs: dict[int, tuple[tuple[str, ...], dict]] = {}
+    for key, glyph in data.get("glyphs", {}).items():
         codepoint = _glyph_key_to_codepoint(key)
         if not _unicode_scalar_valid(codepoint) or codepoint in glyphs:
             raise ValueError(f"invalid or duplicate glyph codepoint {key!r}")
-        glyphs[codepoint] = _normalize_rows(list(rows))
+        rows = glyph["rows"] if isinstance(glyph, dict) else glyph
+        glyphs[codepoint] = (_normalize_rows(list(rows)), glyph if isinstance(glyph, dict) else {})
     for key, target in data.get("aliases", {}).items():
         codepoint = _glyph_key_to_codepoint(key)
         target_codepoint = _glyph_key_to_codepoint(str(target))
@@ -235,7 +236,7 @@ def _load_font_source(path: Path) -> dict[int, tuple[str, ...]]:
         if target_codepoint not in glyphs:
             raise ValueError(f"alias {key!r} targets missing glyph {target!r}")
         glyphs[codepoint] = glyphs[target_codepoint]
-    return glyphs
+    return glyphs, data
 
 
 def required_font_codepoints(manifest_path: Path) -> set[int]:
@@ -252,7 +253,7 @@ def required_font_codepoints(manifest_path: Path) -> set[int]:
 
 
 def build_font_payload(path: Path, scale: int, required_codepoints: set[int]) -> bytes:
-    glyphs = _load_font_source(path)
+    glyphs, source = _load_font_source(path)
     required = set(required_codepoints)
     required.update((ord(" "), ord("?")))
     missing = sorted(codepoint for codepoint in required if codepoint not in glyphs)
@@ -263,7 +264,7 @@ def build_font_payload(path: Path, scale: int, required_codepoints: set[int]) ->
     records = []
     bitmap = bytearray()
     for codepoint in sorted(glyphs):
-        rows = glyphs[codepoint]
+        rows, metrics = glyphs[codepoint]
         scaled = _scale_rows(rows, scale)
         width = len(scaled[0])
         height = len(scaled)
@@ -282,10 +283,13 @@ def build_font_payload(path: Path, scale: int, required_codepoints: set[int]) ->
                 raise ValueError("internal font bitmap size mismatch")
             bitmap_offset = len(bitmap)
             bitmap.extend(glyph_bytes)
-        advance = 6 * scale
-        if advance > 127:
-            raise ValueError("font advance exceeds int8")
-        records.append((codepoint, bitmap_offset, len(glyph_bytes), width, height, advance, 0, height, row_stride))
+        advance = int(metrics.get("advance", 6 * scale))
+        bearing_x = int(metrics.get("bearing_x", 0))
+        bearing_y = int(metrics.get("bearing_y", height))
+        if not (-128 <= advance <= 127 and -128 <= bearing_x <= 127 and 0 <= bearing_y <= 127):
+            raise ValueError("font glyph metrics exceed wire format")
+        records.append((codepoint, bitmap_offset, len(glyph_bytes), width, height,
+                        advance, bearing_x, bearing_y, row_stride))
 
     index = bytearray()
     previous = -1
@@ -303,9 +307,9 @@ def build_font_payload(path: Path, scale: int, required_codepoints: set[int]) ->
         FONT_HEADER_SIZE,
         len(records),
         FONT_RECORD_SIZE,
-        7 * scale,
-        1 * scale,
-        8 * scale,
+        int(source.get("ascent", 7 * scale)),
+        int(source.get("descent", 1 * scale)),
+        int(source.get("line_height", 8 * scale)),
         0,
         FONT_HEADER_SIZE,
         FONT_HEADER_SIZE + len(index),

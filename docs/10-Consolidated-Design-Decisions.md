@@ -598,8 +598,8 @@ Initial planned UI languages are Portuguese and English.
 
 UI logic uses stable resource/text IDs rather than scattering translated literals through screen code. Phase 08 Stage 3A stores normal product text in Resource Pack v2 UTF-8 catalogs in W25Q, one text-table resource per language. Phase 08 Stage 3B.1 adds W25Q-resident A1 bitmap font resources for normal typography. The selected language is a stable settings field, currently English or Portuguese (Brazil). Required text/font resource failures now force the internal emergency-font PC-link upload screen rather than allowing ordinary product navigation with placeholders. Emergency/safety/fault/provisioning wording stays internal; normal menu/service wording is expected to come from W25Q once a valid Resource Pack mounts.
 
-Resource Pack v2 API version 3 uses dense text catalogs plus three required font-role
-resources. Text IDs remain `0x0001..0x0041`, every ID is present in every required
+Resource Pack v2 API version 4 uses dense text catalogs plus three required font-role
+resources. Text IDs cover `0x0001..0x0059`, every ID is present in every required
 language, and each UTF-8 string is no longer than 31 payload bytes. Firmware validates
 both EN and PT-BR catalogs at resource admission, including text payload CRC,
 text-table header, dense index shape, index CRC, record bounds, and UTF-8 for every
@@ -928,9 +928,26 @@ Settings failure is nonfatal. Calibration validity remains the mandatory measure
 A failed settings write leaves the current in-RAM setting applied, marks the service dirty
 with save failure visible, and preserves the previous valid settings slot for reboot.
 
-The normal product UI uses stable `ui_text_id_t` identifiers with internal fallback text.
-External resource-pack text and localization may replace the resolver later without
-changing menu state-machine semantics.
+The normal product UI uses stable `ui_text_id_t` identifiers. Required external
+EN/PT-BR text and A1 font resources provide normal presentation; the internal font
+and compact bilingual text are reserved for fault/resource-upload recovery.
+
+## Product UI resource composition
+
+Resource Pack outer schema v2 / product API v4 requires both language catalogs through
+text ID `0x0059` and the small, medium, and large A1 font roles. API v3 packs require
+rebuilding and reuploading. Current font sources are pinned IBM Plex TTFs under the
+SIL Open Font License, rasterized offline; the MCU never parses TTF. Menu icons are
+private-use A1 glyphs in those W25Q font resources.
+
+Optional RGB565 RLE artwork is wordless and dimensioned for 240x320 portrait. Text,
+numeric results, state, and selection remain separately composed at runtime so one
+art asset serves both languages and dynamic values. Optional art corruption does not
+invalidate safety or the required text/font pack. W25Q assets stream through bounded
+buffers without a full framebuffer. The PC-link resource upload/recovery screen remains
+available internally even with a blank W25Q, and UART is only a provisioning channel,
+not an ordinary measurement or calibration interaction requirement. TFT appearance
+and shared-bus timing still require physical bench validation.
 
 ## Decision-change rule
 

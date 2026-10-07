@@ -47,33 +47,41 @@ static resource_status_t read_image(const ui_image_catalog_t *catalog,
 static resource_status_t validate_image_commands(ui_image_catalog_t *catalog,
                                                  ui_image_resource_t *image)
 {
-    uint8_t bytes[RESOURCE_IMAGE_RGB565_RLE_RECORD_SIZE];
+    uint8_t bytes[32];
     uint32_t crc = STORAGE_CRC32_INIT;
     uint32_t pixels = 0u;
     uint32_t cursor = 0u;
     while (cursor < image->header.command_size)
     {
+        uint32_t chunk = image->header.command_size - cursor;
+        if (chunk > sizeof(bytes))
+        {
+            chunk = sizeof(bytes);
+        }
         resource_status_t status = read_image(catalog,
                                               image,
                                               image->header.command_offset + cursor,
                                               bytes,
-                                              sizeof(bytes));
+                                              chunk);
         if (status != RESOURCE_STATUS_OK)
         {
             return status;
         }
-        crc = storage_crc32_update(crc, bytes, sizeof(bytes));
-        const uint16_t count = get_u16(&bytes[0]);
-        if (count == 0u)
+        crc = storage_crc32_update(crc, bytes, chunk);
+        for (uint32_t offset = 0u; offset < chunk; offset += RESOURCE_IMAGE_RGB565_RLE_RECORD_SIZE)
         {
-            return RESOURCE_STATUS_CORRUPT;
+            const uint16_t count = get_u16(&bytes[offset]);
+            if (count == 0u)
+            {
+                return RESOURCE_STATUS_CORRUPT;
+            }
+            pixels += count;
+            if (pixels > image->header.decoded_pixel_count)
+            {
+                return RESOURCE_STATUS_CORRUPT;
+            }
         }
-        pixels += count;
-        if (pixels > image->header.decoded_pixel_count)
-        {
-            return RESOURCE_STATUS_CORRUPT;
-        }
-        cursor += RESOURCE_IMAGE_RGB565_RLE_RECORD_SIZE;
+        cursor += chunk;
     }
     if ((pixels != image->header.decoded_pixel_count) ||
         ((crc ^ STORAGE_CRC32_XOR_OUT) != image->header.command_crc32))
@@ -144,9 +152,9 @@ static const ui_image_resource_t *lookup_image(const ui_image_catalog_t *catalog
     {
         return NULL;
     }
-    if ((resource_id == RESOURCE_ID_IMAGE_SPLASH) && catalog->splash.ready)
+    if ((resource_id == RESOURCE_ID_IMAGE_SCREEN_BOOT) && catalog->boot.ready)
     {
-        return &catalog->splash;
+        return &catalog->boot;
     }
     return NULL;
 }
@@ -169,13 +177,16 @@ resource_status_t ui_image_catalog_mount(ui_image_catalog_t *catalog,
     *catalog = (ui_image_catalog_t){
         .resource_catalog = resource_catalog,
     };
-    const resource_status_t status = mount_image(catalog, RESOURCE_ID_IMAGE_SPLASH, &catalog->splash);
-    if (status != RESOURCE_STATUS_OK)
+    const resource_status_t status = mount_image(catalog, RESOURCE_ID_IMAGE_SCREEN_BOOT, &catalog->boot);
+    if (status == RESOURCE_STATUS_DEFERRED)
     {
-        catalog->ready = false;
         return status;
     }
-    catalog->ready = catalog->splash.ready;
+    if (status != RESOURCE_STATUS_OK)
+    {
+        catalog->boot = (ui_image_resource_t){0};
+    }
+    catalog->ready = catalog->boot.ready;
     return RESOURCE_STATUS_OK;
 }
 
@@ -184,9 +195,9 @@ bool ui_image_catalog_ready(const ui_image_catalog_t *catalog)
     return (catalog != NULL) && catalog->ready;
 }
 
-bool ui_image_catalog_splash_ready(const ui_image_catalog_t *catalog)
+bool ui_image_catalog_boot_ready(const ui_image_catalog_t *catalog)
 {
-    return (catalog != NULL) && catalog->splash.ready;
+    return (catalog != NULL) && catalog->boot.ready;
 }
 
 void ui_image_rle_start(ui_image_rle_op_t *op,
@@ -236,55 +247,74 @@ bsp_status_t ui_image_rle_step(const ili9341_t *display,
         }
         op->window_sent = true;
     }
-    if (op->run_remaining == 0u)
-    {
-        uint8_t bytes[RESOURCE_IMAGE_RGB565_RLE_RECORD_SIZE];
-        if (op->command_cursor >= op->header.command_size)
-        {
-            return BSP_STATUS_ERROR;
-        }
-        const resource_status_t read_status =
-            resource_catalog_read(op->resource_catalog,
-                                  &op->entry,
-                                  op->header.command_offset + op->command_cursor,
-                                  bytes,
-                                  sizeof(bytes));
-        if (read_status != RESOURCE_STATUS_OK)
-        {
-            return bsp_from_resource(read_status);
-        }
-        op->run_remaining = get_u16(&bytes[0]);
-        op->run_color_rgb565 = get_u16(&bytes[2]);
-        op->command_cursor += RESOURCE_IMAGE_RGB565_RLE_RECORD_SIZE;
-        if ((op->run_remaining == 0u) || ((uint32_t)op->run_remaining > op->pixels_remaining))
-        {
-            return BSP_STATUS_ERROR;
-        }
-    }
     uint16_t chunk = (max_pixels == 0u) ? ILI9341_FILL_CHUNK_PIXELS : max_pixels;
     if (chunk > ILI9341_FILL_CHUNK_PIXELS)
     {
         chunk = ILI9341_FILL_CHUNK_PIXELS;
     }
-    if (chunk > op->run_remaining)
-    {
-        chunk = op->run_remaining;
-    }
     if ((uint32_t)chunk > op->pixels_remaining)
     {
         chunk = (uint16_t)op->pixels_remaining;
     }
-    for (uint16_t i = 0u; i < chunk; i++)
+    ui_image_rle_op_t next = *op;
+    uint16_t filled = 0u;
+    while (filled < chunk)
     {
-        pixels[i] = op->run_color_rgb565;
+        if (next.run_remaining == 0u)
+        {
+            if (next.command_byte_index == next.command_bytes_used)
+            {
+                if (next.command_cursor >= next.header.command_size)
+                {
+                    return BSP_STATUS_ERROR;
+                }
+                uint32_t read_size = next.header.command_size - next.command_cursor;
+                if (read_size > sizeof(next.command_bytes))
+                {
+                    read_size = sizeof(next.command_bytes);
+                }
+                const resource_status_t read_status =
+                    resource_catalog_read(next.resource_catalog,
+                                          &next.entry,
+                                          next.header.command_offset + next.command_cursor,
+                                          next.command_bytes,
+                                          read_size);
+                if (read_status != RESOURCE_STATUS_OK)
+                {
+                    return bsp_from_resource(read_status);
+                }
+                next.command_cursor += read_size;
+                next.command_bytes_used = (uint8_t)read_size;
+                next.command_byte_index = 0u;
+            }
+            const uint8_t *const record = &next.command_bytes[next.command_byte_index];
+            next.run_remaining = get_u16(record);
+            next.run_color_rgb565 = get_u16(&record[2]);
+            next.command_byte_index += RESOURCE_IMAGE_RGB565_RLE_RECORD_SIZE;
+            if ((next.run_remaining == 0u) || ((uint32_t)next.run_remaining > next.pixels_remaining))
+            {
+                return BSP_STATUS_ERROR;
+            }
+        }
+        uint16_t run_chunk = (uint16_t)(chunk - filled);
+        if (run_chunk > next.run_remaining)
+        {
+            run_chunk = next.run_remaining;
+        }
+        for (uint16_t i = 0u; i < run_chunk; i++)
+        {
+            pixels[filled + i] = next.run_color_rgb565;
+        }
+        filled = (uint16_t)(filled + run_chunk);
+        next.run_remaining = (uint16_t)(next.run_remaining - run_chunk);
+        next.pixels_remaining -= run_chunk;
     }
     const bsp_status_t status = ili9341_write_pixels_rgb565(pixels, chunk);
     if (status != BSP_STATUS_OK)
     {
         return status;
     }
-    op->run_remaining = (uint16_t)(op->run_remaining - chunk);
-    op->pixels_remaining -= chunk;
+    *op = next;
     if (op->pixels_remaining == 0u)
     {
         op->active = false;

@@ -81,6 +81,10 @@ resource_status_t ui_font_read_glyph_bitmap(const ui_font_catalog_t *catalog,
                                             const ui_font_glyph_t *glyph,
                                             uint8_t *dst,
                                             size_t capacity);
+resource_status_t ui_font_measure_text(const ui_font_catalog_t *catalog,
+                                       ui_font_role_t role,
+                                       const char *text,
+                                       uint16_t *width);
 void ui_font_text_start(ui_font_text_op_t *op,
                         ui_font_catalog_t *catalog,
                         ui_font_role_t role,

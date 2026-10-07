@@ -626,6 +626,21 @@ endif()
 
 add_test(NAME wtk_ui_product_test COMMAND wtk_ui_product_test)
 
+add_executable(wtk_ui_product_preview
+    ui/preview_ui_product.c
+    ../src/ui/ui_fallback_renderer.c
+)
+target_link_libraries(wtk_ui_product_preview PRIVATE wtk_firmware_common)
+target_include_directories(wtk_ui_product_preview PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src
+)
+wtk_configure_c_target(wtk_ui_product_preview)
+wtk_apply_project_warnings(wtk_ui_product_preview)
+wtk_apply_common_compile_options(wtk_ui_product_preview)
+if(WTK_WARNINGS_AS_ERRORS_HOST)
+    wtk_treat_warnings_as_errors(wtk_ui_product_preview)
+endif()
+
 add_executable(wtk_app_calibration_workflow_test
     app/test_app_calibration_workflow.c
 )

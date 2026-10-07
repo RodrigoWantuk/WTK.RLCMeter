@@ -223,6 +223,13 @@ static void test_valid_mount_lookup_and_bitmap(void)
     expect_true(ui_font_lookup_glyph(&font, UI_FONT_ROLE_SMALL, 0x2603u, &glyph) ==
                     RESOURCE_STATUS_NOT_FOUND,
                 "unknown glyph reports not found");
+    uint16_t width = 0u;
+    expect_true(ui_font_measure_text(&font, UI_FONT_ROLE_SMALL, "A\xCE\xA9", &width) ==
+                    RESOURCE_STATUS_OK && width == 4u,
+                "UTF-8 text width uses glyph advances");
+    expect_true(ui_font_measure_text(&font, UI_FONT_ROLE_SMALL, "\xFF", &width) ==
+                    RESOURCE_STATUS_INVALID_UTF8,
+                "invalid UTF-8 cannot be measured as valid text");
 }
 
 static void test_corrupt_fonts_fail_admission(void)

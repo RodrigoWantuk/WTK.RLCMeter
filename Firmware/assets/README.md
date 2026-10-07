@@ -1,88 +1,91 @@
-# `assets`
+# Product UI resources
 
-Source assets for the graphical UI.
+`resource_manifest.json` is the source of truth for the W25Q product pack. The outer
+wire schema is v2 and the product resource API is v4. API v4 requires complete EN and
+PT-BR UTF-8 catalogs (`0x0001..0x0059`) and three A1 bitmap font roles. An older API
+v3 pack must be rebuilt and uploaded; the firmware must not silently reinterpret it.
 
-## Expected content
+The current pack also includes optional 240x320 RGB565 RLE art for the READY screen.
+Art contains no words or numerical readouts. The firmware composes localized text,
+values, status, and icon glyphs over it. Corrupt or absent optional art falls back to
+the plain background; missing/corrupt required text or fonts enters the internal
+bilingual PC-link recovery screen. The small internal emergency font is independent
+of W25Q and never grants measurement permission.
 
-- startup/splash artwork;
-- icons;
-- source fonts for offline conversion;
-- auxiliary images;
-- source manifests/metadata.
+## Sources and regeneration
 
-Files in this directory are source inputs. Firmware consumes packed/generated resources produced by tooling under `tools/` and stored in W25Q external Flash.
+- `text/en.json`, `text/pt-BR.json`: stable localized text IDs, at most 31 UTF-8 bytes
+  each. Change both catalogs together.
+- `source/fonts/IBMPlexSans-Regular.ttf` and `IBMPlexMono-Regular.ttf`: IBM Plex,
+  pinned upstream revision `763c36ef9117782905ae010056dfbe8fd2653a25`.
+  `source/fonts/LICENSE.txt` contains the SIL Open Font License. The MCU never parses
+  TTF. `font/plex-*-a1.json` are deterministic monochrome raster outputs, including
+  eight private-use menu icons. Small/medium use Sans at 12/16 px; large numerics use
+  Mono at 28 px.
+- `source/screens/boot-art-v2.png`: wordless generated bitmap source. The derived
+  `image/boot-art-v2-rle.json` is 240x320 with three significant bits per RGB channel
+  before RGB565 encoding, keeping the compressed command stream bounded. The other
+  screen image sources are historical experiments and are not packaged.
+- `font/wtk-pixel-base.json`: previous provisional source, retained for legacy
+  synthetic format tests; it is not in the product pack.
 
-## Implemented Resource Pack v2 inputs
+Regenerate the font JSON after any catalog or font-source change (Pillow is required
+only for this offline step):
 
-- `resource_manifest.json` is the deterministic source manifest for the external W25Q
-  resource pack.
-- `text/en.json` and `text/pt-BR.json` provide UTF-8 product text catalogs with stable
-  numeric text IDs. Firmware does not depend on enum ordinal order or physical Flash
-  offsets.
-- Stage 3A.1 freezes the current text-catalog semantic ABI as dense IDs
-  `0x0001..0x0041`, every ID present in English and Portuguese (Brazil), and each
-  UTF-8 string no longer than 31 bytes.
-- Stage 3B.1 adds a repository-owned deterministic A1 bitmap font source at
-  `font/wtk-pixel-base.json`. The builder emits `FONT_UI_SMALL`, `FONT_UI_MEDIUM`,
-  and `FONT_UI_LARGE` W25Q font resources from that source.
-- Resource API v3 also admits optional `RGB565_IMAGE` entries in
-  `IMAGE_RGB565_RLE_V1` format for rich screens, icons, and splash artwork. These
-  are 16-bit RGB565 run streams with a CRC-checked image header and command stream,
-  designed for chunked W25Q-to-TFT rendering without a full framebuffer. They are
-  optional resources; normal boot still requires only the text catalogs and font
-  roles. Optional full-screen PRODUCT artwork uses 240x320 portrait resources under
-  the `IMAGE_SCREEN_*` IDs and remains independent from emergency rendering.
-- `source/screens/*.png` contains AI-generated PRODUCT artwork sources for rich
-  screen resources.
-- `image/wtk-splash-rle.json` is the compact startup splash currently consumed by
-  the PRODUCT startup renderer. It is derived from the AI source artwork by
-  `tools/prepare_rgb565_image_resource.py`.
-- `image/screen-*-rle.json` contains optional full-screen 240x320 portrait
-  RGB565 RLE artwork for future rich PRODUCT screens. These assets are packaged
-  into W25Q but normal boot safety does not depend on them.
-- The Resource Pack outer schema remains version 2. PRODUCT resource API version is
-  now 3 because firmware requires text catalogs plus the three external font roles
-  and defines optional external image resources.
-- Build the binary pack with:
-
-```bash
-python Firmware/tools/build_resource_pack.py Firmware/assets/resource_manifest.json -o Firmware/build/resources/wtk_resources.bin
+```sh
+python Firmware/tools/generate_plex_bitmap_sources.py
 ```
 
-The preferred product-facing PC utility wraps build, inspection, framed-stream
-generation, and optional serial upload:
+Regenerate the optional art when its PNG source changes:
 
-```bash
-python Firmware/tools/resource_pack_tool.py build Firmware/assets/resource_manifest.json -o Firmware/build/resources/wtk_resources.wrp2 --summary Firmware/build/resources/wtk_resources.summary.json
-python Firmware/tools/resource_pack_tool.py inspect Firmware/build/resources/wtk_resources.wrp2
-python Firmware/tools/resource_pack_tool.py frame Firmware/build/resources/wtk_resources.wrp2 -o Firmware/build/resources/wtk_resources.wpc
-python Firmware/tools/resource_pack_tool.py upload Firmware/build/resources/wtk_resources.wrp2 --port COM5
+```sh
+python Firmware/tools/prepare_rgb565_image_resource.py Firmware/assets/source/screens/boot-art-v2.png -o Firmware/assets/image/boot-art-v2-rle.json --width 240 --height 320 --channel-bits 3
 ```
 
-Convert an AI-generated PNG source into a firmware image resource with:
+Build, inspect, frame, and upload the pack from the repository root:
 
-```bash
-python Firmware/tools/prepare_rgb565_image_resource.py Firmware/assets/source/screens/boot-splash-ai.png -o Firmware/assets/image/wtk-splash-rle.json --width 64 --height 32
+```sh
+python Firmware/tools/resource_pack_tool.py bundle Firmware/assets/resource_manifest.json -o Firmware/build/resources/product.wrp2 --summary Firmware/build/resources/product.json --stream Firmware/build/resources/product.wpc
+python Firmware/tools/resource_pack_tool.py inspect Firmware/build/resources/product.wrp2
+python Firmware/tools/resource_pack_tool.py upload Firmware/build/resources/product.wrp2 --port COM5
 ```
 
-The upload subcommand expects a service/manufacturing firmware image built with
-`WTK_ENABLE_PRODUCT_RESOURCE_UPDATE=ON`. Normal product measurement, calibration, and
-menus remain menu-driven and do not depend on UART.
+The last command uses the product PC-link resource receiver through a serial COM
+port. It is for provisioning/recovery; ordinary menus, measurement, and calibration
+do not require UART. Never put a resource pack inside the internal MCU Flash image.
 
-Generated pack binaries are build artifacts; the checked-in source of truth is the
-manifest plus JSON catalog input files.
+## Preview and validation
 
-Authoring fonts such as TTF/OTF are never parsed by STM32 firmware. Development-host
-tooling converts them into compact MCU-oriented font resources containing rasterized
-glyph data, glyph metrics, supported symbols, and optional simple compression. Stage
-3B.1 uses a project-owned JSON pixel source as a provisional license-clean font, not
-the final product typography.
+The host-only `wtk_ui_product_preview` target links the real product renderer and
+reads the built pack. It renders 240x320 PPMs with a mock TFT. Generate all EN/PT-BR
+screens, both blank-W25Q recovery screens, and the reviewed contact sheet with:
 
-## Rules
+```sh
+cmake --preset host-debug
+cmake --build --preset host-debug --target wtk_ui_product_preview
+python Firmware/tools/render_product_ui_previews.py --preview-exe Firmware/build/host-debug/tests/Debug/wtk_ui_product_preview.exe --output-dir Firmware/build/ui-preview --contact-sheet Firmware/renders/product-ui-en-pt.png
+```
 
-- do not assume a full framebuffer;
-- prefer source formats that convert cleanly to RGB565 or compact masks;
-- keep installed font/resource size independent from SRAM use by designing for chunked W25Q reads;
-- preserve licensing/source information for third-party assets;
-- assign stable asset IDs so UI code does not depend on physical Flash offsets;
-- keep a tiny internal-Flash emergency fallback font for basic diagnostic/safety messages.
+The script builds the pack from the manifest and writes primary, secondary
+submenu/wizard, and blank-W25Q recovery contact sheets under `Firmware/renders/`.
+Pass `-` instead of a pack path when
+calling the preview executable directly to render the internal recovery screen without
+W25Q. The script verifies that `result-refresh` and `result-updated` produce identical
+pixels, proving that an updated result clears its old footer. The reviewed EN/PT-BR
+contact sheet is `Firmware/renders/product-ui-en-pt.png`. The contact-sheet step
+requires Pillow offline; the firmware and normal pack builder do not.
+
+The resource builder verifies IDs, UTF-8 bounds, required glyph coverage, payload
+CRCs, and image run coverage. Host tests additionally check menu widths and
+quantization. Physical TFT appearance, SPI timing, and readability still require
+bench validation.
+
+## Runtime constraints
+
+- No full framebuffer or heap on the MCU. W25Q image commands and glyphs are streamed
+  through bounded buffers; pack size does not scale SRAM usage.
+- Text and images defer while the shared Flash bus is unavailable or quiet is active.
+- The pack is an output artifact; manifest, source JSON, font TTF/license, and source
+  PNG are versioned. Do not edit generated font or RLE JSON by hand.
+- Internal emergency/recovery text remains deliberately small and independent of the
+  installed language pack.

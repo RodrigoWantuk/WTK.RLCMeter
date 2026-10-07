@@ -194,7 +194,13 @@ void ui_fallback_text_scaled_start(ui_fallback_text_op_t *op,
     {
         return;
     }
-    (void)strncpy(op->text, text, sizeof(op->text) - 1u);
+    size_t length = strlen(text);
+    if (length >= sizeof(op->text))
+    {
+        length = sizeof(op->text) - 1u;
+    }
+    (void)memcpy(op->text, text, length);
+    op->text[length] = '\0';
     op->x = x;
     op->y = y;
     op->fg_rgb565 = fg_rgb565;

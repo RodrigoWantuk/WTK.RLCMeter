@@ -315,6 +315,46 @@ resource_status_t ui_font_read_glyph_bitmap(const ui_font_catalog_t *catalog,
                      glyph->bitmap_size);
 }
 
+resource_status_t ui_font_measure_text(const ui_font_catalog_t *catalog,
+                                       ui_font_role_t role,
+                                       const char *text,
+                                       uint16_t *width)
+{
+    if ((catalog == NULL) || !catalog->ready || (role >= UI_FONT_ROLE_COUNT) ||
+        (text == NULL) || (width == NULL))
+    {
+        return RESOURCE_STATUS_INVALID_ARG;
+    }
+    size_t offset = 0u;
+    const size_t length = strlen(text);
+    uint32_t advance = 0u;
+    while (offset < length)
+    {
+        uint32_t codepoint = 0u;
+        if (ui_utf8_decode_next(text, length, &offset, &codepoint) != UI_UTF8_STATUS_OK)
+        {
+            return RESOURCE_STATUS_INVALID_UTF8;
+        }
+        ui_font_glyph_t glyph;
+        resource_status_t status = ui_font_lookup_glyph(catalog, role, codepoint, &glyph);
+        if (status == RESOURCE_STATUS_NOT_FOUND)
+        {
+            status = ui_font_lookup_glyph(catalog, role, UI_FONT_REQUIRED_UNKNOWN, &glyph);
+        }
+        if (status != RESOURCE_STATUS_OK)
+        {
+            return status;
+        }
+        advance += (uint8_t)glyph.advance_x;
+        if (advance > UINT16_MAX)
+        {
+            return RESOURCE_STATUS_OUT_OF_RANGE;
+        }
+    }
+    *width = (uint16_t)advance;
+    return RESOURCE_STATUS_OK;
+}
+
 void ui_font_text_start(ui_font_text_op_t *op,
                         ui_font_catalog_t *catalog,
                         ui_font_role_t role,

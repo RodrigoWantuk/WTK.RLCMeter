@@ -163,6 +163,19 @@ bool ui_font_catalog_ready(const ui_font_catalog_t *catalog)
     return (catalog != NULL) && g_font_ready;
 }
 
+resource_status_t ui_font_measure_text(const ui_font_catalog_t *catalog,
+                                       ui_font_role_t role,
+                                       const char *text,
+                                       uint16_t *width)
+{
+    if ((catalog == NULL) || (text == NULL) || (width == NULL))
+    {
+        return RESOURCE_STATUS_INVALID_ARG;
+    }
+    *width = (uint16_t)(strlen(text) * (size_t)(8u + (uint8_t)role * 4u));
+    return RESOURCE_STATUS_OK;
+}
+
 void ui_font_text_start(ui_font_text_op_t *op,
                         ui_font_catalog_t *catalog,
                         ui_font_role_t role,
@@ -277,6 +290,14 @@ static resource_status_t fake_text_provider(void *context,
     else if (id == UI_TEXT_ID_READY)
     {
         text = "READY";
+    }
+    else if (id == UI_TEXT_ID_SAFETY_BLOCKED)
+    {
+        text = (language == UI_LANGUAGE_PT_BR) ? "SEGURANCA BLOQUEADA" : "SAFETY BLOCKED";
+    }
+    else if (id == UI_TEXT_ID_VOLTAGE_DETECTED)
+    {
+        text = (language == UI_LANGUAGE_PT_BR) ? "TENSAO DETECTADA" : "VOLTAGE DETECTED";
     }
     if (snprintf(dst, capacity, "%s", text) >= (int)capacity)
     {
@@ -491,6 +512,39 @@ static int test_normal_resource_failure_uses_internal_fallback(void)
     return failures;
 }
 
+static int test_safety_block_uses_localized_resource_and_internal_fallback(void)
+{
+    int failures = 0;
+    reset_render_counters();
+    ui_product_t ui;
+    ili9341_t display = {.ready = true};
+    ui_product_init(&ui);
+    ui_product_set_text_provider(&ui, fake_text_provider, NULL);
+    attach_external_font(&ui);
+    ui_product_view_t view = ready_view(32u);
+    view.state = UI_PRODUCT_STATE_SAFETY_BLOCKED;
+    view.safety_blocker = UI_PRODUCT_BLOCK_RESIDUAL;
+    view.menu.language_id = (uint8_t)UI_LANGUAGE_PT_BR;
+    ui_product_request(&ui, &view);
+    failures += expect_true(drain_render(&ui, &display) == 0, "localized safety block drains");
+    failures += expect_true(rendered_font_text_starts_with("SEGURANCA BLOQUEADA"),
+                            "safety title uses external PT-BR text");
+    failures += expect_true(rendered_font_text_starts_with("TENSAO DETECTADA"),
+                            "safety reason uses external PT-BR text");
+
+    reset_render_counters();
+    g_provider_status = RESOURCE_STATUS_CORRUPT;
+    ui_product_init(&ui);
+    ui_product_set_text_provider(&ui, fake_text_provider, NULL);
+    attach_external_font(&ui);
+    view.generation++;
+    ui_product_request(&ui, &view);
+    failures += expect_true(drain_render(&ui, &display) == 0, "safety fallback drains");
+    failures += expect_true(rendered_text_starts_with("VOLTAGE"),
+                            "safety reason survives W25Q text failure internally");
+    return failures;
+}
+
 static int test_missing_font_uses_internal_fallback(void)
 {
     int failures = 0;
@@ -523,8 +577,9 @@ static int test_normal_text_uses_external_font_roles(void)
     view.state = UI_PRODUCT_STATE_READY;
     ui_product_request(&ui, &view);
     failures += expect_true(drain_render(&ui, &display) == 0, "ready render drains");
-    failures += expect_true(g_font_start_count == 1u, "ready uses external font once");
+    failures += expect_true(g_font_start_count == 2u, "ready title and action use external font");
     failures += expect_true(g_started_font_roles[0] == UI_FONT_ROLE_LARGE, "scale 3 maps to large font");
+    failures += expect_true(g_started_font_roles[1] == UI_FONT_ROLE_MEDIUM, "ready action uses medium font");
     failures += expect_true(g_text_start_count == 0u, "ready does not use emergency fallback");
     return failures;
 }
@@ -538,6 +593,7 @@ int main(void)
     failures += test_details_phase_label_uses_catalog();
     failures += test_resource_error_uses_no_external_text_reads();
     failures += test_normal_resource_failure_uses_internal_fallback();
+    failures += test_safety_block_uses_localized_resource_and_internal_fallback();
     failures += test_missing_font_uses_internal_fallback();
     failures += test_normal_text_uses_external_font_roles();
     return failures == 0 ? 0 : 1;

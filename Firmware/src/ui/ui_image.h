@@ -18,7 +18,7 @@ typedef struct
 typedef struct
 {
     resource_catalog_t *resource_catalog;
-    ui_image_resource_t splash;
+    ui_image_resource_t boot;
     bool ready;
 } ui_image_catalog_t;
 
@@ -33,6 +33,9 @@ typedef struct
     uint32_t pixels_remaining;
     uint16_t run_remaining;
     uint16_t run_color_rgb565;
+    uint8_t command_bytes[32];
+    uint8_t command_bytes_used;
+    uint8_t command_byte_index;
     bool window_sent;
     bool active;
 } ui_image_rle_op_t;
@@ -41,7 +44,7 @@ void ui_image_catalog_init(ui_image_catalog_t *catalog);
 resource_status_t ui_image_catalog_mount(ui_image_catalog_t *catalog,
                                          resource_catalog_t *resource_catalog);
 bool ui_image_catalog_ready(const ui_image_catalog_t *catalog);
-bool ui_image_catalog_splash_ready(const ui_image_catalog_t *catalog);
+bool ui_image_catalog_boot_ready(const ui_image_catalog_t *catalog);
 void ui_image_rle_start(ui_image_rle_op_t *op,
                         const ui_image_catalog_t *catalog,
                         uint32_t resource_id,

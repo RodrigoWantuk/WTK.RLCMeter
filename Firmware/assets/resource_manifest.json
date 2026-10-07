@@ -19,52 +19,28 @@
       "id": "FONT_UI_SMALL",
       "type": "FONT_BITMAP_A1",
       "format": "FONT_BITMAP_A1_V1",
-      "path": "font/wtk-pixel-base.json",
+      "path": "font/plex-small-a1.json",
       "scale": 1
     },
     {
       "id": "FONT_UI_MEDIUM",
       "type": "FONT_BITMAP_A1",
       "format": "FONT_BITMAP_A1_V1",
-      "path": "font/wtk-pixel-base.json",
-      "scale": 2
+      "path": "font/plex-medium-a1.json",
+      "scale": 1
     },
     {
       "id": "FONT_UI_LARGE",
       "type": "FONT_BITMAP_A1",
       "format": "FONT_BITMAP_A1_V1",
-      "path": "font/wtk-pixel-base.json",
-      "scale": 3
-    },
-    {
-      "id": "IMAGE_SPLASH",
-      "type": "RGB565_IMAGE",
-      "format": "IMAGE_RGB565_RLE_V1",
-      "path": "image/wtk-splash-rle.json"
+      "path": "font/plex-large-a1.json",
+      "scale": 1
     },
     {
       "id": "IMAGE_SCREEN_BOOT",
       "type": "RGB565_IMAGE",
       "format": "IMAGE_RGB565_RLE_V1",
-      "path": "image/screen-boot-rle.json"
-    },
-    {
-      "id": "IMAGE_SCREEN_RESULT",
-      "type": "RGB565_IMAGE",
-      "format": "IMAGE_RGB565_RLE_V1",
-      "path": "image/screen-result-rle.json"
-    },
-    {
-      "id": "IMAGE_SCREEN_CAL_OPEN",
-      "type": "RGB565_IMAGE",
-      "format": "IMAGE_RGB565_RLE_V1",
-      "path": "image/screen-cal-open-rle.json"
-    },
-    {
-      "id": "IMAGE_SCREEN_RESOURCE_UPLOAD",
-      "type": "RGB565_IMAGE",
-      "format": "IMAGE_RGB565_RLE_V1",
-      "path": "image/screen-resource-upload-rle.json"
+      "path": "image/boot-art-v2-rle.json"
     }
   ]
 }

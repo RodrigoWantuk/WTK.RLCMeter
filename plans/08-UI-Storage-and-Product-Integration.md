@@ -494,6 +494,52 @@ Remaining Stage 3B.2/product work:
 - physical W25Q/TFT SPI timing, glyph visual quality, and quiet-mode interaction
   validation.
 
+## Stage 3B.2 — bilingual product resource composition and preview
+
+STATUS: IMPLEMENTED_REQUIRES_BENCH_VALIDATION
+
+This section supersedes the earlier Stage 3B.1 forecast above; that section remains
+as an implementation-history baseline rather than the current pack description.
+
+- Resource Pack outer schema stays v2; product API advances to v4. Both EN and PT-BR
+  catalogs have dense IDs through `0x0059`; all three A1 font roles are required.
+  A previous API v3 pack is incompatible and must be reuploaded.
+- Pinned IBM Plex Sans/Mono TTF sources and their SIL OFL license are versioned under
+  `Firmware/assets/source/fonts/`. Offline rasterization produces bounded small,
+  medium, and large A1 glyphs, including eight icon glyphs. Product firmware contains
+  neither TTF nor a proportional glyph table in SRAM.
+- The optional READY bitmap is wordless 240x320 RGB565 RLE art generated from the
+  source PNG with deterministic three-bit-per-channel quantization. Its 1346 commands
+  occupy 5384 command bytes. Text, values, and selection are rendered separately.
+  Corrupt/missing optional art does not make a usable required pack fail admission.
+- Normal product screens use localized interpretation labels and PT-BR decimal commas.
+  The main menu uses external icon glyphs and bounded font roles. The PC-link upload
+  and resource-error paths use internal bilingual emergency text without W25Q.
+- The host-only real-renderer preview produces the versioned EN/PT-BR contact sheet
+  `Firmware/renders/product-ui-en-pt.png` and the secondary submenu/wizard sheet
+  `Firmware/renders/product-ui-en-pt-secondary.png` through
+  `Firmware/tools/render_product_ui_previews.py`. It also renders blank-W25Q recovery
+  in both languages in `Firmware/renders/product-ui-en-pt-recovery.png`.
+  A result refresh is pixel-identical to a
+  fresh draw of the same view; its previous footer cannot remain on screen.
+- `Firmware/assets/README.md` documents deterministic generation, pack build,
+  inspection, COM-port provisioning, preview, font provenance, and recovery behavior.
+
+Software evidence at this handoff: 36/36 CTests in both Host Debug and Host Release;
+62/62 Python tool tests; deterministic 22891-byte pack with six entries and SHA-256
+`1048f3baa7942354e1c3d84b9b5cb361e7e3bd7347f221fdc2d3b2660b6ee9b4`;
+Wokwi CLI 0.26.1 custom-chip compile and lint clean. PRODUCT Debug is 64296 B Flash
+and 16592 B accounted RAM. PRODUCT Release is 61396 B Flash and 17028 B accounted
+RAM, passing the 61440 B / 17408 B hard gates but with only 44 B Flash headroom.
+BRINGUP is 62296 B Flash and 16612 B accounted RAM. Additional PRODUCT features
+must first recover internal-Flash space. The full Wokwi suite was not run because
+`WOKWI_CLI_TOKEN` was absent.
+
+Remaining physical evidence: actual ILI9341 color/contrast/readability, glyph and
+image streaming latency, W25Q shared-bus behavior, real COM provisioning/recovery,
+and button-driven navigation with both languages on the manufactured board. No UI
+resource evidence qualifies metrology accuracy or safety circuitry.
+
 ## Stage 2A — product calibration wizard and active-calibration gate
 
 STATUS: IMPLEMENTED_REQUIRES_BENCH_VALIDATION

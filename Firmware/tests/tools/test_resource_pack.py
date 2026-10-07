@@ -29,8 +29,61 @@ assert TOOL_SPEC.loader is not None
 sys.modules[TOOL_SPEC.name] = resource_pack_tool
 TOOL_SPEC.loader.exec_module(resource_pack_tool)
 
+IMAGE_SPEC = importlib.util.spec_from_file_location(
+    "prepare_rgb565_image_resource", TOOLS / "prepare_rgb565_image_resource.py"
+)
+prepare_image = importlib.util.module_from_spec(IMAGE_SPEC)
+assert IMAGE_SPEC.loader is not None
+IMAGE_SPEC.loader.exec_module(prepare_image)
+
 
 class ResourcePackTests(unittest.TestCase):
+    def test_product_pack_has_complete_bilingual_fonts_and_portrait_art(self):
+        assets = Path(__file__).resolve().parents[2] / "assets"
+        manifest = assets / "resource_manifest.json"
+        required = resource_pack_format.required_font_codepoints(manifest)
+        resources = json.loads(manifest.read_text(encoding="utf-8"))["resources"]
+        self.assertEqual(len(resources), 6)
+        self.assertEqual(
+            {entry["id"] for entry in resources},
+            {"TEXT_EN", "TEXT_PT_BR", "FONT_UI_SMALL", "FONT_UI_MEDIUM",
+             "FONT_UI_LARGE", "IMAGE_SCREEN_BOOT"},
+        )
+        for role in ("small", "medium", "large"):
+            source = json.loads((assets / "font" / f"plex-{role}-a1.json").read_text(encoding="utf-8"))
+            glyphs = {int(key[2:], 16) for key in source["glyphs"]}
+            self.assertTrue(required <= glyphs, role)
+            self.assertTrue(set(range(0xE001, 0xE009)) <= glyphs, role)
+        image = json.loads((assets / "image/boot-art-v2-rle.json").read_text(encoding="utf-8"))
+        self.assertEqual((image["width"], image["height"]), (240, 320))
+        self.assertEqual(image["channel_bits"], 3)
+        self.assertEqual(sum(run[0] for run in image["runs"]), 240 * 320)
+        self.assertLess(len(image["runs"]) * 4, 6000)
+        pack = resource_pack_format.build_pack(manifest)
+        self.assertEqual(resource_pack_format.inspect_pack(pack)["resource_api_version"], 4)
+
+    def test_art_quantization_is_deterministic_and_bounded(self):
+        source = [(1, 2, 3), (31, 31, 31), (32, 0, 0), (63, 0, 0)]
+        self.assertEqual(prepare_image.rle_encode(source, 3),
+                         [[2, "0x0000"], [2, "0x2000"]])
+        self.assertEqual(prepare_image.rle_encode(source, 3), prepare_image.rle_encode(source, 3))
+        with self.assertRaises(ValueError):
+            prepare_image.rgb565((0, 0, 0), 0)
+
+    def test_bilingual_main_menu_labels_fit_portrait_screen(self):
+        assets = Path(__file__).resolve().parents[2] / "assets"
+        font = json.loads((assets / "font/plex-medium-a1.json").read_text(encoding="utf-8"))["glyphs"]
+        menu_ids = (0x0008, 0x0009, 0x000A, 0x0017, 0x0039, 0x003A, 0x000B, 0x000C)
+        for language in ("en", "pt-BR"):
+            strings = json.loads((assets / "text" / f"{language}.json").read_text(encoding="utf-8"))["strings"]
+            for text_id, label in strings.items():
+                width = sum(font[f"U+{ord(char):04X}"]["advance"] for char in label)
+                self.assertLessEqual(12 + width, 240, (language, text_id, width))
+            for icon, text_id in enumerate(menu_ids, start=0xE001):
+                label = chr(icon) + " " + strings[f"0x{text_id:04X}"]
+                width = sum(font[f"U+{ord(char):04X}"]["advance"] for char in label)
+                self.assertLessEqual(12 + width, 240, (language, text_id, width))
+
     def _write_catalog(self, root: Path, language: str, filename: str, override: Optional[dict[str, str]] = None) -> None:
         strings = {f"0x{text_id:04X}": f"{language[:1].upper()}{text_id:04X}" for text_id in resource_pack_format.REQUIRED_TEXT_IDS}
         if override:
@@ -127,14 +180,14 @@ class ResourcePackTests(unittest.TestCase):
         src = Path(__file__).resolve().parents[2] / "src"
         resource_header = (src / "storage" / "resource_store.h").read_text(encoding="utf-8")
         text_header = (src / "ui" / "ui_text.h").read_text(encoding="utf-8")
-        self.assertRegex(resource_header, r"RESOURCE_PACK_API_VERSION\s*=\s*3u")
+        self.assertRegex(resource_header, r"RESOURCE_PACK_API_VERSION\s*=\s*4u")
         self.assertRegex(resource_header, r"RESOURCE_FORMAT_IMAGE_RGB565_RLE_V1\s*=\s*3u")
         self.assertRegex(resource_header, r"RESOURCE_ID_IMAGE_SPLASH\s*=\s*0x00030001u")
         self.assertRegex(resource_header, r"RESOURCE_ID_IMAGE_SCREEN_RESOURCE_UPLOAD\s*=\s*0x00030005u")
         self.assertRegex(resource_header, r"RESOURCE_IMAGE_RGB565_MAX_HEIGHT\s*=\s*320u")
-        self.assertRegex(text_header, r"UI_TEXT_ID_LAST\s*=\s*UI_TEXT_ID_CRC_OK")
+        self.assertRegex(text_header, r"UI_TEXT_ID_LAST\s*=\s*UI_TEXT_ID_SUPPORTING")
         self.assertRegex(text_header, r"UI_TEXT_MAX_BYTES\s*=\s*31u")
-        last_match = re.search(r"UI_TEXT_ID_CRC_OK\s*=\s*0x([0-9A-Fa-f]+)u", text_header)
+        last_match = re.search(r"UI_TEXT_ID_SUPPORTING\s*=\s*0x([0-9A-Fa-f]+)u", text_header)
         self.assertIsNotNone(last_match)
         self.assertEqual(int(last_match.group(1), 16), resource_pack_format.TEXT_ID_LAST)
 
@@ -145,10 +198,10 @@ class ResourcePackTests(unittest.TestCase):
         self.assertEqual(first, second)
         info = resource_pack_format.inspect_pack(first)
         self.assertEqual(info["schema_version"], 2)
-        self.assertEqual(info["resource_api_version"], 3)
-        self.assertEqual(info["entry_count"], 10)
+        self.assertEqual(info["resource_api_version"], 4)
+        self.assertEqual(info["entry_count"], 6)
         self.assertEqual(info["text_id_first"], 0x0001)
-        self.assertEqual(info["text_id_last"], 0x0041)
+        self.assertEqual(info["text_id_last"], 0x0059)
         self.assertEqual(info["text_max_bytes"], 31)
         self.assertEqual(
             [entry["resource_id"] for entry in info["entries"]],
@@ -158,30 +211,23 @@ class ResourcePackTests(unittest.TestCase):
                 0x00020001,
                 0x00020002,
                 0x00020003,
-                0x00030001,
                 0x00030002,
-                0x00030003,
-                0x00030004,
-                0x00030005,
             ],
         )
         font_entries = [entry for entry in info["entries"] if entry["font"] is not None]
         self.assertEqual(len(font_entries), 3)
         for entry in font_entries:
             font = entry["font"]
-            self.assertGreaterEqual(font["glyph_count"], 100)
+            self.assertGreaterEqual(font["glyph_count"], len(resource_pack_format.required_font_codepoints(manifest)))
             self.assertEqual(font["index_bytes"], font["glyph_count"] * resource_pack_format.FONT_RECORD_SIZE)
             self.assertLessEqual(font["max_width"], resource_pack_format.FONT_MAX_WIDTH)
             self.assertLessEqual(font["max_height"], resource_pack_format.FONT_MAX_HEIGHT)
         image_entries = [entry for entry in info["entries"] if entry["image"] is not None]
-        self.assertEqual(len(image_entries), 5)
+        self.assertEqual(len(image_entries), 1)
         image_by_id = {entry["resource_id"]: entry["image"] for entry in image_entries}
-        self.assertEqual(image_by_id[0x00030001]["width"], 64)
-        self.assertEqual(image_by_id[0x00030001]["height"], 32)
-        for resource_id in (0x00030002, 0x00030003, 0x00030004, 0x00030005):
-            self.assertEqual(image_by_id[resource_id]["width"], 240)
-            self.assertEqual(image_by_id[resource_id]["height"], 320)
-            self.assertEqual(image_by_id[resource_id]["decoded_pixels"], 240 * 320)
+        self.assertEqual(image_by_id[0x00030002]["width"], 240)
+        self.assertEqual(image_by_id[0x00030002]["height"], 320)
+        self.assertEqual(image_by_id[0x00030002]["decoded_pixels"], 240 * 320)
 
     def test_optional_rgb565_rle_image_resource_inspects(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -225,13 +271,13 @@ class ResourcePackTests(unittest.TestCase):
             )
             summary = json.loads(summary_path.read_text(encoding="utf-8"))
             self.assertEqual(summary["schema_version"], 2)
-            self.assertEqual(summary["resource_api_version"], 3)
+            self.assertEqual(summary["resource_api_version"], 4)
             self.assertEqual(summary["size_bytes"], len(pack_path.read_bytes()))
-            self.assertEqual(summary["entry_count"], 10)
+            self.assertEqual(summary["entry_count"], 6)
             self.assertEqual(len(summary["sha256"]), 64)
             image_entries = [entry for entry in summary["entries"] if entry["image"] is not None]
-            self.assertEqual(len(image_entries), 5)
-            self.assertEqual(sum(entry["image"]["decoded_pixels"] for entry in image_entries), 2048 + (4 * 240 * 320))
+            self.assertEqual(len(image_entries), 1)
+            self.assertEqual(sum(entry["image"]["decoded_pixels"] for entry in image_entries), 240 * 320)
 
             self.assertEqual(resource_pack_tool.main(["frame", str(pack_path), "-o", str(stream_path)]), 0)
             stream = stream_path.read_bytes()
@@ -312,7 +358,7 @@ class ResourcePackTests(unittest.TestCase):
             (root / "text").mkdir()
             self._write_font_source(root)
             self._write_catalog(root, "en", "en.json")
-            self._write_catalog(root, "pt-BR", "pt-BR.json", {"0x0041": "X" * 32})
+            self._write_catalog(root, "pt-BR", "pt-BR.json", {"0x0059": "X" * 32})
             with self.assertRaisesRegex(ValueError, "exceeds"):
                 resource_pack_format.build_pack(self._write_manifest(root))
 
@@ -322,7 +368,7 @@ class ResourcePackTests(unittest.TestCase):
             self._write_font_source(root)
             self._write_catalog(root, "en", "en.json")
             missing = {f"0x{text_id:04X}": "X" for text_id in resource_pack_format.REQUIRED_TEXT_IDS}
-            del missing["0x0041"]
+            del missing["0x0059"]
             (root / "text" / "pt-BR.json").write_text(
                 json.dumps({"language": "pt-BR", "strings": missing}),
                 encoding="utf-8",

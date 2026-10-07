@@ -20,9 +20,17 @@ Host-side tools that support firmware, assets, calibration, and diagnostics.
 - `firmware_size.py`: reports STM32 ELF Flash/RAM usage, reserved stack/heap floor,
   largest symbols, optional JSON output, PRODUCT size gates, and the Phase 09A BRINGUP
   physical-MVP size gate.
-- `build_resource_pack.py`: builds the deterministic Resource Pack v2/API v3 binary
+- `build_resource_pack.py`: builds the deterministic Resource Pack v2/API v4 binary
   from `assets/resource_manifest.json`, including EN/PT-BR text resources and the
-  SMALL/MEDIUM/LARGE external A1 font roles.
+  SMALL/MEDIUM/LARGE external A1 font roles plus optional READY art.
+- `generate_plex_bitmap_sources.py`: offline Pillow-based rasterization of the pinned
+  IBM Plex sources into the three deterministic A1 font source files; normal pack
+  builds and firmware do not require Pillow.
+- `prepare_rgb565_image_resource.py`: offline PNG-to-RGB565/RLE converter with
+  deterministic channel quantization for bounded W25Q command streams.
+- `render_product_ui_previews.py`: calls the host-only real PRODUCT renderer for
+  EN/PT-BR screens, blank-W25Q recovery, and refresh-equivalence checks; composes
+  the reviewed contact sheet with offline Pillow.
 - `inspect_resource_pack.py`: validates Resource Pack v2 header, entry table, payload
   CRCs, required EN/PT-BR text resources, dense text IDs, text index CRCs, bounds,
   UTF-8, and font A1 header/index/bitmap semantics before printing a concise summary.

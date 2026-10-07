@@ -126,17 +126,24 @@ def resize_cover(
     return out
 
 
-def rgb565(color: tuple[int, int, int]) -> int:
+def rgb565(color: tuple[int, int, int], channel_bits: int = 8) -> int:
     r, g, b = color
+    if not 1 <= channel_bits <= 8:
+        raise ValueError("channel_bits must be in 1..8")
+    shift = 8 - channel_bits
+    if shift:
+        r = (r >> shift) << shift
+        g = (g >> shift) << shift
+        b = (b >> shift) << shift
     return ((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3)
 
 
-def rle_encode(pixels: list[tuple[int, int, int]]) -> list[list[object]]:
+def rle_encode(pixels: list[tuple[int, int, int]], channel_bits: int = 8) -> list[list[object]]:
     runs: list[list[object]] = []
     last: int | None = None
     count = 0
     for color in pixels:
-        value = rgb565(color)
+        value = rgb565(color, channel_bits)
         if last is None:
             last = value
             count = 1
@@ -158,6 +165,8 @@ def main() -> int:
     parser.add_argument("--width", type=int, default=240)
     parser.add_argument("--height", type=int, default=320)
     parser.add_argument("--description", default="")
+    parser.add_argument("--channel-bits", type=int, choices=range(1, 9), default=8,
+                        metavar="1..8", help="deterministic per-channel truncation before RGB565/RLE")
     args = parser.parse_args()
 
     src_w, src_h, pixels = read_png_rgb(args.input)
@@ -168,7 +177,8 @@ def main() -> int:
         "height": args.height,
         "source": str(args.input).replace("\\", "/"),
         "description": args.description,
-        "runs": rle_encode(resized),
+        "channel_bits": args.channel_bits,
+        "runs": rle_encode(resized, args.channel_bits),
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")

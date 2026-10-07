@@ -12,7 +12,7 @@
 
 enum
 {
-    PACK_BYTES = 2048u,
+    PACK_BYTES = 4096u,
 };
 
 static int g_failures = 0;
