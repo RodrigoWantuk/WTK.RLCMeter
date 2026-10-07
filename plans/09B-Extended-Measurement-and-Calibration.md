@@ -13,16 +13,22 @@ It must not reclassify synthetic tests as physical qualification.
   prerequisite check. It is compiled for Arm but not called by an application transaction, cannot
   energize K1, and cannot authorize a DC measurement.
 - `tools/calibration_campaign.py` is a host-only interval-fit prototype. It requires
-  the 33 Rev.1 OSL condition identities, safe capture provenance, and exact supported
-  frequency matching. It produces **diagnostic JSON only**, not a W25Q calibration
-  record or a qualified correction. Current OSL evidence itself is not imported or
-  verified by this tool.
+  the 33 Rev.1 OSL condition identities and exact supported frequency matching. Its
+  CLI now binds each standard to one BRINGUP RAW file by SHA-256, checks condition,
+  permit/relay metadata, active-calibration sequence, and the dump's persisted-OSL
+  DSP result. The fit remains **diagnostic JSON only**, not a W25Q calibration record
+  or a qualified correction. The 33 OSL keys still do not prove the OSL captures,
+  and the PC does not independently reproduce the embedded OSL calculation.
 - `tools/pc_capture.py` passively collects a completed BRINGUP RAW v1 DUT dump over
-  COM, validates its framing and 256 rows, and prints a SHA-256 capture identity.
+  COM, validates its framing, 256 rows, timing metadata, and prints a SHA-256 identity
+  of the exact bytes written (including on Windows).
   It does not command the relay or substitute for an authenticated PRODUCT capture
   export or calibrated OSL processing.
 - The existing PRODUCT calibration schema/model and A/B transactional slots are
   unchanged. No DC or supplementary-curve coefficient is installed at runtime.
+- A shared R/X details-row renderer saved 52 B in PRODUCT Release (61396 to
+  61344 B, same 17028 B accounted RAM), but this is not sufficient headroom for
+  substantial new embedded features. No UI capability or safety gate was removed.
 
 ## Hardware qualification gate for DC
 
@@ -41,8 +47,9 @@ PRODUCT and BRINGUP DC execution remain disabled.
 
 ## Remaining implementation gates
 
-1. **Space and ownership:** PRODUCT Release starts at 61396 B Flash against its
-   61440 B project gate; BRINGUP starts at 62296 B against physical 65536 B. Audit
+1. **Space and ownership:** PRODUCT Release is now 61344 B Flash against its
+   61440 B project gate (96 B headroom); BRINGUP is 62356 B against physical
+   65536 B. Audit
    the map, remove duplication without weakening safety or blank-W25Q recovery,
    and remeasure before adding target code. Do not raise the physical limits.
 2. **DC transaction:** after the electrical contract, add a distinct Phase 05

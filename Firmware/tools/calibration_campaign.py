@@ -9,10 +9,14 @@ the soft starting point for the minimum-change projection.
 from __future__ import annotations
 
 import argparse
+import copy
+import hashlib
 import json
 import math
 from pathlib import Path
 from typing import Any
+
+from pc_capture import MAX_CAPTURE_LINES, MAX_LINE_BYTES, validate_dut_capture
 
 
 RANGES = (10, 100, 1000, 10000, 100000, 1000000)
@@ -28,7 +32,7 @@ STANDARD_FIELDS = frozenset({
     "measured_z_re_ohms", "measured_z_im_ohms", "board_temperature_calibrated",
     "board_temperature_c", "datasheet_temperature_c", "esr_max_ohms", "d_max",
     "q_min", "esr_max_ohms_frequency_hz", "d_max_frequency_hz",
-    "q_min_frequency_hz",
+    "q_min_frequency_hz", "capture_file",
 })
 
 
@@ -293,6 +297,8 @@ def solve_campaign(data: dict[str, Any]) -> dict[str, Any]:
     require_complete_osl(data["osl_conditions"])
     outputs = []
     seen_keys = set()
+    seen_captures = set()
+    active_sequence = None
     for group in data["conditions"]:
         key = condition_key(group["condition"])
         if key in seen_keys:
@@ -303,7 +309,6 @@ def solve_campaign(data: dict[str, Any]) -> dict[str, Any]:
             raise CampaignError("prior curve must contain 12 coefficients")
         constraints: list[tuple[list[float], float]] = []
         seen_ids = set()
-        seen_captures = set()
         ignored_loss_specs: list[str] = []
         for standard in group["standards"]:
             sample_id = standard["id"]
@@ -313,6 +318,11 @@ def solve_campaign(data: dict[str, Any]) -> dict[str, Any]:
                 raise CampaignError("sample and capture IDs must be nonempty and unique per condition")
             seen_ids.add(sample_id)
             seen_captures.add(capture_id)
+            sequence = standard["capture_calibration_sequence"]
+            if active_sequence is None:
+                active_sequence = sequence
+            elif sequence != active_sequence:
+                raise CampaignError("standards from different active OSL sequences cannot be combined")
             constraints.extend(standard_constraints(standard, key, ignored_loss_specs))
         solved = minimum_change_fit(prior, constraints)
         outputs.append({"condition": group["condition"], "curve": solved,
@@ -323,6 +333,63 @@ def solve_campaign(data: dict[str, Any]) -> dict[str, Any]:
             "qualification": "UNQUALIFIED", "conditions": outputs}
 
 
+def bind_campaign_captures(data: dict[str, Any], root: Path) -> dict[str, Any]:
+    """Bind declared standard values to completed BRINGUP dumps, without claiming OSL verification."""
+    bound = copy.deepcopy(data)
+    root = root.resolve(strict=True)
+    if not root.is_dir():
+        raise CampaignError("capture root must be a directory")
+    for group in bound["conditions"]:
+        rref, frequency, amplitude = condition_key(group["condition"])
+        range_token = {10: "10R", 100: "100R", 1000: "1K", 10000: "10K",
+                       100000: "100K", 1000000: "1M"}[rref]
+        for standard in group["standards"]:
+            name = standard.get("capture_file")
+            if not isinstance(name, str) or not name:
+                raise CampaignError("every standard needs a capture_file")
+            path = (root / name).resolve(strict=True)
+            if not path.is_relative_to(root) or not path.is_file():
+                raise CampaignError("capture_file must stay inside the capture root")
+            if path.stat().st_size > MAX_CAPTURE_LINES * MAX_LINE_BYTES:
+                raise CampaignError(f"capture exceeds bounded raw format: {name}")
+            raw = path.read_bytes()
+            capture_id = hashlib.sha256(raw).hexdigest()
+            if standard.get("capture_id") != capture_id:
+                raise CampaignError(f"capture SHA-256 mismatch: {name}")
+            try:
+                capture = validate_dut_capture(raw.decode("ascii"))
+            except (UnicodeError, ValueError) as exc:
+                raise CampaignError(f"invalid capture {name}: {exc}") from exc
+            meta = capture.metadata
+            if (meta["range"] != range_token or int(meta["frequency_hz"]) != frequency or
+                    int(meta["amplitude_mvrms"]) != amplitude):
+                raise CampaignError(f"capture condition mismatch: {name}")
+            if (meta["dsp_status"] != "OK" or
+                    meta.get("return_channel") not in ("RET_1X", "RET_HG") or
+                    meta.get("calibration") not in ("FOUND source=PERSISTED",
+                                                    "UNQUALIFIED source=PERSISTED")):
+                raise CampaignError(f"capture lacks a successful persisted-OSL DSP result: {name}")
+            try:
+                real = int(meta["z_real_mohm"]) / 1000.0
+                imag = int(meta["z_imag_mohm"]) / 1000.0
+            except (KeyError, ValueError) as exc:
+                raise CampaignError(f"capture lacks numeric complex impedance: {name}") from exc
+            derived = {
+                "capture_safe": True,
+                "capture_dsp_status": "OK",
+                "capture_calibration_sequence": int(meta["calibration_sequence"]),
+                "frequency_hz": frequency,
+                "amplitude_mv_rms": amplitude,
+                "measured_z_re_ohms": real,
+                "measured_z_im_ohms": imag,
+            }
+            for field, value in derived.items():
+                if field in standard and standard[field] != value:
+                    raise CampaignError(f"declared {field} differs from capture {name}")
+            standard.update(derived)
+    return bound
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("campaign", nargs="?", type=Path,
@@ -330,6 +397,10 @@ def main() -> int:
     parser.add_argument("--template", action="store_true",
                         help="emit an unverified 33-key input template")
     parser.add_argument("--out", type=Path, help="diagnostic JSON output, not a firmware record")
+    parser.add_argument("--capture-root", type=Path,
+                        help="directory containing SHA-256-bound BRINGUP RAW v1 captures")
+    parser.add_argument("--synthetic-unbound", action="store_true",
+                        help="allow synthetic/manual inputs for development only")
     args = parser.parse_args()
     if args.template:
         if args.campaign is not None:
@@ -338,9 +409,15 @@ def main() -> int:
     else:
         if args.campaign is None:
             parser.error("campaign file is required unless --template is used")
+        if (args.capture_root is None) == (not args.synthetic_unbound):
+            parser.error("choose --capture-root or --synthetic-unbound")
         try:
-            result = solve_campaign(json.loads(args.campaign.read_text(encoding="utf-8")))
-        except (CampaignError, KeyError, TypeError, json.JSONDecodeError) as exc:
+            data = json.loads(args.campaign.read_text(encoding="utf-8"))
+            if args.capture_root is not None:
+                data = bind_campaign_captures(data, args.capture_root)
+            result = solve_campaign(data)
+            result["capture_binding"] = "RAW_SHA256_BOUND" if args.capture_root else "SYNTHETIC_UNBOUND"
+        except (CampaignError, KeyError, TypeError, OSError, json.JSONDecodeError) as exc:
             parser.error(str(exc))
     output = json.dumps(result, indent=2, sort_keys=True, allow_nan=False) + "\n"
     if args.out:

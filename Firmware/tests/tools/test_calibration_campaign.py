@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import math
+import hashlib
 from pathlib import Path
 import sys
+import tempfile
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "tools"))
@@ -14,6 +16,7 @@ from calibration_campaign import (  # noqa: E402
     CampaignError,
     IDENTITY,
     all_osl_conditions,
+    bind_campaign_captures,
     campaign_template,
     corrected_impedance,
     minimum_change_fit,
@@ -51,6 +54,18 @@ def campaign(standards, prior=None):
             "standards": standards,
         }],
     }
+
+
+def raw_capture() -> str:
+    header = ["RAW_BEGIN v=1", "m=DUT_MEASURE", "f=1000", "a=100", "r=1K",
+              "sr=64000", "n=256", "wps=3", "calibration_sequence=7",
+              "pi=10", "pv=11", "k1op=10", "k1rel=8", "DSP_BEGIN v=1",
+              "calibration=FOUND source=PERSISTED", "dsp_status=OK",
+              "return_channel=RET_1X", "z_real_mohm=1005000",
+              "z_imag_mohm=0", "DSP_END", "i,v1,r1,v2,rh,vm1,vm2"]
+    return "\n".join(header +
+                     [f"{index},2048,2048,2048,2048,2048,2048"
+                      for index in range(256)] + ["RAW_END st=OK", ""])
 
 
 class CampaignTests(unittest.TestCase):
@@ -176,6 +191,60 @@ class CampaignTests(unittest.TestCase):
             raw = item["measured_z_re_ohms"]
             corrected, _ = corrected_impedance(result["curve"], raw, 0.0, 1000)
             self.assertLessEqual(abs(corrected - raw), raw * 0.01 + 1e-4)
+
+    def test_raw_capture_binding_derives_measurement_and_provenance(self):
+        text = raw_capture()
+        sample = standard("R", 1000, 1005, 0, capture_file="capture.raw")
+        for field in ("capture_safe", "capture_dsp_status", "capture_calibration_sequence",
+                      "frequency_hz", "amplitude_mv_rms", "measured_z_re_ohms",
+                      "measured_z_im_ohms"):
+            del sample[field]
+        sample["capture_id"] = hashlib.sha256(text.encode("ascii")).hexdigest()
+        with tempfile.TemporaryDirectory() as directory:
+            Path(directory, "capture.raw").write_bytes(text.encode("ascii"))
+            bound = bind_campaign_captures(campaign([sample]), Path(directory))
+        found = bound["conditions"][0]["standards"][0]
+        self.assertEqual(found["measured_z_re_ohms"], 1005.0)
+        self.assertEqual(found["capture_calibration_sequence"], 7)
+        self.assertEqual(solve_campaign(bound)["conditions"][0]["curve"], list(IDENTITY))
+
+    def test_raw_capture_binding_rejects_tamper_or_claim_mismatch(self):
+        text = raw_capture()
+        sample = standard("R", 1000, 1005, 0, capture_file="capture.raw")
+        sample["capture_id"] = hashlib.sha256(text.encode("ascii")).hexdigest()
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory, "capture.raw")
+            path.write_bytes(text.encode("ascii"))
+            with self.assertRaises(CampaignError):
+                bind_campaign_captures(campaign([sample]), Path(directory))
+            sample["capture_calibration_sequence"] = 7
+            self.assertEqual(len(bind_campaign_captures(campaign([sample]), Path(directory))["conditions"]), 1)
+            path.write_bytes(text.replace("z_real_mohm=1005000", "z_real_mohm=1006000").encode("ascii"))
+            with self.assertRaises(CampaignError):
+                bind_campaign_captures(campaign([sample]), Path(directory))
+
+    def test_mixed_osl_sequences_rejected(self):
+        first = standard("R", 1000, 1000, 0)
+        second = standard("R", 1000, 1000, 0)
+        second.update(id="second", capture_id="second-capture", capture_calibration_sequence=2)
+        with self.assertRaises(CampaignError):
+            solve_campaign(campaign([first, second]))
+
+    def test_capture_binding_rejects_unpersisted_osl_and_path_escape(self):
+        text = raw_capture().replace("source=PERSISTED", "source=IDEAL")
+        sample = standard("R", 1000, 1005, 0, capture_file="capture.raw",
+                          capture_calibration_sequence=7)
+        sample["capture_id"] = hashlib.sha256(text.encode("ascii")).hexdigest()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory, "captures")
+            root.mkdir()
+            Path(root, "capture.raw").write_bytes(text.encode("ascii"))
+            with self.assertRaises(CampaignError):
+                bind_campaign_captures(campaign([sample]), root)
+            sample["capture_file"] = "../outside.raw"
+            Path(directory, "outside.raw").write_bytes(text.encode("ascii"))
+            with self.assertRaises(CampaignError):
+                bind_campaign_captures(campaign([sample]), root)
 
 
 if __name__ == "__main__":

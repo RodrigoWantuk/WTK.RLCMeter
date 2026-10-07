@@ -525,24 +525,22 @@ static bool prepare_result_details_line(const ui_product_t *ui,
     }
     char text[32] = {0};
     size_t used = 0u;
-    if (index == 1u)
+    if ((index == 1u) || (index == 2u))
     {
-        (void)ui_format_resistance(result->resistance_ohms, text, sizeof(text));
+        const bool reactance = index == 2u;
+        if (reactance)
+        {
+            (void)ui_format_reactance(result->reactance_ohms, text, sizeof(text));
+        }
+        else
+        {
+            (void)ui_format_resistance(result->resistance_ohms, text, sizeof(text));
+        }
         localize_decimal(text, view->menu.language_id);
         char row[32] = {0};
-        (void)append_text(row, sizeof(row), &used, "R ");
+        (void)append_text(row, sizeof(row), &used, reactance ? "X " : "R ");
         (void)append_text(row, sizeof(row), &used, text);
-        line_set(line, 12u, 76u, 2u, UI_COLOR_WHITE, row);
-        return true;
-    }
-    if (index == 2u)
-    {
-        (void)ui_format_reactance(result->reactance_ohms, text, sizeof(text));
-        localize_decimal(text, view->menu.language_id);
-        char row[32] = {0};
-        (void)append_text(row, sizeof(row), &used, "X ");
-        (void)append_text(row, sizeof(row), &used, text);
-        line_set(line, 12u, 116u, 2u, UI_COLOR_WHITE, row);
+        line_set(line, 12u, reactance ? 116u : 76u, 2u, UI_COLOR_WHITE, row);
         return true;
     }
     if (index == 3u)

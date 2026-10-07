@@ -2147,6 +2147,8 @@ static void lab_dump_metrology_header(const app_bringup_console_t *console, cons
     write_u32(block->words_per_sample);
     if (block->dut_measure)
     {
+        write_text("\r\ncalibration_sequence=");
+        write_u32(app_calibration_service_active_sequence(console->cal_service));
         write_text("\r\npi=");
         write_u32(block->permit_issue_ms);
         write_text("\r\npv=");

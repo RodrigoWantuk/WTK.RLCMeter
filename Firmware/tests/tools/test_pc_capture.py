@@ -13,8 +13,11 @@ from pc_capture import receive_one, validate_dut_capture  # noqa: E402
 
 def dump(mode: str = "DUT_MEASURE", end: str = "RAW_END st=OK") -> str:
     lines = ["RAW_BEGIN v=1", f"m={mode}", "f=1000", "a=100", "r=1K",
-             "sr=64000", "n=256", "wps=3", "pi=1", "pv=2",
-             "k1op=10", "k1rel=8", "i,v1,r1,v2,rh,vm1,vm2"]
+             "sr=64000", "n=256", "wps=3", "calibration_sequence=1",
+             "pi=1", "pv=2", "k1op=10", "k1rel=8", "DSP_BEGIN v=1",
+             "calibration=FOUND source=PERSISTED", "dsp_status=OK",
+             "return_channel=RET_1X", "z_real_mohm=1000000",
+             "z_imag_mohm=0", "DSP_END", "i,v1,r1,v2,rh,vm1,vm2"]
     lines.extend(f"{index},2048,2048,2048,2048,2048,2048" for index in range(256))
     lines.append(end)
     return "\n".join(lines) + "\n"
@@ -49,6 +52,22 @@ class CaptureTests(unittest.TestCase):
         text = dump().replace("42,2048", "42,4096", 1)
         with self.assertRaises(ValueError):
             validate_dut_capture(text)
+
+    def test_reject_embedded_second_frame_and_duplicate_metadata(self):
+        with self.assertRaises(ValueError):
+            validate_dut_capture(dump() + dump())
+        with self.assertRaises(ValueError):
+            validate_dut_capture(dump().replace("f=1000\n", "f=1000\nf=100\n", 1))
+
+    def test_reject_incorrect_timing_and_missing_dsp(self):
+        with self.assertRaises(ValueError):
+            validate_dut_capture(dump().replace("sr=64000", "sr=200000"))
+        with self.assertRaises(ValueError):
+            validate_dut_capture(dump().replace("pv=2", "pv=20"))
+        with self.assertRaises(ValueError):
+            validate_dut_capture(dump().replace("k1op=10", "k1op=0"))
+        with self.assertRaises(ValueError):
+            validate_dut_capture(dump().replace("DSP_END\n", ""))
 
     def test_incomplete_dump_times_out(self):
         with self.assertRaises(TimeoutError):

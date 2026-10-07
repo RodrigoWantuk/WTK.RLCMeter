@@ -153,6 +153,10 @@ constrain only the supported matching frequency. A datasheet ESR at 100 kHz must
 be extrapolated into a 100 Hz/1 kHz/10 kHz fit. Loss constraints additionally require
 a calibrated board NTC within 10 C of the stated datasheet temperature; this gate is
 provisional and `REQUIRES_BENCH_VALIDATION`. The board NTC is not DUT temperature.
+The PC CLI now binds each standard to a completed BRINGUP RAW file by exact SHA-256,
+checks its condition and printed persisted-OSL DSP result, and rejects mixed active
+OSL sequence numbers. This is traceability for a diagnostic prototype, not independent
+verification of the full 33-condition OSL evidence or a qualified correction upload.
 
 Current-campaign tolerance intervals are simultaneous hard constraints. The previous
 active correction is only a soft minimum-change prior when a new campaign runs; it is

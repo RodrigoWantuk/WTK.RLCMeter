@@ -470,6 +470,8 @@ static int test_details_phase_label_uses_catalog(void)
     };
     ui_product_request(&ui, &view);
     failures += expect_true(drain_render(&ui, &display) == 0, "details render drains");
+    failures += expect_true(rendered_font_text_starts_with("R 1,0"), "details resistance renders with PT decimal");
+    failures += expect_true(rendered_font_text_starts_with("X 0,0"), "details reactance renders with PT decimal");
     failures += expect_true(rendered_font_text_starts_with("FASE "), "PHASE label is localized");
     return failures;
 }
