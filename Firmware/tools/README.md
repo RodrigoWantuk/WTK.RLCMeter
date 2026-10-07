@@ -32,6 +32,12 @@ Host-side tools that support firmware, assets, calibration, and diagnostics.
   that OSL captures occurred.
   The JSON output is **not** a W25Q record, does not verify real OSL evidence, and
   must not be installed as qualified firmware calibration.
+- `pc_capture.py`: passive COM collector for one successful BRINGUP `RAW v1`
+  DUT-measurement dump. Run `python tools/pc_capture.py --port COM5 --out raw.txt`,
+  then initiate the existing BRINGUP DUT capture separately. The collector sends no
+  command to the instrument, verifies 256 complete six-channel ADC rows and permit/
+  relay metadata, and refuses failed or non-DUT dumps. It does not prove electrical
+  safety independently and does not apply OSL correction.
 - `inspect_calibration_record.py`: decodes the Phase 07 Stage 2A calibration frame,
   verifies CRC/commit state, and prints record keys and correction coefficients.
 - `firmware_size.py`: reports STM32 ELF Flash/RAM usage, reserved stack/heap floor,

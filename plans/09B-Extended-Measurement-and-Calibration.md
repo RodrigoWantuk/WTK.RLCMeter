@@ -17,6 +17,10 @@ It must not reclassify synthetic tests as physical qualification.
   frequency matching. It produces **diagnostic JSON only**, not a W25Q calibration
   record or a qualified correction. Current OSL evidence itself is not imported or
   verified by this tool.
+- `tools/pc_capture.py` passively collects a completed BRINGUP RAW v1 DUT dump over
+  COM, validates its framing and 256 rows, and prints a SHA-256 capture identity.
+  It does not command the relay or substitute for an authenticated PRODUCT capture
+  export or calibrated OSL processing.
 - The existing PRODUCT calibration schema/model and A/B transactional slots are
   unchanged. No DC or supplementary-curve coefficient is installed at runtime.
 
