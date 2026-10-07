@@ -145,6 +145,28 @@ frequency. A capacitor-specific ESR correction or thermal correction must remain
 disabled until appropriate physical standards and repeatable bench evidence support
 it; a clean software fit alone is insufficient.
 
+The host-only supplementary campaign prototype accepts any number of current-campaign
+R/C/L standards after the 33-condition OSL campaign. Each sample records nominal
+value, maximum tolerance, exact capture condition and safe capture provenance. A
+capacitor may supply neither ESR nor D, either one, or both; one-sided ESR/D maxima
+constrain only the supported matching frequency. A datasheet ESR at 100 kHz must not
+be extrapolated into a 100 Hz/1 kHz/10 kHz fit. Loss constraints additionally require
+a calibrated board NTC within 10 C of the stated datasheet temperature; this gate is
+provisional and `REQUIRES_BENCH_VALIDATION`. The board NTC is not DUT temperature.
+
+Current-campaign tolerance intervals are simultaneous hard constraints. The previous
+active correction is only a soft minimum-change prior when a new campaign runs; it is
+not decayed by elapsed time during normal use. Conflicting current samples require
+repeat or explicit discard. Only one logical active coefficient set is retained on
+the device, with redundant physical copies for power-loss tolerance. The current
+host prototype does **not** write firmware records or change PRODUCT results.
+
+DC DCR and low-voltage leakage are separate future measurement/calibration modes, not
+new outputs inferred from AC OSL. DC short/offset and known-resistor evidence are
+required for DCR; open-fixture leakage, actual bias, dwell, and uncertainty are needed
+before a leakage number can be published. The Rev.1 low-voltage path cannot claim
+datasheet high-voltage insulation resistance.
+
 The Stage 2B.2 host comparison deliberately injects complex gain/phase error, residual
 series impedance, and shunt leakage/admittance, then validates impedances that were not
 used as OPEN/SHORT/LOAD fit standards. In that deterministic model the previous

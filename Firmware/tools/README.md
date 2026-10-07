@@ -15,6 +15,23 @@ Host-side tools that support firmware, assets, calibration, and diagnostics.
 
 - `reference_impedance.py`: independent double-precision synthetic impedance and raw
   replay/reference helper for Phase 06 tests.
+- `calibration_campaign.py`: host-only, standard-library interval-fit prototype for
+  supplementary R/C/L standards. Input is a JSON object with `schema_version=1`,
+  `hardware_revision=65537`, all 33 `osl_conditions`, and per-condition groups with
+  optional `prior_curve` (12 matrix coefficients at 0.1/1/10 times RREF) and
+  `standards`. Each standard provides `id`, `capture_id`, `capture_safe=true`,
+  `capture_dsp_status=OK`, `capture_calibration_sequence`, `type` (`R`/`C`/`L`),
+  `nominal_si`, `tolerance_fraction`, exact frequency/amplitude and datasheet
+  frequency, plus OSL-corrected `measured_z_re_ohms`/`measured_z_im_ohms`. Capacitor
+  `esr_max_ohms` and `d_max`, and inductor `q_min`, are optional; matching loss
+  constraints require calibrated board/datasheet temperatures. A loss field may set
+  `<field>_frequency_hz`; out-of-band loss data is reported as ignored, never fitted.
+  Run `python tools/calibration_campaign.py --template --out campaign.json` for an
+  unverified key skeleton, then run the same tool with `campaign.json` and
+  `--out provisional.json` after entering actual evidence. The template is not proof
+  that OSL captures occurred.
+  The JSON output is **not** a W25Q record, does not verify real OSL evidence, and
+  must not be installed as qualified firmware calibration.
 - `inspect_calibration_record.py`: decodes the Phase 07 Stage 2A calibration frame,
   verifies CRC/commit state, and prints record keys and correction coefficients.
 - `firmware_size.py`: reports STM32 ELF Flash/RAM usage, reserved stack/heap floor,

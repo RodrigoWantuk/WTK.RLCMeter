@@ -17,6 +17,7 @@ The plans are **execution documents**, not general architecture notes. Architect
 7. [`07-Autorange-Confidence-and-Calibration.md`](07-Autorange-Confidence-and-Calibration.md) — range policy, 1X/HG selection, confidence gates, OPEN/SHORT/LOAD, persistence, qualification map.
 8. [`08-UI-Storage-and-Product-Integration.md`](08-UI-Storage-and-Product-Integration.md) — full UI, asset pack, settings, diagnostics console, power policy, integration hardening.
 9A. [`09A-Physical-MVP-Bringup.md`](09A-Physical-MVP-Bringup.md) — bench-usable Rev.1 MVP, compact readiness status, automatic BRINGUP measurement, and first-board test sequence.
+9B. [`09B-Extended-Measurement-and-Calibration.md`](09B-Extended-Measurement-and-Calibration.md) — guarded DC feasibility, supplementary PC-hosted calibration, and unresolved electrical/size gates.
 9. [`09-Bringup-Qualification-and-Release.md`](09-Bringup-Qualification-and-Release.md) — board validation, metrology qualification, regression matrix, Rev.1 release evidence, Rev.2 decision inputs.
 
 Phase 03A is an orthogonal validation layer rather than a new firmware-feature phase. It should be established after the Phase 02/03 digital foundations and then reused by later phases. It does not replace any physical bench gate.

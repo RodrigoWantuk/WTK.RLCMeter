@@ -719,6 +719,32 @@ This should change only if measured leakage/parasitic evidence justifies it.
 
 ## Phase 06 DSP conventions
 
+### Extended measurements and current qualification boundary
+
+The Rev.1 excitation filter is DC-coupled, so a future static PWM bias is physically
+possible. This does **not** make a DC measurement safe or accurate in current firmware.
+The only switchable series element is the selected RREF; there is no additional
+firmware-switchable current-limiting resistor. An AC preflight cannot rule out a DC
+short (an inductor is a counterexample). DC execution remains disabled in both
+PRODUCT and BRINGUP until source-current, dissipation, dwell, settling, polarity,
+offset resolution, and abort/discharge limits are approved and measured. A future
+pilot begins at 1 MOhm with the smallest representable static bias step and obtains
+a fresh safety permit; AC results never authorize a lower RREF directly.
+
+AC complex impedance and conditionally valid R/X/C/L/ESR/Q/D remain the supported
+mathematical outputs. DCR and low-voltage leakage require separate DC transactions
+and calibration. Rev.1 does not claim datasheet insulation resistance, quantified
+ESL, or SRF from its three AC frequencies.
+
+Supplementary calibration standards are an optional PC-hosted campaign after the
+required 33-condition OSL acquisition. Current standards constrain a minimum-change
+fit jointly within published tolerances; previous active coefficients are the prior,
+not a history with time-decaying weights. ESR/D are independent optional capacitor
+inputs and may constrain only matching supported frequency and compatible thermal
+conditions. Neither an offline fit nor a nominal NTC curve qualifies physical
+accuracy. The existing PRODUCT menu OSL workflow remains the boot-calibration path;
+PC service input is for advanced campaigns, not for ordinary user measurements.
+
 The first DSP/impedance core consumes the current Phase 05 raw acquisition block:
 
 ```text

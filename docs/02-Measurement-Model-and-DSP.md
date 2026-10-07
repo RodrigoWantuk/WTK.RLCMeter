@@ -116,6 +116,14 @@ C = -1 / (2*pi*f*X)         when X < 0
 
 ESR, Q, and D may also be derived when confidence and the selected equivalent model make those values meaningful.
 
+For a capacitive **series** model below self-resonance, `ESR = Re(Z)` and
+`D = ESR / |X|`; for an inductive series model, winding-loss estimate is `Re(Z)`
+and `Q = |X| / Re(Z)` when the denominator is resolvable. These are conditional
+AC-equivalent quantities at the measured frequency, not DC resistance or a universal
+component datasheet value. DCR and low-voltage leakage require separate guarded DC
+measurement modes. Three supported AC frequencies do not support a general quantified
+ESL or SRF claim; high-voltage insulation resistance is outside Rev.1.
+
 ## Autorange
 
 The goal is to place `|ZREF|` in the same broad order of magnitude as the DUT while preserving:
