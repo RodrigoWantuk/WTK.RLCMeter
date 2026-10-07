@@ -1,6 +1,6 @@
 # Rev.1 MVP Bench Guide
 
-This guide is for the first assembled Rev.1 board. It prepares evidence; it does not declare accuracy, safety category, or bench validation complete.
+This guide is for the first assembled Rev.1 board. It prepares evidence; it does not declare accuracy, safety category, or bench validation complete. BRINGUP UART commands are optional engineering diagnostics. Normal PRODUCT navigation, calibration, and measurement use the TFT and buttons; the COM port is needed only to provision or recover the external Resource Pack.
 
 ## Setup
 
@@ -58,7 +58,7 @@ Expected behavior:
 
 Proceeding after failure:
 
-- Flash/resource failure is acceptable for BRINGUP measurement debugging, but calibration persistence and PRODUCT use require W25Q.
+- Flash/resource failure may be investigated with BRINGUP diagnostics, but calibration persistence and PRODUCT use require a working W25Q. PRODUCT does not enter normal navigation with a missing, corrupt, or incompatible required Resource Pack.
 - Sensor/safety faults block measurement and must be understood before DUT testing.
 
 ## Range Bank
@@ -102,9 +102,9 @@ External checks:
 
 Do not tune amplitude or phase from these first observations. Record them as unqualified bench data.
 
-## First DUT Measurements
+## Optional BRINGUP DUT Diagnostics
 
-Start with isolated passive components only.
+This UART path is for early bench diagnosis, not the normal product workflow. Start with isolated passive components only.
 
 1. Known mid-range resistor:
 
@@ -125,9 +125,9 @@ FAIL: safety abort, ADC/DMA failure, range failure, or generic no-valid-conditio
 
 The first uncalibrated results may be approximate. They are only evidence that the chain is alive.
 
-## Calibration
+## Optional BRINGUP Calibration Diagnostics
 
-After gross measurement behavior is sane, run the existing 33-condition OSL campaign with the BRINGUP calibration commands:
+The following UART commands are available for engineering diagnosis. PRODUCT calibration is performed through the on-device wizard described below; users do not need these commands.
 
 ```text
 lab cal campaign begin <freq> <amp> <range>
@@ -145,7 +145,7 @@ Repeat for all Rev.1-supported conditions. The domain is six ranges times three 
 PASS: active calibration becomes valid and survives reload/rescan.
 FAIL: do not proceed to PRODUCT measurement until persistence and active validation are understood.
 
-## PRODUCT Measurement
+## PRODUCT Resource Provisioning
 
 Build and flash PRODUCT Release:
 
@@ -155,11 +155,50 @@ cmake --preset stm32-release
 cmake --build --preset stm32-release
 ```
 
-Expected behavior:
+On a blank W25Q, or when the required pack is corrupt or incompatible, PRODUCT must show its internal bilingual PC-link recovery screen. This is the only accessible product UI until a valid pack mounts. K1 remains SAFE; the recovery screen does not grant measurement permission. An optional image failure alone should fall back to a plain background rather than invalidate otherwise complete required catalogs/fonts.
 
-- Missing active calibration routes to the calibration-required/product wizard path.
-- Valid active calibration allows READY.
-- Short OK starts one click measurement session.
-- Product never uses ideal calibration fallback.
+Build and inspect the current Resource Pack from the repository root. The outer wire format is v2 and the PRODUCT resource API is v4; older API v3 packs must be rebuilt:
 
-External resources may be missing or corrupt; PRODUCT must remain usable with internal fallback text, but calibration remains a hard measurement gate.
+```text
+python Firmware/tools/resource_pack_tool.py bundle Firmware/assets/resource_manifest.json -o Firmware/build/resources/product.wrp2 --summary Firmware/build/resources/product.json --stream Firmware/build/resources/product.wpc
+python Firmware/tools/resource_pack_tool.py inspect Firmware/build/resources/product.wrp2
+```
+
+Connect the USART1 serial adapter, close any terminal holding the port, and replace `COM5` with the actual port:
+
+```text
+python -m pip install pyserial
+python Firmware/tools/resource_pack_tool.py upload Firmware/build/resources/product.wrp2 --port COM5
+```
+
+The uploader uses 115200 baud and PC-link acknowledgments. The firmware remounts the pack after a completed update. Do not place the pack in MCU internal Flash. See [`../Firmware/assets/README.md`](../Firmware/assets/README.md) for source regeneration and pack inspection.
+
+PASS: upload completes, the required pack mounts, and PRODUCT leaves the recovery screen for its normal boot/calibration flow. Power-cycle and verify that EN and PT-BR text, fonts, icons, and the optional READY art render correctly without proportional SRAM growth. FAIL: failed upload, persistent recovery screen, shared SPI-bus errors, or missing required text/fonts. Do not proceed to normal PRODUCT operation; inspect the pack, W25Q, UART wiring, and PC-link diagnostics. Resource failure must not bypass safety or calibration gates.
+
+## PRODUCT Calibration Through Menus
+
+After resource admission, a missing/invalid active calibration enters the mandatory calibration-required flow; it must not enter READY. Use short OK to start the on-device wizard. For manual recalibration with a valid active calibration, long OK opens the main menu; select Calibration with UP/DOWN and short OK. The Calibration status screen uses UP/DOWN to select a persisted LOAD preset, then short OK to start the wizard. Follow each displayed OPEN, SHORT, and LOAD fixture prompt and confirm with short OK. Long OK requests cancellation; allow any active hazardous transaction to drain safely before changing fixtures.
+
+The wizard covers the 33 supported Rev.1 conditions: six ranges times three frequencies times two amplitudes, excluding 10 ohm with 500 mVrms. LOAD is a preset value, not a measured value entered numerically. The selected preset must match the actual known load used for each prompted range; otherwise the saved coefficients cannot be treated as accurate. Verify load values with appropriate external equipment and record them with the bench data. Do not claim absolute accuracy from nominal presets alone.
+
+| Range | NOMINAL | E12 LOW | E12 HIGH |
+| --- | ---: | ---: | ---: |
+| 10 ohm | 10 ohm | 12 ohm | 47 ohm |
+| 100 ohm | 100 ohm | 120 ohm | 470 ohm |
+| 1 kohm | 1 kohm | 1.2 kohm | 4.7 kohm |
+| 10 kohm | 10 kohm | 12 kohm | 47 kohm |
+| 100 kohm | 100 kohm | 120 kohm | 470 kohm |
+| 1 Mohm | 1 Mohm | 820 kohm | 1 Mohm |
+
+PASS: the wizard completes, commits, enters READY, and active calibration remains valid after a power cycle. A cancelled or failed manual recalibration must not silently replace a previously valid active calibration. FAIL: unavailable W25Q storage, incomplete campaign, failed commit, unexpected relay/range activity, or measurement access without valid calibration. Stop and inspect the safety/calibration diagnostics.
+
+## PRODUCT Measurement
+
+With a valid required Resource Pack and active calibration:
+
+- READY is available only after the normal self-test and safety prerequisites.
+- Short OK starts one click measurement session; use isolated passive DUTs only.
+- UP/DOWN navigate available result pages; long OK opens the menu.
+- Product measurement never uses ideal calibration fallback.
+
+Start with known resistors in at least two ranges, then known capacitors and inductors, OPEN, and SHORT. Verify each attempt returns K1 to SAFE, stops excitation, and leaves no unexpected range activity. Compare readings with independent references; record uncertainty rather than tuning to a single component. Exercise both languages, button navigation, backlight, and repeated measurements. A missing or corrupt required Resource Pack must return to PC-link recovery, not to normal measurement. These observations are bring-up evidence, not accuracy or electrical-safety qualification.
