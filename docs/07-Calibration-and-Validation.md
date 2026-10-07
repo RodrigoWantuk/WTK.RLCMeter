@@ -48,6 +48,15 @@ therefore solve from OPEN, SHORT, and LOAD standards captured at different tempe
 Solver inputs preserve those distinct values and diagnostics expose min/max/span, but
 no temperature-span rejection policy is defined before bench evidence.
 
+The NTC datasheet and nominal lookup table establish a provisional temperature
+estimate, not a per-board sensor calibration. A user-selected reference temperature
+can support a one-point correction only when it comes from an independent thermometer
+after thermal stabilization. A menu value selected without that reference must not be
+treated as calibration. The board NTC does not measure DUT temperature. Runtime
+temperature compensation of complex impedance requires measured drift evidence from
+stable standards at multiple controlled temperatures; no coefficient may be inferred
+from the NTC nominal curve or from one ambient-temperature point.
+
 Phase 08 Stage 3A.3 keeps the OSL solver and persisted schema/model unchanged while
 decoupling campaign aggregation from PRODUCT. The product wizard converts accepted
 evidence to solver standards, calls the OSL solver directly for each condition, and
@@ -110,6 +119,31 @@ not select HG unless `HG_OBSERVED` is present.
 The solver and model are software-implemented and synthetically host-tested. Physical
 accuracy, model residuals, leakage behavior, and temperature drift remain
 `REQUIRES_BENCH_VALIDATION`.
+
+### Obtainable reference standards
+
+The required PRODUCT OSL campaign must not depend on knowing a capacitor's ESR,
+an inductor's winding loss, or an otherwise unpublished complex impedance. OPEN and
+SHORT use repeatable fixtures at the DUT terminals. LOAD may use a stable precision
+resistor near the selected range, represented by its published nominal resistance
+and tolerance. That tolerance is an uncertainty bound, not evidence that the
+individual part equals its nominal value exactly. The instrument must not claim
+accuracy finer than the reference and the measured system error support.
+
+The current PRODUCT wizard offers three fixed LOAD preset families. The selected
+preset must match the actual resistor used for every prompted range; a different
+nominal value must not be silently treated as one of these presets. If the purchased
+reference set differs, a future menu-driven known-value entry or matching preset
+must be implemented before using it for calibration. A user must not need a reference
+LCR meter to discover a hidden ESR or phase value merely to complete the campaign.
+
+Precision capacitors and inductors may be used as independent post-calibration
+checks. Compare only quantities specified by their datasheets under compatible
+frequency, excitation, DC bias, and temperature conditions. Nominal C or L tolerance
+alone does not define ESR, Q, phase, or the full complex impedance at every Rev.1
+frequency. A capacitor-specific ESR correction or thermal correction must remain
+disabled until appropriate physical standards and repeatable bench evidence support
+it; a clean software fit alone is insufficient.
 
 The Stage 2B.2 host comparison deliberately injects complex gain/phase error, residual
 series impedance, and shunt leakage/admittance, then validates impedances that were not
