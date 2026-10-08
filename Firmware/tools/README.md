@@ -54,6 +54,23 @@ Host-side tools that support firmware, assets, calibration, and diagnostics.
   Matching CRC and sequence do not authenticate the device or prove the physical
   OPEN/SHORT/LOAD fixtures. The JSON output is **not** a W25Q record and
   must not be installed as qualified firmware calibration.
+- `pc_campaign_add.py`: append one completed BRINGUP RAW capture to a host-only
+  campaign without hand-editing the condition JSON. Start with
+  `python tools/calibration_campaign.py --template --out campaign.json`, then use
+  `python tools/pc_campaign_add.py campaign.json --capture-root captures --osl-frame active-cal.bin --capture resistor-001.raw --id R-001 --type R --nominal-si 1000 --tolerance-fraction 0.01`.
+  The command derives the condition, SHA-256 capture ID, and active OSL sequence
+  from the checked evidence; it rebinds and solves the entire candidate campaign
+  before atomically replacing the JSON. `--role VALIDATION` adds a held-out
+  standard, not a fit constraint. Optional `--esr-max-ohms`,
+  `--esr-nominal-ohms` with `--esr-tolerance-fraction`, `--d-max`,
+  `--d-nominal` with `--d-tolerance-fraction`, and `--q-min` accept only the
+  component type and condition supported by the solver. Matching loss data
+  additionally require `--calibrated-board-temp-c` and
+  `--datasheet-temp-c`; this user-declared temperature is not authenticated by
+  the RAW dump. The tool does not command measurement hardware, install a
+  correction, or qualify accuracy. An incompatible FIT capture leaves the
+  previous campaign file unchanged; a failed held-out check is recorded and
+  returns a nonzero status for review.
 - `pc_capture.py`: passive COM collector for one successful BRINGUP `RAW v1`
   DUT-measurement dump. Run `python tools/pc_capture.py --port COM5 --out raw.txt`,
   then initiate the existing BRINGUP DUT capture separately. The collector sends no

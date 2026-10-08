@@ -40,6 +40,13 @@ It must not reclassify synthetic tests as physical qualification.
   or supplied as a nominal value with explicit tolerance. Same-condition
   intervals are fitted jointly and incompatible intervals fail as conflicts;
   out-of-band values are reported as ignored, not extrapolated.
+- `tools/pc_campaign_add.py` now creates an individual standard entry from a
+  completed RAW capture and revalidates the full candidate campaign against the
+  supplied OSL frame before atomically saving JSON. It supports FIT and held-out
+  VALIDATION entries plus optional loss specifications. This removes manual
+  condition/SHA transcription but does not authenticate the board, source
+  temperature, or physical reference component, and it does not transfer a
+  correction to the MCU.
 - `tools/pc_capture.py` passively collects a completed BRINGUP RAW v1 DUT dump over
   COM, validates its framing, 256 rows, timing metadata, and prints a SHA-256 identity
   of the exact bytes written (including on Windows).
