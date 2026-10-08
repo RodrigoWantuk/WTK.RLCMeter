@@ -148,8 +148,11 @@ it; a clean software fit alone is insufficient.
 The host-only supplementary campaign prototype accepts any number of current-campaign
 R/C/L standards after the 33-condition OSL campaign. Each sample records nominal
 value, maximum tolerance, exact capture condition and safe capture provenance. A
-capacitor may supply neither ESR nor D, either one, or both; one-sided ESR/D maxima
-constrain only the supported matching frequency. A datasheet ESR at 100 kHz must not
+capacitor may supply neither ESR nor D, either one, or both. ESR/D may be
+one-sided maxima or nominal values with explicit nonzero tolerances; an
+unbounded typical value is never treated as exact. Same-condition ESR and D
+intervals must be jointly satisfiable. Loss data constrain only the supported
+matching frequency. A datasheet ESR at 100 kHz must not
 be extrapolated into a 100 Hz/1 kHz/10 kHz fit. Loss constraints additionally require
 a calibrated board NTC within 10 C of the stated datasheet temperature; this gate is
 provisional and `REQUIRES_BENCH_VALIDATION`. The board NTC is not DUT temperature.

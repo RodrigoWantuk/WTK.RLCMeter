@@ -24,7 +24,11 @@ Host-side tools that support firmware, assets, calibration, and diagnostics.
   (`R`/`C`/`L`), `nominal_si`, `tolerance_fraction`, and the datasheet frequency.
   The tool derives the exact range/frequency/amplitude, active-calibration sequence,
   and OSL-processed impedance printed in that completed capture. Capacitor
-  `esr_max_ohms` and `d_max`, and inductor `q_min`, are optional; matching loss
+  `esr_max_ohms` and `d_max`, and inductor `q_min`, are optional. Capacitor
+  `esr_nominal_ohms`/`esr_tolerance_fraction` and
+  `d_nominal`/`d_tolerance_fraction` are also optional independent pairs; a
+  nominal loss value without its explicit nonzero tolerance is rejected.
+  Matching loss
   constraints require calibrated board/datasheet temperatures. A loss field may set
   `<field>_frequency_hz`; out-of-band loss data is reported as ignored, never fitted.
   Run `python tools/calibration_campaign.py --template --out campaign.json` for an

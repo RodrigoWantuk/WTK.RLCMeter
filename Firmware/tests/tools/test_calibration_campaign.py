@@ -135,6 +135,57 @@ class CampaignTests(unittest.TestCase):
         self.assertLessEqual(corrected_r, 2.0 + 1e-6)
         self.assertLessEqual(corrected_r / -corrected_x, 0.01 + 1e-6)
 
+    def test_capacitor_nominal_esr_and_d_with_explicit_tolerance(self):
+        x = -1.0 / (2.0 * math.pi * 1000 * 1e-6)
+        temp = {"board_temperature_calibrated": True,
+                "board_temperature_c": 25, "datasheet_temperature_c": 25}
+        esr = standard("C", 1e-6, 3.0, x, tolerance=0.1, **temp,
+                       esr_nominal_ohms=3.3, esr_tolerance_fraction=0.1)
+        d = standard("C", 1e-6, 3.0, x, tolerance=0.1, **temp,
+                     d_nominal=0.02, d_tolerance_fraction=0.1)
+        for sample in (esr, d):
+            curve = solve_campaign(campaign([sample]))["conditions"][0]["curve"]
+            corrected_r, corrected_x = corrected_impedance(curve, 3.0, x, 1000)
+            if sample is esr:
+                self.assertGreaterEqual(corrected_r, 2.97 - 1e-6)
+                self.assertLessEqual(corrected_r, 3.63 + 1e-6)
+            else:
+                self.assertGreaterEqual(corrected_r / -corrected_x, 0.018 - 1e-6)
+                self.assertLessEqual(corrected_r / -corrected_x, 0.022 + 1e-6)
+        both = {**esr, "d_nominal": 0.02, "d_tolerance_fraction": 0.1}
+        curve = solve_campaign(campaign([both]))["conditions"][0]["curve"]
+        corrected_r, corrected_x = corrected_impedance(curve, 3.0, x, 1000)
+        self.assertGreaterEqual(corrected_r, 2.97 - 1e-6)
+        self.assertLessEqual(corrected_r / -corrected_x, 0.022 + 1e-6)
+
+    def test_capacitor_loss_nominal_needs_tolerance_and_consistency(self):
+        x = -1.0 / (2.0 * math.pi * 1000 * 1e-6)
+        temp = {"board_temperature_calibrated": True,
+                "board_temperature_c": 25, "datasheet_temperature_c": 25}
+        base = standard("C", 1e-6, 3.0, x, tolerance=0.1, **temp)
+        with self.assertRaises(CampaignError):
+            standard_constraints({**base, "esr_nominal_ohms": 3.0}, KEY)
+        with self.assertRaises(CampaignError):
+            standard_constraints({**base, "d_tolerance_fraction": 0.1}, KEY)
+        with self.assertRaises(CampaignError):
+            standard_constraints({**base, "d_nominal": 0.02,
+                                  "d_tolerance_fraction": 0.0}, KEY)
+        conflicting = {**base, "esr_nominal_ohms": 3.0,
+                       "esr_tolerance_fraction": 0.01,
+                       "d_nominal": 0.1, "d_tolerance_fraction": 0.01}
+        with self.assertRaises(CampaignConflict):
+            solve_campaign(campaign([conflicting]))
+
+    def test_out_of_band_nominal_loss_is_not_applied(self):
+        x = -1.0 / (2.0 * math.pi * 1000 * 1e-6)
+        sample = standard("C", 1e-6, 3.0, x, tolerance=0.1,
+                          esr_nominal_ohms=0.1, esr_tolerance_fraction=0.1,
+                          esr_nominal_ohms_frequency_hz=100000)
+        result = solve_campaign(campaign([sample]))["conditions"][0]
+        self.assertEqual(result["curve"], list(IDENTITY))
+        self.assertEqual(result["ignored_loss_specs"],
+                         ["sample-1:esr_nominal_ohms:OUT_OF_BAND"])
+
     def test_loss_temperature_gate_is_loss_only(self):
         x = -1.0 / (2.0 * math.pi * 1000 * 1e-6)
         base = standard("C", 1e-6, 2.0, x)

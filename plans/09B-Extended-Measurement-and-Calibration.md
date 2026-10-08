@@ -36,6 +36,10 @@ It must not reclassify synthetic tests as physical qualification.
   independently reproduce the embedded OSL calculation. BRINGUP can now export
   a canonical serialization of its active in-RAM OSL set over COM through the
   shared workspace; this is not byte-exact physical-slot readback.
+  Capacitor ESR and D/tan-delta may now each be absent, bounded by a maximum,
+  or supplied as a nominal value with explicit tolerance. Same-condition
+  intervals are fitted jointly and incompatible intervals fail as conflicts;
+  out-of-band values are reported as ignored, not extrapolated.
 - `tools/pc_capture.py` passively collects a completed BRINGUP RAW v1 DUT dump over
   COM, validates its framing, 256 rows, timing metadata, and prints a SHA-256 identity
   of the exact bytes written (including on Windows).

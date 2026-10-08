@@ -33,7 +33,9 @@ STANDARD_FIELDS = frozenset({
     "measured_z_re_ohms", "measured_z_im_ohms", "board_temperature_calibrated",
     "board_temperature_c", "datasheet_temperature_c", "esr_max_ohms", "d_max",
     "q_min", "esr_max_ohms_frequency_hz", "d_max_frequency_hz",
-    "q_min_frequency_hz", "capture_file",
+    "q_min_frequency_hz", "capture_file", "esr_nominal_ohms",
+    "esr_tolerance_fraction", "esr_nominal_ohms_frequency_hz",
+    "d_nominal", "d_tolerance_fraction", "d_nominal_frequency_hz",
 })
 
 
@@ -93,6 +95,19 @@ def _finite_number(value: Any, label: str) -> float:
     if not math.isfinite(number):
         raise CampaignError(f"{label} must be finite")
     return number
+
+
+def _specified_interval(standard: dict[str, Any], nominal_field: str,
+                        tolerance_field: str) -> tuple[float, float] | None:
+    if (nominal_field in standard) != (tolerance_field in standard):
+        raise CampaignError(f"{nominal_field} requires {tolerance_field} and vice versa")
+    if nominal_field not in standard:
+        return None
+    nominal = _positive_number(standard[nominal_field], nominal_field)
+    tolerance = _finite_number(standard[tolerance_field], tolerance_field)
+    if not 0.0 < tolerance < 1.0:
+        raise CampaignError(f"{tolerance_field} must be in (0,1)")
+    return nominal * (1.0 - tolerance), nominal * (1.0 + tolerance)
 
 
 def _basis(real: float, imag: float, rref: int) -> tuple[list[float], list[float]]:
@@ -156,7 +171,9 @@ def standard_constraints(standard: dict[str, Any], key: tuple[int, int, int],
     kind = standard["type"]
     if kind not in ("R", "C", "L"):
         raise CampaignError("standard type must be R, C, or L")
-    if (kind != "C" and ("esr_max_ohms" in standard or "d_max" in standard)) or \
+    if (kind != "C" and any(field in standard for field in (
+            "esr_max_ohms", "d_max", "esr_nominal_ohms", "esr_tolerance_fraction",
+            "d_nominal", "d_tolerance_fraction"))) or \
        (kind != "L" and "q_min" in standard):
         raise CampaignError("loss specification does not match component type")
     nominal = _positive_number(standard["nominal_si"], "nominal_si")
@@ -177,7 +194,9 @@ def standard_constraints(standard: dict[str, Any], key: tuple[int, int, int],
     else:
         _bounds(xb, omega * lo / rref, omega * hi / rref, constraints)
 
-    loss_fields = ("esr_max_ohms", "d_max", "q_min")
+    esr_interval = _specified_interval(standard, "esr_nominal_ohms", "esr_tolerance_fraction")
+    d_interval = _specified_interval(standard, "d_nominal", "d_tolerance_fraction")
+    loss_fields = ("esr_max_ohms", "d_max", "q_min", "esr_nominal_ohms", "d_nominal")
     active_loss = set()
     for field in loss_fields:
         if field not in standard:
@@ -199,9 +218,16 @@ def standard_constraints(standard: dict[str, Any], key: tuple[int, int, int],
     if "esr_max_ohms" in active_loss:
         _bounds(rb, 0.0, _positive_number(standard["esr_max_ohms"], "ESR maximum") / rref,
                 constraints)
+    if "esr_nominal_ohms" in active_loss and esr_interval is not None:
+        _bounds(rb, esr_interval[0] / rref, esr_interval[1] / rref, constraints)
     if "d_max" in active_loss:
         dmax = _positive_number(standard["d_max"], "D maximum")
+        _bounds(rb, 0.0, None, constraints)
         constraints.append((_combine(rb, xb, dmax), 0.0))
+    if "d_nominal" in active_loss and d_interval is not None:
+        _bounds(rb, 0.0, None, constraints)
+        constraints.append((_combine(rb, xb, d_interval[1]), 0.0))
+        constraints.append(([-x for x in _combine(rb, xb, d_interval[0])], 0.0))
     if "q_min" in active_loss:
         qmin = _positive_number(standard["q_min"], "Q minimum")
         constraints.append((_combine(rb, xb, -1.0 / qmin), 0.0))
