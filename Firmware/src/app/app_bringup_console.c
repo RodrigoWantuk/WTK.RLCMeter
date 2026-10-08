@@ -1605,9 +1605,86 @@ static bool lab_metrology_busy(const app_bringup_console_t *console)
            hw_metrology_measure_active(&console->measure) ||
            app_calibration_session_active(&console->cal_session) ||
            app_measurement_session_active(&console->auto_session) ||
-           console->dump_active ||
+           console->dump_active || console->cal_frame_active ||
            (hw_metrology_session_state(&console->session) == HW_METROLOGY_SESSION_DONE) ||
            (hw_metrology_measure_state(&console->measure) == HW_METROLOGY_MEASURE_DONE));
+}
+
+static void lab_cal_frame_finish(app_bringup_console_t *console)
+{
+    console->cal_frame_active = false;
+    console->cal_frame_size = 0u;
+    console->cal_frame_offset = 0u;
+    (void)app_io_workspace_release(console->workspace, APP_IO_WORKSPACE_OWNER_CALIBRATION_STORE);
+}
+
+static void lab_cal_frame_start(app_bringup_console_t *console)
+{
+    if (active_calibration_set(console) == NULL)
+    {
+        write_text("CAL_FRAME_UNAVAILABLE\r\n");
+        return;
+    }
+    if ((console->workspace == NULL) || app_bringup_console_flash_busy(console) ||
+        lab_metrology_busy(console) ||
+        app_calibration_service_busy(console->cal_service) || hw_peripherals_quiet_requested() ||
+        (app_io_workspace_acquire(console->workspace,
+                                  APP_IO_WORKSPACE_OWNER_CALIBRATION_STORE) != BSP_STATUS_OK))
+    {
+        write_text("CAL_FRAME_BUSY\r\n");
+        return;
+    }
+    size_t size = 0u;
+    if (!measurement_cal_serialize_set(active_calibration_set(console),
+                                       app_io_workspace_calibration_frame(console->workspace),
+                                       app_io_workspace_calibration_frame_bytes(), &size) ||
+        (size > UINT16_MAX))
+    {
+        lab_cal_frame_finish(console);
+        write_text("CAL_FRAME_ERROR\r\n");
+        return;
+    }
+    console->cal_frame_size = (uint16_t)size;
+    console->cal_frame_offset = 0u;
+    if (bsp_uart_write_cstr("CAL_FRAME_BEGIN v=1\r\n") != BSP_STATUS_OK)
+    {
+        lab_cal_frame_finish(console);
+        return;
+    }
+    console->cal_frame_active = true;
+}
+
+static void lab_cal_frame_step(app_bringup_console_t *console)
+{
+    if (!console->cal_frame_active)
+    {
+        return;
+    }
+    if (console->cal_frame_offset == console->cal_frame_size)
+    {
+        (void)bsp_uart_write_cstr("CAL_FRAME_END st=OK\r\n");
+        lab_cal_frame_finish(console);
+        return;
+    }
+    static const char hex[] = "0123456789ABCDEF";
+    char line[36] = {'D', ','};
+    const uint8_t *frame = app_io_workspace_calibration_frame(console->workspace);
+    const uint16_t remaining = (uint16_t)(console->cal_frame_size - console->cal_frame_offset);
+    const uint8_t count = (remaining < 16u) ? (uint8_t)remaining : 16u;
+    for (uint8_t i = 0u; i < count; i++)
+    {
+        const uint8_t byte = frame[console->cal_frame_offset + i];
+        line[2u + (2u * i)] = hex[byte >> 4u];
+        line[3u + (2u * i)] = hex[byte & 0x0Fu];
+    }
+    line[2u + (2u * count)] = '\r';
+    line[3u + (2u * count)] = '\n';
+    if (bsp_uart_write(line, 4u + (2u * count)) != BSP_STATUS_OK)
+    {
+        lab_cal_frame_finish(console);
+        return;
+    }
+    console->cal_frame_offset = (uint16_t)(console->cal_frame_offset + count);
 }
 
 static void lab_start_cal_acquire(app_bringup_console_t *console,
@@ -2603,6 +2680,12 @@ static void run_command(app_bringup_console_t *console,
 
     lab_bind_refs(console, range, charger, sensors, k1, faults);
 
+    if (console->cal_frame_active)
+    {
+        write_text("lab: BUSY\r\n");
+        return;
+    }
+
     if (text_equals(line, "lab quiet on"))
     {
         if (app_bringup_console_flash_busy(console))
@@ -2736,6 +2819,10 @@ static void run_command(app_bringup_console_t *console,
     else if (text_equals(line, "lab cal dump"))
     {
         write_calibration_dump(console, flash);
+    }
+    else if (text_equals(line, "lab cal frame"))
+    {
+        lab_cal_frame_start(console);
     }
     else if (text_equals(line, "lab cal rescan"))
     {
@@ -2891,6 +2978,9 @@ void app_bringup_console_init(app_bringup_console_t *console)
     console->dump_active = false;
     console->dump_row = 0u;
     console->dump_source = APP_BRINGUP_METROLOGY_DUMP_NONE;
+    console->cal_frame_active = false;
+    console->cal_frame_size = 0u;
+    console->cal_frame_offset = 0u;
     console->cal_session = (app_calibration_session_t){0};
     app_calibration_campaign_init(&console->cal_campaign);
     console->auto_session = (app_measurement_session_t){0};
@@ -2965,6 +3055,7 @@ void app_bringup_console_step(app_bringup_console_t *console,
     (void)app_calibration_service_step(console->cal_service, now_ms);
     lab_step_metrology(console, now_ms);
     step_flash_selftest(console, flash, now_ms);
+    lab_cal_frame_step(console);
 
     uint8_t byte = 0u;
     while (bsp_uart_try_read_byte(&byte) == BSP_STATUS_OK)

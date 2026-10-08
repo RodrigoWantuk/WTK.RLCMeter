@@ -75,6 +75,9 @@ typedef struct
     app_bringup_metrology_dump_source_t dump_source;
     uint16_t dump_row;
     bool dump_active;
+    uint16_t cal_frame_size;
+    uint16_t cal_frame_offset;
+    bool cal_frame_active;
     uint16_t ccr_table[HW_EXCITATION_LUT_POINTS];
     hw_range_t *range_ref;
     hw_k1_t *k1_ref;

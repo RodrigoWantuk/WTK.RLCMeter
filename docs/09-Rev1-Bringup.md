@@ -153,6 +153,14 @@ Recommended order:
 
 Only after raw measurement behavior is understood should automatic autorange and calibration workflows be enabled.
 
+For a supplementary calibration campaign on BRINGUP, first collect the active
+OSL frame with `python tools/pc_cal_frame.py --port COM5 --out active-cal.bin`
+from `Firmware/`. The command is read-only and exports a canonical serialization
+of the active in-RAM set, not the physical W25Q slot bytes. Collect each DUT RAW
+capture separately with `pc_capture.py`, then bind the campaign to both the RAW
+files and `active-cal.bin`. Passing CRC and sequence checks does not qualify the
+OPEN/SHORT/LOAD fixtures or the analog transfer on the board.
+
 ## 12. Bring-up evidence
 
 For every significant bring-up step, record:

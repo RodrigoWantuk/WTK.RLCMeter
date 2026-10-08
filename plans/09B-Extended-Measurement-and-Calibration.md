@@ -21,8 +21,9 @@ It must not reclassify synthetic tests as physical qualification.
   sequence as every RAW. The fit remains **diagnostic JSON only**, not a W25Q
   calibration record or a qualified correction. The supplied frame is not
   authenticated, does not prove physical OSL fixtures, and the PC does not
-  independently reproduce the embedded OSL calculation. No COM export of the
-  active frame exists yet.
+  independently reproduce the embedded OSL calculation. BRINGUP can now export
+  a canonical serialization of its active in-RAM OSL set over COM through the
+  shared workspace; this is not byte-exact physical-slot readback.
 - `tools/pc_capture.py` passively collects a completed BRINGUP RAW v1 DUT dump over
   COM, validates its framing, 256 rows, timing metadata, and prints a SHA-256 identity
   of the exact bytes written (including on Windows).
@@ -52,7 +53,7 @@ PRODUCT and BRINGUP DC execution remain disabled.
 ## Remaining implementation gates
 
 1. **Space and ownership:** PRODUCT Release is now 61344 B Flash against its
-   61440 B project gate (96 B headroom); BRINGUP is 62356 B against physical
+   61440 B project gate (96 B headroom); BRINGUP is 62800 B against physical
    65536 B. Audit
    the map, remove duplication without weakening safety or blank-W25Q recovery,
    and remeasure before adding target code. Do not raise the physical limits.
@@ -66,8 +67,8 @@ PRODUCT and BRINGUP DC execution remain disabled.
    Low-voltage leakage is exploratory until an open fixture, dwell, bias, and
    uncertainty are characterized. It is not datasheet insulation resistance.
 4. **Supplementary calibration:** the PC can check SHA-bound completed RAW captures
-   and a separately supplied active OSL frame structurally. It must still obtain
-   that frame from the device, prove its active identity, and solve all standards
+   and a BRINGUP-exported active OSL set structurally. It must still prove the
+   physical slot identity and provenance, and solve all standards
    jointly. The prior active coefficients are a soft initial point only. Define a
    bounded, versioned runtime correction overlay and transactional W25Q format;
    migrate older OSL-only records without losing the last valid set. Do not install

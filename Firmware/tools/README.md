@@ -33,10 +33,14 @@ Host-side tools that support firmware, assets, calibration, and diagnostics.
   `active-cal.bin` must contain one committed Rev.1 calibration frame or complete
   4096-byte slot image from the active set. The PC checks the frame CRC, 33 unique
   supported keys, OSL coefficients and sequence against every RAW capture.
+  On BRINGUP, run `python tools/pc_cal_frame.py --port COM5 --out active-cal.bin`
+  to request `lab cal frame` and save a validated canonical serialization of the
+  active in-RAM set. It streams one 16-byte hex line per cooperative step using
+  the existing shared workspace, without reading or mutating W25Q.
   Use `--synthetic-unbound` instead of `--capture-root` only for synthetic development
   inputs. All standards in one campaign must name the same active OSL sequence.
-  The frame is supplied separately; current firmware has no COM frame-export command.
-  Matching CRC and sequence do not authenticate the frame or prove the physical
+  The export is BRINGUP-only and is not a byte-exact readback of the physical slot.
+  Matching CRC and sequence do not authenticate the device or prove the physical
   OPEN/SHORT/LOAD fixtures. The JSON output is **not** a W25Q record and
   must not be installed as qualified firmware calibration.
 - `pc_capture.py`: passive COM collector for one successful BRINGUP `RAW v1`
@@ -47,6 +51,10 @@ Host-side tools that support firmware, assets, calibration, and diagnostics.
   refuses failed or non-DUT dumps. It writes the exact ASCII bytes it hashes, including
   on Windows. It does not prove electrical safety independently; the BRINGUP dump's
   printed OSL result is bound to the raw file, not independently recalculated by this tool.
+- `pc_cal_frame.py`: read-only BRINGUP COM collector for the currently active OSL
+  set. It sends `lab cal frame`, reconstructs the bounded hex stream, validates
+  commit/CRC and all 33 Rev.1 condition records, and writes a binary frame only
+  on complete success. It does not install calibration or authorize measurement.
 - `inspect_calibration_record.py`: decodes the Phase 07 Stage 2A calibration frame,
   verifies CRC/commit state, and prints record keys and correction coefficients.
   Its `decode_full_rev1_frame()` helper additionally validates the complete
