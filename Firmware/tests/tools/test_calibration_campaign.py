@@ -4,10 +4,14 @@ from __future__ import annotations
 
 import math
 import hashlib
+import io
+import json
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "tools"))
 
@@ -23,6 +27,8 @@ from calibration_campaign import (  # noqa: E402
     solve_campaign,
     standard_constraints,
 )
+from inspect_calibration_record import OslFrameSummary  # noqa: E402
+import calibration_campaign  # noqa: E402
 
 
 KEY = (1000, 1000, 100)
@@ -245,6 +251,47 @@ class CampaignTests(unittest.TestCase):
             Path(directory, "outside.raw").write_bytes(text.encode("ascii"))
             with self.assertRaises(CampaignError):
                 bind_campaign_captures(campaign([sample]), root)
+
+    def test_capture_binding_requires_supplied_osl_sequence(self):
+        text = raw_capture()
+        sample = standard("R", 1000, 1005, 0, capture_file="capture.raw",
+                          capture_calibration_sequence=7)
+        sample["capture_id"] = hashlib.sha256(text.encode("ascii")).hexdigest()
+        with tempfile.TemporaryDirectory() as directory:
+            Path(directory, "capture.raw").write_bytes(text.encode("ascii"))
+            frame = OslFrameSummary(7, "frame-hash", frozenset(all_osl_conditions()))
+            bound = bind_campaign_captures(campaign([sample]), Path(directory), frame)
+            self.assertEqual(solve_campaign(bound)["conditions"][0]["sample_count"], 1)
+            wrong = OslFrameSummary(8, "other-frame", frame.conditions)
+            with self.assertRaises(CampaignError):
+                bind_campaign_captures(campaign([sample]), Path(directory), wrong)
+
+    def test_cli_requires_frame_and_binds_capture(self):
+        text = raw_capture()
+        sample = standard("R", 1000, 1005, 0, capture_file="capture.raw",
+                          capture_calibration_sequence=7)
+        sample["capture_id"] = hashlib.sha256(text.encode("ascii")).hexdigest()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "capture.raw").write_bytes(text.encode("ascii"))
+            (root / "active.bin").write_bytes(b"frame")
+            (root / "campaign.json").write_text(json.dumps(campaign([sample])), encoding="utf-8")
+            args = ["calibration_campaign.py", str(root / "campaign.json"),
+                    "--capture-root", str(root)]
+            with patch.object(sys, "argv", args), redirect_stderr(io.StringIO()):
+                with self.assertRaises(SystemExit) as error:
+                    calibration_campaign.main()
+            self.assertEqual(error.exception.code, 2)
+            args.extend(["--osl-frame", str(root / "active.bin")])
+            frame = OslFrameSummary(7, "frame-hash", frozenset(all_osl_conditions()))
+            output = io.StringIO()
+            with patch.object(sys, "argv", args), \
+                    patch.object(calibration_campaign, "decode_full_rev1_frame", return_value=frame), \
+                    redirect_stdout(output):
+                self.assertEqual(calibration_campaign.main(), 0)
+            result = json.loads(output.getvalue())
+            self.assertEqual(result["capture_binding"], "RAW_SHA256_BOUND")
+            self.assertEqual(result["supplied_osl_sequence"], 7)
 
 
 if __name__ == "__main__":

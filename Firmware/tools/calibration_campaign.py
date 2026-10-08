@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any
 
 from pc_capture import MAX_CAPTURE_LINES, MAX_LINE_BYTES, validate_dut_capture
+from inspect_calibration_record import OslFrameSummary, SLOT_BYTES, decode_full_rev1_frame
 
 
 RANGES = (10, 100, 1000, 10000, 100000, 1000000)
@@ -333,9 +334,14 @@ def solve_campaign(data: dict[str, Any]) -> dict[str, Any]:
             "qualification": "UNQUALIFIED", "conditions": outputs}
 
 
-def bind_campaign_captures(data: dict[str, Any], root: Path) -> dict[str, Any]:
+def bind_campaign_captures(data: dict[str, Any], root: Path,
+                           osl_frame: OslFrameSummary | None = None) -> dict[str, Any]:
     """Bind declared standard values to completed BRINGUP dumps, without claiming OSL verification."""
     bound = copy.deepcopy(data)
+    if osl_frame is not None:
+        require_complete_osl(bound["osl_conditions"])
+        if {condition_key(item) for item in bound["osl_conditions"]} != osl_frame.conditions:
+            raise CampaignError("campaign OSL keys differ from the supplied active-set frame")
     root = root.resolve(strict=True)
     if not root.is_dir():
         raise CampaignError("capture root must be a directory")
@@ -361,6 +367,8 @@ def bind_campaign_captures(data: dict[str, Any], root: Path) -> dict[str, Any]:
             except (UnicodeError, ValueError) as exc:
                 raise CampaignError(f"invalid capture {name}: {exc}") from exc
             meta = capture.metadata
+            if osl_frame is not None and int(meta["calibration_sequence"]) != osl_frame.sequence:
+                raise CampaignError(f"capture OSL sequence differs from supplied frame: {name}")
             if (meta["range"] != range_token or int(meta["frequency_hz"]) != frequency or
                     int(meta["amplitude_mvrms"]) != amplitude):
                 raise CampaignError(f"capture condition mismatch: {name}")
@@ -399,6 +407,8 @@ def main() -> int:
     parser.add_argument("--out", type=Path, help="diagnostic JSON output, not a firmware record")
     parser.add_argument("--capture-root", type=Path,
                         help="directory containing SHA-256-bound BRINGUP RAW v1 captures")
+    parser.add_argument("--osl-frame", type=Path,
+                        help="supplied committed Rev.1 33-condition calibration frame/slot image")
     parser.add_argument("--synthetic-unbound", action="store_true",
                         help="allow synthetic/manual inputs for development only")
     args = parser.parse_args()
@@ -409,14 +419,24 @@ def main() -> int:
     else:
         if args.campaign is None:
             parser.error("campaign file is required unless --template is used")
-        if (args.capture_root is None) == (not args.synthetic_unbound):
-            parser.error("choose --capture-root or --synthetic-unbound")
+        if args.synthetic_unbound:
+            if args.capture_root is not None or args.osl_frame is not None:
+                parser.error("--synthetic-unbound cannot be combined with capture/frame evidence")
+        elif args.capture_root is None or args.osl_frame is None:
+            parser.error("provide both --capture-root and --osl-frame, or --synthetic-unbound")
         try:
             data = json.loads(args.campaign.read_text(encoding="utf-8"))
+            frame = None
             if args.capture_root is not None:
-                data = bind_campaign_captures(data, args.capture_root)
+                if args.osl_frame.stat().st_size > SLOT_BYTES:
+                    raise CampaignError("OSL frame exceeds one calibration slot")
+                frame = decode_full_rev1_frame(args.osl_frame.read_bytes())
+                data = bind_campaign_captures(data, args.capture_root, frame)
             result = solve_campaign(data)
             result["capture_binding"] = "RAW_SHA256_BOUND" if args.capture_root else "SYNTHETIC_UNBOUND"
+            if frame is not None:
+                result["supplied_osl_frame_sha256"] = frame.sha256
+                result["supplied_osl_sequence"] = frame.sequence
         except (CampaignError, KeyError, TypeError, OSError, json.JSONDecodeError) as exc:
             parser.error(str(exc))
     output = json.dumps(result, indent=2, sort_keys=True, allow_nan=False) + "\n"

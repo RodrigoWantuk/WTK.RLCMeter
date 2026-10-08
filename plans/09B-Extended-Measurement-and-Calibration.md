@@ -16,9 +16,13 @@ It must not reclassify synthetic tests as physical qualification.
   the 33 Rev.1 OSL condition identities and exact supported frequency matching. Its
   CLI now binds each standard to one BRINGUP RAW file by SHA-256, checks condition,
   permit/relay metadata, active-calibration sequence, and the dump's persisted-OSL
-  DSP result. The fit remains **diagnostic JSON only**, not a W25Q calibration record
-  or a qualified correction. The 33 OSL keys still do not prove the OSL captures,
-  and the PC does not independently reproduce the embedded OSL calculation.
+  DSP result. A supplied active-set frame is checked for commit, CRC, Rev.1 model,
+  all 33 unique condition keys, finite/nondegenerate OSL coefficients, and the same
+  sequence as every RAW. The fit remains **diagnostic JSON only**, not a W25Q
+  calibration record or a qualified correction. The supplied frame is not
+  authenticated, does not prove physical OSL fixtures, and the PC does not
+  independently reproduce the embedded OSL calculation. No COM export of the
+  active frame exists yet.
 - `tools/pc_capture.py` passively collects a completed BRINGUP RAW v1 DUT dump over
   COM, validates its framing, 256 rows, timing metadata, and prints a SHA-256 identity
   of the exact bytes written (including on Windows).
@@ -61,8 +65,9 @@ PRODUCT and BRINGUP DC execution remain disabled.
 3. **DC claims:** DCR is conditional on validated two-wire offset/contact resolution.
    Low-voltage leakage is exploratory until an open fixture, dwell, bias, and
    uncertainty are characterized. It is not datasheet insulation resistance.
-4. **Supplementary calibration:** the PC must ingest authenticated/traceable
-   completed captures and the active OSL set, then solve all current standards
+4. **Supplementary calibration:** the PC can check SHA-bound completed RAW captures
+   and a separately supplied active OSL frame structurally. It must still obtain
+   that frame from the device, prove its active identity, and solve all standards
    jointly. The prior active coefficients are a soft initial point only. Define a
    bounded, versioned runtime correction overlay and transactional W25Q format;
    migrate older OSL-only records without losing the last valid set. Do not install

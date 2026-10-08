@@ -155,8 +155,10 @@ a calibrated board NTC within 10 C of the stated datasheet temperature; this gat
 provisional and `REQUIRES_BENCH_VALIDATION`. The board NTC is not DUT temperature.
 The PC CLI now binds each standard to a completed BRINGUP RAW file by exact SHA-256,
 checks its condition and printed persisted-OSL DSP result, and rejects mixed active
-OSL sequence numbers. This is traceability for a diagnostic prototype, not independent
-verification of the full 33-condition OSL evidence or a qualified correction upload.
+OSL sequence numbers. It also requires a separately supplied committed Rev.1 frame
+with a matching sequence, valid CRC, and all 33 unique condition records. This is
+traceability for a diagnostic prototype, not authentication of the active device
+state, proof of physical OSL fixture quality, or a qualified correction upload.
 
 Current-campaign tolerance intervals are simultaneous hard constraints. The previous
 active correction is only a soft minimum-change prior when a new campaign runs; it is

@@ -1,5 +1,6 @@
 import importlib.util
 import io
+import binascii
 import struct
 import tempfile
 import unittest
@@ -22,8 +23,10 @@ def put_u32(buf, off, value):
     struct.pack_into("<I", buf, off, value)
 
 
-def valid_frame():
-    payload_len = inspect_cal.SET_PAYLOAD_HEADER_BYTES + inspect_cal.RECORD_BYTES
+def valid_frame(full=False):
+    keys = ([(r, f, a) for r in range(6) for f in range(3) for a in range(2)
+             if not (r == 0 and a == 1)] if full else [(2, 1, 0)])
+    payload_len = inspect_cal.SET_PAYLOAD_HEADER_BYTES + len(keys) * inspect_cal.RECORD_BYTES
     total = inspect_cal.HEADER_BYTES + payload_len
     frame = bytearray(total)
     put_u32(frame, 0, inspect_cal.MAGIC)
@@ -36,14 +39,21 @@ def valid_frame():
     put_u16(frame, 20, inspect_cal.MODEL_CURRENT)
     put_u32(frame, inspect_cal.COMMIT_OFFSET, 0xFFFFFFFF)
     payload = inspect_cal.HEADER_BYTES
-    put_u16(frame, payload, 1)
+    put_u16(frame, payload, len(keys))
     put_u32(frame, payload + 4, 0x00000001)
     struct.pack_into("<" + "f" * 12, frame, payload + 8, *([3.3 / 4095.0, 0.0] * 6))
-    rec = payload + inspect_cal.SET_PAYLOAD_HEADER_BYTES
-    struct.pack_into("<IHBBBBiII", frame, rec, 0x00010001, inspect_cal.MODEL_CURRENT,
-                     2, 1, 0, 2, 0, 0x12345678, 0x000000E7)
-    floats = [15.468085, 0.0, 1000.0, 0.0, 0.0, 0.0, 1.0, 0.0, -1000.0, 0.0, 0.0, 0.0]
-    struct.pack_into("<" + "f" * 12, frame, rec + 22, *floats)
+    for index, (range_id, frequency, amplitude) in enumerate(keys):
+        rec = payload + inspect_cal.SET_PAYLOAD_HEADER_BYTES + index * inspect_cal.RECORD_BYTES
+        rref = inspect_cal.RANGES[range_id]
+        key_bytes = struct.pack("<IHBBB3x", 0x00010001, inspect_cal.MODEL_CURRENT,
+                                range_id, frequency, amplitude)
+        struct.pack_into("<IHBBBBiII", frame, rec, 0x00010001, inspect_cal.MODEL_CURRENT,
+                         range_id, frequency, amplitude, 2, 0,
+                         binascii.crc32(key_bytes),
+                         inspect_cal.FLAG_OSL_MODEL | inspect_cal.FLAG_LOAD_REFERENCE)
+        floats = [15.468085, 0.0, float(rref), 0.0, 0.0, 0.0,
+                  1.0, 0.0, -float(rref), 0.0, 0.0, 0.0]
+        struct.pack_into("<" + "f" * 12, frame, rec + 22, *floats)
     crc = inspect_cal.crc_frame(frame, payload_len)
     put_u32(frame, inspect_cal.CRC_OFFSET, crc)
     put_u32(frame, inspect_cal.COMMIT_OFFSET, inspect_cal.COMMIT_MARKER)
@@ -78,6 +88,54 @@ class InspectCalibrationRecordTests(unittest.TestCase):
             self.assertIn("osl_k=", output.getvalue())
             self.assertIn("osl_load_reference=", output.getvalue())
             self.assertIn("effective_hg=", output.getvalue())
+
+    def test_strict_full_rev1_frame_and_slot_image(self):
+        blob = valid_frame(full=True)
+        summary = inspect_cal.decode_full_rev1_frame(blob)
+        self.assertEqual(summary.sequence, 7)
+        self.assertEqual(len(summary.conditions), 33)
+        self.assertEqual(summary, inspect_cal.decode_full_rev1_frame(
+            blob + bytes([0xFF]) * (inspect_cal.SLOT_BYTES - len(blob))))
+
+    def test_strict_frame_rejects_partial_tampered_and_invalid_model(self):
+        with self.assertRaises(ValueError):
+            inspect_cal.decode_full_rev1_frame(valid_frame())
+        blob = bytearray(valid_frame(full=True))
+        blob[-1] ^= 1
+        with self.assertRaises(ValueError):
+            inspect_cal.decode_full_rev1_frame(blob)
+        blob = bytearray(valid_frame(full=True))
+        rec = inspect_cal.HEADER_BYTES + inspect_cal.SET_PAYLOAD_HEADER_BYTES
+        put_u32(blob, rec + 18, 0)
+        put_u32(blob, inspect_cal.CRC_OFFSET,
+                inspect_cal.crc_frame(blob, len(blob) - inspect_cal.HEADER_BYTES))
+        with self.assertRaises(ValueError):
+            inspect_cal.decode_full_rev1_frame(blob)
+
+    def test_strict_frame_rejects_duplicate_keys_even_with_valid_crc(self):
+        blob = bytearray(valid_frame(full=True))
+        first = inspect_cal.HEADER_BYTES + inspect_cal.SET_PAYLOAD_HEADER_BYTES
+        second = first + inspect_cal.RECORD_BYTES
+        blob[second:second + inspect_cal.RECORD_BYTES] = blob[first:first + inspect_cal.RECORD_BYTES]
+        put_u32(blob, inspect_cal.CRC_OFFSET,
+                inspect_cal.crc_frame(blob, len(blob) - inspect_cal.HEADER_BYTES))
+        with self.assertRaises(ValueError):
+            inspect_cal.decode_full_rev1_frame(blob)
+
+    def test_strict_frame_rejects_bad_condition_id_and_nonfinite_adc(self):
+        blob = bytearray(valid_frame(full=True))
+        first = inspect_cal.HEADER_BYTES + inspect_cal.SET_PAYLOAD_HEADER_BYTES
+        put_u32(blob, first + 14, 0)
+        put_u32(blob, inspect_cal.CRC_OFFSET,
+                inspect_cal.crc_frame(blob, len(blob) - inspect_cal.HEADER_BYTES))
+        with self.assertRaises(ValueError):
+            inspect_cal.decode_full_rev1_frame(blob)
+        blob = bytearray(valid_frame(full=True))
+        struct.pack_into("<f", blob, inspect_cal.HEADER_BYTES + 8, float("nan"))
+        put_u32(blob, inspect_cal.CRC_OFFSET,
+                inspect_cal.crc_frame(blob, len(blob) - inspect_cal.HEADER_BYTES))
+        with self.assertRaises(ValueError):
+            inspect_cal.decode_full_rev1_frame(blob)
 
 
 if __name__ == "__main__":

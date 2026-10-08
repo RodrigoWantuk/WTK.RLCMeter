@@ -10,8 +10,11 @@ from __future__ import annotations
 
 import argparse
 import binascii
+import hashlib
+import math
 import struct
 from pathlib import Path
+from typing import NamedTuple
 
 
 MAGIC = 0x434C4157
@@ -19,12 +22,83 @@ SCHEMA_VERSION = 2
 MODEL_CURRENT = 4
 FLAG_HG_OBSERVED = 1 << 7
 FLAG_QUALIFIED = 1 << 8
+FLAG_OSL_MODEL = 1 << 5
+FLAG_LOAD_REFERENCE = 1 << 9
 COMMIT_MARKER = 0x54494D43
 HEADER_BYTES = 64
 CRC_OFFSET = 56
 COMMIT_OFFSET = 60
 SET_PAYLOAD_HEADER_BYTES = 56
 RECORD_BYTES = 80
+MAX_FRAME_BYTES = 3072
+SLOT_BYTES = 4096
+REV1_HARDWARE = 0x00010001
+RANGES = (10, 100, 1000, 10000, 100000, 1000000)
+FREQUENCIES = (100, 1000, 10000)
+AMPLITUDES = (100, 500)
+
+
+class OslFrameSummary(NamedTuple):
+    sequence: int
+    sha256: str
+    conditions: frozenset[tuple[int, int, int]]
+
+
+def decode_full_rev1_frame(blob: bytes) -> OslFrameSummary:
+    """Check one supplied active-set image, not the physical OSL campaign history."""
+    if not HEADER_BYTES <= len(blob) <= SLOT_BYTES:
+        raise ValueError("expected one calibration frame or 4096-byte slot image")
+    magic, record_type, schema, header_size, payload_len, sequence, hardware, model = \
+        struct.unpack_from("<IHHHHIIH", blob)
+    total = header_size + payload_len
+    if (magic, record_type, schema, header_size, hardware, model) != \
+            (MAGIC, 1, SCHEMA_VERSION, HEADER_BYTES, REV1_HARDWARE, MODEL_CURRENT):
+        raise ValueError("incompatible Rev.1 calibration frame")
+    if total > len(blob) or total > MAX_FRAME_BYTES or \
+            payload_len != SET_PAYLOAD_HEADER_BYTES + 33 * RECORD_BYTES:
+        raise ValueError("calibration frame has an incomplete or invalid payload")
+    if struct.unpack_from("<I", blob, COMMIT_OFFSET)[0] != COMMIT_MARKER or \
+            struct.unpack_from("<I", blob, CRC_OFFSET)[0] != crc_frame(blob, payload_len):
+        raise ValueError("calibration frame is uncommitted or CRC-corrupt")
+    count = struct.unpack_from("<H", blob, HEADER_BYTES)[0]
+    adc_flags = struct.unpack_from("<I", blob, HEADER_BYTES + 4)[0]
+    adc_values = struct.unpack_from("<12f", blob, HEADER_BYTES + 8)
+    if count != 33 or not (adc_flags & 1) or not all(math.isfinite(v) for v in adc_values):
+        raise ValueError("calibration frame has invalid ADC or record count")
+
+    keys: set[tuple[int, int, int]] = set()
+    for index in range(count):
+        offset = HEADER_BYTES + SET_PAYLOAD_HEADER_BYTES + index * RECORD_BYTES
+        rec_hw, rec_model, range_id, freq_id, amp_id, rec_type, _, condition_id, flags = \
+            struct.unpack_from("<IHBBBBiII", blob, offset)
+        if (rec_hw, rec_model, rec_type) != (REV1_HARDWARE, MODEL_CURRENT, 2) or \
+                range_id >= len(RANGES) or freq_id >= len(FREQUENCIES) or \
+                amp_id >= len(AMPLITUDES) or (range_id == 0 and amp_id == 1):
+            raise ValueError(f"invalid Rev.1 condition record {index}")
+        key_bytes = struct.pack("<IHBBB3x", rec_hw, rec_model, range_id, freq_id, amp_id)
+        if condition_id != binascii.crc32(key_bytes) & 0xFFFFFFFF:
+            raise ValueError(f"condition ID mismatch in record {index}")
+        values = struct.unpack_from("<12f", blob, offset + 22)
+        hg = complex(*values[0:2])
+        load = complex(*values[2:4])
+        short = complex(*values[4:6])
+        opened = complex(*values[6:8])
+        k = complex(*values[8:10])
+        if (not all(math.isfinite(v) for v in values) or
+                (flags & (FLAG_OSL_MODEL | FLAG_LOAD_REFERENCE)) !=
+                (FLAG_OSL_MODEL | FLAG_LOAD_REFERENCE) or
+                flags & 0x1E or min(abs(hg), abs(load), abs(k)) <= 1.0e-6 or
+                abs(opened - short) <= 1.0e-5):
+            raise ValueError(f"invalid OSL coefficients in record {index}")
+        key = (RANGES[range_id], FREQUENCIES[freq_id], AMPLITUDES[amp_id])
+        if key in keys:
+            raise ValueError(f"duplicate OSL condition {key}")
+        keys.add(key)
+    expected = {(r, f, a) for r in RANGES for f in FREQUENCIES
+                for a in AMPLITUDES if not (r == 10 and a == 500)}
+    if keys != expected:
+        raise ValueError("calibration frame does not cover all 33 Rev.1 conditions")
+    return OslFrameSummary(sequence, hashlib.sha256(blob[:total]).hexdigest(), frozenset(keys))
 
 
 def crc_frame(frame: bytes, payload_length: int) -> int:

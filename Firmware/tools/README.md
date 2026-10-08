@@ -29,11 +29,15 @@ Host-side tools that support firmware, assets, calibration, and diagnostics.
   `<field>_frequency_hz`; out-of-band loss data is reported as ignored, never fitted.
   Run `python tools/calibration_campaign.py --template --out campaign.json` for an
   unverified key skeleton. With actual captures, run
-  `python tools/calibration_campaign.py campaign.json --capture-root captures --out provisional.json`.
+  `python tools/calibration_campaign.py campaign.json --capture-root captures --osl-frame active-cal.bin --out provisional.json`.
+  `active-cal.bin` must contain one committed Rev.1 calibration frame or complete
+  4096-byte slot image from the active set. The PC checks the frame CRC, 33 unique
+  supported keys, OSL coefficients and sequence against every RAW capture.
   Use `--synthetic-unbound` instead of `--capture-root` only for synthetic development
   inputs. All standards in one campaign must name the same active OSL sequence.
-  The 33 OSL keys remain an unverified skeleton, not proof of a completed OSL campaign.
-  The JSON output is **not** a W25Q record, does not independently verify OSL evidence, and
+  The frame is supplied separately; current firmware has no COM frame-export command.
+  Matching CRC and sequence do not authenticate the frame or prove the physical
+  OPEN/SHORT/LOAD fixtures. The JSON output is **not** a W25Q record and
   must not be installed as qualified firmware calibration.
 - `pc_capture.py`: passive COM collector for one successful BRINGUP `RAW v1`
   DUT-measurement dump. Run `python tools/pc_capture.py --port COM5 --out raw.txt`,
@@ -45,6 +49,8 @@ Host-side tools that support firmware, assets, calibration, and diagnostics.
   printed OSL result is bound to the raw file, not independently recalculated by this tool.
 - `inspect_calibration_record.py`: decodes the Phase 07 Stage 2A calibration frame,
   verifies CRC/commit state, and prints record keys and correction coefficients.
+  Its `decode_full_rev1_frame()` helper additionally validates the complete
+  33-condition active-set shape for host campaign binding.
 - `firmware_size.py`: reports STM32 ELF Flash/RAM usage, reserved stack/heap floor,
   largest symbols, optional JSON output, PRODUCT size gates, and the Phase 09A BRINGUP
   physical-MVP size gate.
