@@ -51,6 +51,14 @@ typedef enum
     APP_BRINGUP_METROLOGY_DUMP_MEASURE,
 } app_bringup_metrology_dump_source_t;
 
+typedef enum
+{
+    APP_BRINGUP_DC_IDLE = 0,
+    APP_BRINGUP_DC_AC_SCREEN,
+    APP_BRINGUP_DC_WAIT_RESIDUAL,
+    APP_BRINGUP_DC_CAPTURE,
+} app_bringup_dc_state_t;
+
 typedef struct
 {
 #if WTK_ENABLE_BRINGUP_CONSOLE
@@ -78,6 +86,9 @@ typedef struct
     uint16_t cal_frame_size;
     uint16_t cal_frame_offset;
     bool cal_frame_active;
+    app_bringup_dc_state_t dc_state;
+    uint32_t dc_requalification_deadline_ms;
+    bool dc_cancel_requested;
     uint16_t ccr_table[HW_EXCITATION_LUT_POINTS];
     hw_range_t *range_ref;
     hw_k1_t *k1_ref;

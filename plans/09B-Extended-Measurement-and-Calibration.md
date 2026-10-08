@@ -9,9 +9,21 @@ It must not reclassify synthetic tests as physical qualification.
 
 - AC acquisition, OSL calibration, automatic range policy, and product results remain
   the only executable PRODUCT measurement path.
-- `measurement_dc.c` contains host-tested DC divider mathematics and a pure pilot
-  prerequisite check. It is compiled for Arm but not called by an application transaction, cannot
-  energize K1, and cannot authorize a DC measurement.
+- BRINGUP now has an experimental `lab dc pilot` transaction. It first captures AC
+  at 1 MOhm / 1 kHz / 100 mVrms, returns K1 SAFE, waits for fresh residual-safe
+  qualification, then starts a separate Phase 05 DC transaction with a new
+  single-use permit. TIM1 stays at the 450 kHz carrier with static CCR1=81
+  (neutral=80, one nominal 20.625 mV PWM step); the DC DMA capture uses the
+  existing 256-instant/64 kHz profile. K1 SAFE, excitation OFF, range disabled,
+  ADC restored, and quiet released precede analysis and UART output. Cancellation
+  uses the same Phase 05 abort path. PRODUCT has `WTK_ENABLE_DC_PILOT=0`.
+- The DC analyzer averages measured VEXC/RET_1X/VMID ADC codes, rejects any
+  individual rail-clipped sample, rejects source bias above 50 mV or reversed
+  polarity, and requires four nominal ADC codes of source/current/DUT resolution.
+  These are provisional software guards, not accuracy or current qualification.
+  The pilot cannot resolve low-ohm DCR with 1 MOhm RREF; it reports explicit
+  unresolved states. `tools/pc_dc_pilot.py` can request one controlled BRINGUP
+  pilot, validate its bounded result frame, and retain SHA-256 evidence.
 - `tools/calibration_campaign.py` is a host-only interval-fit prototype. It requires
   the 33 Rev.1 OSL condition identities and exact supported frequency matching. Its
   CLI now binds each standard to one BRINGUP RAW file by SHA-256, checks condition,
@@ -43,12 +55,14 @@ AC measurement is useful triage but cannot exclude a DC short, notably for an
 inductor. The DC pilot must begin with 1 MOhm and a separately authorized static
 bias step. It must never lower RREF based on AC impedance alone.
 
-Before any board-executable DC transaction, the electronics owner must provide and
-bench-verify continuous/peak source-current limits, output/series-path dissipation,
-allowed bias and dwell time, ADC/offset resolution, settling criteria, capacitor
-polarity policy, and an abort/discharge sequence. The op-amp absolute or typical
-short-circuit ratings are not operating-current permissions. Until then, both
-PRODUCT and BRINGUP DC execution remain disabled.
+The BRINGUP 1 MOhm pilot is software-bounded but **not bench qualified**. It may
+be attempted only with a current-limited bench supply and a controlled DUT;
+charged or polarity-sensitive capacitors must not be connected. Nominal PWM
+step and RREF alone do not establish actual VEXC, settling, contact resistance,
+or leakage. No automatic lower-RREF progression exists. Continuous/peak source
+current, dissipation, bias, dwell, ADC/offset resolution, capacitor polarity,
+and discharge behavior remain REQUIRES_BENCH_VALIDATION. The op-amp short-
+circuit rating is not an operational current permission. PRODUCT DC stays off.
 
 ## Remaining implementation gates
 
@@ -57,12 +71,10 @@ PRODUCT and BRINGUP DC execution remain disabled.
    65536 B. Audit
    the map, remove duplication without weakening safety or blank-W25Q recovery,
    and remeasure before adding target code. Do not raise the physical limits.
-2. **DC transaction:** after the electrical contract, add a distinct Phase 05
-   cooperative static-bias path. Every attempt obtains a fresh Phase 04/05 permit,
-   begins at 1 MOhm, measures VEXC/RET/VMID rather than trusting PWM duty, and
-   returns K1 SAFE before analysis. Charger, residual, ADC, saturation, timeout,
-   and cancellation faults use the existing emergency cleanup. Requalify residual
-   evidence after release. Do not infer safety from AC impedance.
+2. **DC expansion:** the BRINGUP-only 1 MOhm transaction exists, but its
+   electrical behavior and host-orchestrator timing need board validation. Do
+   not enable PRODUCT, lower RREF, or label the output DCR until a documented
+   current/dwell/contact-offset/error budget and controlled bench tests exist.
 3. **DC claims:** DCR is conditional on validated two-wire offset/contact resolution.
    Low-voltage leakage is exploratory until an open fixture, dwell, bias, and
    uncertainty are characterized. It is not datasheet insulation resistance.

@@ -3,6 +3,9 @@
 
 #include <stdbool.h>
 
+#include "hardware/hw_metrology_raw.h"
+#include "measurement/measurement_dsp.h"
+
 /* Pure DC math only. No caller may use this as a measurement safety permit. */
 typedef enum
 {
@@ -10,6 +13,8 @@ typedef enum
     MEASUREMENT_DC_CURRENT_UNRESOLVED,
     MEASUREMENT_DC_DUT_VOLTAGE_UNRESOLVED,
     MEASUREMENT_DC_VALID,
+    MEASUREMENT_DC_CLIPPED,
+    MEASUREMENT_DC_SOURCE_OUT_OF_RANGE,
 } measurement_dc_status_t;
 
 typedef struct
@@ -47,6 +52,8 @@ typedef struct
 } measurement_dc_pilot_gate_t;
 
 measurement_dc_result_t measurement_dc_estimate(const measurement_dc_input_t *input);
+measurement_dc_result_t measurement_dc_analyze_pilot(const hw_metrology_block_t *block,
+                                                     const measurement_adc_calibration_t *adc_cal);
 bool measurement_dc_pilot_gate_allows(const measurement_dc_pilot_gate_t *gate);
 
 #endif

@@ -721,15 +721,18 @@ This should change only if measured leakage/parasitic evidence justifies it.
 
 ### Extended measurements and current qualification boundary
 
-The Rev.1 excitation filter is DC-coupled, so a future static PWM bias is physically
-possible. This does **not** make a DC measurement safe or accurate in current firmware.
+The Rev.1 excitation filter is DC-coupled. A BRINGUP-only, one-step static PWM
+pilot now exercises this path; it does **not** establish a safe or accurate
+PRODUCT DC measurement.
 The only switchable series element is the selected RREF; there is no additional
 firmware-switchable current-limiting resistor. An AC preflight cannot rule out a DC
-short (an inductor is a counterexample). DC execution remains disabled in both
-PRODUCT and BRINGUP until source-current, dissipation, dwell, settling, polarity,
-offset resolution, and abort/discharge limits are approved and measured. A future
-pilot begins at 1 MOhm with the smallest representable static bias step and obtains
-a fresh safety permit; AC results never authorize a lower RREF directly.
+short (an inductor is a counterexample). PRODUCT DC remains disabled. The
+BRINGUP pilot uses only 1 MOhm, CCR1=81 versus neutral 80, measured ADC voltages,
+an independent safety permit, and SAFE teardown before numerical reporting.
+It never lowers RREF. Its 2 ms settling, 50 mV observed source ceiling,
+four-code resolution floor, and AC-screen amplitude check are provisional and
+REQUIRES_BENCH_VALIDATION. Current, dissipation, polarity, contact offset,
+settling, and discharge limits still prevent DCR/leakage publication.
 
 AC complex impedance and conditionally valid R/X/C/L/ESR/Q/D remain the supported
 mathematical outputs. DCR and low-voltage leakage require separate DC transactions

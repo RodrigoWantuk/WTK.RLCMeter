@@ -103,7 +103,12 @@ static void prepare_block_metadata(hw_metrology_measure_t *measure)
 {
     hw_metrology_block_t *block = &measure->block;
     block->valid = false;
+#if WTK_ENABLE_DC_PILOT
+    block->mode = measure->request.dc_pilot ? HW_METROLOGY_MODE_DC_PILOT :
+                                              HW_METROLOGY_MODE_DUT_MEASURE;
+#else
     block->mode = HW_METROLOGY_MODE_DUT_MEASURE;
+#endif
     block->dut_measure = true;
     block->sequence = measure->sequence;
     block->permit_issue_ms = 0u;
@@ -112,6 +117,13 @@ static void prepare_block_metadata(hw_metrology_measure_t *measure)
     block->k1_release_guard_ms = HW_METROLOGY_MEASURE_K1_RELEASE_GUARD_MS;
     block->excitation_frequency_hz = measure->exc_profile.frequency_hz;
     block->requested_amplitude_mvrms = hw_excitation_amplitude_mvrms(measure->request.amplitude);
+#if WTK_ENABLE_DC_PILOT
+    if (measure->request.dc_pilot)
+    {
+        block->excitation_frequency_hz = 0u;
+        block->requested_amplitude_mvrms = 0u;
+    }
+#endif
     block->range_id = measure->request.range_id;
     block->charger = HW_CHARGER_UNKNOWN;
     if (measure->io.charger_state != NULL)
@@ -134,6 +146,12 @@ static void prepare_block_metadata(hw_metrology_measure_t *measure)
 
 static bool io_complete(const hw_metrology_measure_io_t *io)
 {
+#if WTK_ENABLE_DC_PILOT
+    if ((io == NULL) || (io->excitation_dc_pilot == NULL))
+    {
+        return false;
+    }
+#endif
     return (io != NULL) &&
            (io->k1_force_safe != NULL) &&
            (io->k1_request_measure != NULL) &&
@@ -410,6 +428,38 @@ bsp_status_t hw_metrology_measure_start(hw_metrology_measure_t *measure,
         return BSP_STATUS_ERROR;
     }
 
+#if WTK_ENABLE_DC_PILOT
+    if (request->dc_pilot && (!request->ac_screened ||
+        (request->range_id != HW_RANGE_ID_1M) ||
+        (request->frequency != HW_EXCITATION_FREQ_1KHZ) ||
+        (request->amplitude != HW_EXCITATION_AMP_100MVRMS)))
+    {
+        measure->error = HW_METROLOGY_MEASURE_ERR_INVALID;
+        measure->state = HW_METROLOGY_MEASURE_IDLE;
+        const bsp_status_t k1_status = call_status(measure->io.k1_force_safe, measure->io.user);
+        const bsp_status_t excitation_status = call_status(measure->io.excitation_off, measure->io.user);
+        if (k1_status != BSP_STATUS_OK)
+        {
+            measure->error = HW_METROLOGY_MEASURE_ERR_K1;
+            if (measure->io.latch_k1_io_fault != NULL)
+            {
+                measure->io.latch_k1_io_fault(measure->io.user);
+            }
+        }
+        if (excitation_status != BSP_STATUS_OK)
+        {
+            measure->error = HW_METROLOGY_MEASURE_ERR_EXCITATION;
+            if (measure->io.latch_metrology_runtime_fault != NULL)
+            {
+                measure->io.latch_metrology_runtime_fault(measure->io.user);
+            }
+        }
+        sync_k1_globals(measure);
+        return ((k1_status == BSP_STATUS_OK) && (excitation_status == BSP_STATUS_OK)) ?
+               BSP_STATUS_INVALID_ARG : BSP_STATUS_ERROR;
+    }
+#endif
+
     const bsp_status_t amplitude_status =
         hw_excitation_validate_amplitude(request->range_id, request->amplitude);
     if (amplitude_status == BSP_STATUS_NOT_SUPPORTED)
@@ -443,6 +493,7 @@ bsp_status_t hw_metrology_measure_abort(hw_metrology_measure_t *measure)
     {
         return BSP_STATUS_INVALID_ARG;
     }
+
     if (measure->state == HW_METROLOGY_MEASURE_IDLE)
     {
         sync_k1_globals(measure);
@@ -639,6 +690,20 @@ static bsp_status_t step_success_path(hw_metrology_measure_t *measure, uint32_t 
         break;
 
     case HW_METROLOGY_MEASURE_EXC_SINE_START:
+#if WTK_ENABLE_DC_PILOT
+        if (measure->request.dc_pilot)
+        {
+            if ((measure->io.excitation_dc_pilot(measure->io.user) != BSP_STATUS_OK) ||
+                (measure->io.excitation_mode(measure->io.user) != HW_EXCITATION_MODE_DC_PILOT))
+            {
+                enter_abort(measure, HW_METROLOGY_MEASURE_ERR_EXCITATION);
+                break;
+            }
+            measure->wait_deadline_ms = now_ms + HW_METROLOGY_MEASURE_DC_PILOT_SETTLE_MS;
+            measure->state = HW_METROLOGY_MEASURE_EXC_SETTLE;
+            break;
+        }
+#endif
         if (measure->io.excitation_sine(measure->request.frequency,
                                         measure->request.amplitude,
                                         measure->io.user) != BSP_STATUS_OK)
@@ -656,6 +721,14 @@ static bsp_status_t step_success_path(hw_metrology_measure_t *measure, uint32_t 
         break;
 
     case HW_METROLOGY_MEASURE_EXC_SETTLE:
+#if WTK_ENABLE_DC_PILOT
+        if (measure->request.dc_pilot &&
+            (measure->io.excitation_mode(measure->io.user) != HW_EXCITATION_MODE_DC_PILOT))
+        {
+            enter_abort(measure, HW_METROLOGY_MEASURE_ERR_EXCITATION);
+            break;
+        }
+#endif
         if (measure->io.excitation_dma_error(measure->io.user))
         {
             enter_abort(measure, HW_METROLOGY_MEASURE_ERR_EXCITATION);

@@ -168,9 +168,11 @@ repeat or explicit discard. Only one logical active coefficient set is retained 
 the device, with redundant physical copies for power-loss tolerance. The current
 host prototype does **not** write firmware records or change PRODUCT results.
 
-DC DCR and low-voltage leakage are separate future measurement/calibration modes, not
-new outputs inferred from AC OSL. DC short/offset and known-resistor evidence are
-required for DCR; open-fixture leakage, actual bias, dwell, and uncertainty are needed
+DC DCR and low-voltage leakage remain separate future qualified measurement/calibration
+modes, not new outputs inferred from AC OSL. The BRINGUP-only 1 MOhm static-bias pilot
+is exploratory evidence collection, not DCR or leakage calibration. DC short/offset
+and known-resistor evidence are required for DCR; open-fixture leakage, actual bias,
+dwell, and uncertainty are needed
 before a leakage number can be published. The Rev.1 low-voltage path cannot claim
 datasheet high-voltage insulation resistance.
 

@@ -295,6 +295,8 @@ const char *hw_excitation_mode_string(hw_excitation_mode_t mode)
         return "NEUTRAL";
     case HW_EXCITATION_MODE_SINE:
         return "SINE";
+    case HW_EXCITATION_MODE_DC_PILOT:
+        return "DC_PILOT";
     default:
         return "UNKNOWN";
     }

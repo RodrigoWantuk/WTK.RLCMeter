@@ -51,6 +51,13 @@ Host-side tools that support firmware, assets, calibration, and diagnostics.
   refuses failed or non-DUT dumps. It writes the exact ASCII bytes it hashes, including
   on Windows. It does not prove electrical safety independently; the BRINGUP dump's
   printed OSL result is bound to the raw file, not independently recalculated by this tool.
+- `pc_dc_pilot.py`: explicitly requests one experimental BRINGUP 1 MOhm pilot
+  through COM. Run only on a current-limited, controlled bench with
+  `python tools/pc_dc_pilot.py --port COM5 --out pilot.txt --ack-current-limited-bench`.
+  It verifies AC screen, fresh residual qualification, DC result, and SAFE
+  teardown markers, then saves exact ASCII evidence and a SHA-256 identity.
+  The result is exploratory; ideal ADC scaling is marked `IDEAL_UNQUALIFIED`.
+  It does not calibrate DCR, authorize lower RREF, or claim insulation resistance.
 - `pc_cal_frame.py`: read-only BRINGUP COM collector for the currently active OSL
   set. It sends `lab cal frame`, reconstructs the bounded hex stream, validates
   commit/CRC and all 33 Rev.1 condition records, and writes a binary frame only

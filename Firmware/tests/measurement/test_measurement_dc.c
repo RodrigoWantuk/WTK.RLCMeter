@@ -82,5 +82,45 @@ int main(void)
     gate.ac_capture_valid = false;
     assert(!measurement_dc_pilot_gate_allows(&gate));
     assert(!measurement_dc_pilot_gate_allows(NULL));
+
+    uint32_t raw[HW_METROLOGY_RAW_WORD_COUNT];
+    for (uint32_t i = 0u; i < HW_METROLOGY_SAMPLES_PER_BLOCK; i++)
+    {
+        raw[3u * i] = hw_metrology_pack_word(2073u, 2060u);
+        raw[3u * i + 1u] = hw_metrology_pack_word(2073u, 2060u);
+        raw[3u * i + 2u] = hw_metrology_pack_word(2048u, 2048u);
+    }
+    hw_metrology_block_t block = {
+        .valid = true,
+        .mode = HW_METROLOGY_MODE_DC_PILOT,
+        .range_id = HW_RANGE_ID_1M,
+        .sample_count = HW_METROLOGY_SAMPLES_PER_BLOCK,
+        .raw_words = raw,
+    };
+    const measurement_adc_calibration_t adc = measurement_adc_calibration_ideal();
+    result = measurement_dc_analyze_pilot(&block, &adc);
+    assert(result.status == MEASUREMENT_DC_VALID);
+    assert(absf_local(result.resistance_ohms - 923076.9f) < 1000.0f);
+    raw[3u] = hw_metrology_pack_word(0u, 2060u);
+    assert(measurement_dc_analyze_pilot(&block, &adc).status == MEASUREMENT_DC_CLIPPED);
+    raw[3u] = hw_metrology_pack_word(2073u, 2060u);
+    for (uint32_t i = 0u; i < HW_METROLOGY_SAMPLES_PER_BLOCK; i++)
+    {
+        raw[3u * i] = hw_metrology_pack_word(2073u, 2049u);
+    }
+    assert(measurement_dc_analyze_pilot(&block, &adc).status == MEASUREMENT_DC_DUT_VOLTAGE_UNRESOLVED);
+    for (uint32_t i = 0u; i < HW_METROLOGY_SAMPLES_PER_BLOCK; i++)
+    {
+        raw[3u * i] = hw_metrology_pack_word(2073u, 2073u);
+    }
+    assert(measurement_dc_analyze_pilot(&block, &adc).status == MEASUREMENT_DC_CURRENT_UNRESOLVED);
+    for (uint32_t i = 0u; i < HW_METROLOGY_SAMPLES_PER_BLOCK; i++)
+    {
+        raw[3u * i] = hw_metrology_pack_word(2200u, 2060u);
+    }
+    assert(measurement_dc_analyze_pilot(&block, &adc).status == MEASUREMENT_DC_SOURCE_OUT_OF_RANGE);
+    block.mode = HW_METROLOGY_MODE_DUT_MEASURE;
+    assert(measurement_dc_analyze_pilot(&block, &adc).status == MEASUREMENT_DC_INVALID);
+    assert(measurement_dc_analyze_pilot(NULL, &adc).status == MEASUREMENT_DC_INVALID);
     return 0;
 }

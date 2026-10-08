@@ -11,6 +11,9 @@ enum
     EXC_PWM_PSC = 0u,
     EXC_PWM_ARR = 159u,
     EXC_PWM_CENTER = 80u,
+#if WTK_ENABLE_DC_PILOT
+    EXC_DC_PILOT_CCR = 81u,
+#endif
     EXC_LUT_POINTS = 45u,
 };
 
@@ -101,6 +104,20 @@ bsp_status_t bsp_excitation_neutral(void)
     g_mode = BSP_EXCITATION_MODE_NEUTRAL;
     return BSP_STATUS_OK;
 }
+
+#if WTK_ENABLE_DC_PILOT
+bsp_status_t bsp_excitation_dc_pilot(void)
+{
+    if (g_mode != BSP_EXCITATION_MODE_NEUTRAL)
+    {
+        return BSP_STATUS_ERROR;
+    }
+    disable_excitation_dma();
+    TIM1->CCR1 = EXC_DC_PILOT_CCR;
+    g_mode = BSP_EXCITATION_MODE_DC_PILOT;
+    return BSP_STATUS_OK;
+}
+#endif
 
 bsp_status_t bsp_excitation_sine(uint8_t rcr, const uint16_t *ccr, uint32_t count)
 {

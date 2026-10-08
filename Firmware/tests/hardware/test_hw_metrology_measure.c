@@ -269,6 +269,17 @@ static bsp_status_t fake_exc_sine(hw_excitation_freq_t frequency, hw_excitation_
     return BSP_STATUS_OK;
 }
 
+static bsp_status_t fake_exc_dc_pilot(void *user)
+{
+    fake_io_t *fake = (fake_io_t *)user;
+    if (fake->exc_fail || (fake->exc != HW_EXCITATION_MODE_NEUTRAL))
+    {
+        return BSP_STATUS_ERROR;
+    }
+    fake->exc = HW_EXCITATION_MODE_DC_PILOT;
+    return BSP_STATUS_OK;
+}
+
 static hw_excitation_mode_t fake_exc_mode(void *user)
 {
     return ((fake_io_t *)user)->exc;
@@ -378,6 +389,7 @@ static void bind_io(hw_metrology_measure_io_t *io, fake_io_t *fake)
     io->excitation_off = fake_exc_off;
     io->excitation_neutral = fake_exc_neutral;
     io->excitation_sine = fake_exc_sine;
+    io->excitation_dc_pilot = fake_exc_dc_pilot;
     io->excitation_mode = fake_exc_mode;
     io->excitation_dma_error = fake_exc_dma_error;
     io->charger_state = fake_charger;
@@ -687,6 +699,93 @@ int main(void)
     failures += expect_true(fake.exc == HW_EXCITATION_MODE_OFF, "public abort leaves excitation off");
     failures += expect_true(!fake.quiet, "public abort releases quiet");
     failures += expect_true(!hw_metrology_measure_dumpable(&measure), "public abort not dumpable");
+
+    fake = (fake_io_t){0};
+    fake.k1 = HW_K1_STATE_SAFE;
+    fake.exc = HW_EXCITATION_MODE_OFF;
+    fake.charger = HW_CHARGER_ABSENT;
+    bind_default_permit_inputs(&fake, HW_RANGE_ID_1M);
+    bind_io(&io, &fake);
+    (void)hw_metrology_measure_init(&measure, &io, raw, HW_METROLOGY_RAW_WORD_COUNT);
+    request = make_request(&clock, HW_RANGE_ID_1M, HW_EXCITATION_AMP_100MVRMS);
+    request.dc_pilot = true;
+    request.ac_screened = false;
+    fake.k1 = HW_K1_STATE_MEASURE;
+    fake.exc = HW_EXCITATION_MODE_SINE;
+    failures += expect_true(hw_metrology_measure_start(&measure, &request, 0u) == BSP_STATUS_INVALID_ARG,
+                            "DC requires fresh AC screening");
+    failures += expect_true(fake.k1 == HW_K1_STATE_SAFE && fake.exc == HW_EXCITATION_MODE_OFF,
+                            "rejected DC request forces safe outputs");
+    fake.k1_safe_fail = true;
+    failures += expect_true(hw_metrology_measure_start(&measure, &request, 0u) == BSP_STATUS_ERROR,
+                            "failed DC safe command is reported");
+    failures += expect_true(fake.k1_faults == 1u, "failed DC safe command latches K1 fault");
+    fake.k1_safe_fail = false;
+    request.ac_screened = true;
+    request.range_id = HW_RANGE_ID_10K;
+    failures += expect_true(hw_metrology_measure_start(&measure, &request, 0u) == BSP_STATUS_INVALID_ARG,
+                            "DC cannot select lower RREF");
+    request.range_id = HW_RANGE_ID_1M;
+    now = 0u;
+    failures += expect_true(hw_metrology_measure_start(&measure, &request, now) == BSP_STATUS_BUSY,
+                            "DC transaction starts");
+    failures += expect_true(run_until_idle(&measure, &fake, &now) == 0, "DC transaction terminates");
+    failures += expect_true(hw_metrology_measure_dumpable(&measure), "DC capture valid after teardown");
+    failures += expect_true(hw_metrology_measure_block(&measure)->mode == HW_METROLOGY_MODE_DC_PILOT,
+                            "DC block tagged distinctly");
+    failures += expect_true(fake.k1 == HW_K1_STATE_SAFE && fake.exc == HW_EXCITATION_MODE_OFF &&
+                                !fake.quiet && fake.aux_resumed,
+                            "DC leaves hardware safe and aux resumed");
+    failures += expect_true(fake.permit_validate_calls == 1u, "DC consumes its own permit");
+
+    hw_metrology_measure_acknowledge(&measure);
+    fake = (fake_io_t){0};
+    fake.k1 = HW_K1_STATE_SAFE;
+    fake.exc = HW_EXCITATION_MODE_OFF;
+    fake.charger = HW_CHARGER_ABSENT;
+    bind_default_permit_inputs(&fake, HW_RANGE_ID_1M);
+    bind_io(&io, &fake);
+    (void)hw_metrology_measure_init(&measure, &io, raw, HW_METROLOGY_RAW_WORD_COUNT);
+    now = 0u;
+    (void)hw_metrology_measure_start(&measure, &request, now);
+    for (uint32_t i = 0u; i < 8000u; i++)
+    {
+        (void)hw_metrology_measure_step(&measure, now++);
+        if (fake.exc == HW_EXCITATION_MODE_DC_PILOT)
+        {
+            break;
+        }
+    }
+    failures += expect_true(fake.exc == HW_EXCITATION_MODE_DC_PILOT, "DC reaches static bias");
+    failures += expect_true(hw_metrology_measure_abort(&measure) == BSP_STATUS_BUSY, "DC abort starts cleanup");
+    failures += expect_true(run_until_idle(&measure, &fake, &now) == 0, "DC abort cleanup terminates");
+    failures += expect_true(fake.k1 == HW_K1_STATE_SAFE && fake.exc == HW_EXCITATION_MODE_OFF &&
+                                !fake.quiet && !hw_metrology_measure_dumpable(&measure),
+                            "DC abort leaves no valid result or active output");
+
+    fake = (fake_io_t){0};
+    fake.k1 = HW_K1_STATE_SAFE;
+    fake.exc = HW_EXCITATION_MODE_OFF;
+    fake.charger = HW_CHARGER_ABSENT;
+    bind_default_permit_inputs(&fake, HW_RANGE_ID_1M);
+    bind_io(&io, &fake);
+    (void)hw_metrology_measure_init(&measure, &io, raw, HW_METROLOGY_RAW_WORD_COUNT);
+    now = 0u;
+    (void)hw_metrology_measure_start(&measure, &request, now);
+    for (uint32_t i = 0u; i < 8000u; i++)
+    {
+        (void)hw_metrology_measure_step(&measure, now++);
+        if (fake.exc == HW_EXCITATION_MODE_DC_PILOT)
+        {
+            break;
+        }
+    }
+    fake.charger = HW_CHARGER_PRESENT;
+    failures += expect_true(run_until_idle(&measure, &fake, &now) == 0,
+                            "charger during DC converges through cleanup");
+    failures += expect_true(fake.k1 == HW_K1_STATE_SAFE && fake.exc == HW_EXCITATION_MODE_OFF &&
+                                !fake.quiet && !hw_metrology_measure_dumpable(&measure),
+                            "charger during DC cannot publish result");
 
     return (failures == 0) ? 0 : 1;
 }

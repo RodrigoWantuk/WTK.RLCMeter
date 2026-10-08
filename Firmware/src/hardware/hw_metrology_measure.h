@@ -13,6 +13,7 @@
 #include "hardware/hw_metrology_raw.h"
 #include "hardware/hw_range.h"
 #include "hardware/hw_safety.h"
+#include "wtk_build_config.h"
 
 enum
 {
@@ -20,6 +21,7 @@ enum
     HW_METROLOGY_MEASURE_K1_RELEASE_GUARD_MS = 8u,
     HW_METROLOGY_MEASURE_RANGE_TIMEOUT_MS = 50u,
     HW_METROLOGY_MEASURE_DMA_TIMEOUT_MARGIN_MS = 50u,
+    HW_METROLOGY_MEASURE_DC_PILOT_SETTLE_MS = 2u,
 };
 
 typedef enum
@@ -103,6 +105,9 @@ typedef struct
     bsp_status_t (*excitation_sine)(hw_excitation_freq_t frequency,
                                     hw_excitation_amp_t amplitude,
                                     void *user);
+#if WTK_ENABLE_DC_PILOT
+    bsp_status_t (*excitation_dc_pilot)(void *user);
+#endif
     hw_excitation_mode_t (*excitation_mode)(void *user);
     bool (*excitation_dma_error)(void *user);
     hw_charger_state_t (*charger_state)(void *user);
@@ -123,6 +128,10 @@ typedef struct
     hw_excitation_freq_t frequency;
     hw_excitation_amp_t amplitude;
     hw_range_id_t range_id;
+#if WTK_ENABLE_DC_PILOT
+    bool dc_pilot;
+    bool ac_screened;
+#endif
 } hw_metrology_measure_request_t;
 
 typedef struct

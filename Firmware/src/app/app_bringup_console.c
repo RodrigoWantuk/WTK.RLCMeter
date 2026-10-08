@@ -26,6 +26,7 @@
 #include "measurement/measurement_calibration_store.h"
 #include "measurement/measurement_condition.h"
 #include "measurement/measurement_dsp.h"
+#include "measurement/measurement_dc.h"
 #include "storage/measurement_cal_w25q_adapter.h"
 #include "bsp/bsp_clock.h"
 #include "bsp/bsp_time.h"
@@ -786,6 +787,8 @@ static hw_excitation_mode_t lab_bsp_excitation_mode(void)
         return HW_EXCITATION_MODE_NEUTRAL;
     case BSP_EXCITATION_MODE_SINE:
         return HW_EXCITATION_MODE_SINE;
+    case BSP_EXCITATION_MODE_DC_PILOT:
+        return HW_EXCITATION_MODE_DC_PILOT;
     case BSP_EXCITATION_MODE_OFF:
     default:
         return HW_EXCITATION_MODE_OFF;
@@ -925,6 +928,12 @@ static bsp_status_t lab_excitation_neutral(void *user)
 {
     (void)user;
     return bsp_excitation_neutral();
+}
+
+static bsp_status_t lab_excitation_dc_pilot(void *user)
+{
+    (void)user;
+    return bsp_excitation_dc_pilot();
 }
 
 static bsp_status_t lab_excitation_sine(hw_excitation_freq_t frequency,
@@ -1180,6 +1189,7 @@ static bsp_status_t lab_init_metrology_measure(app_bringup_console_t *console)
         .excitation_off = lab_excitation_off,
         .excitation_neutral = lab_excitation_neutral,
         .excitation_sine = lab_excitation_sine,
+        .excitation_dc_pilot = lab_excitation_dc_pilot,
         .excitation_mode = lab_excitation_mode,
         .excitation_dma_error = lab_excitation_dma_error,
         .charger_state = lab_charger_state,
@@ -1601,7 +1611,8 @@ static bool parse_cal_campaign_begin_tokens(const char *line, measurement_cal_ke
 static bool lab_metrology_busy(const app_bringup_console_t *console)
 {
     return (console != NULL) &&
-           (hw_metrology_session_active(&console->session) ||
+           ((console->dc_state != APP_BRINGUP_DC_IDLE) ||
+           hw_metrology_session_active(&console->session) ||
            hw_metrology_measure_active(&console->measure) ||
            app_calibration_session_active(&console->cal_session) ||
            app_measurement_session_active(&console->auto_session) ||
@@ -1847,10 +1858,192 @@ static void lab_start_metrology_measure(app_bringup_console_t *console,
     write_text("lab metrology: INVALID_ARG\r\n");
 }
 
+#if WTK_ENABLE_DC_PILOT
+static void lab_dc_finish(app_bringup_console_t *console, const char *status)
+{
+    if (hw_metrology_measure_state(&console->measure) == HW_METROLOGY_MEASURE_DONE)
+    {
+        hw_metrology_measure_acknowledge(&console->measure);
+    }
+    lab_release_raw_workspace(console);
+    console->dc_state = APP_BRINGUP_DC_IDLE;
+    console->dc_cancel_requested = false;
+    write_text("DC_PILOT_END status=");
+    write_text(status);
+    write_text("\r\n");
+}
+
+static bsp_status_t lab_dc_start_transaction(app_bringup_console_t *console,
+                                              bool pilot, uint32_t now_ms)
+{
+    const bsp_clock_summary_t *clock = bsp_clock_get_summary();
+    const hw_metrology_measure_request_t request = {
+        .clock_summary = clock,
+        .clock_init_status = hw_metrology_clock_ready(clock, BSP_STATUS_OK) ?
+                             BSP_STATUS_OK : BSP_STATUS_ERROR,
+        .frequency = HW_EXCITATION_FREQ_1KHZ,
+        .amplitude = HW_EXCITATION_AMP_100MVRMS,
+        .range_id = HW_RANGE_ID_1M,
+        .dc_pilot = pilot,
+        .ac_screened = pilot,
+    };
+    if (lab_acquire_raw_workspace(console) != BSP_STATUS_OK)
+    {
+        return BSP_STATUS_BUSY;
+    }
+    const bsp_status_t status = hw_metrology_measure_start(&console->measure, &request, now_ms);
+    if (status != BSP_STATUS_BUSY)
+    {
+        lab_release_raw_workspace(console);
+    }
+    return status;
+}
+
+static void lab_dc_start(app_bringup_console_t *console, uint32_t now_ms)
+{
+    if (lab_metrology_busy(console) || app_bringup_console_flash_busy(console))
+    {
+        write_text("DC_PILOT_END status=BUSY\r\n");
+        return;
+    }
+    if (lab_dc_start_transaction(console, false, now_ms) != BSP_STATUS_BUSY)
+    {
+        write_text("DC_PILOT_END status=AC_START_FAILED\r\n");
+        return;
+    }
+    console->dc_state = APP_BRINGUP_DC_AC_SCREEN;
+    write_text("DC_PILOT_BEGIN range=1m ac=1khz,100mv ccr=81 adc_cal=");
+    write_text((active_calibration_set(console) != NULL) ? "PERSISTED" : "IDEAL_UNQUALIFIED");
+    write_text("\r\n");
+}
+
+static void lab_dc_step(app_bringup_console_t *console, uint32_t now_ms)
+{
+    if (console->dc_state == APP_BRINGUP_DC_WAIT_RESIDUAL)
+    {
+        hw_aux_sensors_snapshot_t snapshot;
+        hw_aux_sensors_snapshot(console->sensors_ref, now_ms, &snapshot);
+        if (console->dc_cancel_requested)
+        {
+            lab_dc_finish(console, "CANCELED");
+        }
+        else if ((hw_charger_get_state(console->charger_ref) != HW_CHARGER_ABSENT) ||
+                 (lab_safety_fault_mask(console) != 0u))
+        {
+            lab_dc_finish(console, "SAFETY_BLOCK");
+        }
+        else if ((int32_t)(now_ms - console->dc_requalification_deadline_ms) >= 0)
+        {
+            lab_dc_finish(console, "RESIDUAL_TIMEOUT");
+        }
+        else if ((snapshot.residual_state == HW_RESIDUAL_SAFE) &&
+                 (snapshot.residual_age_ms <= 20u) &&
+                 (snapshot.battery_state != HW_BATTERY_UNKNOWN) &&
+                 (hw_charger_get_state(console->charger_ref) == HW_CHARGER_ABSENT) &&
+                 (lab_safety_fault_mask(console) == 0u) &&
+                 (hw_k1_commanded_state(console->k1_ref) == HW_K1_STATE_SAFE) &&
+                 (lab_dc_start_transaction(console, true, now_ms) == BSP_STATUS_BUSY))
+        {
+            console->dc_state = APP_BRINGUP_DC_CAPTURE;
+            write_text("DC_PILOT_AC_OK residual=REQUALIFIED\r\n");
+        }
+        return;
+    }
+
+    if (console->dc_cancel_requested && hw_metrology_measure_active(&console->measure))
+    {
+        (void)hw_metrology_measure_abort(&console->measure);
+    }
+    (void)hw_metrology_measure_step(&console->measure, now_ms);
+    if (hw_metrology_measure_state(&console->measure) == HW_METROLOGY_MEASURE_DONE)
+    {
+        if (!hw_metrology_measure_dumpable(&console->measure) ||
+            console->dc_cancel_requested)
+        {
+            lab_dc_finish(console, console->dc_cancel_requested ? "CANCELED" : "CAPTURE_FAILED");
+            return;
+        }
+        const hw_metrology_block_t *block = hw_metrology_measure_block(&console->measure);
+        if (console->dc_state == APP_BRINGUP_DC_AC_SCREEN)
+        {
+            if ((block == NULL) || !block->valid || block->clipped ||
+                ((uint16_t)(block->streams[HW_METROLOGY_STREAM_VEXC_1].max_raw -
+                            block->streams[HW_METROLOGY_STREAM_VEXC_1].min_raw) < 8u) ||
+                (hw_k1_commanded_state(console->k1_ref) != HW_K1_STATE_SAFE) ||
+                (lab_bsp_excitation_mode() != HW_EXCITATION_MODE_OFF))
+            {
+                lab_dc_finish(console, "AC_SCREEN_FAILED");
+                return;
+            }
+            hw_metrology_measure_acknowledge(&console->measure);
+            lab_release_raw_workspace(console);
+            console->dc_requalification_deadline_ms = now_ms + 2000u;
+            console->dc_state = APP_BRINGUP_DC_WAIT_RESIDUAL;
+            return;
+        }
+        const measurement_cal_set_t *cal = active_calibration_set(console);
+        const measurement_adc_calibration_t ideal = measurement_adc_calibration_ideal();
+        const measurement_dc_result_t result = measurement_dc_analyze_pilot(
+            block, (cal != NULL) ? &cal->adc : &ideal);
+        write_text("DC_PILOT_RESULT status=");
+        switch (result.status)
+        {
+        case MEASUREMENT_DC_VALID:
+            write_text("EXPLORATORY resistance_ohm=");
+            if (result.resistance_ohms < 1000000000.0f)
+            {
+                write_u32((uint32_t)result.resistance_ohms);
+            }
+            else
+            {
+                write_text("OUT_OF_RANGE");
+            }
+            break;
+        case MEASUREMENT_DC_CURRENT_UNRESOLVED:
+            write_text("CURRENT_UNRESOLVED");
+            break;
+        case MEASUREMENT_DC_DUT_VOLTAGE_UNRESOLVED:
+            write_text("DUT_VOLTAGE_UNRESOLVED");
+            break;
+        case MEASUREMENT_DC_CLIPPED:
+            write_text("CLIPPED");
+            break;
+        case MEASUREMENT_DC_SOURCE_OUT_OF_RANGE:
+            write_text("SOURCE_OUT_OF_RANGE");
+            break;
+        default:
+            write_text("INVALID");
+            break;
+        }
+        if ((result.status == MEASUREMENT_DC_VALID) ||
+            (result.status == MEASUREMENT_DC_CURRENT_UNRESOLVED) ||
+            (result.status == MEASUREMENT_DC_DUT_VOLTAGE_UNRESOLVED))
+        {
+            write_text(" source_uv=");
+            write_i32((int32_t)(result.source_v * 1000000.0f));
+            write_text(" dut_uv=");
+            write_i32((int32_t)(result.dut_v * 1000000.0f));
+            write_text(" current_na=");
+            write_i32((int32_t)(result.current_a * 1000000000.0f));
+        }
+        write_text("\r\n");
+        lab_dc_finish(console, "SAFE");
+    }
+    else if (!hw_metrology_measure_active(&console->measure))
+    {
+        lab_dc_finish(console, console->dc_cancel_requested ? "CANCELED" : "TRANSPORT_FAILED");
+    }
+}
+#endif
+
 static const char *lab_metrology_mode_string(hw_metrology_mode_t mode)
 {
     switch (mode)
     {
+#if WTK_ENABLE_DC_PILOT
+    case HW_METROLOGY_MODE_DC_PILOT:
+        return "DC_PILOT";
+#endif
     case HW_METROLOGY_MODE_DUT_MEASURE:
         return "DUT_MEASURE";
     case HW_METROLOGY_MODE_CAPTURE:
@@ -2633,6 +2826,13 @@ static void lab_step_calibration_session(app_bringup_console_t *console, uint32_
 
 static void lab_step_metrology(app_bringup_console_t *console, uint32_t now_ms)
 {
+#if WTK_ENABLE_DC_PILOT
+    if (console->dc_state != APP_BRINGUP_DC_IDLE)
+    {
+        lab_dc_step(console, now_ms);
+        return;
+    }
+#endif
     if (console->dump_active)
     {
         lab_step_metrology_dump(console);
@@ -2937,6 +3137,19 @@ static void run_command(app_bringup_console_t *console,
         write_text((status == BSP_STATUS_BUSY) ? "CANCELING" : bsp_status_string(status));
         write_text("\r\n");
     }
+#if WTK_ENABLE_DC_PILOT
+    else if (text_equals(line, "lab dc pilot"))
+    {
+        lab_dc_start(console, now_ms);
+    }
+    else if (text_equals(line, "lab dc cancel"))
+    {
+        if (console->dc_state != APP_BRINGUP_DC_IDLE)
+        {
+            console->dc_cancel_requested = true;
+        }
+    }
+#endif
     else if (parse_capture_tokens(line, &capture_freq, &capture_amp, &capture_range))
     {
         if (app_bringup_console_flash_busy(console) || lab_metrology_busy(console))

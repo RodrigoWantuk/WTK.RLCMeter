@@ -37,6 +37,7 @@ typedef enum
 {
     HW_METROLOGY_MODE_CAPTURE = 0,
     HW_METROLOGY_MODE_DUT_MEASURE,
+    HW_METROLOGY_MODE_DC_PILOT,
 } hw_metrology_mode_t;
 
 typedef enum
