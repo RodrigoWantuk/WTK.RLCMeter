@@ -22,6 +22,7 @@ from calibration_campaign import (  # noqa: E402
     all_osl_conditions,
     bind_campaign_captures,
     campaign_template,
+    constraint_rank,
     corrected_impedance,
     minimum_change_fit,
     solve_campaign,
@@ -89,7 +90,50 @@ class CampaignTests(unittest.TestCase):
     def test_unchanged_when_within_tolerance(self):
         result = solve_campaign(campaign([standard("R", 1000, 1005, 0)]))
         self.assertEqual(result["conditions"][0]["curve"], list(IDENTITY))
+        self.assertEqual(result["conditions"][0]["constraint_rank"], 1)
+        self.assertEqual(result["conditions"][0]["coverage"], "PARTIAL_LINEAR_SPAN")
         self.assertEqual(result["qualification"], "UNQUALIFIED")
+
+    def test_validation_standards_do_not_pull_fit_and_can_fail(self):
+        fit = standard("R", 1000, 1000, 0)
+        check = standard("R", 1000, 1000, 0, role="VALIDATION")
+        check["id"] = "held-out"
+        check["capture_id"] = "held-out-capture"
+        passed = solve_campaign(campaign([fit, check]))["conditions"][0]
+        self.assertEqual(passed["curve"], list(IDENTITY))
+        self.assertEqual(passed["fit_count"], 1)
+        self.assertEqual(passed["validation_count"], 1)
+        self.assertEqual(passed["validation"], "PASS")
+        check["measured_z_re_ohms"] = 1200
+        failed_campaign = solve_campaign(campaign([fit, check]))
+        failed = failed_campaign["conditions"][0]
+        self.assertEqual(failed["curve"], passed["curve"])
+        self.assertEqual(failed["validation"], "FAIL")
+        self.assertEqual(failed["failed_validation_ids"], ["held-out"])
+        self.assertEqual(failed_campaign["status"], "HOST_VALIDATION_FAILED")
+
+    def test_validation_failure_cli_exits_nonzero(self):
+        fit = standard("R", 1000, 1000, 0)
+        check = standard("R", 1000, 1200, 0, role="VALIDATION")
+        check["id"] = "held-out"
+        check["capture_id"] = "held-out-capture"
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "campaign.json"
+            path.write_text(json.dumps(campaign([fit, check])), encoding="utf-8")
+            with patch.object(sys, "argv", ["calibration_campaign.py", str(path), "--synthetic-unbound"]), \
+                    redirect_stdout(io.StringIO()) as output:
+                self.assertEqual(calibration_campaign.main(), 1)
+            self.assertEqual(json.loads(output.getvalue())["status"], "HOST_VALIDATION_FAILED")
+
+    def test_constraint_rank_is_span_not_sample_count(self):
+        unit = [([float(index == column) for index in range(12)], 1.0)
+                for column in range(12)]
+        self.assertEqual(constraint_rank(unit), 12)
+        self.assertEqual(constraint_rank(unit + [unit[0]] * 200), 12)
+        self.assertEqual(constraint_rank(unit[:-1]), 11)
+        invalid = standard("R", 1000, 1000, 0, role="UNKNOWN")
+        with self.assertRaises(CampaignError):
+            solve_campaign(campaign([invalid]))
 
     def test_old_curve_moves_to_current_boundary(self):
         prior = list(IDENTITY)

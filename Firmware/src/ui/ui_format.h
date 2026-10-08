@@ -3,6 +3,7 @@
 
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 
 #include "measurement/measurement_dsp.h"
 #include "measurement/measurement_engine.h"
@@ -15,6 +16,7 @@ typedef enum
     UI_FORMAT_STATUS_INVALID_ARG,
 } ui_format_status_t;
 
+bool ui_format_append_u32(char *dst, size_t capacity, size_t *used, uint32_t value);
 ui_format_status_t ui_format_resistance(float ohms, char *dst, size_t capacity);
 ui_format_status_t ui_format_reactance(float ohms, char *dst, size_t capacity);
 ui_format_status_t ui_format_capacitance(float farads, char *dst, size_t capacity);

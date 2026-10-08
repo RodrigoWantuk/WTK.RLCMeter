@@ -31,6 +31,12 @@ static int test_si_units(void)
     failures += expect_text(text, "987.3 Ω", "ohm text");
     failures += expect_status(ui_format_resistance(12340.0f, text, sizeof(text)), UI_FORMAT_STATUS_OK, "kohm status");
     failures += expect_text(text, "12.3 kΩ", "kohm text");
+    failures += expect_status(ui_format_resistance(0.04f, text, sizeof(text)), UI_FORMAT_STATUS_OK,
+                              "small ESR status");
+    failures += expect_text(text, "40.0 mΩ", "small ESR not rounded to zero");
+    failures += expect_status(ui_format_resistance(0.00001f, text, sizeof(text)),
+                              UI_FORMAT_STATUS_UNAVAILABLE, "below display resolution status");
+    failures += expect_text(text, "n/a", "below display resolution text");
     failures += expect_status(ui_format_resistance(2200000.0f, text, sizeof(text)), UI_FORMAT_STATUS_OK, "Mohm status");
     failures += expect_text(text, "2.2 MΩ", "Mohm text");
     failures += expect_status(ui_format_capacitance(0.000001f, text, sizeof(text)), UI_FORMAT_STATUS_OK, "cap status");
@@ -39,6 +45,13 @@ static int test_si_units(void)
     failures += expect_text(text, "470.0 µH", "ind text");
     failures += expect_status(ui_format_phase_rad(1.5707963f, text, sizeof(text)), UI_FORMAT_STATUS_OK, "phase status");
     failures += expect_text(text, "90.0 °", "phase text");
+    failures += expect_status(ui_format_q(12.34f, text, sizeof(text)), UI_FORMAT_STATUS_OK, "Q status");
+    failures += expect_text(text, "12.3 Q", "Q is dimensionless");
+    failures += expect_status(ui_format_d(0.00047f, text, sizeof(text)), UI_FORMAT_STATUS_OK, "D status");
+    failures += expect_text(text, "0.5 mD", "small D retains useful precision");
+    failures += expect_status(ui_format_d(-0.2f, text, sizeof(text)), UI_FORMAT_STATUS_UNAVAILABLE,
+                              "negative D rejected");
+    failures += expect_text(text, "n/a", "invalid D text");
     return failures;
 }
 

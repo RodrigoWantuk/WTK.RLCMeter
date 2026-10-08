@@ -27,7 +27,7 @@ KNOTS = (0.1, 1.0, 10.0)
 IDENTITY = (1.0, 0.0, 0.0, 1.0) * 3
 MAX_LOSS_TEMPERATURE_DELTA_C = 10.0  # Provisional; requires bench validation.
 STANDARD_FIELDS = frozenset({
-    "id", "capture_id", "capture_safe", "capture_dsp_status",
+    "id", "role", "capture_id", "capture_safe", "capture_dsp_status",
     "capture_calibration_sequence", "type", "nominal_si", "tolerance_fraction",
     "frequency_hz", "amplitude_mv_rms", "datasheet_frequency_hz",
     "measured_z_re_ohms", "measured_z_im_ohms", "board_temperature_calibrated",
@@ -318,6 +318,23 @@ def minimum_change_fit(prior: list[float],
                            f"normalized max violation={max_violation:.6g}")
 
 
+def constraint_rank(constraints: list[tuple[list[float], float]]) -> int:
+    """Necessary linear-span evidence, not proof of bounded coefficient uncertainty."""
+    basis: list[list[float]] = []
+    for normal, _ in constraints:
+        original_norm = math.sqrt(sum(value * value for value in normal))
+        if original_norm <= 1.0e-12:
+            continue
+        vector = [value / original_norm for value in normal]
+        for unit in basis:
+            projection = sum(a * b for a, b in zip(vector, unit))
+            vector = [a - projection * b for a, b in zip(vector, unit)]
+        norm = math.sqrt(sum(value * value for value in vector))
+        if norm > 1.0e-9:
+            basis.append([value / norm for value in vector])
+    return len(basis)
+
+
 def solve_campaign(data: dict[str, Any]) -> dict[str, Any]:
     if data.get("schema_version") != 1 or data.get("hardware_revision") != 0x00010001:
         raise CampaignError("unsupported campaign schema or hardware revision")
@@ -335,6 +352,7 @@ def solve_campaign(data: dict[str, Any]) -> dict[str, Any]:
         if len(prior) != 12:
             raise CampaignError("prior curve must contain 12 coefficients")
         constraints: list[tuple[list[float], float]] = []
+        validation: list[tuple[str, list[tuple[list[float], float]]]] = []
         seen_ids = set()
         ignored_loss_specs: list[str] = []
         for standard in group["standards"]:
@@ -350,13 +368,33 @@ def solve_campaign(data: dict[str, Any]) -> dict[str, Any]:
                 active_sequence = sequence
             elif sequence != active_sequence:
                 raise CampaignError("standards from different active OSL sequences cannot be combined")
-            constraints.extend(standard_constraints(standard, key, ignored_loss_specs))
+            role = standard.get("role", "FIT")
+            if role not in ("FIT", "VALIDATION"):
+                raise CampaignError("standard role must be FIT or VALIDATION")
+            sample_constraints = standard_constraints(standard, key, ignored_loss_specs)
+            if role == "FIT":
+                constraints.extend(sample_constraints)
+            else:
+                validation.append((sample_id, sample_constraints))
         solved = minimum_change_fit(prior, constraints)
+        failed_validation = [sample_id for sample_id, checks in validation
+                             if any(sum(a * b for a, b in zip(normal, solved)) - bound > 1.0e-9
+                                    for normal, bound in checks)]
+        rank = constraint_rank(constraints)
         outputs.append({"condition": group["condition"], "curve": solved,
                         "sample_count": len(seen_ids),
+                        "fit_count": len(seen_ids) - len(validation),
+                        "validation_count": len(validation),
+                        "validation": ("FAIL" if failed_validation else
+                                       "PASS" if validation else "NOT_PROVIDED"),
+                        "failed_validation_ids": failed_validation,
+                        "constraint_rank": rank,
                         "ignored_loss_specs": ignored_loss_specs,
-                        "coverage": "SUPPORTED_BY_CURRENT_STANDARDS" if seen_ids else "PRIOR_UNCHANGED"})
-    return {"schema_version": 1, "status": "HOST_PROVISIONAL_NOT_FLASH_READY",
+                        "coverage": ("FULL_LINEAR_SPAN_UNQUALIFIED" if rank == 12 else
+                                     "PARTIAL_LINEAR_SPAN" if constraints else "PRIOR_UNCHANGED")})
+    return {"schema_version": 1,
+            "status": ("HOST_VALIDATION_FAILED" if any(group["validation"] == "FAIL" for group in outputs)
+                       else "HOST_PROVISIONAL_NOT_FLASH_READY"),
             "qualification": "UNQUALIFIED", "conditions": outputs}
 
 
@@ -470,7 +508,7 @@ def main() -> int:
         args.out.write_text(output, encoding="utf-8")
     else:
         print(output, end="")
-    return 0
+    return 1 if result.get("status") == "HOST_VALIDATION_FAILED" else 0
 
 
 if __name__ == "__main__":

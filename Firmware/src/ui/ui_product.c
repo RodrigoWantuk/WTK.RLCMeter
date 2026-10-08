@@ -110,26 +110,6 @@ static bool append_hex8(char *dst, size_t capacity, size_t *used, uint32_t value
     return true;
 }
 
-static bool append_u32(char *dst, size_t capacity, size_t *used, uint32_t value)
-{
-    char tmp[10];
-    uint8_t count = 0u;
-    do
-    {
-        tmp[count++] = (char)('0' + (value % 10u));
-        value /= 10u;
-    } while ((value != 0u) && (count < (uint8_t)sizeof(tmp)));
-    while (count != 0u)
-    {
-        count--;
-        if (!append_char(dst, capacity, used, tmp[count]))
-        {
-            return false;
-        }
-    }
-    return true;
-}
-
 static ui_format_status_t write_literal(const char *text, char *dst, size_t capacity)
 {
     if ((text == NULL) || (dst == NULL) || (capacity == 0u))
@@ -509,10 +489,10 @@ static bool prepare_result_primary_line(const ui_product_t *ui,
 }
 
 static bool prepare_result_details_line(const ui_product_t *ui,
-                                        const ui_product_view_t *view,
-                                        const ui_product_measurement_t *result,
-                                        uint8_t index,
-                                        ui_product_line_t *line)
+                                                         const ui_product_view_t *view,
+                                                         const ui_product_measurement_t *result,
+                                                         uint8_t index,
+                                                         ui_product_line_t *line)
 {
     if ((result == NULL) || (line == NULL))
     {
@@ -523,41 +503,48 @@ static bool prepare_result_details_line(const ui_product_t *ui,
         line_set_id(ui, view, line, 12u, 20u, 2u, UI_COLOR_CYAN, UI_TEXT_ID_DETAILS);
         return true;
     }
-    char text[32] = {0};
-    size_t used = 0u;
-    if ((index == 1u) || (index == 2u))
+    if (index > 4u)
     {
-        const bool reactance = index == 2u;
-        if (reactance)
-        {
-            (void)ui_format_reactance(result->reactance_ohms, text, sizeof(text));
-        }
-        else
-        {
-            (void)ui_format_resistance(result->resistance_ohms, text, sizeof(text));
-        }
-        localize_decimal(text, view->menu.language_id);
-        char row[32] = {0};
-        (void)append_text(row, sizeof(row), &used, reactance ? "X " : "R ");
-        (void)append_text(row, sizeof(row), &used, text);
-        line_set(line, 12u, reactance ? 116u : 76u, 2u, UI_COLOR_WHITE, row);
-        return true;
+        return false;
     }
-    if (index == 3u)
+    const uint16_t y = (uint16_t)(56u + (uint16_t)(index - 1u) * 38u);
+    char text[32] = {0};
+    char row[32] = {0};
+    size_t used = 0u;
+    if (index < 4u)
     {
-        (void)ui_format_phase_rad(result->phase_rad, text, sizeof(text));
+        const float value = (index == 1u) ? result->resistance_ohms :
+                            (index == 2u) ? result->reactance_ohms : result->magnitude_ohms;
+        const char *label = (index == 1u) ?
+                                ((((measurement_interpretation_t)result->interpretation ==
+                                   MEASUREMENT_INTERPRET_CAPACITIVE) && (value >= 0.0f)) ? "ESR " : "R ") :
+                            (index == 2u) ? "X " : "|Z| ";
+        (void)(result->derived_valid ? ui_format_resistance(value, text, sizeof(text)) :
+                                      write_literal("n/a", text, sizeof(text)));
         localize_decimal(text, view->menu.language_id);
-        char row[32] = {0};
+        (void)append_text(row, sizeof(row), &used, label);
+        if (!append_text(row, sizeof(row), &used, text))
+        {
+            return false;
+        }
+    }
+    else
+    {
+        (void)(result->derived_valid ? ui_format_phase_rad(result->phase_rad, text, sizeof(text)) :
+                                      write_literal("n/a", text, sizeof(text)));
         resource_status_t status = RESOURCE_STATUS_OK;
         if (!append_label_space(ui, view, UI_TEXT_ID_PHASE, row, sizeof(row), &used, &status))
         {
-            return line_set_resource_pending(line, 12u, 156u, 2u, UI_COLOR_WHITE, status);
+            return line_set_resource_pending(line, 12u, y, 2u, UI_COLOR_WHITE, status);
         }
-        (void)append_text(row, sizeof(row), &used, text);
-        line_set(line, 12u, 156u, 2u, UI_COLOR_WHITE, row);
-        return true;
+        localize_decimal(text, view->menu.language_id);
+        if (!append_text(row, sizeof(row), &used, text))
+        {
+            return false;
+        }
     }
-    return false;
+    line_set(line, 12u, y, 2u, UI_COLOR_WHITE, row);
+    return true;
 }
 
 static bool prepare_menu_line(const ui_product_t *ui,
@@ -639,7 +626,7 @@ static const char *timeout_token(const ui_product_t *ui,
         *status_out = RESOURCE_STATUS_OK;
     }
     size_t used = 0u;
-    (void)append_u32(scratch, capacity, &used, seconds);
+    (void)ui_format_append_u32(scratch, capacity, &used, seconds);
     (void)append_char(scratch, capacity, &used, 's');
     return scratch;
 }
@@ -678,7 +665,7 @@ static bool prepare_display_menu_line(const ui_product_t *ui,
         }
         (void)append_text(row, sizeof(row), &used, label);
         (void)append_char(row, sizeof(row), &used, ' ');
-        (void)append_u32(row, sizeof(row), &used, view->menu.brightness_percent);
+        (void)ui_format_append_u32(row, sizeof(row), &used, view->menu.brightness_percent);
         (void)append_char(row, sizeof(row), &used, '%');
         line_set(line, 12u, 64u, 2u,
                  (view->menu.selected_index == 0u) ? UI_COLOR_GREEN : UI_COLOR_WHITE, row);
@@ -879,7 +866,7 @@ static bool prepare_about_line(const ui_product_t *ui,
         {
             return line_set_resource_pending(line, 12u, 196u, 2u, UI_COLOR_WHITE, status);
         }
-        (void)append_u32(row, sizeof(row), &used, WTK_CALIBRATION_SCHEMA_VERSION);
+        (void)ui_format_append_u32(row, sizeof(row), &used, WTK_CALIBRATION_SCHEMA_VERSION);
         line_set(line, 12u, 196u, 2u, UI_COLOR_WHITE, row);
         return true;
     }
@@ -940,7 +927,7 @@ static bool prepare_diagnostics_line(const ui_product_t *ui,
         {
             return line_set_resource_pending(line, 12u, 152u, 2u, UI_COLOR_WHITE, status);
         }
-        (void)append_u32(row, sizeof(row), &used, view->resource_status);
+        (void)ui_format_append_u32(row, sizeof(row), &used, view->resource_status);
         line_set(line, 12u, 152u, 2u, view->resource_status == RESOURCE_STATUS_OK ? UI_COLOR_GREEN : UI_COLOR_AMBER, row);
         return true;
     }
@@ -1045,7 +1032,7 @@ static bool prepare_resource_status_line(const ui_product_t *ui,
         {
             return line_set_resource_pending(line, 12u, 64u, 2u, UI_COLOR_AMBER, status);
         }
-        (void)append_u32(row, sizeof(row), &used, view->resource_status);
+        (void)ui_format_append_u32(row, sizeof(row), &used, view->resource_status);
         line_set(line, 12u, 64u, 2u, view->resource_status == RESOURCE_STATUS_OK ? UI_COLOR_GREEN : UI_COLOR_AMBER, row);
         return true;
     }
@@ -1097,7 +1084,7 @@ static bool prepare_calibration_status_line(const ui_product_t *ui,
         {
             return line_set_resource_pending(line, 12u, 108u, 2u, UI_COLOR_WHITE, status);
         }
-        (void)append_u32(text, sizeof(text), &used, view->calibration_sequence);
+        (void)ui_format_append_u32(text, sizeof(text), &used, view->calibration_sequence);
         line_set(line, 12u, 108u, 2u, UI_COLOR_WHITE, text);
         return true;
     }
@@ -1125,9 +1112,9 @@ static bool prepare_calibration_status_line(const ui_product_t *ui,
 static bool progress_line(char *dst, size_t capacity, uint8_t a, uint8_t b)
 {
     size_t used = 0u;
-    return append_u32(dst, capacity, &used, a) &&
+    return ui_format_append_u32(dst, capacity, &used, a) &&
            append_text(dst, capacity, &used, " / ") &&
-           append_u32(dst, capacity, &used, b);
+           ui_format_append_u32(dst, capacity, &used, b);
 }
 
 static bool condition_line(const ui_product_wizard_t *wizard, char *dst, size_t capacity)

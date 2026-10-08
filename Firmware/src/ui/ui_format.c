@@ -42,7 +42,7 @@ static bool append_text(char *dst, size_t capacity, size_t *used, const char *te
     return true;
 }
 
-static bool append_u32(char *dst, size_t capacity, size_t *used, uint32_t value)
+bool ui_format_append_u32(char *dst, size_t capacity, size_t *used, uint32_t value)
 {
     char tmp[10];
     size_t count = 0u;
@@ -102,9 +102,9 @@ static ui_format_status_t write_scaled(float value, float scale, const char *uni
     const uint32_t x10 = (uint32_t)((scaled_abs * (float)UI_FORMAT_DECIMAL_SCALE) + 0.5f);
     const uint32_t whole = x10 / UI_FORMAT_DECIMAL_SCALE;
     const uint32_t frac = x10 % UI_FORMAT_DECIMAL_SCALE;
-    if (!append_u32(dst, capacity, &used, whole) ||
+    if (!ui_format_append_u32(dst, capacity, &used, whole) ||
         !append_char(dst, capacity, &used, '.') ||
-        !append_u32(dst, capacity, &used, frac) ||
+        !ui_format_append_u32(dst, capacity, &used, frac) ||
         !append_char(dst, capacity, &used, ' ') ||
         !append_text(dst, capacity, &used, unit))
     {
@@ -127,6 +127,11 @@ ui_format_status_t ui_format_resistance(float ohms, char *dst, size_t capacity)
     if (magnitude >= 1000.0f)
     {
         return write_scaled(ohms, 1000.0f, "kΩ", dst, capacity);
+    }
+    if ((magnitude > 0.0f) && (magnitude < 0.1f))
+    {
+        return (magnitude < 0.00005f) ? write_unavailable(dst, capacity) :
+                                         write_scaled(ohms, 0.001f, "mΩ", dst, capacity);
     }
     return write_scaled(ohms, 1.0f, "Ω", dst, capacity);
 }
@@ -187,14 +192,19 @@ ui_format_status_t ui_format_phase_rad(float radians, char *dst, size_t capacity
 
 ui_format_status_t ui_format_q(float value, char *dst, size_t capacity)
 {
-    return isfinite(value) ? write_scaled(value, 1.0f, "Q", dst, capacity) :
-                             write_unavailable(dst, capacity);
+    return (isfinite(value) && (value >= 0.0f) && (value <= 1000000.0f)) ?
+               write_scaled(value, 1.0f, "Q", dst, capacity) : write_unavailable(dst, capacity);
 }
 
 ui_format_status_t ui_format_d(float value, char *dst, size_t capacity)
 {
-    return isfinite(value) ? write_scaled(value, 1.0f, "D", dst, capacity) :
-                             write_unavailable(dst, capacity);
+    if (!isfinite(value) || (value < 0.0f) || (value > 1000000.0f) ||
+        ((value > 0.0f) && (value < 0.00005f)))
+    {
+        return write_unavailable(dst, capacity);
+    }
+    return (value < 0.1f) ? write_scaled(value, 0.001f, "mD", dst, capacity) :
+                            write_scaled(value, 1.0f, "D", dst, capacity);
 }
 
 ui_format_status_t ui_format_primary_value(const measurement_session_result_t *result,

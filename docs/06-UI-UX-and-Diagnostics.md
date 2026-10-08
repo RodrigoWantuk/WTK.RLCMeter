@@ -149,6 +149,13 @@ Potential values include:
 - series-equivalent C or L;
 - confidence/status.
 
+The current PRODUCT detail page renders AC R (labeled ESR for a capacitive
+model with nonnegative series real part), X, |Z|, and phase. Invalid DSP
+quantities render `n/a`. ESR is the series AC real component at the displayed
+measurement condition, not a DC winding resistance or a datasheet ESR at an
+unmeasured frequency. Q and D are already derived by the DSP when valid but
+are not yet published on this page; the internal-Flash budget remains a gate.
+
 Do not display invalid derived quantities as plausible numbers. Use an explicit unavailable/not-applicable indication where required.
 
 ### Page 3 — Measurement information

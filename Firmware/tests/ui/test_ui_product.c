@@ -472,7 +472,53 @@ static int test_details_phase_label_uses_catalog(void)
     failures += expect_true(drain_render(&ui, &display) == 0, "details render drains");
     failures += expect_true(rendered_font_text_starts_with("R 1,0"), "details resistance renders with PT decimal");
     failures += expect_true(rendered_font_text_starts_with("X 0,0"), "details reactance renders with PT decimal");
+    failures += expect_true(rendered_font_text_starts_with("|Z| 1,0"), "impedance magnitude renders");
     failures += expect_true(rendered_font_text_starts_with("FASE "), "PHASE label is localized");
+    return failures;
+}
+
+static int test_capacitor_esr_and_invalid_details(void)
+{
+    int failures = 0;
+    reset_render_counters();
+    ui_product_t ui;
+    ili9341_t display = {.ready = true};
+    ui_product_init(&ui);
+    ui_product_set_text_provider(&ui, fake_text_provider, NULL);
+    attach_external_font(&ui);
+    ui_product_view_t view = ready_view(11u);
+    view.state = UI_PRODUCT_STATE_RESULT;
+    view.page = UI_PRODUCT_PAGE_DETAILS;
+    view.has_measurement_result = true;
+    view.measurement_result = (ui_product_measurement_t){
+        .status = MEASUREMENT_AUTO_STATUS_FINAL_OK,
+        .interpretation = MEASUREMENT_INTERPRET_CAPACITIVE,
+        .resistance_ohms = 1.6f,
+        .reactance_ohms = -3386.0f,
+        .magnitude_ohms = 3386.0f,
+        .derived_valid = true,
+    };
+    ui_product_request(&ui, &view);
+    failures += expect_true(drain_render(&ui, &display) == 0, "capacitor details render");
+    failures += expect_true(rendered_font_text_starts_with("ESR 1.6"), "capacitor AC series R labeled ESR");
+
+    reset_render_counters();
+    view.generation++;
+    view.measurement_result.resistance_ohms = 0.04f;
+    ui_product_request(&ui, &view);
+    failures += expect_true(drain_render(&ui, &display) == 0, "small ESR details render");
+    failures += expect_true(rendered_font_text_starts_with("ESR 40.0 mΩ"), "sub-ohm ESR uses mOhm");
+
+    reset_render_counters();
+    view.generation++;
+    view.measurement_result.derived_valid = false;
+    ui_product_request(&ui, &view);
+    failures += expect_true(drain_render(&ui, &display) == 0, "invalid details render");
+    failures += expect_true(rendered_font_text_starts_with("ESR n/a"), "invalid ESR is not a number");
+    failures += expect_true(rendered_font_text_starts_with("X n/a"), "invalid X is not a number");
+    failures += expect_true(rendered_font_text_starts_with("|Z| n/a"), "invalid magnitude is not a number");
+    failures += expect_true(rendered_font_text_starts_with("PHASE n/a"), "invalid phase is not a number");
+    failures += expect_true(g_partial_clears == 1u, "same details page clears all occupied rows");
     return failures;
 }
 
@@ -593,6 +639,7 @@ int main(void)
     failures += test_partial_region_and_latest_generation_wins();
     failures += test_update_during_active_text_restarts_with_newest_generation();
     failures += test_details_phase_label_uses_catalog();
+    failures += test_capacitor_esr_and_invalid_details();
     failures += test_resource_error_uses_no_external_text_reads();
     failures += test_normal_resource_failure_uses_internal_fallback();
     failures += test_safety_block_uses_localized_resource_and_internal_fallback();

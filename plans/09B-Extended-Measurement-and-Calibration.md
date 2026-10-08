@@ -47,9 +47,22 @@ It must not reclassify synthetic tests as physical qualification.
   export or calibrated OSL processing.
 - The existing PRODUCT calibration schema/model and A/B transactional slots are
   unchanged. No DC or supplementary-curve coefficient is installed at runtime.
+- The PC campaign report now separates `FIT` standards from optional held-out
+  `VALIDATION` standards. Validation never changes the fit; a failed held-out
+  interval sets `HOST_VALIDATION_FAILED` and makes the CLI exit nonzero.
+  Constraint rank is reported out of 12
+  per condition. `FULL_LINEAR_SPAN_UNQUALIFIED` is only a necessary span check,
+  not a bounded-uncertainty or physical-accuracy claim. All output remains host
+  diagnostic JSON, not an installable correction.
+- PRODUCT detail rendering now shows R (or capacitor-model AC ESR when its
+  real part is nonnegative), X, |Z|, and phase, with `n/a` for an invalid DSP
+  result. Q and D remain DSP outputs but are not on the PRODUCT page yet.
 - A shared R/X details-row renderer saved 52 B in PRODUCT Release (61396 to
-  61344 B, same 17028 B accounted RAM), but this is not sufficient headroom for
-  substantial new embedded features. No UI capability or safety gate was removed.
+  61344 B). Sharing decimal append logic offsets most of the new detail page:
+  PRODUCT Release is now 61428 B and 17028 B accounted RAM after adding mOhm
+  formatting for sub-0.1-Ohm values. This leaves only 12 B against the
+  61440 B Flash gate, so substantial embedded features still
+  require code-size recovery. No safety gate was removed.
 
 ## Hardware qualification gate for DC
 
@@ -70,9 +83,8 @@ circuit rating is not an operational current permission. PRODUCT DC stays off.
 
 ## Remaining implementation gates
 
-1. **Space and ownership:** PRODUCT Release is now 61344 B Flash against its
-   61440 B project gate (96 B headroom); BRINGUP is 62800 B against physical
-   65536 B. Audit
+1. **Space and ownership:** PRODUCT Release is near its 61440 B project Flash
+   gate; BRINGUP is 64912 B against physical 65536 B. Audit
    the map, remove duplication without weakening safety or blank-W25Q recovery,
    and remeasure before adding target code. Do not raise the physical limits.
 2. **DC expansion:** the BRINGUP-only 1 MOhm transaction exists, but its
@@ -88,14 +100,15 @@ circuit rating is not an operational current permission. PRODUCT DC stays off.
    jointly. The prior active coefficients are a soft initial point only. Define a
    bounded, versioned runtime correction overlay and transactional W25Q format;
    migrate older OSL-only records without losing the last valid set. Do not install
-   a fitted curve before cross-validation with unused standards and bench evidence.
+   a fitted curve before held-out standards pass and bench evidence exists.
 5. **PC transport/UI:** extend the framed COM protocol for read-only capture/evidence
    export and candidate transfer/validate/commit with sequence, CRC, busy handling,
    rollback, and no resource/calibration mutation overlap. Keep product measurement
    menu-driven; the PC owns the unbounded campaign input/history, while the device
    stores only one logical active coefficient set in redundant physical slots.
-6. **Presentation:** expose AC R/X/|Z|/phase, model-valid C/L, and conditional
-   ESR/Rs/Q/D with condition and quality. Do not present ESL, quantified SRF, or
+6. **Presentation:** R/X/|Z|/phase and conditional capacitor-model AC ESR are now
+   visible; add conditional Q/D and explicit quality/condition metadata after
+   recovering Flash headroom. Do not present ESL, quantified SRF, or
    high-voltage insulation resistance from Rev.1. UI text/art stay in W25Q; no
    full framebuffer or hidden UART dependency in normal measurement.
 

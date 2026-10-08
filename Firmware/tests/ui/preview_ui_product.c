@@ -267,6 +267,7 @@ static ui_product_view_t make_view(const char *scenario, ui_language_id_t langua
             .amplitude = HW_EXCITATION_AMP_100MVRMS,
             .resistance_ohms = 1.6f,
             .reactance_ohms = -3386.0f,
+            .magnitude_ohms = 3386.0f,
             .phase_rad = -1.57f,
             .capacitance_f = 47.0e-9f,
             .derived_valid = true,
@@ -277,6 +278,7 @@ static ui_product_view_t make_view(const char *scenario, ui_language_id_t langua
     {
         view = make_view("result", language);
         view.page = UI_PRODUCT_PAGE_DETAILS;
+        view.measurement_result.resistance_ohms = 0.04f;
     }
     else if (strcmp(scenario, "wizard") == 0)
     {

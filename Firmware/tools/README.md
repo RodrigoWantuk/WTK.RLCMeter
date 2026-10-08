@@ -31,6 +31,13 @@ Host-side tools that support firmware, assets, calibration, and diagnostics.
   Matching loss
   constraints require calibrated board/datasheet temperatures. A loss field may set
   `<field>_frequency_hz`; out-of-band loss data is reported as ignored, never fitted.
+  Standards default to `role: "FIT"`. A held-out `role: "VALIDATION"` standard
+  has the same capture/datasheet requirements but does not alter the curve; it
+  checks the solved curve against its interval afterward. The report gives each
+  condition's `constraint_rank` (out of 12), fit/validation counts, validation
+  failures, and conservative coverage. Rank 12 does not prove coefficient
+  uncertainty or hardware accuracy. A failed held-out interval yields
+  `HOST_VALIDATION_FAILED` and a nonzero CLI exit, never an installable record.
   Run `python tools/calibration_campaign.py --template --out campaign.json` for an
   unverified key skeleton. With actual captures, run
   `python tools/calibration_campaign.py campaign.json --capture-root captures --osl-frame active-cal.bin --out provisional.json`.
