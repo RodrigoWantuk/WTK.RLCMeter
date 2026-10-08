@@ -170,6 +170,10 @@ not decayed by elapsed time during normal use. Conflicting current samples requi
 repeat or explicit discard. Only one logical active coefficient set is retained on
 the device, with redundant physical copies for power-loss tolerance. The current
 host prototype does **not** write firmware records or change PRODUCT results.
+Its diagnostic JSON reports the corrected complex impedance, derived SI value,
+specified interval, and all-constraint pass/fail for each FIT and held-out VALIDATION
+standard. These checks aid review and conflict triage but do not establish measurement
+uncertainty or physical qualification.
 
 DC DCR and low-voltage leakage remain separate future qualified measurement/calibration
 modes, not new outputs inferred from AC OSL. The BRINGUP-only 1 MOhm static-bias pilot

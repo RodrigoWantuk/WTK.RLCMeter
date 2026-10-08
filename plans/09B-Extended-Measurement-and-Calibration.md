@@ -50,6 +50,13 @@ It must not reclassify synthetic tests as physical qualification.
 - The PC campaign report now separates `FIT` standards from optional held-out
   `VALIDATION` standards. Validation never changes the fit; a failed held-out
   interval sets `HOST_VALIDATION_FAILED` and makes the CLI exit nonzero.
+  Each standard now has inspectable corrected complex impedance, derived SI
+  value, declared tolerance interval, and a pass/fail result across all of its
+  active constraints. Conflicting FIT groups identify their condition and sample
+  IDs; malformed or non-finite constraints fail explicitly. This is review
+  evidence, not an uncertainty estimate or an installable calibration record.
+  An in-band inductor `Q_min` constraint now also requires nonnegative series
+  resistance, so a negative-R fit cannot satisfy Q spuriously.
   Constraint rank is reported out of 12
   per condition. `FULL_LINEAR_SPAN_UNQUALIFIED` is only a necessary span check,
   not a bounded-uncertainty or physical-accuracy claim. All output remains host

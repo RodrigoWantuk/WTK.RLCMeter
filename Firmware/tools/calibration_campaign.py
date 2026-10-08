@@ -135,8 +135,11 @@ def corrected_impedance(curve: list[float], real: float, imag: float,
     if len(curve) != 12 or not all(math.isfinite(x) for x in curve):
         raise CampaignError("curve must contain 12 finite coefficients")
     rb, xb = _basis(real, imag, rref)
-    return (rref * sum(a * b for a, b in zip(rb, curve)),
-            rref * sum(a * b for a, b in zip(xb, curve)))
+    corrected = (rref * sum(a * b for a, b in zip(rb, curve)),
+                 rref * sum(a * b for a, b in zip(xb, curve)))
+    if not all(math.isfinite(value) for value in corrected):
+        raise CampaignError("corrected impedance is not finite")
+    return corrected
 
 
 def _combine(a: list[float], b: list[float], factor: float) -> list[float]:
@@ -230,6 +233,7 @@ def standard_constraints(standard: dict[str, Any], key: tuple[int, int, int],
         constraints.append(([-x for x in _combine(rb, xb, d_interval[0])], 0.0))
     if "q_min" in active_loss:
         qmin = _positive_number(standard["q_min"], "Q minimum")
+        _bounds(rb, 0.0, None, constraints)
         constraints.append((_combine(rb, xb, -1.0 / qmin), 0.0))
     return constraints
 
@@ -282,6 +286,10 @@ def minimum_change_fit(prior: list[float],
                        constraints: list[tuple[list[float], float]]) -> list[float]:
     if len(prior) != 12 or not all(math.isfinite(x) for x in prior):
         raise CampaignError("prior curve must contain 12 finite coefficients")
+    if any(len(normal) != 12 or not math.isfinite(bound) or
+           not all(math.isfinite(value) for value in normal)
+           for normal, bound in constraints):
+        raise CampaignError("standard produced a non-finite or malformed constraint")
     if not constraints:
         return prior[:]
     point = prior[:]
@@ -318,6 +326,40 @@ def minimum_change_fit(prior: list[float],
                            f"normalized max violation={max_violation:.6g}")
 
 
+def _constraints_pass(curve: list[float],
+                      constraints: list[tuple[list[float], float]]) -> bool:
+    return all(sum(a * b for a, b in zip(normal, curve)) - bound <= 1.0e-9
+               for normal, bound in constraints)
+
+
+def _standard_evidence(standard: dict[str, Any], key: tuple[int, int, int],
+                       curve: list[float], constraints: list[tuple[list[float], float]],
+                       role: str) -> dict[str, Any]:
+    real, imag = corrected_impedance(
+        curve,
+        _finite_number(standard["measured_z_re_ohms"], "measured real impedance"),
+        _finite_number(standard["measured_z_im_ohms"], "measured imaginary impedance"),
+        key[0])
+    kind = standard["type"]
+    omega = 2.0 * math.pi * key[1]
+    value = (real if kind == "R" else
+             -1.0 / (omega * imag) if kind == "C" and imag < 0.0 else
+             imag / omega if kind == "L" else None)
+    if value is not None and not math.isfinite(value):
+        value = None
+    nominal = _positive_number(standard["nominal_si"], "nominal_si")
+    tolerance = _finite_number(standard["tolerance_fraction"], "tolerance_fraction")
+    return {
+        "id": standard["id"], "role": role, "type": kind,
+        "corrected_z_re_ohms": real, "corrected_z_im_ohms": imag,
+        "corrected_value_si": value,
+        "specified_min_si": nominal * (1.0 - tolerance),
+        "specified_max_si": nominal * (1.0 + tolerance),
+        "constraint_count": len(constraints),
+        "within_all_specified_intervals": _constraints_pass(curve, constraints),
+    }
+
+
 def constraint_rank(constraints: list[tuple[list[float], float]]) -> int:
     """Necessary linear-span evidence, not proof of bounded coefficient uncertainty."""
     basis: list[list[float]] = []
@@ -352,7 +394,7 @@ def solve_campaign(data: dict[str, Any]) -> dict[str, Any]:
         if len(prior) != 12:
             raise CampaignError("prior curve must contain 12 coefficients")
         constraints: list[tuple[list[float], float]] = []
-        validation: list[tuple[str, list[tuple[list[float], float]]]] = []
+        evidence_inputs: list[tuple[dict[str, Any], str, list[tuple[list[float], float]]]] = []
         seen_ids = set()
         ignored_loss_specs: list[str] = []
         for standard in group["standards"]:
@@ -372,22 +414,34 @@ def solve_campaign(data: dict[str, Any]) -> dict[str, Any]:
             if role not in ("FIT", "VALIDATION"):
                 raise CampaignError("standard role must be FIT or VALIDATION")
             sample_constraints = standard_constraints(standard, key, ignored_loss_specs)
+            evidence_inputs.append((standard, role, sample_constraints))
             if role == "FIT":
                 constraints.extend(sample_constraints)
-            else:
-                validation.append((sample_id, sample_constraints))
-        solved = minimum_change_fit(prior, constraints)
-        failed_validation = [sample_id for sample_id, checks in validation
-                             if any(sum(a * b for a, b in zip(normal, solved)) - bound > 1.0e-9
-                                    for normal, bound in checks)]
+        try:
+            solved = minimum_change_fit(prior, constraints)
+        except CampaignConflict as exc:
+            fit_ids = [sample["id"] for sample, role, _ in evidence_inputs if role == "FIT"]
+            shown = fit_ids[:20]
+            suffix = f" (+{len(fit_ids) - 20} more)" if len(fit_ids) > 20 else ""
+            raise CampaignConflict(f"condition {key}, FIT samples {shown}{suffix}: {exc}") from exc
+        evidence = [_standard_evidence(sample, key, solved, checks, role)
+                    for sample, role, checks in evidence_inputs]
+        if any(not item["within_all_specified_intervals"] for item in evidence
+               if item["role"] == "FIT"):
+            raise CampaignConflict(f"fitted coefficients do not satisfy all FIT standards at {key}")
+        failed_validation = [item["id"] for item in evidence
+                             if item["role"] == "VALIDATION" and
+                             not item["within_all_specified_intervals"]]
+        validation_count = sum(item["role"] == "VALIDATION" for item in evidence)
         rank = constraint_rank(constraints)
         outputs.append({"condition": group["condition"], "curve": solved,
                         "sample_count": len(seen_ids),
-                        "fit_count": len(seen_ids) - len(validation),
-                        "validation_count": len(validation),
+                        "fit_count": len(seen_ids) - validation_count,
+                        "validation_count": validation_count,
                         "validation": ("FAIL" if failed_validation else
-                                       "PASS" if validation else "NOT_PROVIDED"),
+                                       "PASS" if validation_count else "NOT_PROVIDED"),
                         "failed_validation_ids": failed_validation,
+                        "standard_evidence": evidence,
                         "constraint_rank": rank,
                         "ignored_loss_specs": ignored_loss_specs,
                         "coverage": ("FULL_LINEAR_SPAN_UNQUALIFIED" if rank == 12 else

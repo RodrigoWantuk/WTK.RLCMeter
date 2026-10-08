@@ -110,7 +110,34 @@ class CampaignTests(unittest.TestCase):
         self.assertEqual(failed["curve"], passed["curve"])
         self.assertEqual(failed["validation"], "FAIL")
         self.assertEqual(failed["failed_validation_ids"], ["held-out"])
+        self.assertEqual(failed["standard_evidence"][0]["role"], "FIT")
+        self.assertTrue(failed["standard_evidence"][0]["within_all_specified_intervals"])
+        self.assertEqual(failed["standard_evidence"][1]["role"], "VALIDATION")
+        self.assertFalse(failed["standard_evidence"][1]["within_all_specified_intervals"])
+        self.assertEqual(failed["standard_evidence"][1]["corrected_value_si"], 1200.0)
+        self.assertEqual(failed["standard_evidence"][1]["specified_max_si"], 1010.0)
         self.assertEqual(failed_campaign["status"], "HOST_VALIDATION_FAILED")
+
+    def test_evidence_reports_physical_values_without_qualification(self):
+        omega = 2.0 * math.pi * 1000.0
+        cases = (("R", 1000.0, 1000.0, 0.0),
+                 ("C", 1.0e-6, 2.0, -1.0 / (omega * 1.0e-6)),
+                 ("L", 0.1, 2.0, omega * 0.1))
+        for kind, nominal, real, imag in cases:
+            with self.subTest(kind=kind):
+                result = solve_campaign(campaign([standard(kind, nominal, real, imag)]))
+                evidence = result["conditions"][0]["standard_evidence"][0]
+                self.assertEqual(result["qualification"], "UNQUALIFIED")
+                self.assertEqual(evidence["type"], kind)
+                self.assertTrue(evidence["within_all_specified_intervals"])
+                self.assertAlmostEqual(evidence["corrected_value_si"], nominal,
+                                       delta=nominal * 1.0e-6)
+                self.assertAlmostEqual(evidence["corrected_z_re_ohms"], real, places=6)
+                self.assertAlmostEqual(evidence["corrected_z_im_ohms"], imag, places=6)
+
+    def test_nonfinite_standard_constraint_rejected(self):
+        with self.assertRaises(CampaignError):
+            solve_campaign(campaign([standard("L", 1.0e308, 1000.0, 0.0)]))
 
     def test_validation_failure_cli_exits_nonzero(self):
         fit = standard("R", 1000, 1000, 0)
@@ -162,7 +189,7 @@ class CampaignTests(unittest.TestCase):
         second["id"] = "sample-2"
         second["capture_id"] = "capture-2"
         standards.append(second)
-        with self.assertRaises(CampaignConflict):
+        with self.assertRaisesRegex(CampaignConflict, "sample-1.*sample-2"):
             solve_campaign(campaign(standards))
 
     def test_capacitor_optional_esr_and_d_independent(self):
@@ -219,6 +246,16 @@ class CampaignTests(unittest.TestCase):
                        "d_nominal": 0.1, "d_tolerance_fraction": 0.01}
         with self.assertRaises(CampaignConflict):
             solve_campaign(campaign([conflicting]))
+
+    def test_inductor_q_min_does_not_accept_negative_series_resistance(self):
+        sample = standard("L", 0.1, -10.0, 2.0 * math.pi * 1000.0 * 0.1,
+                          q_min=100.0, board_temperature_calibrated=True,
+                          board_temperature_c=25.0, datasheet_temperature_c=25.0)
+        curve = solve_campaign(campaign([sample]))["conditions"][0]["curve"]
+        real, imag = corrected_impedance(curve, sample["measured_z_re_ohms"],
+                                         sample["measured_z_im_ohms"], 1000)
+        self.assertGreaterEqual(real, -1.0e-6)
+        self.assertLessEqual(real, imag / 100.0 + 1.0e-6)
 
     def test_out_of_band_nominal_loss_is_not_applied(self):
         x = -1.0 / (2.0 * math.pi * 1000 * 1e-6)
