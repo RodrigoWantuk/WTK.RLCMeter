@@ -43,17 +43,13 @@ static float max_float(float a, float b)
     return (a > b) ? a : b;
 }
 
-static float sqrt_approx(float value)
+static float sqrt_1_to_2_approx(float ratio_squared)
 {
-    if (!(value > 0.0f))
+    float estimate = 1.0f + 0.4f * ratio_squared;
+    const float value = 1.0f + ratio_squared;
+    for (uint8_t i = 0u; i < 2u; i++)
     {
-        return 0.0f;
-    }
-
-    float estimate = (value >= 1.0f) ? value : 1.0f;
-    for (uint32_t i = 0u; i < 10u; i++)
-    {
-        estimate = 0.5f * (estimate + (value / estimate));
+        estimate = 0.5f * (estimate + value / estimate);
     }
     return estimate;
 }
@@ -139,7 +135,19 @@ measurement_status_t measurement_complex_div(measurement_complex_t a,
 
 float measurement_complex_mag(measurement_complex_t value)
 {
-    return sqrt_approx((value.re * value.re) + (value.im * value.im));
+    if (!measurement_complex_is_finite(value))
+    {
+        return NAN;
+    }
+    const float a = abs_float(value.re);
+    const float b = abs_float(value.im);
+    const float larger = max_float(a, b);
+    if (larger == 0.0f)
+    {
+        return 0.0f;
+    }
+    const float ratio = ((a < b) ? a : b) / larger;
+    return larger * sqrt_1_to_2_approx(ratio * ratio);
 }
 
 float measurement_complex_phase_rad(measurement_complex_t value)
@@ -613,6 +621,8 @@ const char *measurement_status_string(measurement_status_t status)
         return "DENOMINATOR_TOO_SMALL";
     case MEASUREMENT_STATUS_INVALID_ZREF:
         return "INVALID_ZREF";
+    case MEASUREMENT_STATUS_CALIBRATION_UNAVAILABLE:
+        return "CALIBRATION_UNAVAILABLE";
     default:
         return "UNKNOWN";
     }

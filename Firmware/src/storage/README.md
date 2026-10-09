@@ -36,11 +36,11 @@ Phase 03 introduces a provisional resource-pack header/entry contract for manife
 Phase 07 Stage 2A defines the W25Q mutable tail:
 
 ```text
-calibration slot A  4096 bytes
-calibration slot B  4096 bytes
-settings            4096 bytes
-diagnostics         16384 bytes
-bring-up test       final 4096-byte sector
+OSL calibration A/B       2 x 4096 bytes
+settings A/B              2 x 4096 bytes
+supplementary curve A/B   2 x 4096 bytes (reserved; not yet installed)
+diagnostics               4096 bytes
+bring-up test             final 4096-byte sector
 ```
 
 The resource pack occupies the lower address range before that mutable tail.

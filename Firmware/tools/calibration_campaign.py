@@ -548,12 +548,14 @@ def main() -> int:
             if args.capture_root is not None:
                 if args.osl_frame.stat().st_size > SLOT_BYTES:
                     raise CampaignError("OSL frame exceeds one calibration slot")
-                frame = decode_full_rev1_frame(args.osl_frame.read_bytes())
+                osl_blob = args.osl_frame.read_bytes()
+                frame = decode_full_rev1_frame(osl_blob)
                 data = bind_campaign_captures(data, args.capture_root, frame)
             result = solve_campaign(data)
             result["capture_binding"] = "RAW_SHA256_BOUND" if args.capture_root else "SYNTHETIC_UNBOUND"
             if frame is not None:
                 result["supplied_osl_frame_sha256"] = frame.sha256
+                result["supplied_osl_frame_crc32"] = int.from_bytes(osl_blob[56:60], "little")
                 result["supplied_osl_sequence"] = frame.sequence
         except (CampaignError, KeyError, TypeError, OSError, json.JSONDecodeError) as exc:
             parser.error(str(exc))

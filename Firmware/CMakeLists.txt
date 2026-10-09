@@ -124,6 +124,9 @@ add_library(wtk_firmware_common STATIC
     src/measurement/measurement_dc.c
     src/measurement/measurement_condition.c
     src/measurement/measurement_calibration.c
+    src/measurement/measurement_cal_curve.c
+    src/measurement/measurement_cal_curve_frame.c
+    src/measurement/measurement_cal_curve_store.c
     src/measurement/measurement_calibration_solver.c
     src/measurement/measurement_calibration_store.c
     src/measurement/measurement_engine.c

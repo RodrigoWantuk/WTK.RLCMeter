@@ -430,6 +430,45 @@ endif()
 
 add_test(NAME wtk_measurement_dsp_test COMMAND wtk_measurement_dsp_test)
 
+add_executable(wtk_measurement_cal_curve_test
+    measurement/test_measurement_cal_curve.c
+)
+target_link_libraries(wtk_measurement_cal_curve_test PRIVATE wtk_firmware_common)
+target_include_directories(wtk_measurement_cal_curve_test PRIVATE "${PROJECT_SOURCE_DIR}/src")
+wtk_configure_c_target(wtk_measurement_cal_curve_test)
+wtk_apply_project_warnings(wtk_measurement_cal_curve_test)
+wtk_apply_common_compile_options(wtk_measurement_cal_curve_test)
+if(WTK_WARNINGS_AS_ERRORS_HOST)
+    wtk_treat_warnings_as_errors(wtk_measurement_cal_curve_test)
+endif()
+add_test(NAME wtk_measurement_cal_curve_test COMMAND wtk_measurement_cal_curve_test)
+
+add_executable(wtk_measurement_cal_curve_frame_test
+    measurement/test_measurement_cal_curve_frame.c
+)
+target_link_libraries(wtk_measurement_cal_curve_frame_test PRIVATE wtk_firmware_common)
+target_include_directories(wtk_measurement_cal_curve_frame_test PRIVATE "${PROJECT_SOURCE_DIR}/src")
+wtk_configure_c_target(wtk_measurement_cal_curve_frame_test)
+wtk_apply_project_warnings(wtk_measurement_cal_curve_frame_test)
+wtk_apply_common_compile_options(wtk_measurement_cal_curve_frame_test)
+if(WTK_WARNINGS_AS_ERRORS_HOST)
+    wtk_treat_warnings_as_errors(wtk_measurement_cal_curve_frame_test)
+endif()
+add_test(NAME wtk_measurement_cal_curve_frame_test COMMAND wtk_measurement_cal_curve_frame_test)
+
+add_executable(wtk_measurement_cal_curve_store_test
+    measurement/test_measurement_cal_curve_store.c
+)
+target_link_libraries(wtk_measurement_cal_curve_store_test PRIVATE wtk_firmware_common)
+target_include_directories(wtk_measurement_cal_curve_store_test PRIVATE "${PROJECT_SOURCE_DIR}/src")
+wtk_configure_c_target(wtk_measurement_cal_curve_store_test)
+wtk_apply_project_warnings(wtk_measurement_cal_curve_store_test)
+wtk_apply_common_compile_options(wtk_measurement_cal_curve_store_test)
+if(WTK_WARNINGS_AS_ERRORS_HOST)
+    wtk_treat_warnings_as_errors(wtk_measurement_cal_curve_store_test)
+endif()
+add_test(NAME wtk_measurement_cal_curve_store_test COMMAND wtk_measurement_cal_curve_store_test)
+
 add_executable(wtk_measurement_dc_test
     measurement/test_measurement_dc.c
 )

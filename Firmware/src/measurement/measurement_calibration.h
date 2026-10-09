@@ -8,6 +8,7 @@
 #include "hardware/hw_excitation.h"
 #include "hardware/hw_range.h"
 #include "measurement/measurement_condition.h"
+#include "measurement/measurement_cal_curve.h"
 #include "measurement/measurement_dsp.h"
 
 enum
@@ -167,6 +168,7 @@ typedef struct
     measurement_complex_t raw_z_ohms;
     measurement_calibration_provenance_t provenance;
     bool output_corrected;
+    bool supplementary_applied;
 } measurement_calibrated_result_t;
 
 typedef struct
@@ -231,6 +233,10 @@ bsp_status_t measurement_cal_process_block(const hw_metrology_block_t *block,
                                            const measurement_cal_key_t *key,
                                            bool allow_ideal_fallback,
                                            measurement_calibrated_result_t *result);
+measurement_cal_curve_status_t measurement_cal_apply_curve(
+    measurement_calibrated_result_t *result,
+    const measurement_cal_key_t *key,
+    const measurement_cal_curve_t *curve);
 
 bool measurement_cal_serialize_set(const measurement_cal_set_t *set,
                                    uint8_t *dst,

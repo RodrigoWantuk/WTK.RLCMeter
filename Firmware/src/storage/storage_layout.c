@@ -62,11 +62,25 @@ bool storage_layout_partition(uint32_t capacity_bytes,
             .size = STORAGE_LAYOUT_SETTINGS_SLOT_BYTES,
         };
         return true;
-    case STORAGE_PARTITION_DIAGNOSTICS:
+    case STORAGE_PARTITION_CAL_CURVE_A:
         *partition = (storage_partition_t){
             .id = id,
             .start = diagnostics_start,
-            .size = STORAGE_LAYOUT_DIAGNOSTICS_BYTES,
+            .size = STORAGE_LAYOUT_CURVE_SLOT_BYTES,
+        };
+        return true;
+    case STORAGE_PARTITION_CAL_CURVE_B:
+        *partition = (storage_partition_t){
+            .id = id,
+            .start = diagnostics_start + STORAGE_LAYOUT_CURVE_SLOT_BYTES,
+            .size = STORAGE_LAYOUT_CURVE_SLOT_BYTES,
+        };
+        return true;
+    case STORAGE_PARTITION_DIAGNOSTICS:
+        *partition = (storage_partition_t){
+            .id = id,
+            .start = diagnostics_start + 2u * STORAGE_LAYOUT_CURVE_SLOT_BYTES,
+            .size = STORAGE_LAYOUT_W25Q_SECTOR_SIZE,
         };
         return true;
     case STORAGE_PARTITION_BRINGUP_TEST:

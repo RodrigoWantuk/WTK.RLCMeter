@@ -863,6 +863,39 @@ bsp_status_t measurement_cal_process_block(const hw_metrology_block_t *block,
     return BSP_STATUS_ERROR;
 }
 
+measurement_cal_curve_status_t measurement_cal_apply_curve(
+    measurement_calibrated_result_t *result,
+    const measurement_cal_key_t *key,
+    const measurement_cal_curve_t *curve)
+{
+    if ((result == NULL) || (key == NULL) || (curve == NULL) ||
+        (result->result.status != MEASUREMENT_STATUS_OK) ||
+        !result->output_corrected)
+    {
+        return MEASUREMENT_CAL_CURVE_INVALID_ARG;
+    }
+    const measurement_dsp_config_t config = measurement_dsp_config_ideal(key->range_id);
+    measurement_complex_t corrected;
+    const measurement_cal_curve_status_t status =
+        measurement_cal_curve_apply(curve, result->raw_z_ohms,
+                                    config.zref_ohms.re, &corrected);
+    if (status != MEASUREMENT_CAL_CURVE_OK)
+    {
+        return status;
+    }
+    const measurement_derived_result_t derived =
+        measurement_derive_quantities(corrected, frequency_hz(key->frequency),
+                                      &config, MEASUREMENT_STATUS_OK);
+    if (!derived.valid)
+    {
+        return MEASUREMENT_CAL_CURVE_NONFINITE;
+    }
+    result->result.impedance.z_ohms = corrected;
+    result->result.derived = derived;
+    result->supplementary_applied = true;
+    return MEASUREMENT_CAL_CURVE_OK;
+}
+
 static void encode_scale(uint8_t **cursor, measurement_adc_scale_t scale)
 {
     write_f32(*cursor, scale.code_to_volts);

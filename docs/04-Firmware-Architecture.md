@@ -275,9 +275,10 @@ replay, and coefficient comparison belong in host tools and tests where they are
 limited by the 64 KiB MCU Flash budget.
 
 STM32 Release and Bringup builds report Flash/RAM budgets after linking. PRODUCT keeps
-a 60 KiB Flash hard gate, with a 48 KiB soft target and the physical silicon limit
-remaining 64 KiB. The 60 KiB PRODUCT gate is allowed only while the firmware is in the
-final product-integration stretch; rich visuals, fonts, and catalog data should still
+a temporary 63 KiB Flash hard gate, with a 48 KiB soft target and the physical silicon
+limit remaining 64 KiB. The gate was raised from 60 KiB for the supplementary curve
+runtime; the measured margin to physical Flash is about 1.5 KiB and must be recovered
+before adding further PRODUCT features. Rich visuals, fonts, and catalog data still
 live in W25Q resources rather than internal Flash. BRINGUP uses the physical 64 KiB
 Flash limit so the bench image can link the automatic measurement engine and diagnostic
 output needed for first-board measurements. RAM reports distinguish static

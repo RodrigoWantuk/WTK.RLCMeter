@@ -160,6 +160,8 @@ static int test_layout_rebalanced(void)
     storage_partition_t set_a;
     storage_partition_t set_b;
     storage_partition_t diag;
+    storage_partition_t curve_a;
+    storage_partition_t curve_b;
     storage_partition_t bringup;
     failures += expect_true(storage_layout_partition(FAKE_FLASH_BYTES, STORAGE_PARTITION_CALIBRATION_A, &cal_a),
                             "cal A partition");
@@ -171,12 +173,19 @@ static int test_layout_rebalanced(void)
                             "settings B partition");
     failures += expect_true(storage_layout_partition(FAKE_FLASH_BYTES, STORAGE_PARTITION_DIAGNOSTICS, &diag),
                             "diagnostics partition");
+    failures += expect_true(storage_layout_partition(FAKE_FLASH_BYTES, STORAGE_PARTITION_CAL_CURVE_A, &curve_a),
+                            "curve A partition");
+    failures += expect_true(storage_layout_partition(FAKE_FLASH_BYTES, STORAGE_PARTITION_CAL_CURVE_B, &curve_b),
+                            "curve B partition");
     failures += expect_true(storage_layout_partition(FAKE_FLASH_BYTES, STORAGE_PARTITION_BRINGUP_TEST, &bringup),
                             "bringup partition");
     failures += expect_u32(cal_a.size, STORAGE_LAYOUT_W25Q_SECTOR_SIZE, "cal A one sector");
     failures += expect_u32(set_a.size, STORAGE_LAYOUT_W25Q_SECTOR_SIZE, "settings A one sector");
     failures += expect_u32(set_b.start, set_a.start + STORAGE_LAYOUT_W25Q_SECTOR_SIZE, "settings slots contiguous");
-    failures += expect_u32(diag.size, 3u * STORAGE_LAYOUT_W25Q_SECTOR_SIZE, "diagnostics three sectors");
+    failures += expect_u32(curve_a.start, set_b.start + set_b.size, "curve A follows settings");
+    failures += expect_u32(curve_b.start, curve_a.start + curve_a.size, "curve slots contiguous");
+    failures += expect_u32(diag.start, curve_b.start + curve_b.size, "diagnostics follows curve slots");
+    failures += expect_u32(diag.size, STORAGE_LAYOUT_W25Q_SECTOR_SIZE, "diagnostics retains one sector");
     failures += expect_u32(bringup.start, FAKE_FLASH_BYTES - STORAGE_LAYOUT_W25Q_SECTOR_SIZE, "bringup still last sector");
     failures += expect_u32(cal_b.start, cal_a.start + STORAGE_LAYOUT_W25Q_SECTOR_SIZE, "cal addresses unchanged");
     return failures;

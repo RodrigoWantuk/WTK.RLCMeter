@@ -479,13 +479,27 @@ The BSP no longer owns hidden raw sample storage, and the calibration store no l
 contains an internal frame image. This saves one full 3072-byte buffer in PRODUCT builds
 without changing the Phase 05 raw data format or the persistent calibration schema.
 
-PRODUCT builds keep a 60 KiB project Flash hard gate during final product integration,
-a 16 KiB preferred accounted-RAM target, and a 17 KiB accounted-RAM hard gate. BRINGUP
+PRODUCT builds temporarily keep a 63 KiB project Flash hard gate during supplementary
+curve integration, raised from 60 KiB with explicit maintainer approval. The physical
+64 KiB limit is unchanged; the roughly 1.5 KiB remaining physical margin is a size
+debt, not permission for further feature growth. PRODUCT keeps a 16 KiB preferred
+accounted-RAM target and a 17 KiB accounted-RAM hard gate. BRINGUP
 builds use the full guaranteed 64 KiB physical Flash limit because the bench image
 links the automatic measurement session, calibration campaign commands, and UART
 diagnostics needed for first-board measurements. BRINGUP still has an 18 KiB
 accounted-RAM hard gate. These gates include static `.data/.bss/.noinit` plus the
 linker-reserved stack/heap floor and are enforced by `Firmware/tools/firmware_size.py`.
+
+Supplementary calibration is a separate, sparse post-OSL complex-plane correction,
+not a replacement for the 33-condition OSL model. A Rev.1 condition may have three
+logarithmic |Z|/nominal-RREF knots (0.1, 1, 10), each with a real 2x2 matrix acting
+on complex impedance. The versioned little-endian WCRV frame carries per-record and
+whole-frame CRCs, a commit marker, and the active OSL sequence plus frame CRC. Two
+reserved W25Q sectors provide read-side rollback. PRODUCT only applies an explicitly
+qualified, committed frame after safe acquisition teardown; absent or out-of-domain
+curves leave OSL output unchanged, and corrupt active records reject the measurement.
+Host-generated campaign candidates remain unqualified. A bench-backed qualification
+and transactional installation workflow is still required before use.
 
 ### Compact product rendering state
 
@@ -640,7 +654,7 @@ preserving debug symbols; a forced service/debug build with
 resources are missing, corrupt, incompatible, or deferred during an update, the product
 controller forces the internal emergency-font PC-link upload screen and blocks normal
 navigation until a valid pack mounts. The Release receiver remains subject to the
-PRODUCT 60 KiB Flash hard gate and the physical STM32F103C8T6 linker map.
+PRODUCT 63 KiB Flash hard gate and the physical STM32F103C8T6 linker map.
 
 Product settings schema v3 stores the menu-selected calibration LOAD preset. Existing
 schema v2 settings remain readable and map that new field to the `NOMINAL` preset, so

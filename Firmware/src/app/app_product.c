@@ -477,9 +477,15 @@ static ui_product_measurement_t ui_measurement_from_result(const measurement_ses
     out.phase_rad = result->primary_attempt.derived.phase_rad;
     out.capacitance_f = result->primary_attempt.derived.capacitance_f;
     out.inductance_h = result->primary_attempt.derived.inductance_h;
-    out.derived_valid = result->primary_attempt.derived.valid;
-    out.capacitance_valid = result->primary_attempt.derived.capacitance_valid;
-    out.inductance_valid = result->primary_attempt.derived.inductance_valid;
+    const bool successful_result =
+        (result->final && (result->status == MEASUREMENT_AUTO_STATUS_FINAL_OK)) ||
+        (result->partial && (result->status == MEASUREMENT_AUTO_STATUS_RUNNING));
+    const bool publish_values = successful_result &&
+        result->confidence.mathematically_valid &&
+        (result->confidence.publication_confidence != MEASUREMENT_CONFIDENCE_REJECTED);
+    out.derived_valid = publish_values && result->primary_attempt.derived.valid;
+    out.capacitance_valid = out.derived_valid && result->primary_attempt.derived.capacitance_valid;
+    out.inductance_valid = out.derived_valid && result->primary_attempt.derived.inductance_valid;
     return out;
 }
 

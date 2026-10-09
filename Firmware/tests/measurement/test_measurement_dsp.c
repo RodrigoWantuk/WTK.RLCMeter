@@ -48,6 +48,29 @@ static int expect_complex_near(measurement_complex_t actual,
     return failures;
 }
 
+static int test_complex_magnitude_scales(void)
+{
+    int failures = 0;
+    const struct
+    {
+        measurement_complex_t value;
+        float expected;
+        float tolerance;
+    } cases[] = {
+        {{3.0f, 4.0f}, 5.0f, 0.00001f},
+        {{3000.0f, 4000.0f}, 5000.0f, 0.001f},
+        {{600000.0f, 800000.0f}, 1000000.0f, 0.1f},
+        {{0.003f, 0.004f}, 0.005f, 0.00000001f},
+    };
+    for (size_t i = 0u; i < sizeof(cases) / sizeof(cases[0]); i++)
+    {
+        failures += expect_near(measurement_complex_mag(cases[i].value),
+                                cases[i].expected, cases[i].tolerance,
+                                "complex magnitude remains accurate across decades");
+    }
+    return failures;
+}
+
 static measurement_complex_t cadd(measurement_complex_t a, measurement_complex_t b)
 {
     return measurement_complex(a.re + b.re, a.im + b.im);
@@ -367,6 +390,7 @@ static int test_derived_values(void)
 int main(void)
 {
     int failures = 0;
+    failures += test_complex_magnitude_scales();
     failures += test_complex_helpers();
     failures += test_phasor_convention();
     failures += test_impedance_vectors();

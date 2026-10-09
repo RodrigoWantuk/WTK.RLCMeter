@@ -380,6 +380,7 @@ measurement_attempt_result_t app_measurement_attempt_from_dsp(
     if (processed != NULL)
     {
         result.calibration = processed->provenance;
+        result.supplementary_applied = processed->supplementary_applied;
     }
     if (dsp != NULL)
     {

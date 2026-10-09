@@ -2,10 +2,15 @@
 
 #include <stdalign.h>
 
+#include "measurement/measurement_cal_curve_frame.h"
+
 _Static_assert(sizeof(app_io_workspace_storage_t) == HW_METROLOGY_RAW_BUFFER_BYTES,
                "shared workspace must fit the canonical raw capture");
 _Static_assert(MEASUREMENT_CAL_MAX_FRAME_BYTES <= sizeof(app_io_workspace_storage_t),
                "shared workspace must fit one calibration frame image");
+_Static_assert((size_t)MEASUREMENT_CAL_CURVE_FRAME_MAX_BYTES <=
+                   (size_t)MEASUREMENT_CAL_MAX_FRAME_BYTES,
+               "shared calibration workspace must fit one supplementary curve frame");
 _Static_assert(APP_PC_LINK_MAX_PAYLOAD_BYTES <= sizeof(app_io_workspace_storage_t),
                "shared workspace must fit one PC-link resource frame payload");
 _Static_assert(alignof(app_io_workspace_storage_t) >= alignof(uint32_t),

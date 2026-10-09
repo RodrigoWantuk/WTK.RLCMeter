@@ -593,6 +593,8 @@ static int test_ok_gestures_and_measurement_flow(void)
         if (interim.has_measurement_result && interim.measurement_result_partial)
         {
             saw_partial = true;
+            failures += expect_true(interim.measurement_result.derived_valid,
+                                    "valid partial keeps numeric measurement visible");
         }
     }
     ui_product_view_t view;
@@ -611,6 +613,37 @@ static int test_ok_gestures_and_measurement_flow(void)
     failures += expect_true(view.state == UI_PRODUCT_STATE_MENU, "long OK opens menu");
     failures += expect_u32(view.menu.selected_index, 0u, "menu opens at calibration entry");
     failures += expect_u32(fake.start_count, 2u, "long OK starts no extra measurement");
+    return failures;
+}
+
+static int test_failed_refinement_hides_stale_primary(void)
+{
+    int failures = 0;
+    fake_io_t fake = {0};
+    fake.outcome_count = 2u;
+    fake.outcomes[0] = good_outcome(measurement_complex(50.0f, -500.0f),
+                                    MEASUREMENT_INTERPRET_CAPACITIVE);
+    fake.outcomes[1].fail_phase05 = true;
+    app_product_t product;
+    app_product_inputs_t inputs = inputs_ready();
+    const bsp_clock_summary_t clock = {.source = BSP_CLOCK_SOURCE_HSE_PLL,
+                                       .sysclk_hz = 72000000u,
+                                       .hse_ready = true};
+    failures += expect_true(init_product(&product, &fake) == BSP_STATUS_OK,
+                            "product init failed refinement");
+    boot_to_ready(&product, &inputs);
+    click_ok(&product);
+    for (uint32_t now = 3u; now < 30u; now++)
+    {
+        app_product_step(&product, &inputs, &clock, BSP_STATUS_OK, now);
+    }
+    ui_product_view_t view;
+    app_product_make_view(&product, &view);
+    failures += expect_true(fake.start_count == 2u, "supporting attempt was requested");
+    failures += expect_true(view.has_measurement_result && !view.measurement_result_partial,
+                            "failed refinement publishes terminal status");
+    failures += expect_true(!view.measurement_result.derived_valid,
+                            "failed session hides stale primary number");
     return failures;
 }
 
@@ -960,6 +993,7 @@ int main(int argc, char **argv)
     int failures = 0;
     failures += test_boot_calibration_gate();
     failures += test_ok_gestures_and_measurement_flow();
+    failures += test_failed_refinement_hides_stale_primary();
     failures += test_menu_calibration_status_and_dirty_candidate();
     failures += test_safety_fault_and_pages();
     failures += test_display_menu_brightness_preview_no_step_persist();

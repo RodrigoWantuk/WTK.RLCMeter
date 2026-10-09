@@ -1689,6 +1689,41 @@ static int test_osl_model_rejects_malformed_corrections(void)
     return failures;
 }
 
+static int test_supplementary_curve_updates_all_derived_values(void)
+{
+    int failures = 0;
+    const measurement_cal_key_t key = key_for(HW_RANGE_ID_1K, HW_EXCITATION_FREQ_1KHZ);
+    measurement_calibrated_result_t result = {0};
+    result.output_corrected = true;
+    result.result.status = MEASUREMENT_STATUS_OK;
+    result.raw_z_ohms = measurement_complex(1000.0f, -100.0f);
+    result.result.impedance.z_ohms = result.raw_z_ohms;
+    measurement_cal_curve_t curve;
+    measurement_cal_curve_identity(&curve);
+    for (uint8_t i = 0u; i < MEASUREMENT_CAL_CURVE_KNOT_COUNT; i++)
+    {
+        curve.knot[i].m00 = 2.0f;
+        curve.knot[i].m11 = 2.0f;
+    }
+    failures += expect_true(measurement_cal_apply_curve(&result, &key, &curve) ==
+                            MEASUREMENT_CAL_CURVE_OK, "supplementary correction applies after OSL");
+    failures += expect_near(result.raw_z_ohms.re, 1000.0f, 0.0f, "OSL Z retained");
+    failures += expect_near(result.result.impedance.z_ohms.re, 2000.0f, 0.001f, "corrected R");
+    failures += expect_near(result.result.impedance.z_ohms.im, -200.0f, 0.001f, "corrected X");
+    failures += expect_near(result.result.derived.resistance_ohms, 2000.0f, 0.001f,
+                            "derived R recomputed");
+    failures += expect_near(result.result.derived.reactance_ohms, -200.0f, 0.001f,
+                            "derived X recomputed");
+    failures += expect_true(result.result.derived.capacitance_valid && result.supplementary_applied,
+                            "derived capacitance and provenance updated");
+    result.raw_z_ohms = measurement_complex(1.0f, 0.0f);
+    failures += expect_true(measurement_cal_apply_curve(&result, &key, &curve) ==
+                            MEASUREMENT_CAL_CURVE_OUT_OF_DOMAIN, "outside domain skips correction");
+    failures += expect_near(result.result.impedance.z_ohms.re, 2000.0f, 0.001f,
+                            "out-of-domain result unchanged");
+    return failures;
+}
+
 int main(int argc, char **argv)
 {
     if ((argc == 2) && (strcmp(argv[1], "--sizes") == 0))
@@ -1726,6 +1761,7 @@ int main(int argc, char **argv)
     failures += test_slot_compatibility_diagnostics();
     failures += test_dsp_uses_calibrated_hg_transfer();
     failures += test_osl_process_block_updates_result_and_derivatives();
+    failures += test_supplementary_curve_updates_all_derived_values();
     failures += test_persisted_osl_without_observed_hg_does_not_select_hg();
     failures += test_osl_ideal_reduces_to_divider_equation();
     failures += test_osl_mobius_solver_recovers_systematic_model();

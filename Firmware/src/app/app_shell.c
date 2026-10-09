@@ -47,6 +47,9 @@
 #include "storage/app_settings_w25q_adapter.h"
 #endif
 #include "storage/measurement_cal_w25q_adapter.h"
+#if !WTK_ENABLE_BRINGUP_CONSOLE
+#include "measurement/measurement_cal_curve_store.h"
+#endif
 #include "storage/resource_store.h"
 #include "storage/resource_w25q_adapter.h"
 #include "storage/storage_layout.h"
@@ -107,6 +110,7 @@ static ui_image_catalog_t g_image_catalog;
 #endif
 static resource_w25q_reader_t g_resource_reader;
 static resource_status_t g_resource_status = RESOURCE_STATUS_MISSING;
+static measurement_cal_curve_store_t g_curve_store;
 #if WTK_ENABLE_PRODUCT_RESOURCE_UPDATE
 static app_resource_update_t g_resource_update;
 static uint8_t g_pc_link_frame[APP_PC_LINK_HEADER_SIZE + APP_PC_LINK_MAX_PAYLOAD_BYTES];
@@ -209,6 +213,44 @@ static app_flash_access_snapshot_t product_flash_access_snapshot(void *user)
         .resource_mutation = false,
 #endif
     };
+}
+
+static bsp_status_t product_curve_flash_read(uint32_t address, void *dst, size_t size, void *user)
+{
+    (void)user;
+    const app_flash_access_snapshot_t snapshot = product_flash_access_snapshot(NULL);
+    if (!app_flash_access_allowed(&snapshot, APP_FLASH_ACCESS_RESOURCE_READ))
+    {
+        return BSP_STATUS_BUSY;
+    }
+    return measurement_cal_w25q_status_to_bsp(w25q_device_read(&g_flash, address, dst, size));
+}
+
+static uint32_t product_active_osl_crc32(void)
+{
+    const app_calibration_runtime_t *runtime =
+        app_calibration_service_runtime_const(&g_calibration_service);
+    if ((runtime == NULL) || !app_calibration_runtime_active_valid(runtime))
+    {
+        return 0u;
+    }
+    return runtime->slots[runtime->active_slot].frame.crc32;
+}
+
+static void product_load_curve_store(void)
+{
+    if (!app_calibration_service_active_valid(&g_calibration_service) ||
+        (app_io_workspace_acquire(&g_io_workspace, APP_IO_WORKSPACE_OWNER_CAL_CURVE) != BSP_STATUS_OK))
+    {
+        return;
+    }
+    (void)measurement_cal_curve_store_load(&g_curve_store, product_curve_flash_read, NULL,
+        g_flash.part.capacity_bytes,
+        app_calibration_service_active_sequence(&g_calibration_service),
+        product_active_osl_crc32(),
+        app_io_workspace_calibration_frame(&g_io_workspace),
+        app_io_workspace_calibration_frame_bytes());
+    (void)app_io_workspace_release(&g_io_workspace, APP_IO_WORKSPACE_OWNER_CAL_CURVE);
 }
 
 static APP_NOINLINE resource_status_t product_mount_resource_pack(void)
@@ -974,11 +1016,39 @@ static bsp_status_t product_auto_process_block(const hw_metrology_block_t *block
                                                           attempt->range_id,
                                                           attempt->frequency,
                                                           attempt->amplitude);
-    return measurement_cal_process_block(block,
-                                         app_calibration_service_active_set(&g_calibration_service),
-                                         &key,
-                                         false,
-                                         result);
+    const bsp_status_t osl_status = measurement_cal_process_block(
+        block, app_calibration_service_active_set(&g_calibration_service),
+        &key, false, result);
+    if ((osl_status != BSP_STATUS_OK) || !g_curve_store.active)
+    {
+        return osl_status;
+    }
+    measurement_cal_curve_t curve;
+    const bsp_status_t read_status = measurement_cal_curve_store_read(
+        &g_curve_store, &key,
+        app_calibration_service_active_sequence(&g_calibration_service),
+        product_active_osl_crc32(), &curve);
+    if (read_status == BSP_STATUS_NOT_SUPPORTED)
+    {
+        return BSP_STATUS_OK;
+    }
+    if (read_status != BSP_STATUS_OK)
+    {
+        result->result.status = MEASUREMENT_STATUS_CALIBRATION_UNAVAILABLE;
+        return BSP_STATUS_ERROR;
+    }
+    const measurement_cal_curve_status_t curve_status =
+        measurement_cal_apply_curve(result, &key, &curve);
+    if (curve_status == MEASUREMENT_CAL_CURVE_OUT_OF_DOMAIN)
+    {
+        return BSP_STATUS_OK;
+    }
+    if (curve_status != MEASUREMENT_CAL_CURVE_OK)
+    {
+        result->result.status = MEASUREMENT_STATUS_CALIBRATION_UNAVAILABLE;
+        return BSP_STATUS_ERROR;
+    }
+    return BSP_STATUS_OK;
 }
 
 static const app_measurement_session_io_t g_product_session_io = {
@@ -1331,6 +1401,9 @@ void app_shell_run(void)
     app_safety_fault_init(&g_safety_faults);
     app_calibration_service_init(&g_calibration_service);
     app_io_workspace_init(&g_io_workspace);
+#if !WTK_ENABLE_BRINGUP_CONSOLE
+    g_curve_store = (measurement_cal_curve_store_t){0};
+#endif
     app_calibration_service_attach_workspace(&g_calibration_service, &g_io_workspace);
     const bsp_status_t gpio_status = bsp_gpio_init_safe();
     app_record_status_fault(gpio_status, APP_SAFETY_FAULT_GPIO_INIT);
@@ -1461,6 +1534,7 @@ void app_shell_run(void)
         APP_VERBOSE_DIAG_U32("w25q_test_sector",
                              w25q_reserved_test_sector_address(g_flash.part.capacity_bytes));
 #if !WTK_ENABLE_BRINGUP_CONSOLE
+        product_load_curve_store();
         const app_settings_store_io_t settings_io = app_settings_w25q_store_io(&g_flash);
         const bsp_status_t settings_init_status =
             app_settings_service_init(&g_settings_service, &settings_io, g_flash.part.capacity_bytes);

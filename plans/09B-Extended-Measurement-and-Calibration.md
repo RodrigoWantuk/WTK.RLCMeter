@@ -52,8 +52,9 @@ It must not reclassify synthetic tests as physical qualification.
   of the exact bytes written (including on Windows).
   It does not command the relay or substitute for an authenticated PRODUCT capture
   export or calibrated OSL processing.
-- The existing PRODUCT calibration schema/model and A/B transactional slots are
-  unchanged. No DC or supplementary-curve coefficient is installed at runtime.
+- The existing PRODUCT OSL calibration schema/model and A/B transactional slots
+  are unchanged. No DC coefficient is installed; supplementary curves use separate
+  reserved W25Q slots and are inert without explicit qualification and installation.
 - The PC campaign report now separates `FIT` standards from optional held-out
   `VALIDATION` standards. Validation never changes the fit; a failed held-out
   interval sets `HOST_VALIDATION_FAILED` and makes the CLI exit nonzero.
@@ -77,6 +78,31 @@ It must not reclassify synthetic tests as physical qualification.
   formatting for sub-0.1-Ohm values. This leaves only 12 B against the
   61440 B Flash gate, so substantial embedded features still
   require code-size recovery. No safety gate was removed.
+- A versioned post-OSL complex-plane curve substrate now exists for the exact
+  Rev.1 range/frequency/amplitude condition. Each sparse condition record has
+  three log-|Z|/RREF knots and a 2x2 real matrix acting on complex Z. The target
+  applies it only after the Phase 05 SAFE teardown and OSL DSP, then recomputes
+  derived values; it never changes measurement permission, GPIO, or the OSL set.
+  A two-slot W25Q reader selects a CRC-checked, committed, explicitly qualified
+  overlay bound to the active OSL sequence and frame CRC. It reads one bounded
+  record per result, without a second acquisition buffer. Missing/out-of-domain
+  records retain OSL-only output; a corrupt previously active record rejects
+  that result. Unqualified candidates are never applied.
+- The PC campaign report now records the supplied OSL frame CRC. The separate
+  `calibration_curve_frame.py` builder emits and inspects **unqualified** v1
+  candidate frames only after SHA-bound FIT and held-out checks. No ordinary
+  uploader, qualification ceremony, or transactional writer exists for these
+  slots yet. A host PASS is not physical qualification. The 33-condition OSL
+  record and its existing A/B slots remain unchanged.
+- A scale-sensitive complex-magnitude bug in the DSP was fixed: large impedances
+  no longer use an insufficient fixed-iteration square-root seed. Host regressions
+  cover this and the new curve, frame, and A/B reader. Rejected final sessions
+  cannot expose an earlier valid primary as a fresh numeric UI result.
+- PRODUCT's project Flash gate is temporarily 63 KiB, with maintainer approval;
+  the silicon limit remains 64 KiB. Release uses 64092 B and has only
+  1444 B of physical margin. This is a blocking size debt for further
+  PRODUCT additions, not a new comfortable budget. PRODUCT Debug enables LTO to
+  remain linkable under the same physical limit.
 
 ## Hardware qualification gate for DC
 
@@ -97,10 +123,10 @@ circuit rating is not an operational current permission. PRODUCT DC stays off.
 
 ## Remaining implementation gates
 
-1. **Space and ownership:** PRODUCT Release is near its 61440 B project Flash
-   gate; BRINGUP is 64912 B against physical 65536 B. Audit
-   the map, remove duplication without weakening safety or blank-W25Q recovery,
-   and remeasure before adding target code. Do not raise the physical limits.
+1. **Space and ownership:** PRODUCT Release is near the physical 65536 B Flash
+   limit under a temporary 64512 B project gate; BRINGUP is also near physical
+   capacity. Audit the map and recover margin before more target features. Do not
+   weaken safety or blank-W25Q recovery or raise the physical limits.
 2. **DC expansion:** the BRINGUP-only 1 MOhm transaction exists, but its
    electrical behavior and host-orchestrator timing need board validation. Do
    not enable PRODUCT, lower RREF, or label the output DCR until a documented
@@ -108,13 +134,13 @@ circuit rating is not an operational current permission. PRODUCT DC stays off.
 3. **DC claims:** DCR is conditional on validated two-wire offset/contact resolution.
    Low-voltage leakage is exploratory until an open fixture, dwell, bias, and
    uncertainty are characterized. It is not datasheet insulation resistance.
-4. **Supplementary calibration:** the PC can check SHA-bound completed RAW captures
-   and a BRINGUP-exported active OSL set structurally. It must still prove the
-   physical slot identity and provenance, and solve all standards
-   jointly. The prior active coefficients are a soft initial point only. Define a
-   bounded, versioned runtime correction overlay and transactional W25Q format;
-   migrate older OSL-only records without losing the last valid set. Do not install
-   a fitted curve before held-out standards pass and bench evidence exists.
+4. **Supplementary calibration:** the versioned sparse candidate format, pure
+   curve application, and qualified A/B runtime reader exist. The PC must still
+   prove physical OSL slot identity/provenance, jointly solve campaign constraints
+   with bounded uncertainty, establish a bench qualification procedure, and add
+   a transactional candidate-transfer/validate/commit writer. The prior active
+   coefficients are a soft initial point only. OSL-only records remain valid;
+   do not install a fitted curve solely on host held-out success.
 5. **PC transport/UI:** extend the framed COM protocol for read-only capture/evidence
    export and candidate transfer/validate/commit with sequence, CRC, busy handling,
    rollback, and no resource/calibration mutation overlap. Keep product measurement
