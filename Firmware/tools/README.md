@@ -121,3 +121,10 @@ Host-side tools that support firmware, assets, calibration, and diagnostics.
   used by the builder and Python unit tests.
 
 Tools should be deterministic and should record the format/version used to generate artifacts consumed by firmware.
+
+PC initial OSL calibration is available through `pc_osl_calibrate.py` and reusable
+`pc_osl.py`. It supports all 33 Rev.1 keys, deterministic schema-v2/model-v4 frames,
+reference tolerance reports and an offline sampled blank-to-calibrated simulation.
+See [input contract and commands](PC_OSL.md). Provisioning is simulated only; the
+embedded full wizard and boot gate remain intact. `pc_osl_flash_probe.py` builds
+isolated, non-deployable linker experiments for the future migration budget.

@@ -712,3 +712,18 @@ if(WTK_WARNINGS_AS_ERRORS)
 endif()
 
 add_test(NAME wtk_app_calibration_workflow_test COMMAND wtk_app_calibration_workflow_test)
+
+# Host-only oracle: exercise the production solver, frame codec and A/B store.
+add_executable(wtk_pc_osl_bridge measurement/pc_osl_bridge.c)
+target_link_libraries(wtk_pc_osl_bridge PRIVATE wtk_firmware_common)
+target_include_directories(wtk_pc_osl_bridge PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../src)
+wtk_configure_c_target(wtk_pc_osl_bridge)
+wtk_apply_project_warnings(wtk_pc_osl_bridge)
+wtk_apply_common_compile_options(wtk_pc_osl_bridge)
+if(WTK_WARNINGS_AS_ERRORS_HOST)
+    wtk_treat_warnings_as_errors(wtk_pc_osl_bridge)
+endif()
+find_package(Python3 3.9 REQUIRED COMPONENTS Interpreter)
+add_test(NAME wtk_pc_osl_compatibility
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/../tools/pc_osl_compatibility.py
+            --bridge $<TARGET_FILE:wtk_pc_osl_bridge>)
