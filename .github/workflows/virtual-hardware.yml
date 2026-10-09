@@ -68,13 +68,13 @@ jobs:
       - name: Run Python tooling tests
         run: python3 -m unittest Firmware.tests.tools.test_run_virtual_tests
 
-      - name: Configure STM32 Lab firmware
+      - name: Configure STM32 BRINGUP firmware
         working-directory: Firmware
-        run: cmake --preset stm32-lab
+        run: cmake --preset stm32-bringup
 
-      - name: Build STM32 Lab firmware
+      - name: Build STM32 BRINGUP firmware
         working-directory: Firmware
-        run: cmake --build --preset stm32-lab
+        run: cmake --build --preset stm32-bringup
 
       - name: Install Wokwi CLI
         run: curl -L https://wokwi.com/ci/install.sh | sh
