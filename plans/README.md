@@ -20,6 +20,20 @@ The plans are **execution documents**, not general architecture notes. Architect
 9B. [`09B-Extended-Measurement-and-Calibration.md`](09B-Extended-Measurement-and-Calibration.md) — guarded DC feasibility, supplementary PC-hosted calibration, and unresolved electrical/size gates.
 9. [`09-Bringup-Qualification-and-Release.md`](09-Bringup-Qualification-and-Release.md) — board validation, metrology qualification, regression matrix, Rev.1 release evidence, Rev.2 decision inputs.
 
+
+## October 2026 Rev.1 recovery, metrology and calibration review
+
+The following complementary execution plans were written against commit `8abc1b3` and are intentionally **proposed pending physical qualification and owner decisions**. They do not replace or invalidate completed phases 01–09B. Work that is host-only, size-forensics, or safety-evidence collection can start now; changing qualification status or electrical limits cannot.
+
+- [10 — Technical review and decision record](10-Rev1-Recovery-Review-and-Decisions.md) — current firmware/PCB baseline, blockers and owner questions.
+- [11 — Flash recovery and profiles](11-Flash-Recovery-and-Profile-Split.md) — linked-byte audit, candidate cleanup, separate bringup images and size gates.
+- [12 — Hardware metrology and guarded DC](12-Hardware-Metrology-and-DC-Qualification.md) — observable quantities, pad-level verification, AC physical matrix, guarded DC permission/error budget.
+- [13 — Curves and uncertainty](13-Curve-Calibration-Intervals-and-Uncertainty.md) — X/Y model catalogue, reference tolerance intervals, holdouts, OSL-vs-overlay model selection and credible displayed error.
+- [14 — PC calibrator and accessible reference kit](14-PC-Calibrator-Accessible-Standards-and-Scope.md) — Brazilian-store friendly components, safe scope probing, GUI UX, campaign evidence and transactional protocol prerequisites.
+- [15 — Agent workstreams and release gates](15-Execution-Workstreams-and-Release-Gates.md) — ordered, parallelizable tickets, acceptance tests and product definition of done.
+
+**Agent entrypoint:** start with ticket A01 from plan 15; run A03/A04/A05 in parallel where permitted. Follow AGENTS.md and every 'REQUIRES_BENCH_VALIDATION' gate. No plan authorizes removing safety or claiming unmeasured accuracy.
+
 Phase 03A is an orthogonal validation layer rather than a new firmware-feature phase. It should be established after the Phase 02/03 digital foundations and then reused by later phases. It does not replace any physical bench gate.
 
 ## How agents use these plans
