@@ -1,0 +1,89 @@
+# 13 — Calibration Curves, Traceability, Uncertainty and Embedded Runtime
+
+STATUS: DESIGN_PROPOSAL — MATH/PC PROTOTYPES MAY START; MODEL CHANGE REQUIRES OWNER REVIEW
+PRIORITY: P1, dependent on electrical evidence from plan 12.
+THE RULE: more coefficients are not more accuracy; a fit without independent observability and held-out evidence is not a qualified correction.
+
+## Existing implementation: preserve and challenge deliberately
+1. Exact-key OSL for 33 *software-supported* Rev.1 conditions, schema v2/model v4, projective complex transfer: t=Vx/Vs, Z=K(t-t_short)/(t-t_open), where K=ZL(tL-tO)/(tL-tS). Separate HG effective transfer uses both return channel/reference streams. All are calibrated with OPEN/SHORT/known resistive LOAD; CRITICAL: do not apply an extra SHORT subtraction after OSL, because SHORT is already its zero reference.
+2. Existing PC fit: Firmware/tools/calibration_campaign.py accepts SHA256-linked RAW and active OSL frame, R/C/L tolerance intervals, optional capacitor ESR/D at matching measurement frequency/temperature, held-out validation and float32 round-trip. Does not prove accuracy by itself.
+3. Existing WCRV v1: for each key log10(|Z_OSL|/RREF) three fixed X knots 0.1, 1, 10; each knot a 2×2 real matrix [m00,m01;m10,m11] acting on [Re Z,Im Z]. 12 float32 values per condition, potentially 396 coefficients for 33 keys, with 56-byte records in external W25Q. This is unusually flexible versus the number/type of readily available calibrated standards. The code offers an unqualified candidate builder and a PRODUCT read-side A/B selector only, NOT a general product installer or physical qualification gate.
+4. A resistor specifies real Z only approximately at low frequency; at high frequency its leads/parasitics and reference uncertainty may matter. Nominal capacitor C does not specify ESR; nominal inductor L does not specify DCR or Q. Never fit an unconstrained phase-rotation term as though these unspecified dimensions were reference truth.
+5. Device H_HG_effective is a normalized acquisition-path ratio, not a pure MCP6002 gain; don't separately compensate a component op-amp path from it without double correction.
+
+## Curve catalogue: exact physical X/Y semantics and release ordering
+Each entry is an independent *calibration observable or correction layer*, not permission to put all axes into an MCU multivariate lookup. Frequency, RREF, amplitude and temperature are conditioning variables; only interpolate with actual stable/independent samples.
+
+| ID | X axis | Y axis (and units) | Grid / conditioning | Practical reference and meaning | Proposed residency |
+| --- | --- | --- | --- | --- | --- |
+| C00 OSL transfer | per exact RREF, f, amplitude condition (discrete, no interpolation) | tS,tO,K (dimensionless complex transfer, impedance scale Ω embedded in K) | 33 representable keys, bench-valid subset separately | open, low-inductance short, known resistor and tolerance | PRODUCT mandatory core; PC audit |
+| C01 short signature / path residual (diagnostic) | frequency Hz; separate RREF and amplitude | observed pre-OSL equivalent R_s(Ω) and X_s(Ω), spread | 100,1k,10k; repeat fixture remove/replace | SHORT fixture, NOT an added automatic post-OSL offset | PC/bringup; use for quality/uncertainty |
+| C02 open signature / leakage/parasitics (diagnostic) | frequency Hz; separate RREF and amplitude | pre-OSL equivalent G_open(S), C_open(F), spread | controlled OPEN fixture, humidity/temperature metadata | OPEN, cannot automatically attribute all to DUT | PC/bringup; quality gate |
+| C03 HG path complex response | frequency Hz (three hardware-supported frequencies), optionally RET level | effective gain magnitude (V/V) and phase(rad), overlap quality | 1× and HG simultaneous usable region, amplitude conditions | measured stream ratio; scope may cross-check timing | currently OSL record/runtime; PC graphs |
+| C04 source/excitation transfer | requested amplitude/duty or frequency Hz | actual VEXC-VMID sine RMS, gain V/V, harmonic distortion %, offset V | 100/1k/10k and 100/500 mVrms, NTC/supply | scope + ADC, 450 kHz carrier/filter; primarily electronics validity, not duplicate impedance OSL | PC/bringup; small validity limits PRODUCT |
+| C05 post-OSL resistive scale | log10(|Z_OSL|/RREF) | multiplicative correction g_R (dimensionless) and residual Ω | selected RREF/f/amplitude; suggested X=0.1,1,10 only where measured | several metal-film R values with independent holdouts | candidate PRODUCT sparse/PC, first to qualify |
+| C06 post-OSL reactive scale/phase | log10(|Z_OSL|/RREF), optionally f condition | separate g_X and tiny cross-phase coefficient, with valid bounds | R/C/L standards at same f and model | stable film/C0G C, L with characterized Q; must have enough rank | PC first, optional PRODUCT |
+| C07 high-Z residual bias | ratio | corrected G or ΔC parasitic, not arbitrary global R offset | primarily 100k/1M and frequency; OPEN evidence | open fixtures, guarded routing A/B test, scope probe loading | PC model/gate first, do not double-correct OSL |
+| C08 board temperature drift | board NTC temperature °C, anchored at calibration T0 | relative Δgain (%), Δphase (rad), Δoffset (Ω or S as justified) | per well-characterized path, 3 or more thermal points preferred | stable resistor/cap repeated at known thermometer T | PC/qualify later; compact coeff only after bench |
+| C09 ADC channel DC scale/offset | applied independently known DC voltage V | code-to-volts gain and offset per channel, ADC codes | near 0.5/1.65/2.5 V *only if safe injection topology exists* | accurately known reference/DMM; external source injection into unapproved nodes prohibited | BRINGUP, compact PRODUCT if validated |
+| C10 DC short/contact offset | measured signed DUT current A and board T °C | residual 2-wire V or effective Ω, repeat spread | polarity/bias/RREF-specific; nonnegative and noise gates | short fixture, DMM with relevant low-Ω resolution | BRINGUP/DC only |
+| C11 low-voltage leakage baseline | bias V and dwell time s; temperature/humidity | background current A, uncertainty, conductance S | OPEN and known high-value standards, time stamps | bench-verified open leakage and calibrated voltage | BRINGUP/DC only |
+| C12 NTC correction | independent reference temperature °C | board NTC temperature delta °C | 1 point offset initially; multiple temp points for curve | independent thermometer thermally coupled to board, not DUT | PRODUCT compact calibration only if verified |
+
+C01/C02 are **diagnostic physical curves** measured before the OSL correction; C03 is already incorporated into OSL/HG; C04 mostly assesses safety and feasibility. Only C05/C06/C07 plausibly become optional post-OSL correction overlays. C08/C10/C11/C12 are separate environment/DC channels, not blanket replacements for C05/C06. Resistive and reactive curves may not be identifiable in every condition.
+
+## Initial X knots and calibration points
+- X for the optional post-OSL impedance curve: q=log10(|Z_OSL|/RREF), q=-1,0,+1 (ratios 0.1,1,10). These are the existing WCRV v1 physical X positions; do not force all three to be calibrated in a narrow/noisy region. With a 10 Ω range, nominal calibration Z targets 1 Ω, 10 Ω, 100 Ω, but range selection and contact resolution must be verified. For a 1 MΩ range, the 10 MΩ point and 10 kHz environment may be unrealistic; mark the knot UNSUPPORTED or constrain it to identity rather than fabricating an input.
+- Start with q≈0 (within same decade RREF), then q≈-0.5 and +0.5 (0.316 and 3.16 ratios), later q≈-1 and +1 only if evidence supports. Nearby E12/E24 values are acceptable; store *actual known component interval* and never falsely transcribe target ratio as its nominal label.
+- X of C03/C04/C01/C02 is frequency with discrete samples at 100,1000,10000 Hz; log-frequency plots on PC are appropriate, but an interpolator cannot create new Rev.1 drive frequencies.
+- X of thermal C08 is °C referenced to baseline board temperature; optional points after thermal stabilization (e.g. room temperature and two repeatable lower/higher safe temperatures). Do not mandate thermal chamber or heat-induced damage.
+- Y uncertainties accompany every point: declared standard interval, reference accuracy, repeatability, stage-dependent interpolation bound. Plot error bands in engineering units and leave unknown bands visibly unknown.
+
+## Physically interpretable minimal model (recommended to evaluate BEFORE 12-parameter WCRV)
+A0: identity (no post-OSL) -> baseline.
+A1: scalar real gain g(q) applied to complex Z where standards justify amplitude; preserves phase.
+A2: two independent positive gains g_R(q), g_X(q) only where resistive/reactive standards identify both; constrained near unity.
+A3: full 2×2 real matrix and three knots ONLY if reference diversity and independently held-out validation constrain 12 degrees of freedom stably and prove significant improvement across component families. Add regularization, bounded condition number and continuity. Identify effective rank; never call 'linear span' a full uncertainty certificate.
+A4: if physical data favors admittance-domain high-Z parasitics or complex residual series impedance, compare a low-order physically justified model *instead* of forcing an arbitrary 2×2 matrix. Any replacement needs versioned compatibility and model selection held-out tests; don't stack corrections to double subtract open/short.
+Default production = OSL alone. Install no overlay for an unqualified condition. A valid overlay must reduce error on held-out R, C, L without new sign/physical-model artifacts.
+
+## Interval measurement handling: mandatory mathematical semantics
+For a reference with printed 1 Ω ±10%, its available information is R_true ∈ [0.9,1.1] Ω (plus other declared effects). A DUT reading 0.8 Ω ±10% produces [0.72,0.88] Ω, disjoint. A feasible correction only needs to bring its predicted reference interval into nonempty intersection; the nearest boundary is 0.9 Ω, NOT necessarily force a 1.0 Ω central reading. Intersection alone does not prove calibrated accuracy because the reference part's actual value is unknown and may drift.
+For a parameter y(θ), reference interval [L,H], prediction uncertainty ε_pred, impose L-ε_pred <= y(θ) <= H+ε_pred; if inconsistent report minimal positive slack, source standard IDs and likely underdetermination. Do not silently broaden the interval or silently discard the conflicting point. For loss specs, one-sided ESR_MAX is 0<=ESR<=max and D_MAX is 0<=D<=max; only at printed compatible frequency, bias and temperature. Never transform a typical/nonbounded datasheet value into hard constraint.
+
+Constrained host fit proposal: minimize sum W_i*(prediction-central_i)^2 subject to interval constraints, with regularization λ||θ-identity||² and smoothness across qualified adjacent knots; but central_i must not masquerade as known truth. Alternative interval-only min-change objective acceptable. Fit uses only FIT points. Select λ/model complexity using disjoint VALIDATION points; report rank, condition number, slack, leave-one-out influence, extrapolation region, 32-bit coefficient round-trip. Conflict means 'no qualified curve'. Prior curve is a soft initial prior, never accumulates unverifiable false history.
+
+## Error/uncertainty model (separate from curve fitting)
+U13-01. Define per-result metadata: quantity, units, frequency, source excitation amplitude, RREF, RET path, equivalent model, physical condition, fixture ID, timestamp/temperature and qualification state.
+U13-02. Establish sources: standard specification and independent DMM calibration accuracy, RREF residual, OSL fit, captured ADC noise/repeatability, ADC offsets and channel timing, source distortion, contact reseat spread, thermal drift, leakage and probe loading. Account for correlated standards/ranges; avoid root-sum-square of systematically correlated terms.
+U13-03. Host-side worst-case bounds use explicit interval arithmetic or sensitivity plus verified residual enclosure. Separately estimate expanded uncertainty U95 (coverage factor and assumptions stated) and empirical worst observed error. A 95% U is not a guaranteed maximum. If no defensible bound exists set max_error_status=UNDETERMINED, not ±30% by decree.
+U13-04. Propagate interval or Jacobian uncertainties through complex Z (including near-singular OPEN) then through R/X/|Z|/phase/Cs/Ls/ESR/Q/D; nonlinear denominators at low R or X may force 'n/a' and high uncertainty rather than explosive numbers.
+U13-05. PC derives conservative piecewise bounded error envelopes as functions of condition and q; PRODUCT loads compressed bounds plus validity domain/provenance (not the whole fit solver). Possible display '±(a% of reading + b Ω)' or quantity-specific additive term if qualified, with covered conditions and one fewer significant digit where appropriate. If not qualified, show 'Error limit not established' in the details and a visible UNQUALIFIED state on primary reading.
+U13-06. Independent holdouts at distinct nominal values (not repeat takes of the same fitted resistor), repeated re-seat and temperature observations are REQUIRED before applying numeric specification. Use guard margins beyond observed residual and standard tolerances, document rationale; never claim traceable certification without chain.
+
+## PC/UI expected views and actions
+- Workflow: safety check -> verify active OSL (sequence/CRC) -> acquire OPEN/SHORT/LOAD -> live raw spectral/scope diagnostics -> choose curve ID/condition -> propose nominal X points -> select physical standard with tolerance or typed calibrated measured value -> capture repeated samples -> visualize X/Y samples with horizontal/vertical uncertainty bars and model curve -> fit/holdout -> compare OSL only vs candidate -> qualify physically -> readback/hash/commit/rollback.
+- Curve detail must label explicit X and Y units, dependent conditions, physical interpretation, calibrated points, uncalibrated gaps, confidence/validity band, model rank, nearest knot, extrapolation denial, last physical verification and export provenance. User may request a custom point; the app must check physically attainable stimulus/range and suggest nearby E12/E24 standards.
+- Plots should compare RAW pre-OSL, corrected OSL, optional post-OSL and ground-truth interval WITHOUT treating all as identical. Show points that are in FIT and VALIDATION independently, conflict and rejected reasons.
+- Scope import screen accepts timebase, channel mapping, 1×/10× attenuation, volts/div, ground-referenced channel data, scope accuracy, acquisition/sample rate, CSV/SCPI/provenance, extracted RMS, phase, carrier ripple, THD where bandwidth supports. Human-entered readings allowed with a provenance grade.
+- No accidental production settings/resource mutation during capture. All upload writes are authenticated/authorized as service operations insofar as device transport permits; CRC detects corruption, not identity/authentication.
+
+## Protocol/storage and compatibility requirements
+- Separate OSL immutable active set identity sequence+CRC from optional overlays; new curve schema or error bounds versioned with robust CRC, A/B power-loss test and active OSL invalidation. All candidate frames MUST remain unqualified on ordinary upload; only a separately approved bench qualification workflow may set device-applied state with complete evidence. Preserve older active qualified slot on failed write and re-read bytes before apply.
+- Decide if WCRV v1 12-float payload should be replaced by sparse scalar/two-gain frame v2 after model selection. Do not change schema by treating new bytes as old. If v1 remains, constrain identity unused coefficients exactly and document zero rank.
+- Avoid runtime code for fit, plots or interval solver. Persist fitted coefficients and a small condition-specific published bound table in W25Q; use a single bounded scratch workspace and finite checks.
+- Do not require all 33 keys to have optional curves; missing/out-of-domain = OSL only, not silently cross-conditioned correction. An invalid previously active curve = explicit fault/reject result; do not disguise error as OSL corrected output without a known safe policy.
+
+## Tasks and acceptance
+C13-01 create golden synthetic standards + intentionally conflicting FIT/holdout examples; compare model A0..A4.
+C13-02 host uncertainty engine, coverage labels and sensitivity tests on near-open/short.
+C13-03 test C01/C02/C03/C04 curves from real scope data, identify which actually explain repeatable residuals.
+C13-04 at most one parsimonious post-OSL correction model per qualified exact condition; report knots and rank.
+C13-05 PC curve editor/visualization with tolerance interval entry, point suggestion, custom point, scope evidence import, per-point rejection, model comparison and uncertainty budget.
+C13-06 independent resistor/capacitor/inductor holdouts and temperature/supply replicates; invalidate any overfitting.
+C13-07 firmware compatibility/versioned manifest, A/B transaction, OSL binding, power interruption recovery and qualification permission. No promotion from host-only 'PASS' to bench-qualified.
+C13-08 test mono/stereo phase correction, negative R, clipped ADC, singular OPEN, gross reference mismatch, invalid tolerances and rounding.
+C13-09 release gate: a printed ±error must correspond to an explicit reviewed accuracy document ID/condition. Non-characterized conditions remain usable as indicative readings only with unmistakable label.
+
+## Blocked owner decision
+Choose initial minimal model A1 or A2 versus retaining WCRV v1 A3 solely as a sparse experimental substrate; do not rewrite on-device schema before actual resistor/C/L + scope data identifies needed parameters.
