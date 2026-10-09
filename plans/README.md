@@ -31,8 +31,9 @@ The following complementary execution plans were written against commit `8abc1b3
 - [13 — Curves and uncertainty](13-Curve-Calibration-Intervals-and-Uncertainty.md) — X/Y model catalogue, reference tolerance intervals, holdouts, OSL-vs-overlay model selection and credible displayed error.
 - [14 — PC calibrator and accessible reference kit](14-PC-Calibrator-Accessible-Standards-and-Scope.md) — Brazilian-store friendly components, safe scope probing, GUI UX, campaign evidence and transactional protocol prerequisites.
 - [15 — Agent workstreams and release gates](15-Execution-Workstreams-and-Release-Gates.md) — ordered, parallelizable tickets, acceptance tests and product definition of done.
+- [16 — Optional DC and transient physics](16-Optional-DC-and-Transient-Physics.md) — DC winding resistance, capacitor self-discharge versus known-load RC decay, dielectric absorption, inductor RL field decay, physical feasibility and go/no-go before assembly.
 
-**Agent entrypoint:** start with ticket A01 from plan 15; run A03/A04/A05 in parallel where permitted. Follow AGENTS.md and every 'REQUIRES_BENCH_VALIDATION' gate. No plan authorizes removing safety or claiming unmeasured accuracy.
+**Agent entrypoint:** start with A01 map attribution and A05 pre-assembly PCB/DNP audit from plan 15; run A03/A04 (host-only) in parallel. The confirmed Hantek DSO2C10 is for scope time/phase/waveform validation, not unqualified sub-1% DC voltage accuracy. Full OSL calibration moves toward the PC, with optional lean local OPEN/SHORT. Flash optimization is judged against a dynamic full-product forecast rather than a fixed 56KiB. Follow AGENTS.md and every 'REQUIRES_BENCH_VALIDATION' gate. No plan authorizes removing safety or claiming unmeasured accuracy.
 
 Phase 03A is an orthogonal validation layer rather than a new firmware-feature phase. It should be established after the Phase 02/03 digital foundations and then reused by later phases. It does not replace any physical bench gate.
 
