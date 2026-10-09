@@ -1,0 +1,380 @@
+[
+  {
+    "baseline_bytes": 2326,
+    "candidate_bytes": 2330,
+    "delta_bytes": 4,
+    "name": "UNATTRIBUTED"
+  },
+  {
+    "baseline_bytes": 32,
+    "candidate_bytes": 32,
+    "delta_bytes": 0,
+    "name": "libg_nano.a(libc_a-memcmp.o)"
+  },
+  {
+    "baseline_bytes": 28,
+    "candidate_bytes": 28,
+    "delta_bytes": 0,
+    "name": "libg_nano.a(libc_a-memcpy-stub.o)"
+  },
+  {
+    "baseline_bytes": 50,
+    "candidate_bytes": 50,
+    "delta_bytes": 0,
+    "name": "libg_nano.a(libc_a-memmove.o)"
+  },
+  {
+    "baseline_bytes": 16,
+    "candidate_bytes": 16,
+    "delta_bytes": 0,
+    "name": "libg_nano.a(libc_a-memset.o)"
+  },
+  {
+    "baseline_bytes": 24,
+    "candidate_bytes": 24,
+    "delta_bytes": 0,
+    "name": "libg_nano.a(libc_a-strlen.o)"
+  },
+  {
+    "baseline_bytes": 540,
+    "candidate_bytes": 540,
+    "delta_bytes": 0,
+    "name": "libgcc.a(_arm_addsubsf3.o)"
+  },
+  {
+    "baseline_bytes": 236,
+    "candidate_bytes": 236,
+    "delta_bytes": 0,
+    "name": "libgcc.a(_arm_cmpsf2.o)"
+  },
+  {
+    "baseline_bytes": 76,
+    "candidate_bytes": 76,
+    "delta_bytes": 0,
+    "name": "libgcc.a(_arm_fixsfsi.o)"
+  },
+  {
+    "baseline_bytes": 64,
+    "candidate_bytes": 64,
+    "delta_bytes": 0,
+    "name": "libgcc.a(_arm_fixunssfsi.o)"
+  },
+  {
+    "baseline_bytes": 672,
+    "candidate_bytes": 672,
+    "delta_bytes": 0,
+    "name": "libgcc.a(_arm_muldivsf3.o)"
+  },
+  {
+    "baseline_bytes": 44,
+    "candidate_bytes": 44,
+    "delta_bytes": 0,
+    "name": "libgcc.a(_arm_unordsf2.o)"
+  },
+  {
+    "baseline_bytes": 1586,
+    "candidate_bytes": 1566,
+    "delta_bytes": -20,
+    "name": "src/app/app_calibration_service.c"
+  },
+  {
+    "baseline_bytes": 3604,
+    "candidate_bytes": 3604,
+    "delta_bytes": 0,
+    "name": "src/app/app_calibration_session.c"
+  },
+  {
+    "baseline_bytes": 3604,
+    "candidate_bytes": 3588,
+    "delta_bytes": -16,
+    "name": "src/app/app_calibration_wizard.c"
+  },
+  {
+    "baseline_bytes": 530,
+    "candidate_bytes": 532,
+    "delta_bytes": 2,
+    "name": "src/app/app_calibration_workflow.c"
+  },
+  {
+    "baseline_bytes": 986,
+    "candidate_bytes": 990,
+    "delta_bytes": 4,
+    "name": "src/app/app_measurement_session.c"
+  },
+  {
+    "baseline_bytes": 304,
+    "candidate_bytes": 304,
+    "delta_bytes": 0,
+    "name": "src/app/app_pc_link_protocol.c"
+  },
+  {
+    "baseline_bytes": 1784,
+    "candidate_bytes": 1784,
+    "delta_bytes": 0,
+    "name": "src/app/app_product.c"
+  },
+  {
+    "baseline_bytes": 420,
+    "candidate_bytes": 420,
+    "delta_bytes": 0,
+    "name": "src/app/app_resource_update.c"
+  },
+  {
+    "baseline_bytes": 390,
+    "candidate_bytes": 390,
+    "delta_bytes": 0,
+    "name": "src/app/app_settings_service.c"
+  },
+  {
+    "baseline_bytes": 18397,
+    "candidate_bytes": 17463,
+    "delta_bytes": -934,
+    "name": "src/app/app_shell.c"
+  },
+  {
+    "baseline_bytes": 388,
+    "candidate_bytes": 388,
+    "delta_bytes": 0,
+    "name": "src/bsp/bsp_adc.c"
+  },
+  {
+    "baseline_bytes": 180,
+    "candidate_bytes": 180,
+    "delta_bytes": 0,
+    "name": "src/bsp/bsp_clock.c"
+  },
+  {
+    "baseline_bytes": 162,
+    "candidate_bytes": 162,
+    "delta_bytes": 0,
+    "name": "src/bsp/bsp_excitation.c"
+  },
+  {
+    "baseline_bytes": 46,
+    "candidate_bytes": 46,
+    "delta_bytes": 0,
+    "name": "src/bsp/bsp_gpio.c"
+  },
+  {
+    "baseline_bytes": 240,
+    "candidate_bytes": 240,
+    "delta_bytes": 0,
+    "name": "src/bsp/bsp_metrology_adc.c"
+  },
+  {
+    "baseline_bytes": 28,
+    "candidate_bytes": 28,
+    "delta_bytes": 0,
+    "name": "src/bsp/bsp_spi.c"
+  },
+  {
+    "baseline_bytes": 20,
+    "candidate_bytes": 20,
+    "delta_bytes": 0,
+    "name": "src/bsp/bsp_time.c"
+  },
+  {
+    "baseline_bytes": 78,
+    "candidate_bytes": 78,
+    "delta_bytes": 0,
+    "name": "src/bsp/bsp_timers.c"
+  },
+  {
+    "baseline_bytes": 60,
+    "candidate_bytes": 60,
+    "delta_bytes": 0,
+    "name": "src/bsp/bsp_uart.c"
+  },
+  {
+    "baseline_bytes": 4494,
+    "candidate_bytes": 3634,
+    "delta_bytes": -860,
+    "name": "src/bsp/startup_stm32f103c8tx.c"
+  },
+  {
+    "baseline_bytes": 52,
+    "candidate_bytes": 52,
+    "delta_bytes": 0,
+    "name": "src/drivers/buttons.c"
+  },
+  {
+    "baseline_bytes": 336,
+    "candidate_bytes": 336,
+    "delta_bytes": 0,
+    "name": "src/drivers/ili9341.c"
+  },
+  {
+    "baseline_bytes": 285,
+    "candidate_bytes": 285,
+    "delta_bytes": 0,
+    "name": "src/drivers/spi_bus.c"
+  },
+  {
+    "baseline_bytes": 642,
+    "candidate_bytes": 644,
+    "delta_bytes": 2,
+    "name": "src/drivers/w25q_device.c"
+  },
+  {
+    "baseline_bytes": 1808,
+    "candidate_bytes": 1808,
+    "delta_bytes": 0,
+    "name": "src/hardware/hw_aux_sensors.c"
+  },
+  {
+    "baseline_bytes": 44,
+    "candidate_bytes": 44,
+    "delta_bytes": 0,
+    "name": "src/hardware/hw_charger.c"
+  },
+  {
+    "baseline_bytes": 34,
+    "candidate_bytes": 34,
+    "delta_bytes": 0,
+    "name": "src/hardware/hw_excitation.c"
+  },
+  {
+    "baseline_bytes": 32,
+    "candidate_bytes": 34,
+    "delta_bytes": 2,
+    "name": "src/hardware/hw_k1.c"
+  },
+  {
+    "baseline_bytes": 82,
+    "candidate_bytes": 82,
+    "delta_bytes": 0,
+    "name": "src/hardware/hw_metrology_clock.c"
+  },
+  {
+    "baseline_bytes": 148,
+    "candidate_bytes": 148,
+    "delta_bytes": 0,
+    "name": "src/hardware/hw_metrology_measure.c"
+  },
+  {
+    "baseline_bytes": 104,
+    "candidate_bytes": 104,
+    "delta_bytes": 0,
+    "name": "src/hardware/hw_metrology_raw.c"
+  },
+  {
+    "baseline_bytes": 204,
+    "candidate_bytes": 204,
+    "delta_bytes": 0,
+    "name": "src/hardware/hw_range.c"
+  },
+  {
+    "baseline_bytes": 154,
+    "candidate_bytes": 154,
+    "delta_bytes": 0,
+    "name": "src/hardware/hw_safety.c"
+  },
+  {
+    "baseline_bytes": 3076,
+    "candidate_bytes": 3038,
+    "delta_bytes": -38,
+    "name": "src/measurement/measurement_calibration.c"
+  },
+  {
+    "baseline_bytes": 692,
+    "candidate_bytes": 692,
+    "delta_bytes": 0,
+    "name": "src/measurement/measurement_calibration_solver.c"
+  },
+  {
+    "baseline_bytes": 724,
+    "candidate_bytes": 734,
+    "delta_bytes": 10,
+    "name": "src/measurement/measurement_calibration_store.c"
+  },
+  {
+    "baseline_bytes": 50,
+    "candidate_bytes": 50,
+    "delta_bytes": 0,
+    "name": "src/measurement/measurement_condition.c"
+  },
+  {
+    "baseline_bytes": 2504,
+    "candidate_bytes": 1868,
+    "delta_bytes": -636,
+    "name": "src/measurement/measurement_dsp.c"
+  },
+  {
+    "baseline_bytes": 3758,
+    "candidate_bytes": 3758,
+    "delta_bytes": 0,
+    "name": "src/measurement/measurement_engine.c"
+  },
+  {
+    "baseline_bytes": 8,
+    "candidate_bytes": 8,
+    "delta_bytes": 0,
+    "name": "src/storage/app_settings_w25q_adapter.c"
+  },
+  {
+    "baseline_bytes": 156,
+    "candidate_bytes": 156,
+    "delta_bytes": 0,
+    "name": "src/storage/measurement_cal_w25q_adapter.c"
+  },
+  {
+    "baseline_bytes": 766,
+    "candidate_bytes": 756,
+    "delta_bytes": -10,
+    "name": "src/storage/resource_store.c"
+  },
+  {
+    "baseline_bytes": 100,
+    "candidate_bytes": 100,
+    "delta_bytes": 0,
+    "name": "src/storage/resource_w25q_adapter.c"
+  },
+  {
+    "baseline_bytes": 66,
+    "candidate_bytes": 66,
+    "delta_bytes": 0,
+    "name": "src/storage/storage_crc32.c"
+  },
+  {
+    "baseline_bytes": 146,
+    "candidate_bytes": 94,
+    "delta_bytes": -52,
+    "name": "src/storage/storage_layout.c"
+  },
+  {
+    "baseline_bytes": 196,
+    "candidate_bytes": 196,
+    "delta_bytes": 0,
+    "name": "src/ui/ui_font.c"
+  },
+  {
+    "baseline_bytes": 504,
+    "candidate_bytes": 520,
+    "delta_bytes": 16,
+    "name": "src/ui/ui_format.c"
+  },
+  {
+    "baseline_bytes": 5108,
+    "candidate_bytes": 5138,
+    "delta_bytes": 30,
+    "name": "src/ui/ui_product.c"
+  },
+  {
+    "baseline_bytes": 48,
+    "candidate_bytes": 48,
+    "delta_bytes": 0,
+    "name": "src/ui/ui_text.c"
+  },
+  {
+    "baseline_bytes": 584,
+    "candidate_bytes": 564,
+    "delta_bytes": -20,
+    "name": "src/ui/ui_text_catalog.c"
+  },
+  {
+    "baseline_bytes": 276,
+    "candidate_bytes": 276,
+    "delta_bytes": 0,
+    "name": "src/ui/ui_utf8.c"
+  }
+]

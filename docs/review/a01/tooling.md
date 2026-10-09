@@ -33,6 +33,12 @@ source lines. LTO temporary paths and local roots are removed from reported owne
 raw files retain exact tool output for investigation. Source-line attribution
 identifies the origin of emitted functions and includes their inlined callees.
 
+A02.1 corrected command capture to use read-only Ninja tool mode (`-t targets all`
+and `-t commands`). The earlier `cmake --build --target help` could regenerate a
+saved build graph after source changes, even without rebuilding its ELF. Preserve
+baseline artifacts and collect evidence before editing when using the older tool.
+Other generators do not receive a potentially mutating fallback command.
+
 ## Analyze captured text offline and compare profiles/commits
 
 ```powershell

@@ -10,6 +10,13 @@
 #include "measurement/measurement_condition.h"
 #include "measurement/measurement_cal_curve.h"
 #include "measurement/measurement_dsp.h"
+#include "wtk_build_config.h"
+
+/* Build capability, independent of the presence or qualification of WCRV data. */
+static inline bool measurement_cal_supplementary_supported(void)
+{
+    return WTK_ENABLE_SUPPLEMENTARY_CURVES != 0u;
+}
 
 enum
 {
@@ -233,6 +240,8 @@ bsp_status_t measurement_cal_process_block(const hw_metrology_block_t *block,
                                            const measurement_cal_key_t *key,
                                            bool allow_ideal_fallback,
                                            measurement_calibrated_result_t *result);
+/* OFF returns NOT_SUPPORTED without modifying the OSL result. Only successful
+ * application may set supplementary_applied; a fresh OSL result clears it. */
 measurement_cal_curve_status_t measurement_cal_apply_curve(
     measurement_calibrated_result_t *result,
     const measurement_cal_key_t *key,

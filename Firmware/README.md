@@ -73,6 +73,25 @@ cmake --preset stm32-release
 cmake --build --preset stm32-release
 ```
 
+Supplementary post-OSL curves are optional and default to **OFF** on all targets.
+The ordinary OSL model, full wizard, calibration boot gate and W25Q partitions are
+unchanged. Existing WCRV records remain stored when the runtime is disabled.
+Use separate build directories to test or re-enable the runtime:
+
+```bash
+cmake --preset stm32-release -B build/stm32-release-curves-on -DWTK_ENABLE_SUPPLEMENTARY_CURVES=ON
+cmake --build build/stm32-release-curves-on
+cmake --preset host-debug -B build/host-debug-curves-on -DWTK_ENABLE_SUPPLEMENTARY_CURVES=ON
+cmake --build build/host-debug-curves-on --config Debug
+ctest --test-dir build/host-debug-curves-on -C Debug --output-on-failure
+```
+
+Repeat the host commands with `OFF`, and with `host-release` / `Release`, for the
+complete capability matrix. On Windows select `-G "Visual Studio 17 2022"` when
+configuring with MSVC. CMake cache values persist; explicitly pass `OFF` when
+reusing a directory previously configured with `ON`. The normal size gates apply
+to both variants. See [A02.1 evidence and compatibility](../docs/review/a02/README.md).
+
 Embedded Bringup diagnostics build:
 
 ```bash

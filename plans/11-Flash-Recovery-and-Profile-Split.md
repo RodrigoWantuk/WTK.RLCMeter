@@ -1,6 +1,6 @@
 # 11 — Flash Recovery, Target Boundaries and Code Audit
 
-STATUS: IN_PROGRESS — A01 FORENSICS COMPLETE; PRODUCTION RECOVERY NOT IMPLEMENTED
+STATUS: IN_PROGRESS — A01 COMPLETE; A02.1 CURVE ISOLATION IMPLEMENTED_TESTED_HOST / COMPILES_TARGET
 PRIORITY: P0. Do not grow the PRODUCT image while this phase is incomplete.
 BASELINE: 2026-10-09 main 8abc1b3; documented PRODUCT 64,096 B / BRINGUP 65,052 B.
 
@@ -24,7 +24,12 @@ only if that recovery and an unverified 5,000 B gross OSL relocation are achieve
 with replacement provisioning and contingency included. The high scenario does
 not fit. F11-22 gate review remains pending; the 63 KiB PRODUCT gate is unchanged.
 
-Next: narrow A02 curve ownership, then reviewed A06 provisioning migration.
+Next: reviewed A06 provisioning migration. A02.1 measured PRODUCT Release OFF at
+61,580 B Flash / 14,976 B accounted RAM; ON at 64,096 / 15,040. The capability
+defaults OFF, preserves OSL and W25Q formats, and costs 2,516 B Flash / 64 B RAM to
+restore. See [A02.1 evidence](../docs/review/a02/README.md). The remaining mandatory
+central estimate still exceeds capacity without further recovery. Broader profile
+splitting and physical qualification remain incomplete.
 Plan 11 is not COMPLETE: no production savings or physical qualification claimed.
 All hardware acceptance remains `REQUIRES_BENCH_VALIDATION`.
 

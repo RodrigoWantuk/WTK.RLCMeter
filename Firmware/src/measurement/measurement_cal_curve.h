@@ -28,6 +28,7 @@ typedef enum
     MEASUREMENT_CAL_CURVE_INVALID_ARG,
     MEASUREMENT_CAL_CURVE_OUT_OF_DOMAIN,
     MEASUREMENT_CAL_CURVE_NONFINITE,
+    MEASUREMENT_CAL_CURVE_NOT_SUPPORTED,
 } measurement_cal_curve_status_t;
 
 void measurement_cal_curve_identity(measurement_cal_curve_t *curve);

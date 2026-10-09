@@ -112,6 +112,14 @@ int main(void)
     failures += expect_true(measurement_cal_curve_store_read(&store, &key, 43u, 0x12345678u,
                                                              &curve) == BSP_STATUS_NOT_SUPPORTED,
                             "OSL change invalidates active overlay");
+    failures += expect_true(measurement_cal_curve_store_read(&store, &key, 42u, 0x12345679u,
+                                                             &curve) == BSP_STATUS_NOT_SUPPORTED,
+                            "OSL CRC change invalidates active overlay");
+    measurement_cal_key_t missing_key = key;
+    missing_key.range_id = HW_RANGE_ID_100R;
+    failures += expect_true(measurement_cal_curve_store_read(&store, &missing_key, 42u, 0x12345678u,
+                                                             &curve) == BSP_STATUS_NOT_SUPPORTED,
+                            "missing condition cannot reuse another curve");
     flash[slot_a.start + MEASUREMENT_CAL_CURVE_FRAME_HEADER_BYTES + 4u] ^= 1u;
     failures += expect_true(measurement_cal_curve_store_read(&store, &key, 42u, 0x12345678u,
                                                              &curve) == BSP_STATUS_ERROR,
@@ -142,5 +150,16 @@ int main(void)
         "reverse wrap remains readable");
     failures += expect_true(store.slot_start == slot_a.start && store.curve_sequence == 1u,
                             "reverse wrap keeps newer A");
+    const uint32_t flash_crc = storage_crc32(flash, sizeof(flash));
+    failures += expect_true(measurement_cal_curve_store_load(&store, fake_read, NULL,
+        FLASH_BYTES, 43u, 0x12345678u, scratch, sizeof(scratch)) == BSP_STATUS_NOT_SUPPORTED &&
+        !store.active, "stale provisioned slots leave curve inactive");
+    failures += expect_true(storage_crc32(flash, sizeof(flash)) == flash_crc,
+                            "stale records are preserved for inspection or compatible firmware");
+    flash[slot_a.start + FRAME_BYTES - 4u] ^= 1u;
+    flash[slot_b.start + FRAME_BYTES - 4u] ^= 1u;
+    failures += expect_true(measurement_cal_curve_store_load(&store, fake_read, NULL,
+        FLASH_BYTES, 42u, 0x12345678u, scratch, sizeof(scratch)) == BSP_STATUS_NOT_SUPPORTED &&
+        !store.active, "both corrupt slots leave curve inactive");
     return failures == 0 ? 0 : 1;
 }

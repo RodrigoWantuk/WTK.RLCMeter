@@ -23,6 +23,11 @@ set_property(CACHE WTK_FIRMWARE_PROFILE PROPERTY STRINGS PRODUCT BRINGUP)
 option(WTK_WARNINGS_AS_ERRORS_HOST "Treat warnings as errors for host project targets" ON)
 option(WTK_WARNINGS_AS_ERRORS_STM32 "Treat warnings as errors for STM32 project targets" OFF)
 option(WTK_FLASH_FORENSICS "Emit GNU link, discarded-section and LTO stack-usage evidence" OFF)
+option(WTK_ENABLE_SUPPLEMENTARY_CURVES "Enable optional post-OSL WCRV calibration runtime" OFF)
+set(WTK_ENABLE_SUPPLEMENTARY_CURVES_VALUE 0)
+if(WTK_ENABLE_SUPPLEMENTARY_CURVES)
+    set(WTK_ENABLE_SUPPLEMENTARY_CURVES_VALUE 1)
+endif()
 set(WTK_PRODUCT_OPTIMIZATION_LEVEL "-Os" CACHE STRING "Optimization level for STM32 PRODUCT builds.")
 set_property(CACHE WTK_PRODUCT_OPTIMIZATION_LEVEL PROPERTY STRINGS -Os -Oz)
 option(WTK_ENABLE_PRODUCT_RESOURCE_UPDATE
@@ -125,9 +130,6 @@ add_library(wtk_firmware_common STATIC
     src/measurement/measurement_dc.c
     src/measurement/measurement_condition.c
     src/measurement/measurement_calibration.c
-    src/measurement/measurement_cal_curve.c
-    src/measurement/measurement_cal_curve_frame.c
-    src/measurement/measurement_cal_curve_store.c
     src/measurement/measurement_calibration_solver.c
     src/measurement/measurement_calibration_store.c
     src/measurement/measurement_engine.c
@@ -143,6 +145,13 @@ add_library(wtk_firmware_common STATIC
     src/ui/ui_text.c
     src/ui/ui_utf8.c
 )
+if(WTK_ENABLE_SUPPLEMENTARY_CURVES)
+    target_sources(wtk_firmware_common PRIVATE
+        src/measurement/measurement_cal_curve.c
+        src/measurement/measurement_cal_curve_frame.c
+        src/measurement/measurement_cal_curve_store.c
+    )
+endif()
 target_include_directories(wtk_firmware_common
     PUBLIC
         "${CMAKE_CURRENT_SOURCE_DIR}/src"
@@ -299,6 +308,8 @@ elseif(WTK_TARGET_PLATFORM STREQUAL "stm32")
                     "${CMAKE_CURRENT_SOURCE_DIR}/tools/check_profile_symbols.py"
                     $<TARGET_FILE:wtk_rlcmeter>
                     --profile ${WTK_FIRMWARE_PROFILE}
+                    --supplementary-curves $<IF:$<BOOL:${WTK_ENABLE_SUPPLEMENTARY_CURVES}>,ON,OFF>
+                    --compile-commands "${CMAKE_CURRENT_BINARY_DIR}/compile_commands.json"
                     --nm-tool ${CMAKE_NM}
             COMMENT "Checking STM32 firmware profile composition"
         )

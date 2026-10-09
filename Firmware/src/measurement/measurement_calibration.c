@@ -868,6 +868,7 @@ measurement_cal_curve_status_t measurement_cal_apply_curve(
     const measurement_cal_key_t *key,
     const measurement_cal_curve_t *curve)
 {
+#if WTK_ENABLE_SUPPLEMENTARY_CURVES
     if ((result == NULL) || (key == NULL) || (curve == NULL) ||
         (result->result.status != MEASUREMENT_STATUS_OK) ||
         !result->output_corrected)
@@ -894,6 +895,12 @@ measurement_cal_curve_status_t measurement_cal_apply_curve(
     result->result.derived = derived;
     result->supplementary_applied = true;
     return MEASUREMENT_CAL_CURVE_OK;
+#else
+    (void)result;
+    (void)key;
+    (void)curve;
+    return MEASUREMENT_CAL_CURVE_NOT_SUPPORTED;
+#endif
 }
 
 static void encode_scale(uint8_t **cursor, measurement_adc_scale_t scale)

@@ -1,6 +1,6 @@
 # Rev.1 Recovery Program — Technical Review and Decision Record
 
-STATUS: IN_PROGRESS — PLANNING / REQUIRES_OWNER_DECISIONS
+STATUS: IN_PROGRESS — O01–O07 OWNER DIRECTION RECORDED / REQUIRES_BENCH_VALIDATION
 BASELINE: main @ 8abc1b3dd65cbd5cec7ee984b6165c63b0d50c64, 2026-10-09
 OWNER: product/hardware owner; execution by assigned coding and bench agents
 PURPOSE: recover a usable instrument, not maximize the number of displayed parameters.
@@ -38,7 +38,7 @@ Each claim carries one of IMPLEMENTED_TESTED_HOST, COMPILES_TARGET, REQUIRES_BEN
 
 ## Current strategic blockers
 B01 physical Rev.1 electrical netlist and assembly substitutions not fully reconciled.
-B02 no actual ELF/map size attribution or before/after bytes for optimization opportunities.
+B02 A01 completed ELF/map attribution and measured optimization probes; see `docs/review/a01/`. Production recovery and the remaining-feature budget still need implementation evidence.
 B03 no scope or DMM validation of PWM, filter, high-gain channel, reference switches, ADC timing.
 B04 1 MOhm DC pilot is BRINGUP-only and neither DCR nor leakage qualified.
 B05 12-coefficient supplementary complex fit risks underdetermination and overfitting.
@@ -53,7 +53,8 @@ B07 the full 33-condition on-device calibration workflow may be too burdensome f
 - 14 Accessible calibration kit, oscilloscope procedures and PC workbench UX (PC + bench agents).
 - 15 Ordered milestones, tests, release gates, dependencies and prompts for workers (integrator).
 
-## Owner answers needed (do not block evidence-only tasks)
+## Historical owner questions (superseded by O01–O07 below)
+The confirmed decisions below govern execution; do not request those answers again. Unspecified instrument/probe details remain inputs to future bench procedures, not blockers to the authorized software isolation work.
 Q1 Exact equipment: scope make/model, channels, probes (1×/10× or differential), approximate vertical accuracy, whether it has an AWG, DMM make/model, temperature reference.
 Q2 Board assembly: does first Rev.1 PCB exist and power up? Actual K2 / R0_BANK / TVS / active-guard DNP population, charger/boost, original MOSFET/op-amp substitutions, actual RREF tolerances.
 Q3 What is the minimum acceptable PRODUCT at first delivery: AC RLC+ESR/Q/D only, or is DC DCR mandatory at launch?

@@ -2,6 +2,10 @@
 
 STATUS: COMPLETE — A01 evidence/tooling only. Plan 11 remains IN_PROGRESS.
 
+Follow-up: [A02.1](../a02/README.md) implements the curve capability boundary and
+provides the [current forward budget](../a02/feature-budget.csv). A01 figures below
+remain historical evidence; do not subtract the curve saving again from A02's baseline.
+
 Evidence date: 2026-10-09. Baseline: `main` at
 `9553fa84780b9a91a25065c3e2f8d7d5305bda80` (merged PR #7).
 The clean checkout was fetched, fast-forwarded from `8abc1b3`, and its recursive
