@@ -35,6 +35,12 @@ The following complementary execution plans were written against commit `8abc1b3
 
 **Agent entrypoint:** start with A01 map attribution and A05 pre-assembly PCB/DNP audit from plan 15; run A03/A04 (host-only) in parallel. The confirmed Hantek DSO2C10 is for scope time/phase/waveform validation, not unqualified sub-1% DC voltage accuracy. Full OSL calibration moves toward the PC, with optional lean local OPEN/SHORT. Flash optimization is judged against a dynamic full-product forecast rather than a fixed 56KiB. Follow AGENTS.md and every 'REQUIRES_BENCH_VALIDATION' gate. No plan authorizes removing safety or claiming unmeasured accuracy.
 
+**A01 evidence available (2026-10-09):** [Flash attribution and completion budget](../docs/review/a01/README.md).
+A01 tooling is complete; plan 11 remains in progress with no production reduction
+yet. Begin A02 using the measured 2,516 B supplementary-curve opportunity; review
+A06 provisioning before changing the calibration boot gate. The report also fixes
+historical double-counting of the reserved stack in RAM totals.
+
 Phase 03A is an orthogonal validation layer rather than a new firmware-feature phase. It should be established after the Phase 02/03 digital foundations and then reused by later phases. It does not replace any physical bench gate.
 
 ## How agents use these plans

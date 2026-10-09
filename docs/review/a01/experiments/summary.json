@@ -1,0 +1,29 @@
+{
+  "experiments": [
+    {"flash_bytes": 64096, "flash_delta_vs_release": 0, "gate_pass": true, "name": "release-g1", "ram_accounted_bytes": 15040},
+    {"flash_bytes": 65052, "flash_delta_vs_release": null, "gate_pass": true, "name": "bringup-g1", "ram_accounted_bytes": 14588},
+    {"flash_bytes": 64096, "flash_delta_vs_release": 0, "gate_pass": true, "name": "release-oz", "ram_accounted_bytes": 15040},
+    {"flash_bytes": 65196, "flash_delta_vs_release": 1100, "gate_pass": false, "name": "release-no-inline-once", "ram_accounted_bytes": 15048},
+    {"flash_bytes": 61580, "flash_delta_vs_release": -2516, "gate_pass": true, "name": "release-curves-off", "ram_accounted_bytes": 14976},
+    {"elf_produced": false, "gate_pass": false, "linker_reported_flash_bytes": 70768, "name": "release-no-lto", "overflow_bytes": 5232}
+  ],
+  "largest_lto_stack_frames": [
+    {"bytes": 888, "function": "app_calibration_session_step.constprop", "kind": "static"},
+    {"bytes": 704, "function": "app_calibration_wizard_step.constprop", "kind": "static"},
+    {"bytes": 448, "function": "app_step", "kind": "static"},
+    {"bytes": 440, "function": "product_auto_process_block", "kind": "static"},
+    {"bytes": 328, "function": "measurement_auto_submit_result.constprop", "kind": "static"},
+    {"bytes": 256, "function": "product_mount_resource_pack", "kind": "static"},
+    {"bytes": 224, "function": "app_measurement_attempt_from_dsp.constprop", "kind": "static"},
+    {"bytes": 224, "function": "finalize_result.part.0.constprop", "kind": "static"},
+    {"bytes": 184, "function": "app_measurement_session_step.constprop", "kind": "static"},
+    {"bytes": 184, "function": "measurement_cal_decode_set", "kind": "static"},
+    {"bytes": 176, "function": "submit_phase05_failure.constprop", "kind": "static"},
+    {"bytes": 168, "function": "measurement_extract_phasors.part.0", "kind": "static"},
+    {"bytes": 144, "function": "ui_text_catalog_select_language.constprop", "kind": "static"},
+    {"bytes": 128, "function": "prepare_line.constprop", "kind": "static"},
+    {"bytes": 120, "function": "Reset_Handler", "kind": "static"}
+  ],
+  "source_sha": "9553fa84780b9a91a25065c3e2f8d7d5305bda80",
+  "stack_note": "Individual static frames only; not a bound on nested calls or ISR use. No runtime stack qualification."
+}

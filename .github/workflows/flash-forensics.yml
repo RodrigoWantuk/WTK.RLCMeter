@@ -1,0 +1,81 @@
+name: Flash forensics
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  evidence:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: candidate
+          submodules: recursive
+      - uses: actions/checkout@v4
+        with:
+          path: baseline
+          ref: ${{ github.event.pull_request.base.sha || github.event.before || github.sha }}
+          submodules: recursive
+      - name: Install host and ARM build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends cmake ninja-build gcc gcc-arm-none-eabi binutils-arm-none-eabi libnewlib-arm-none-eabi python3 python3-pil
+          arm-none-eabi-gcc --version
+      - name: Host and Python regression
+        working-directory: candidate/Firmware
+        run: |
+          for preset in host-debug host-release; do
+            cmake --preset "$preset" -G Ninja
+            cmake --build --preset "$preset" --parallel 2
+            ctest --preset "$preset"
+          done
+          python3 -m unittest discover -s tests/tools -v
+      - name: Build base and candidate with the same installed compiler
+        shell: bash
+        run: |
+          set -euo pipefail
+          for tree in baseline candidate; do
+            for preset in stm32-debug stm32-release stm32-bringup; do
+              mkdir -p "$tree/Firmware/build"
+              cmake --preset "$preset" -S "$tree/Firmware" -DWTK_FLASH_FORENSICS=ON
+              cmake --build "$tree/Firmware/build/$preset" --parallel 2 2>&1 | tee "$tree/Firmware/build/$preset-build.log"
+            done
+          done
+      - name: Capture per-commit evidence and regression deltas
+        shell: bash
+        run: |
+          set -euo pipefail
+          for preset in stm32-debug stm32-release stm32-bringup; do
+            python3 candidate/Firmware/tools/collect_flash_evidence.py "baseline/Firmware/build/$preset" \
+              --profile "$preset-base" --git-sha "$(git -C baseline rev-parse HEAD)"
+            python3 candidate/Firmware/tools/collect_flash_evidence.py "candidate/Firmware/build/$preset" \
+              --profile "$preset" --git-sha "$(git -C candidate rev-parse HEAD)" \
+              --baseline "baseline/Firmware/build/$preset/forensics/attribution.json"
+          done
+      - name: Retain evidence even on a build-gate failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: flash-forensics-${{ github.sha }}
+          retention-days: 30
+          path: |
+            baseline/Firmware/build/**/forensics/
+            candidate/Firmware/build/**/forensics/
+            baseline/Firmware/build/**/*.map
+            candidate/Firmware/build/**/*.map
+            baseline/Firmware/build/**/*.size.json
+            candidate/Firmware/build/**/*.size.json
+            baseline/Firmware/build/**/*.elf
+            candidate/Firmware/build/**/*.elf
+            baseline/Firmware/build/**/*.bin
+            candidate/Firmware/build/**/*.bin
+            candidate/Firmware/build/**/*.su
+            candidate/Firmware/build/*-build.log
+            baseline/Firmware/build/*-build.log

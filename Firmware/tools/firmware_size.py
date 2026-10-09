@@ -85,6 +85,23 @@ def parse_nm(output: str, limit: int) -> list[dict[str, object]]:
     return symbols[:limit]
 
 
+def ram_usage(sections: dict[str, int]) -> dict[str, int]:
+    """Use output sections: Berkeley BSS already includes NOLOAD reservations.
+
+    The STM32 linker contract has these four RAM output sections. Do not add
+    .noinit or the stack floor to the aggregate BSS returned by GNU size.
+    """
+    required = {".data", ".bss", ".noinit", "._user_heap_stack"}
+    if not required <= sections.keys():
+        raise ValueError("missing STM32 RAM output sections")
+    static = sections[".data"] + sections[".bss"]
+    noinit = sections[".noinit"]
+    reserved = sections["._user_heap_stack"]
+    return {"bss": sections[".bss"], "ram_static_bytes": static,
+            "noinit_bytes": noinit, "reserved_stack_bytes": reserved,
+            "ram_accounted_bytes": static + noinit + reserved}
+
+
 def percent(value: int, total: int) -> float:
     return (100.0 * float(value)) / float(total)
 
@@ -131,9 +148,12 @@ def main() -> int:
     sections = parse_sections(run_tool([objdump_tool, "-h", str(args.elf)]))
     nm = parse_nm(run_tool([nm_tool, "--print-size", "--size-sort", str(args.elf)]), args.nm_limit)
 
-    reserved_stack_bytes = sections.get("._user_heap_stack", 0)
-    noinit_bytes = sections.get(".noinit", 0)
-    ram_accounted_bytes = size["ram_static_bytes"] + noinit_bytes + reserved_stack_bytes
+    size_bss_aggregate_bytes = size["bss"]
+    ram = ram_usage(sections)
+    size.update({"bss": ram["bss"], "ram_static_bytes": ram["ram_static_bytes"]})
+    reserved_stack_bytes = ram["reserved_stack_bytes"]
+    noinit_bytes = ram["noinit_bytes"]
+    ram_accounted_bytes = ram["ram_accounted_bytes"]
     ram_remaining_bytes = RAM_SILICON_BYTES - ram_accounted_bytes
     budget_name = normalized_budget_name(args.budget)
     ram_preferred_bytes, ram_hard_bytes = ram_limits_for_budget(budget_name)
@@ -142,6 +162,7 @@ def main() -> int:
         "elf": str(args.elf),
         "budget": budget_name,
         **size,
+        "size_bss_aggregate_bytes": size_bss_aggregate_bytes,
         "flash_percent": percent(size["flash_bytes"], FLASH_SILICON_BYTES),
         "ram_static_percent": percent(size["ram_static_bytes"], RAM_SILICON_BYTES),
         "ram_accounted_bytes": ram_accounted_bytes,
