@@ -160,7 +160,7 @@ nested/interrupt stack. Watermarking under real operation remains a bench gate.
 | Wokwi `--check-only` / `--lint-only` | Pass; custom W25Q chip compiled |
 | Full Wokwi scenario execution | Not run: no local `WOKWI_CLI_TOKEN` |
 | Real hardware / metrology / stack watermark | Not run: PCB unassembled |
-| Hosted CI | Pending PR execution; no hosted pass is claimed |
+| Hosted CI | Blocked before execution by account billing; zero steps ran |
 
 OFF excludes exactly the three dedicated curve math/frame/store executables;
 the full remaining suite runs in both variants. ON retains original identity,
@@ -183,6 +183,13 @@ Separate commits reconcile plan 10 with O01–O07 and replace the old workflow's
 `stm32-lab` with `stm32-bringup`. Its exact configure/build commands and local
 Wokwi check/lint passed. The forensics workflow now tests both host capabilities
 and an enabled PRODUCT image; hosted availability is reported separately.
+
+[PR #9](https://github.com/RodrigoWantuk/WTK.RLCMeter/pull/9) is open and unmerged.
+The [Flash forensics run](https://github.com/RodrigoWantuk/WTK.RLCMeter/actions/runs/37983342610)
+and [Virtual Hardware run](https://github.com/RodrigoWantuk/WTK.RLCMeter/actions/runs/37983342703)
+both failed before any job steps executed. Their annotation states: "The job was
+not started because your account is locked due to a billing issue." This is an
+external execution blocker, not successful hosted validation.
 
 Evidence tooling also received a read-only capture fix: old target-help capture
 regenerated baseline build graphs after source edits. Baseline ELF/BIN/map/size and
