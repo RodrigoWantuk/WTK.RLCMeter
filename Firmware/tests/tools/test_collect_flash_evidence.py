@@ -11,6 +11,16 @@ SPEC.loader.exec_module(collector)
 
 
 class DiagnosticTwinTest(unittest.TestCase):
+    def test_command_capture_never_invokes_build_or_regeneration(self):
+        commands = collector.build_graph_commands(Path("saved-build"), "CMAKE_GENERATOR:INTERNAL=Ninja")
+        self.assertEqual(commands, {
+            "build-targets.txt": ["ninja", "-C", "saved-build", "-t", "targets", "all"],
+            "commands.txt": ["ninja", "-C", "saved-build", "-t", "commands"],
+        })
+
+    def test_other_generators_do_not_fall_back_to_cmake_build(self):
+        self.assertEqual(collector.build_graph_commands(Path("saved-build"), "CMAKE_GENERATOR:INTERNAL=Other"), {})
+
     def test_different_program_bytes_refused(self):
         with self.assertRaisesRegex(ValueError, "BIN differs"):
             collector.enrich_nm("", "", b"a", b"b")

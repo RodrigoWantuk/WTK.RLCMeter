@@ -50,6 +50,16 @@ def compact_json(report):
     return "{\n" + ",\n".join(fields) + "\n}\n"
 
 
+def build_graph_commands(root, cache):
+    # CMake --build --target help can regenerate build.ninja against edited
+    # sources. Ninja tool mode only reads the saved graph; never regenerate an
+    # evidence directory merely to list its targets or commands.
+    if "CMAKE_GENERATOR:INTERNAL=Ninja" in cache:
+        return {"build-targets.txt": ["ninja", "-C", str(root), "-t", "targets", "all"],
+                "commands.txt": ["ninja", "-C", str(root), "-t", "commands"]}
+    return {}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("build_dir", type=Path)
@@ -106,11 +116,8 @@ def main():
                 "WTK_FIRMWARE_PROFILE", "WTK_PRODUCT_OPTIMIZATION_LEVEL", "WTK_FLASH_FORENSICS",
                 "WTK_ENABLE_SUPPLEMENTARY_CURVES")
         report["configuration"] = dict(re.findall(r"^(" + "|".join(keys) + r"):[^=]+=(.*)$", cache, re.MULTILINE))
-        commands = run(["cmake", "--build", str(root), "--target", "help"])
-        write(raw / "build-targets.txt", commands)
-        # Ninja emits complete compile/link commands without rebuilding.
-        if "CMAKE_GENERATOR:INTERNAL=Ninja" in cache:
-            write(raw / "commands.txt", run(["ninja", "-C", str(root), "-t", "commands"]))
+        for name, command in build_graph_commands(root, cache).items():
+            write(raw / name, run(command))
         write(raw / "attribution.json", json.dumps(report, indent=2, sort_keys=True) + "\n")
         write(raw / "attribution.csv", attribution.csv_report(report))
         write(raw / "attribution.md", attribution.markdown_report(report))
