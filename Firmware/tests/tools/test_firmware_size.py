@@ -11,6 +11,17 @@ SPEC.loader.exec_module(firmware_size)
 
 
 class FirmwareSizeToolTest(unittest.TestCase):
+    def test_noload_stack_and_noinit_counted_once(self):
+        result = firmware_size.ram_usage({".data": 48, ".bss": 12940,
+                                          ".noinit": 16, "._user_heap_stack": 2052})
+        self.assertEqual(result["ram_static_bytes"], 12988)
+        self.assertEqual(result["ram_accounted_bytes"], 15056)
+        self.assertEqual(result["bss"], 12940)
+
+    def test_missing_ram_sections_fail_closed(self):
+        with self.assertRaises(ValueError):
+            firmware_size.ram_usage({".data": 48, ".bss": 12940})
+
     def test_product_budget_has_preferred_and_hard_ram_gates(self):
         preferred, hard = firmware_size.ram_limits_for_budget("product")
         self.assertEqual(preferred, 16 * 1024)

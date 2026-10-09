@@ -1,0 +1,17 @@
+feature,classification,delta_low_bytes,delta_central_bytes,delta_high_bytes,status_dependencies
+Standalone AC RLC and reliable display incl. Q/D,MUST_HAVE_PRODUCT,128,512,1024,Existing measurement and TFT; finish valid quantities
+Safety and fault recovery corrections,MUST_HAVE_PRODUCT,128,256,768,Retain existing gates; reserve for bench-discovered fixes
+Calibrated impedance and RLC calculations,MUST_HAVE_PRODUCT,0,128,384,Existing; no new fitting on device
+Read provisioned OSL and validity/provenance,MUST_HAVE_PRODUCT,0,128,256,Existing schema 2/model 4; migration state integration
+PC/factory provisioning device support,MUST_HAVE_PRODUCT,1000,1800,3000,Missing framed OSL receive/capture/readback integration; A06
+W25Q resource/calibration recovery,MUST_HAVE_PRODUCT,64,256,768,Existing resource receiver and A/B store retained; integrate service recovery
+Usable UI and stale/cancel/state finishing,MUST_HAVE_PRODUCT,128,512,1024,Existing menus/results; C05 completion
+Per-result error qualification status,MUST_HAVE_PRODUCT,256,768,1536,C03 metadata/reader/display; unknown unless physical evidence
+Integration overhead reserve,MUST_HAVE_PRODUCT,256,512,1024,"Estimate replaces unmeasured integration overhead, not measured code"
+Maintenance and change contingency,MUST_HAVE_PRODUCT,1024,1536,3072,Unallocated engineering allowance; not a silicon gate
+Local Open/Short fixture trim,OPTIONAL_PRODUCT,512,1024,2048,Separate model needed; never overwrite OSL with two-standard fit
+Live refresh and extra graphs,OPTIONAL_PRODUCT,768,1536,3072,Defer; click AC product remains standalone
+Qualified supplementary-curve installation,OPTIONAL_PRODUCT,1024,2048,3584,Increment above present reader; excludes 2516 B to restore reader if isolated
+OSL solve/fit GUI and tolerance/history/scope,PC_ONLY,0,0,0,Desktop only; embedded protocol already budgeted above
+DC/transients and verbose lab diagnostics,BRINGUP_ONLY,0,0,0,No PRODUCT bytes; separate 65536 B images required
+Fonts/art/catalogs/reference and bound tables,EXTERNAL_W25Q_DATA,0,0,0,Data only; embedded readers already baseline or budgeted above

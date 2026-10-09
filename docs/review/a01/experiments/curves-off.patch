@@ -1,0 +1,79 @@
+--- a/src/app/app_shell.c
++++ b/src/app/app_shell.c
+@@ -113 +112,0 @@
+-static measurement_cal_curve_store_t g_curve_store;
+@@ -216,38 +214,0 @@
+-}
+-
+-static bsp_status_t product_curve_flash_read(uint32_t address, void *dst, size_t size, void *user)
+-{
+-    (void)user;
+-    const app_flash_access_snapshot_t snapshot = product_flash_access_snapshot(NULL);
+-    if (!app_flash_access_allowed(&snapshot, APP_FLASH_ACCESS_RESOURCE_READ))
+-    {
+-        return BSP_STATUS_BUSY;
+-    }
+-    return measurement_cal_w25q_status_to_bsp(w25q_device_read(&g_flash, address, dst, size));
+-}
+-
+-static uint32_t product_active_osl_crc32(void)
+-{
+-    const app_calibration_runtime_t *runtime =
+-        app_calibration_service_runtime_const(&g_calibration_service);
+-    if ((runtime == NULL) || !app_calibration_runtime_active_valid(runtime))
+-    {
+-        return 0u;
+-    }
+-    return runtime->slots[runtime->active_slot].frame.crc32;
+-}
+-
+-static void product_load_curve_store(void)
+-{
+-    if (!app_calibration_service_active_valid(&g_calibration_service) ||
+-        (app_io_workspace_acquire(&g_io_workspace, APP_IO_WORKSPACE_OWNER_CAL_CURVE) != BSP_STATUS_OK))
+-    {
+-        return;
+-    }
+-    (void)measurement_cal_curve_store_load(&g_curve_store, product_curve_flash_read, NULL,
+-        g_flash.part.capacity_bytes,
+-        app_calibration_service_active_sequence(&g_calibration_service),
+-        product_active_osl_crc32(),
+-        app_io_workspace_calibration_frame(&g_io_workspace),
+-        app_io_workspace_calibration_frame_bytes());
+-    (void)app_io_workspace_release(&g_io_workspace, APP_IO_WORKSPACE_OWNER_CAL_CURVE);
+@@ -1022,30 +983 @@
+-    if ((osl_status != BSP_STATUS_OK) || !g_curve_store.active)
+-    {
+-        return osl_status;
+-    }
+-    measurement_cal_curve_t curve;
+-    const bsp_status_t read_status = measurement_cal_curve_store_read(
+-        &g_curve_store, &key,
+-        app_calibration_service_active_sequence(&g_calibration_service),
+-        product_active_osl_crc32(), &curve);
+-    if (read_status == BSP_STATUS_NOT_SUPPORTED)
+-    {
+-        return BSP_STATUS_OK;
+-    }
+-    if (read_status != BSP_STATUS_OK)
+-    {
+-        result->result.status = MEASUREMENT_STATUS_CALIBRATION_UNAVAILABLE;
+-        return BSP_STATUS_ERROR;
+-    }
+-    const measurement_cal_curve_status_t curve_status =
+-        measurement_cal_apply_curve(result, &key, &curve);
+-    if (curve_status == MEASUREMENT_CAL_CURVE_OUT_OF_DOMAIN)
+-    {
+-        return BSP_STATUS_OK;
+-    }
+-    if (curve_status != MEASUREMENT_CAL_CURVE_OK)
+-    {
+-        result->result.status = MEASUREMENT_STATUS_CALIBRATION_UNAVAILABLE;
+-        return BSP_STATUS_ERROR;
+-    }
+-    return BSP_STATUS_OK;
++    return osl_status;
+@@ -1405 +1336,0 @@
+-    g_curve_store = (measurement_cal_curve_store_t){0};
+@@ -1537 +1467,0 @@
+-        product_load_curve_store();

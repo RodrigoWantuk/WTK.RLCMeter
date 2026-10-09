@@ -23,6 +23,18 @@ Deliver a compact, standalone, safe Rev.1 AC RLC instrument, with click measurem
 ## Sequence and executable agent tickets
 
 ### Sprint A — immediate, no board needed
+
+A01 **STATUS: COMPLETE (evidence/tooling)** — see the
+[2026-10-09 report](../docs/review/a01/README.md), based on synchronized main
+`9553fa84780b9a91a25065c3e2f8d7d5305bda80`. Fresh Debug/Release/BRINGUP Flash:
+60,964 / 64,096 / 65,052 B. Corrected RAM: 14,592 / 15,040 / 14,588 B.
+The existing size script double-counted reserved stack; limits are unchanged.
+The isolated curve experiment saves 2,516 B, not yet a production change.
+Both 40-test host configurations pass; Python/parser, ARM, size/profile and Wokwi
+lint evidence is in the report. Simulation/bench and hosted CI are separate gates.
+Recommend A02 curve capability isolation before A06's reviewed boot/provisioning
+migration. W0 evidence exists; W2 recovery and W9 product qualification remain open.
+
 **A01 Size forensics (agent: embedded build)**. Read 11. Generate exact reproducible Flash/map/top-symbol reports on the latest SHA, with command/version capture and 3 profile comparisons. Add test checking report parser and size budgets. Avoid speculative refactors. Done: report ranked by *linked bytes*, 10 most promising opportunities, conservative save estimates and explicit not-yet-measured status.
 **A02 Compile-time ownership (agent: embedded architecture)**. Read A01 report and plan 11. Propose minimal PRODUCT/BRINGUP_IO/BRINGUP_ANALOG/BRINGUP_CAL/BRINGUP_DC target source sets. Implement narrow option switch only after proving no safety or W25Q recovery regression. Keep all mandatory headers/contracts; automate forbidden symbols and test each image. Done: valid MCU builds, positive measured linked-byte savings, and a forward product capacity forecast for remaining MUST features; no arbitrary 56/60KiB pass/fail.
 **A03 Calibration model unit analysis (agent: metrology mathematical)**. Read plan 13. Run synthetic OSL, scalar, two-axis and 12-coefficient WCRV candidates with independent FIT vs VALIDATION; compute rank, singularities, false accuracy claims, interval conflicts, float32 drift. Write recommendation with images/CSV on PC only. Done: evidence explaining which coefficient family can be identified by which reference standards. Do not change embedded model yet.

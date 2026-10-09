@@ -1,5 +1,12 @@
 # Firmware
 
+For reproducible linked Flash attribution, profile/commit comparisons and the
+current completion budget, see the [A01 report](../docs/review/a01/README.md) and
+[tool commands](../docs/review/a01/tooling.md). `WTK_FLASH_FORENSICS=ON` is an
+optional CMake diagnostic setting; defaults and memory gates are unchanged.
+The size tool now counts `.data`, `.bss`, `.noinit` and reserved stack exactly
+once; older reported RAM totals included the NOLOAD stack twice.
+
 Firmware for WTK.RLCMeter, targeting the **STM32F103C8T6 / Blue Pill**.
 
 This directory contains the firmware architecture and, progressively, the implementation of the instrument. The design goal is deterministic acquisition, fail-safe hardware control, and a responsive UI without coupling measurement algorithms to device-specific peripherals.

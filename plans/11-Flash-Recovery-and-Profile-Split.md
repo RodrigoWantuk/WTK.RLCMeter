@@ -1,8 +1,32 @@
 # 11 — Flash Recovery, Target Boundaries and Code Audit
 
-STATUS: NOT_STARTED — INDEPENDENT AGENT WORK MAY BEGIN
+STATUS: IN_PROGRESS — A01 FORENSICS COMPLETE; PRODUCTION RECOVERY NOT IMPLEMENTED
 PRIORITY: P0. Do not grow the PRODUCT image while this phase is incomplete.
 BASELINE: 2026-10-09 main 8abc1b3; documented PRODUCT 64,096 B / BRINGUP 65,052 B.
+
+## A01 execution evidence — 2026-10-09
+
+[Fresh baseline, attribution, ten opportunities and forward budget](../docs/review/a01/README.md)
+use synchronized main `9553fa84780b9a91a25065c3e2f8d7d5305bda80`, including PR #7.
+F11-01..04 evidence/tooling is implemented: three ARM profiles, both host builds,
+GNU map/NM/ELF attribution with deterministic parser tests, diagnostic/source twins,
+opt-in GC/cref/LTO stack output, experiment comparisons and CI artifact/delta workflow.
+Hosted CI status must be checked separately; local evidence is not a CI pass.
+
+PRODUCT Debug/Release and BRINGUP are respectively 60,964 / 64,096 / 65,052 B
+Flash. Correct accounted RAM is 14,592 / 15,040 / 14,588 B: the historical size
+tool counted its NOLOAD stack reservation twice; A01 corrects accounting without
+changing any limit or allocating/freeing physical memory. F11-19..21 now have
+linked OSL evidence and a feature forecast; A06 implementation/sign-off remains.
+A temporary curves-off experiment measures 2,516 B Flash recovery, but no
+production feature was removed. The central complete-product forecast is 62,988 B
+only if that recovery and an unverified 5,000 B gross OSL relocation are achieved,
+with replacement provisioning and contingency included. The high scenario does
+not fit. F11-22 gate review remains pending; the 63 KiB PRODUCT gate is unchanged.
+
+Next: narrow A02 curve ownership, then reviewed A06 provisioning migration.
+Plan 11 is not COMPLETE: no production savings or physical qualification claimed.
+All hardware acceptance remains `REQUIRES_BENCH_VALIDATION`.
 
 ## Objective and non-negotiables
 Recover measured Flash margin without regression of the fail-safe state, acquisition timing, OSL integrity, 33 condition keys, W25Q recovery, click measurement, or bilingual essential results. No fixed 56 KiB or 60 KiB PRODUCT acceptance gate is authorized. Recover the maximum demonstrably removable linked code, initially investigate **4–8 KiB of measured net/gross opportunities** (planning ambition, not a guaranteed saving). Use a per-feature forward budget to determine space for all missing mandatory product functionality, plus change/maintenance contingency. 65,536 B remains the physical silicon limit. 16 KiB preferred accounted PRODUCT RAM; keep hard/physical RAM constraints. Do not tune thresholds merely to conceal regressions.

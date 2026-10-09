@@ -22,6 +22,7 @@ set_property(CACHE WTK_FIRMWARE_PROFILE PROPERTY STRINGS PRODUCT BRINGUP)
 
 option(WTK_WARNINGS_AS_ERRORS_HOST "Treat warnings as errors for host project targets" ON)
 option(WTK_WARNINGS_AS_ERRORS_STM32 "Treat warnings as errors for STM32 project targets" OFF)
+option(WTK_FLASH_FORENSICS "Emit GNU link, discarded-section and LTO stack-usage evidence" OFF)
 set(WTK_PRODUCT_OPTIMIZATION_LEVEL "-Os" CACHE STRING "Optimization level for STM32 PRODUCT builds.")
 set_property(CACHE WTK_PRODUCT_OPTIMIZATION_LEVEL PROPERTY STRINGS -Os -Oz)
 option(WTK_ENABLE_PRODUCT_RESOURCE_UPDATE
@@ -272,6 +273,10 @@ elseif(WTK_TARGET_PLATFORM STREQUAL "stm32")
             "${WTK_FIRMWARE_BASE}.hex"
         COMMENT "Generating STM32 programming artifacts"
     )
+    if(WTK_FLASH_FORENSICS)
+        target_link_options(wtk_rlcmeter PRIVATE
+            "-Wl,--cref" "-Wl,--print-gc-sections" -fstack-usage -save-temps=obj)
+    endif()
     if((NOT WTK_SIZE_BUDGET STREQUAL "none") AND NOT Python3_Interpreter_FOUND)
         message(FATAL_ERROR "Python3 is required to enforce the '${WTK_SIZE_BUDGET}' STM32 firmware size budget.")
     endif()
