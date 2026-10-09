@@ -47,7 +47,7 @@
 #include "storage/app_settings_w25q_adapter.h"
 #endif
 #include "storage/measurement_cal_w25q_adapter.h"
-#if !WTK_ENABLE_BRINGUP_CONSOLE
+#if !WTK_ENABLE_BRINGUP_CONSOLE && WTK_ENABLE_SUPPLEMENTARY_CURVES
 #include "measurement/measurement_cal_curve_store.h"
 #endif
 #include "storage/resource_store.h"
@@ -110,7 +110,9 @@ static ui_image_catalog_t g_image_catalog;
 #endif
 static resource_w25q_reader_t g_resource_reader;
 static resource_status_t g_resource_status = RESOURCE_STATUS_MISSING;
+#if WTK_ENABLE_SUPPLEMENTARY_CURVES
 static measurement_cal_curve_store_t g_curve_store;
+#endif
 #if WTK_ENABLE_PRODUCT_RESOURCE_UPDATE
 static app_resource_update_t g_resource_update;
 static uint8_t g_pc_link_frame[APP_PC_LINK_HEADER_SIZE + APP_PC_LINK_MAX_PAYLOAD_BYTES];
@@ -215,6 +217,7 @@ static app_flash_access_snapshot_t product_flash_access_snapshot(void *user)
     };
 }
 
+#if WTK_ENABLE_SUPPLEMENTARY_CURVES
 static bsp_status_t product_curve_flash_read(uint32_t address, void *dst, size_t size, void *user)
 {
     (void)user;
@@ -252,6 +255,7 @@ static void product_load_curve_store(void)
         app_io_workspace_calibration_frame_bytes());
     (void)app_io_workspace_release(&g_io_workspace, APP_IO_WORKSPACE_OWNER_CAL_CURVE);
 }
+#endif
 
 static APP_NOINLINE resource_status_t product_mount_resource_pack(void)
 {
@@ -1019,6 +1023,7 @@ static bsp_status_t product_auto_process_block(const hw_metrology_block_t *block
     const bsp_status_t osl_status = measurement_cal_process_block(
         block, app_calibration_service_active_set(&g_calibration_service),
         &key, false, result);
+#if WTK_ENABLE_SUPPLEMENTARY_CURVES
     if ((osl_status != BSP_STATUS_OK) || !g_curve_store.active)
     {
         return osl_status;
@@ -1049,6 +1054,9 @@ static bsp_status_t product_auto_process_block(const hw_metrology_block_t *block
         return BSP_STATUS_ERROR;
     }
     return BSP_STATUS_OK;
+#else
+    return osl_status;
+#endif
 }
 
 static const app_measurement_session_io_t g_product_session_io = {
@@ -1401,7 +1409,7 @@ void app_shell_run(void)
     app_safety_fault_init(&g_safety_faults);
     app_calibration_service_init(&g_calibration_service);
     app_io_workspace_init(&g_io_workspace);
-#if !WTK_ENABLE_BRINGUP_CONSOLE
+#if !WTK_ENABLE_BRINGUP_CONSOLE && WTK_ENABLE_SUPPLEMENTARY_CURVES
     g_curve_store = (measurement_cal_curve_store_t){0};
 #endif
     app_calibration_service_attach_workspace(&g_calibration_service, &g_io_workspace);
@@ -1534,7 +1542,9 @@ void app_shell_run(void)
         APP_VERBOSE_DIAG_U32("w25q_test_sector",
                              w25q_reserved_test_sector_address(g_flash.part.capacity_bytes));
 #if !WTK_ENABLE_BRINGUP_CONSOLE
+#if WTK_ENABLE_SUPPLEMENTARY_CURVES
         product_load_curve_store();
+#endif
         const app_settings_store_io_t settings_io = app_settings_w25q_store_io(&g_flash);
         const bsp_status_t settings_init_status =
             app_settings_service_init(&g_settings_service, &settings_io, g_flash.part.capacity_bytes);

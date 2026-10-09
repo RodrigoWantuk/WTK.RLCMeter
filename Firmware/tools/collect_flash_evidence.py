@@ -103,7 +103,8 @@ def main():
         cache = (root / "CMakeCache.txt").read_text(encoding="utf-8")
         keys = ("CMAKE_BUILD_TYPE", "CMAKE_C_FLAGS", "CMAKE_C_FLAGS_DEBUG", "CMAKE_C_FLAGS_RELEASE",
                 "CMAKE_C_FLAGS_MINSIZEREL", "CMAKE_EXE_LINKER_FLAGS", "CMAKE_INTERPROCEDURAL_OPTIMIZATION",
-                "WTK_FIRMWARE_PROFILE", "WTK_PRODUCT_OPTIMIZATION_LEVEL", "WTK_FLASH_FORENSICS")
+                "WTK_FIRMWARE_PROFILE", "WTK_PRODUCT_OPTIMIZATION_LEVEL", "WTK_FLASH_FORENSICS",
+                "WTK_ENABLE_SUPPLEMENTARY_CURVES")
         report["configuration"] = dict(re.findall(r"^(" + "|".join(keys) + r"):[^=]+=(.*)$", cache, re.MULTILINE))
         commands = run(["cmake", "--build", str(root), "--target", "help"])
         write(raw / "build-targets.txt", commands)

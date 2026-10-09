@@ -430,6 +430,7 @@ endif()
 
 add_test(NAME wtk_measurement_dsp_test COMMAND wtk_measurement_dsp_test)
 
+if(WTK_ENABLE_SUPPLEMENTARY_CURVES)
 add_executable(wtk_measurement_cal_curve_test
     measurement/test_measurement_cal_curve.c
 )
@@ -468,6 +469,7 @@ if(WTK_WARNINGS_AS_ERRORS_HOST)
     wtk_treat_warnings_as_errors(wtk_measurement_cal_curve_store_test)
 endif()
 add_test(NAME wtk_measurement_cal_curve_store_test COMMAND wtk_measurement_cal_curve_store_test)
+endif()
 
 add_executable(wtk_measurement_dc_test
     measurement/test_measurement_dc.c

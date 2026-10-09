@@ -199,6 +199,22 @@ while the OSL/Mobius transfer maps the synthetic DUTs back to the true impedance
 the configured float tolerances. This justifies replacing the mathematical
 `model_version`; it does not qualify the real PCB.
 
+## Optional supplementary runtime (A02.1)
+
+`WTK_ENABLE_SUPPLEMENTARY_CURVES` defaults to OFF. This does not disable ordinary
+OSL calibration, change schema v2/model v4, or relax qualification/boot prerequisites.
+`measurement_cal_supplementary_supported()` reports build capability, not data
+qualification. With capability OFF, `measurement_cal_apply_curve()` returns
+`MEASUREMENT_CAL_CURVE_NOT_SUPPORTED` without modifying the result. A fresh OSL
+measurement clears `supplementary_applied`; only successful enabled application
+sets it. The UI must not interpret OSL qualification as supplementary application.
+
+The PRODUCT OFF image does not load/read WCRV records. Both reserved A/B partitions
+and their format remain intact, including previously provisioned records. Enabling
+the runtime restores the existing qualified-record validation and post-OSL path.
+See the [ON/OFF state table and measured cost](review/a02/README.md) before budgeting
+future curve installation. This capability is not evidence of physical qualification.
+
 ## Range validation
 
 For each range and frequency:

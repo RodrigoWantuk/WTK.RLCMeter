@@ -32,9 +32,12 @@ jobs:
         working-directory: candidate/Firmware
         run: |
           for preset in host-debug host-release; do
-            cmake --preset "$preset" -G Ninja
-            cmake --build --preset "$preset" --parallel 2
-            ctest --preset "$preset"
+            for curves in OFF ON; do
+              build="build/$preset-curves-$curves"
+              cmake --preset "$preset" -G Ninja -B "$build" -DWTK_ENABLE_SUPPLEMENTARY_CURVES="$curves"
+              cmake --build "$build" --parallel 2
+              ctest --test-dir "$build" --output-on-failure
+            done
           done
           python3 -m unittest discover -s tests/tools -v
       - name: Build base and candidate with the same installed compiler
@@ -48,6 +51,14 @@ jobs:
               cmake --build "$tree/Firmware/build/$preset" --parallel 2 2>&1 | tee "$tree/Firmware/build/$preset-build.log"
             done
           done
+      - name: Build and capture PRODUCT with supplementary curves enabled
+        working-directory: candidate/Firmware
+        run: |
+          cmake --preset stm32-release -B build/stm32-release-curves-on \
+            -DWTK_ENABLE_SUPPLEMENTARY_CURVES=ON -DWTK_FLASH_FORENSICS=ON
+          cmake --build build/stm32-release-curves-on --parallel 2
+          python3 tools/collect_flash_evidence.py build/stm32-release-curves-on \
+            --profile stm32-release-curves-on --git-sha "$(git rev-parse HEAD)"
       - name: Capture per-commit evidence and regression deltas
         shell: bash
         run: |

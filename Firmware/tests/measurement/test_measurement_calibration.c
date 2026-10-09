@@ -1273,9 +1273,11 @@ static int test_osl_process_block_updates_result_and_derivatives(void)
     }
     hw_metrology_analyze_block(raw, HW_METROLOGY_SAMPLES_PER_BLOCK, &block);
 
-    measurement_calibrated_result_t processed;
+    measurement_calibrated_result_t processed = {.supplementary_applied = true};
     failures += expect_true(measurement_cal_process_block(&block, &set, &key, false, &processed) == BSP_STATUS_OK,
                             "calibrated block processes");
+    failures += expect_true(!processed.supplementary_applied,
+                            "fresh OSL measurement never inherits an applied curve flag");
     failures += expect_true(processed.output_corrected, "OSL model applied");
     const measurement_complex_t expected =
         cmul(coefficients.k,
@@ -1698,13 +1700,14 @@ static int test_supplementary_curve_updates_all_derived_values(void)
     result.result.status = MEASUREMENT_STATUS_OK;
     result.raw_z_ohms = measurement_complex(1000.0f, -100.0f);
     result.result.impedance.z_ohms = result.raw_z_ohms;
-    measurement_cal_curve_t curve;
-    measurement_cal_curve_identity(&curve);
+    measurement_cal_curve_t curve = {0};
     for (uint8_t i = 0u; i < MEASUREMENT_CAL_CURVE_KNOT_COUNT; i++)
     {
         curve.knot[i].m00 = 2.0f;
         curve.knot[i].m11 = 2.0f;
     }
+#if WTK_ENABLE_SUPPLEMENTARY_CURVES
+    failures += expect_true(measurement_cal_supplementary_supported(), "curve capability enabled");
     failures += expect_true(measurement_cal_apply_curve(&result, &key, &curve) ==
                             MEASUREMENT_CAL_CURVE_OK, "supplementary correction applies after OSL");
     failures += expect_near(result.raw_z_ohms.re, 1000.0f, 0.0f, "OSL Z retained");
@@ -1721,6 +1724,18 @@ static int test_supplementary_curve_updates_all_derived_values(void)
                             MEASUREMENT_CAL_CURVE_OUT_OF_DOMAIN, "outside domain skips correction");
     failures += expect_near(result.result.impedance.z_ohms.re, 2000.0f, 0.001f,
                             "out-of-domain result unchanged");
+#else
+    failures += expect_true(!measurement_cal_supplementary_supported(), "curve capability disabled");
+    measurement_calibrated_result_t before;
+    (void)memcpy(&before, &result, sizeof(before));
+    failures += expect_true(measurement_cal_apply_curve(&result, &key, &curve) ==
+                            MEASUREMENT_CAL_CURVE_NOT_SUPPORTED, "disabled apply explicitly unsupported");
+    failures += expect_true(memcmp(&before, &result, sizeof(result)) == 0,
+                            "disabled apply preserves the entire OSL result and provenance");
+    failures += expect_true(!result.supplementary_applied, "disabled curve cannot claim applied");
+    failures += expect_true(measurement_cal_apply_curve(NULL, NULL, NULL) ==
+                            MEASUREMENT_CAL_CURVE_NOT_SUPPORTED, "disabled API never dereferences inputs");
+#endif
     return failures;
 }
 
