@@ -1,0 +1,135 @@
+{
+  "date": "2026-10-09",
+  "embedded_provisioning_added_bytes": 0,
+  "evidence_status": "SYNTHETIC_NOT_PHYSICALLY_QUALIFIED",
+  "firmware_source_changed": false,
+  "forecast": {
+    "completed_projection_bytes": [
+      60820,
+      64244,
+      70692
+    ],
+    "gross_wizard_reachability_savings_bytes": 10488,
+    "measured_removable_remainder_bytes": 3744,
+    "net_projected_recovery_bytes": [
+      2744,
+      1944,
+      744
+    ],
+    "protocol_estimates_bytes": [
+      1000,
+      1800,
+      3000
+    ],
+    "remaining_must_including_protocol_bytes": [
+      2984,
+      6408,
+      12856
+    ],
+    "retained_capture_increment_bytes_including_anchors": 4788,
+    "retained_install_increment_bytes_including_anchors": 1956,
+    "solver_only_savings_bytes": 2152
+  },
+  "measured_implementation_sha": "8f3d0c6e738877daf735c86475d4312d8128f9bc",
+  "numerical": {
+    "condition_fits": 132,
+    "hg_fits": 33,
+    "max_normalized_complex_coefficient_difference": 1.94002796e-07
+  },
+  "starting_sha": "29bb74adcd5bf95e0a57b8756201392ab53cd388",
+  "tests": {
+    "failures": 0,
+    "host_debug_off": 38,
+    "host_debug_on": 41,
+    "host_release_off": 38,
+    "host_release_on": 41,
+    "new_python": 16,
+    "python": 171
+  },
+  "variants": {
+    "stm32-bringup-off": {
+      "after": {
+        "flash_bytes": 65052,
+        "ram_accounted_bytes": 14588
+      },
+      "after_bin_sha256": "90f0f8ea9708178b40c3af39ebc560e217e37414a516a268a3ca4c45b638cf5b",
+      "before": {
+        "flash_bytes": 65052,
+        "ram_accounted_bytes": 14588
+      },
+      "before_bin_sha256": "d31471cfbad6c84e7eccf1a5a1705084c092460a2e446e9125cdc9a0db886eb6",
+      "gates": {
+        "flash_hard_ok": true,
+        "flash_soft_ok": false,
+        "ram_hard_ok": true,
+        "ram_preferred_ok": true,
+        "ram_silicon_ok": true
+      },
+      "heap_configured_bytes": 0,
+      "stack_and_alignment_reserved_bytes": 2048
+    },
+    "stm32-debug-off": {
+      "after": {
+        "flash_bytes": 58396,
+        "ram_accounted_bytes": 14536
+      },
+      "after_bin_sha256": "9ffb59bcc9e3ac821cc1a8f7830fd975b9333aaf71b27314081e517a63795d9a",
+      "before": {
+        "flash_bytes": 58396,
+        "ram_accounted_bytes": 14536
+      },
+      "before_bin_sha256": "9927ce3138f3f4868039ddfdb46c0d9b31ae79482d5e0e80925fdc507f831f90",
+      "gates": {
+        "flash_hard_ok": true,
+        "flash_soft_ok": false,
+        "ram_hard_ok": true,
+        "ram_preferred_ok": true,
+        "ram_silicon_ok": true
+      },
+      "heap_configured_bytes": 0,
+      "stack_and_alignment_reserved_bytes": 2048
+    },
+    "stm32-release-off": {
+      "after": {
+        "flash_bytes": 61580,
+        "ram_accounted_bytes": 14976
+      },
+      "after_bin_sha256": "28c4ceb1a8fac0bbed732879ac751599ec000f7da632bbc4163e7b9c5e572137",
+      "before": {
+        "flash_bytes": 61580,
+        "ram_accounted_bytes": 14976
+      },
+      "before_bin_sha256": "b503557fd9e7fd7af68e4e1263b6ed89b27d0a59da62cb462a15ecf506659d6d",
+      "gates": {
+        "flash_hard_ok": true,
+        "flash_soft_ok": false,
+        "ram_hard_ok": true,
+        "ram_preferred_ok": true,
+        "ram_silicon_ok": true
+      },
+      "heap_configured_bytes": 0,
+      "stack_and_alignment_reserved_bytes": 2052
+    },
+    "stm32-release-on": {
+      "after": {
+        "flash_bytes": 64096,
+        "ram_accounted_bytes": 15040
+      },
+      "after_bin_sha256": "9036f6d1a8ccf33b0b8fb44756747700302bb8ad2adc5ced6298907ffa7a1488",
+      "before": {
+        "flash_bytes": 64096,
+        "ram_accounted_bytes": 15040
+      },
+      "before_bin_sha256": "f214df1f8454dec26bddd03978fe60e52384ddccd820ba2097ef277d3db2df17",
+      "gates": {
+        "flash_hard_ok": true,
+        "flash_soft_ok": false,
+        "ram_hard_ok": true,
+        "ram_preferred_ok": true,
+        "ram_silicon_ok": true
+      },
+      "heap_configured_bytes": 0,
+      "stack_and_alignment_reserved_bytes": 2052
+    }
+  }
+}
