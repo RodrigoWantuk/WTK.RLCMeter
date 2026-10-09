@@ -1,0 +1,248 @@
+[
+  {
+    "symbol": "Reset_Handler",
+    "on": 4492,
+    "off": 3632,
+    "delta": -860
+  },
+  {
+    "symbol": "product_auto_process_block",
+    "on": 2304,
+    "off": 1494,
+    "delta": -810
+  },
+  {
+    "symbol": "measurement_derive_quantities",
+    "on": 628,
+    "off": 0,
+    "delta": -628
+  },
+  {
+    "symbol": "w25q_read_common.constprop.0",
+    "on": 0,
+    "off": 126,
+    "delta": 126
+  },
+  {
+    "symbol": "w25q_device_read",
+    "on": 124,
+    "off": 0,
+    "delta": -124
+  },
+  {
+    "symbol": "product_curve_flash_read",
+    "on": 84,
+    "off": 0,
+    "delta": -84
+  },
+  {
+    "symbol": "storage_layout_partition",
+    "on": 146,
+    "off": 94,
+    "delta": -52
+  },
+  {
+    "symbol": "measurement_cal_rev1_condition_bit",
+    "on": 40,
+    "off": 0,
+    "delta": -40
+  },
+  {
+    "symbol": "product_active_osl_crc32",
+    "on": 28,
+    "off": 0,
+    "delta": -28
+  },
+  {
+    "symbol": "prepare_line.constprop.0",
+    "on": 3692,
+    "off": 3716,
+    "delta": 24
+  },
+  {
+    "symbol": "app_calibration_service_candidate_commit_start",
+    "on": 1256,
+    "off": 1236,
+    "delta": -20
+  },
+  {
+    "symbol": "read_record",
+    "on": 110,
+    "off": 92,
+    "delta": -18
+  },
+  {
+    "symbol": "app_step",
+    "on": 7620,
+    "off": 7636,
+    "delta": 16
+  },
+  {
+    "symbol": "product_mount_resource_pack",
+    "on": 1678,
+    "off": 1662,
+    "delta": -16
+  },
+  {
+    "symbol": "resource_store_decode_entry",
+    "on": 208,
+    "off": 194,
+    "delta": -14
+  },
+  {
+    "symbol": "set_key_mask.constprop.0",
+    "on": 126,
+    "off": 136,
+    "delta": 10
+  },
+  {
+    "symbol": "app_calibration_wizard_step.constprop.0",
+    "on": 3000,
+    "off": 2992,
+    "delta": -8
+  },
+  {
+    "symbol": "discard_candidate_for_cancel.constprop.0.isra.0",
+    "on": 156,
+    "off": 148,
+    "delta": -8
+  },
+  {
+    "symbol": "measurement_extract_phasors.part.0",
+    "on": 1070,
+    "off": 1062,
+    "delta": -8
+  },
+  {
+    "symbol": "write_scaled.isra.0",
+    "on": 204,
+    "off": 212,
+    "delta": 8
+  },
+  {
+    "symbol": "product_text_resolve",
+    "on": 188,
+    "off": 182,
+    "delta": -6
+  },
+  {
+    "symbol": "ui_format_append_u32",
+    "on": 70,
+    "off": 76,
+    "delta": 6
+  },
+  {
+    "symbol": "prepare_result_primary_line.constprop.0",
+    "on": 624,
+    "off": 628,
+    "delta": 4
+  },
+  {
+    "symbol": "product_resource_update_begin.isra.0",
+    "on": 216,
+    "off": 212,
+    "delta": -4
+  },
+  {
+    "symbol": "progress_line.constprop.0.isra.0",
+    "on": 52,
+    "off": 56,
+    "delta": 4
+  },
+  {
+    "symbol": "resource_catalog_read",
+    "on": 76,
+    "off": 80,
+    "delta": 4
+  },
+  {
+    "symbol": "app_measurement_session_step.constprop.0",
+    "on": 498,
+    "off": 500,
+    "delta": 2
+  },
+  {
+    "symbol": "compute_provisional_z.constprop.0",
+    "on": 232,
+    "off": 234,
+    "delta": 2
+  },
+  {
+    "symbol": "line_set_resource_pending.constprop.0.isra.0",
+    "on": 54,
+    "off": 52,
+    "delta": -2
+  },
+  {
+    "symbol": "measurement_auto_evaluate_confidence",
+    "on": 252,
+    "off": 250,
+    "delta": -2
+  },
+  {
+    "symbol": "measurement_cal_set_init",
+    "on": 54,
+    "off": 56,
+    "delta": 2
+  },
+  {
+    "symbol": "primary_score",
+    "on": 352,
+    "off": 354,
+    "delta": 2
+  },
+  {
+    "symbol": "product_pc_link_send_status",
+    "on": 96,
+    "off": 94,
+    "delta": -2
+  },
+  {
+    "symbol": "product_pc_link_step_update",
+    "on": 494,
+    "off": 492,
+    "delta": -2
+  },
+  {
+    "symbol": "product_resource_program_start",
+    "on": 34,
+    "off": 36,
+    "delta": 2
+  },
+  {
+    "symbol": "resource_catalog_lookup",
+    "on": 164,
+    "off": 166,
+    "delta": 2
+  },
+  {
+    "symbol": "resource_store_decode_font_a1_record",
+    "on": 196,
+    "off": 194,
+    "delta": -2
+  },
+  {
+    "symbol": "store_policy_event.constprop.0",
+    "on": 46,
+    "off": 48,
+    "delta": 2
+  },
+  {
+    "symbol": "ui_text_catalog_select_language.constprop.0",
+    "on": 474,
+    "off": 472,
+    "delta": -2
+  },
+  {
+    "symbol": "write_safe.constprop.0",
+    "on": 32,
+    "off": 34,
+    "delta": 2
+  },
+  {
+    "symbol": "write_unavailable.isra.0",
+    "on": 26,
+    "off": 28,
+    "delta": 2
+  }
+]

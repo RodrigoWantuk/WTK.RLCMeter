@@ -1,0 +1,73 @@
+{
+  "stm32-release-on": {
+    "baseline": "stm32-release",
+    "baseline_sha256": "07a2cafb76b68af6e81e7d437465a19099fb64bb5f2221d2e723191e0eba3820",
+    "candidate_sha256": "4bef1e3749d3056034a73f7983113dd35929f46bb789618fd1b48818d391bfd8",
+    "git_field_binary_offset": 63790,
+    "baseline_git_field": "5bcfba229e0a",
+    "candidate_git_field": "0dabd8aebe11",
+    "equal_after_git_field_normalization": true,
+    "equivalent_pooled_string_references": [],
+    "no_other_byte_differences": true
+  },
+  "stm32-bringup-off": {
+    "baseline": "stm32-bringup",
+    "baseline_sha256": "32835d69850be42a5ac0e71ec31630711a07b1f9939416ed9cb2fd8d1c815aaa",
+    "candidate_sha256": "158c509a483d9ee08c3575d0b773f6662001232bf1d8c4dd224983e89354acea",
+    "git_field_binary_offset": 59805,
+    "baseline_git_field": "5bcfba229e0a",
+    "candidate_git_field": "0dabd8aebe11",
+    "equal_after_git_field_normalization": false,
+    "equivalent_pooled_string_references": [
+      {
+        "binary_offset": 33268,
+        "baseline_string_offset": 60802,
+        "candidate_string_offset": 59816,
+        "string": "1"
+      },
+      {
+        "binary_offset": 33736,
+        "baseline_string_offset": 60802,
+        "candidate_string_offset": 59816,
+        "string": "1"
+      },
+      {
+        "binary_offset": 34320,
+        "baseline_string_offset": 60802,
+        "candidate_string_offset": 59816,
+        "string": "1"
+      },
+      {
+        "binary_offset": 40904,
+        "baseline_string_offset": 60802,
+        "candidate_string_offset": 59816,
+        "string": "1"
+      },
+      {
+        "binary_offset": 48148,
+        "baseline_string_offset": 60802,
+        "candidate_string_offset": 59816,
+        "string": "1"
+      },
+      {
+        "binary_offset": 50976,
+        "baseline_string_offset": 60802,
+        "candidate_string_offset": 59816,
+        "string": "1"
+      },
+      {
+        "binary_offset": 52544,
+        "baseline_string_offset": 60802,
+        "candidate_string_offset": 59816,
+        "string": "1"
+      },
+      {
+        "binary_offset": 53212,
+        "baseline_string_offset": 60802,
+        "candidate_string_offset": 59816,
+        "string": "1"
+      }
+    ],
+    "no_other_byte_differences": true
+  }
+}

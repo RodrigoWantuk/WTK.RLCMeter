@@ -1,0 +1,30 @@
+{
+  "flash_silicon_limit": 65536,
+  "product_gate": 64512,
+  "remaining_mandatory": {
+    "low": 2984,
+    "central": 6408,
+    "high": 12856
+  },
+  "forecasts": [
+    {
+      "scenario": "Current OFF plus mandatory",
+      "low": 64564,
+      "central": 67988,
+      "high": 74436
+    },
+    {
+      "scenario": "OFF plus hypothetical A06 plus mandatory",
+      "low": 57564,
+      "central": 62988,
+      "high": 71436
+    },
+    {
+      "scenario": "A06 scenario plus runtime re-enable plus mandatory",
+      "low": 60080,
+      "central": 65504,
+      "high": 73952
+    }
+  ],
+  "note": "A06 gross removal is UNMEASURED. Mandatory increments include replacement provisioning and contingency. Curves installation and other optional features excluded."
+}

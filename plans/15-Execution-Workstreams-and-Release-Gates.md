@@ -37,6 +37,15 @@ migration. W0 evidence exists; W2 recovery and W9 product qualification remain o
 
 **A01 Size forensics (agent: embedded build)**. Read 11. Generate exact reproducible Flash/map/top-symbol reports on the latest SHA, with command/version capture and 3 profile comparisons. Add test checking report parser and size budgets. Avoid speculative refactors. Done: report ranked by *linked bytes*, 10 most promising opportunities, conservative save estimates and explicit not-yet-measured status.
 **A02 Compile-time ownership (agent: embedded architecture)**. Read A01 report and plan 11. Propose minimal PRODUCT/BRINGUP_IO/BRINGUP_ANALOG/BRINGUP_CAL/BRINGUP_DC target source sets. Implement narrow option switch only after proving no safety or W25Q recovery regression. Keep all mandatory headers/contracts; automate forbidden symbols and test each image. Done: valid MCU builds, positive measured linked-byte savings, and a forward product capacity forecast for remaining MUST features; no arbitrary 56/60KiB pass/fail.
+
+**A02.1 STATUS: COMPLETE — IMPLEMENTED_TESTED_HOST / COMPILES_TARGET.**
+See [measured capability boundary and completion forecast](../docs/review/a02/README.md).
+`WTK_ENABLE_SUPPLEMENTARY_CURVES=OFF` excludes optional curve sources and PRODUCT
+entry points. Release saves 2,516 B Flash / 64 B RAM; enabling restores that cost
+and passes the existing size gate. OSL schema/model, boot prerequisites, full wizard,
+safety and W25Q recovery remain unchanged. Host ON/OFF Debug/Release and ARM profile
+matrix pass. This does not complete all of A02 or physically qualify the instrument.
+The next review is A06's safe PC OSL provisioning migration, not wizard removal alone.
 **A03 Calibration model unit analysis (agent: metrology mathematical)**. Read plan 13. Run synthetic OSL, scalar, two-axis and 12-coefficient WCRV candidates with independent FIT vs VALIDATION; compute rank, singularities, false accuracy claims, interval conflicts, float32 drift. Write recommendation with images/CSV on PC only. Done: evidence explaining which coefficient family can be identified by which reference standards. Do not change embedded model yet.
 **A04 PC UX scaffold (agent: desktop)**. Read plan 14 and existing Firmware/tools. Implement offline reference inventory, OSL import, capture SHA inspection, condition/curve chooser, uncertainty-interval plots, suggested E12/E24 points and editable reference tolerance. Use test fixture CSV/JSON; don't write W25Q. Done: screenshot/automated GUI model test and no MCU Flash increase.
 **A05 Safety and physical audit (agent: hardware)**. Read plan 12, manually open binary EasyEDA/schematic. Generate red/yellow/green netlist and as-built DNP inspection checklist, including ground-clip cautions, gate polarity, PA15 charger, K1 states, ADC clamps and 1M leakage risk. Done: hardware review signed by actual board assembler; discrepancies resolved before measurement.

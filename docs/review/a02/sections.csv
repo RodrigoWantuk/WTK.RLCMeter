@@ -1,0 +1,8 @@
+build,flash,ram,text,rodata,data,bss,noinit,stack_heap,vector,arm,load_gaps
+baseline/stm32-debug,60964,14592,58640,2032,48,12496,0,2048,236,8,0
+baseline/stm32-release,64096,15040,61760,2044,48,12940,0,2052,236,8,0
+baseline/stm32-bringup,65052,14588,56440,8324,44,12496,0,2048,236,8,0
+candidate/stm32-debug-off,58396,14536,56072,2032,48,12440,0,2048,236,8,0
+candidate/stm32-release-off,61580,14976,59240,2048,48,12876,0,2052,236,8,0
+candidate/stm32-release-on,64096,15040,61760,2044,48,12940,0,2052,236,8,0
+candidate/stm32-bringup-off,65052,14588,56440,8324,44,12496,0,2048,236,8,0
