@@ -190,7 +190,7 @@ def main() -> int:
                  for standard in group["standards"] if standard["id"] == args.id)
     print(f"added {args.id} role={args.role} capture_sha256={added['capture_id']}")
     print(f"campaign_status={report['status']} qualification={report['qualification']}")
-    return 1 if report["status"] == "HOST_VALIDATION_FAILED" else 0
+    return 1 if report["status"] in ("HOST_VALIDATION_FAILED", "HOST_QUANTIZATION_FAILED") else 0
 
 
 if __name__ == "__main__":

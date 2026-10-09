@@ -30,6 +30,7 @@ def report():
             "fit_count": 2,
             "validation_count": 1,
             "validation": "PASS",
+            "float32_validation": "PASS",
         }],
     }
 
@@ -51,7 +52,9 @@ class CurveFrameTests(unittest.TestCase):
         for mutate in (
                 lambda value: value.update(capture_binding="SYNTHETIC_UNBOUND"),
                 lambda value: value.update(status="HOST_VALIDATION_FAILED"),
+                lambda value: value.update(status="HOST_QUANTIZATION_FAILED"),
                 lambda value: value["conditions"][0].update(validation="FAIL"),
+                lambda value: value["conditions"][0].update(float32_validation="FAIL"),
                 lambda value: value["conditions"][0].update(validation_count=0),
                 lambda value: value["conditions"][0].update(fit_count=0),
                 lambda value: value.update(supplied_osl_frame_crc32=None)):

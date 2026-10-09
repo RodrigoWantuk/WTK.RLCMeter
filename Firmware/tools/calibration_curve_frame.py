@@ -61,6 +61,7 @@ def build_candidate(report: dict[str, Any], curve_sequence: int) -> bytes:
             rref, frequency, amplitude = condition_key(group["condition"])
             curve = group["curve"]
             validation = group["validation"]
+            float32_validation = group["float32_validation"]
             validation_count = group["validation_count"]
             fit_count = group["fit_count"]
         except (KeyError, TypeError) as exc:
@@ -71,6 +72,8 @@ def build_candidate(report: dict[str, Any], curve_sequence: int) -> bytes:
         seen.add(key)
         if validation != "PASS" or not isinstance(validation_count, int) or validation_count < 1:
             raise CurveFrameError("each exported condition requires held-out validation")
+        if float32_validation != "PASS":
+            raise CurveFrameError("stored float32 coefficients must satisfy all declared intervals")
         if not isinstance(fit_count, int) or fit_count < 1:
             raise CurveFrameError("each exported condition requires FIT standards")
         if not isinstance(curve, list) or len(curve) != 12 or not all(

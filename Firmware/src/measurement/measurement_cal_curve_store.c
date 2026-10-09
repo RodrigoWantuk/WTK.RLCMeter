@@ -10,6 +10,11 @@ static uint16_t read_u16(const uint8_t *src)
     return (uint16_t)((uint16_t)src[0] | ((uint16_t)src[1] << 8u));
 }
 
+static bool sequence_newer(uint32_t candidate, uint32_t active)
+{
+    return candidate != active && (uint32_t)(candidate - active) < UINT32_C(0x80000000);
+}
+
 bsp_status_t measurement_cal_curve_store_load(measurement_cal_curve_store_t *store,
                                               measurement_cal_curve_read_fn read,
                                               void *user,
@@ -55,7 +60,7 @@ bsp_status_t measurement_cal_curve_store_load(measurement_cal_curve_store_t *sto
         if (!measurement_cal_curve_frame_validate(scratch, size, osl_sequence,
                                                    osl_frame_crc32, true, &info) ||
             (info.curve_sequence == 0u) ||
-            (store->active && info.curve_sequence <= store->curve_sequence))
+            (store->active && !sequence_newer(info.curve_sequence, store->curve_sequence)))
         {
             continue;
         }

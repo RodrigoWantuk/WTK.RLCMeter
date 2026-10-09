@@ -94,6 +94,16 @@ class CampaignTests(unittest.TestCase):
         self.assertEqual(result["conditions"][0]["coverage"], "PARTIAL_LINEAR_SPAN")
         self.assertEqual(result["qualification"], "UNQUALIFIED")
 
+    def test_float32_wire_rounding_cannot_erase_a_narrow_fit(self):
+        result = solve_campaign(campaign([
+            standard("R", 1000.00003, 1000.0, 0.0, 1e-12),
+        ]))
+        group = result["conditions"][0]
+        self.assertTrue(group["standard_evidence"][0]["within_all_specified_intervals"])
+        self.assertEqual(result["status"], "HOST_QUANTIZATION_FAILED")
+        self.assertEqual(group["float32_validation"], "FAIL")
+        self.assertEqual(group["float32_failed_ids"], ["sample-1"])
+
     def test_validation_standards_do_not_pull_fit_and_can_fail(self):
         fit = standard("R", 1000, 1000, 0)
         check = standard("R", 1000, 1000, 0, role="VALIDATION")

@@ -175,6 +175,13 @@ specified interval, and all-constraint pass/fail for each FIT and held-out VALID
 standard. These checks aid review and conflict triage but do not establish measurement
 uncertainty or physical qualification.
 
+Before producing a supplementary candidate frame, the host solver also rounds all 12
+coefficients of each condition to the exact little-endian binary32 values stored on
+the MCU and rechecks every current-campaign FIT and held-out interval. A fit that
+passes only in host double precision is reported as `HOST_QUANTIZATION_FAILED` and
+cannot become a candidate. This is a serialization consistency check, not proof that
+target floating-point arithmetic, fixture effects, or physical accuracy are qualified.
+
 DC DCR and low-voltage leakage remain separate future qualified measurement/calibration
 modes, not new outputs inferred from AC OSL. The BRINGUP-only 1 MOhm static-bias pilot
 is exploratory evidence collection, not DCR or leakage calibration. DC short/offset

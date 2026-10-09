@@ -99,7 +99,8 @@ Host-side tools that support firmware, assets, calibration, and diagnostics.
   physical-MVP size gate.
 - `calibration_curve_frame.py`: builds or inspects a bounded, non-qualified v1
   post-OSL curve candidate from a successful SHA-bound campaign report with
-  held-out evidence per exported condition. It binds the OSL sequence and frame
+  held-out evidence and a passing stored-float32 interval check per exported
+  condition. It binds the OSL sequence and frame
   CRC and checks record/frame CRCs. It does not transfer, qualify, or install the
   candidate on the instrument.
 - `build_resource_pack.py`: builds the deterministic Resource Pack v2/API v4 binary

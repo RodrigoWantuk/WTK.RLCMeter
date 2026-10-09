@@ -128,5 +128,19 @@ int main(void)
         FLASH_BYTES, 42u, 0x12345678u, scratch, sizeof(scratch)) == BSP_STATUS_OK,
         "interrupted B commit rolls back to A");
     failures += expect_true(store.slot_start == slot_a.start, "rollback keeps A");
+    make_frame(&flash[slot_a.start], UINT32_MAX, true);
+    make_frame(&flash[slot_b.start], 1u, true);
+    failures += expect_true(measurement_cal_curve_store_load(&store, fake_read, NULL,
+        FLASH_BYTES, 42u, 0x12345678u, scratch, sizeof(scratch)) == BSP_STATUS_OK,
+        "qualified sequence wrap remains readable");
+    failures += expect_true(store.slot_start == slot_b.start && store.curve_sequence == 1u,
+                            "wrapped sequence selects newer B");
+    make_frame(&flash[slot_a.start], 1u, true);
+    make_frame(&flash[slot_b.start], UINT32_MAX, true);
+    failures += expect_true(measurement_cal_curve_store_load(&store, fake_read, NULL,
+        FLASH_BYTES, 42u, 0x12345678u, scratch, sizeof(scratch)) == BSP_STATUS_OK,
+        "reverse wrap remains readable");
+    failures += expect_true(store.slot_start == slot_a.start && store.curve_sequence == 1u,
+                            "reverse wrap keeps newer A");
     return failures == 0 ? 0 : 1;
 }

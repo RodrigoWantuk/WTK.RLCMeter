@@ -94,13 +94,21 @@ It must not reclassify synthetic tests as physical qualification.
   uploader, qualification ceremony, or transactional writer exists for these
   slots yet. A host PASS is not physical qualification. The 33-condition OSL
   record and its existing A/B slots remain unchanged.
+- Candidate export now requires that every FIT and held-out tolerance interval
+  still passes after coefficients are rounded to the exact binary32 storage form.
+  Host-only precision cannot silently produce a frame outside a declared bound.
+  The target reader compares A/B overlay sequences across a uint32 rollover, while
+  retaining CRC/commit validation and the older valid slot on interrupted writes.
+  The normal candidate builder never sets the qualified flag. Any future COM
+  receiver must keep transferred candidates unqualified; it must not treat a
+  host-provided flag or CRC as evidence of physical metrology qualification.
 - A scale-sensitive complex-magnitude bug in the DSP was fixed: large impedances
   no longer use an insufficient fixed-iteration square-root seed. Host regressions
   cover this and the new curve, frame, and A/B reader. Rejected final sessions
   cannot expose an earlier valid primary as a fresh numeric UI result.
 - PRODUCT's project Flash gate is temporarily 63 KiB, with maintainer approval;
-  the silicon limit remains 64 KiB. Release uses 64092 B and has only
-  1444 B of physical margin. This is a blocking size debt for further
+  the silicon limit remains 64 KiB. Release uses 64096 B and has only
+  1440 B of physical margin. This is a blocking size debt for further
   PRODUCT additions, not a new comfortable budget. PRODUCT Debug enables LTO to
   remain linkable under the same physical limit.
 
@@ -162,3 +170,27 @@ making product DC available. Compare DCR and leakage against an independent
 instrument; characterize the fixture and temperature. All electrical limits,
 loss-model fit, thermal behavior, and accuracy remain
 `REQUIRES_BENCH_VALIDATION`.
+
+## Software cut and release boundary
+
+The AC PRODUCT path remains OSL-only unless an explicitly qualified supplementary
+frame is already present in the reserved W25Q slots. This firmware does not provide
+a COM command that installs or qualifies such a frame. The host candidate builder
+emits only unqualified frames, including after held-out and binary32 checks.
+Therefore an ordinary user can continue using the on-device OSL wizard without
+depending on the experimental supplementary campaign or DC pilot.
+
+Current software regression for this cut: 40/40 CTests in each host profile,
+123 Python tool tests, STM32 PRODUCT Debug/Release and BRINGUP builds, custom W25Q
+WASM compile, and Wokwi lint. PRODUCT Release is 64096 B Flash / 17092 B
+accounted RAM; BRINGUP is 65052 B / 16636 B. The Wokwi scenario suite was not
+run because `WOKWI_CLI_TOKEN` was absent. No board measurements have been supplied.
+
+This is **software-ready for controlled AC bring-up**, not a metrologically
+qualified product release. Before a release that advertises supplementary curves,
+implement a separately authorized transactional A/B receiver, verify its behavior
+under interrupted writes and OSL replacement, and qualify the resulting correction
+against physical held-out standards. Before enabling PRODUCT DC or publishing DCR
+or leakage, close the distinct electrical and fixture gates above. Recover Flash
+margin before adding substantial target code; the current PRODUCT silicon margin is
+1440 B and BRINGUP margin is 484 B.

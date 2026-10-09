@@ -13,6 +13,7 @@ import copy
 import hashlib
 import json
 import math
+import struct
 from pathlib import Path
 from typing import Any
 
@@ -332,6 +333,15 @@ def _constraints_pass(curve: list[float],
                for normal, bound in constraints)
 
 
+def _wire_curve(curve: list[float]) -> list[float] | None:
+    try:
+        encoded = struct.pack("<12f", *curve)
+    except (OverflowError, struct.error):
+        return None
+    decoded = list(struct.unpack("<12f", encoded))
+    return decoded if all(math.isfinite(value) for value in decoded) else None
+
+
 def _standard_evidence(standard: dict[str, Any], key: tuple[int, int, int],
                        curve: list[float], constraints: list[tuple[list[float], float]],
                        role: str) -> dict[str, Any]:
@@ -432,6 +442,9 @@ def solve_campaign(data: dict[str, Any]) -> dict[str, Any]:
         failed_validation = [item["id"] for item in evidence
                              if item["role"] == "VALIDATION" and
                              not item["within_all_specified_intervals"]]
+        wire_curve = _wire_curve(solved)
+        wire_failed_ids = [sample["id"] for sample, _, checks in evidence_inputs
+                           if wire_curve is None or not _constraints_pass(wire_curve, checks)]
         validation_count = sum(item["role"] == "VALIDATION" for item in evidence)
         rank = constraint_rank(constraints)
         outputs.append({"condition": group["condition"], "curve": solved,
@@ -441,14 +454,19 @@ def solve_campaign(data: dict[str, Any]) -> dict[str, Any]:
                         "validation": ("FAIL" if failed_validation else
                                        "PASS" if validation_count else "NOT_PROVIDED"),
                         "failed_validation_ids": failed_validation,
+                        "float32_validation": "FAIL" if wire_failed_ids else "PASS",
+                        "float32_failed_ids": wire_failed_ids,
                         "standard_evidence": evidence,
                         "constraint_rank": rank,
                         "ignored_loss_specs": ignored_loss_specs,
                         "coverage": ("FULL_LINEAR_SPAN_UNQUALIFIED" if rank == 12 else
                                      "PARTIAL_LINEAR_SPAN" if constraints else "PRIOR_UNCHANGED")})
+    status = ("HOST_VALIDATION_FAILED" if any(group["validation"] == "FAIL" for group in outputs)
+              else "HOST_QUANTIZATION_FAILED" if any(group["float32_validation"] == "FAIL"
+                                                    for group in outputs)
+              else "HOST_PROVISIONAL_NOT_FLASH_READY")
     return {"schema_version": 1,
-            "status": ("HOST_VALIDATION_FAILED" if any(group["validation"] == "FAIL" for group in outputs)
-                       else "HOST_PROVISIONAL_NOT_FLASH_READY"),
+            "status": status,
             "qualification": "UNQUALIFIED", "conditions": outputs}
 
 
@@ -564,7 +582,7 @@ def main() -> int:
         args.out.write_text(output, encoding="utf-8")
     else:
         print(output, end="")
-    return 1 if result.get("status") == "HOST_VALIDATION_FAILED" else 0
+    return 1 if result.get("status") in ("HOST_VALIDATION_FAILED", "HOST_QUANTIZATION_FAILED") else 0
 
 
 if __name__ == "__main__":
