@@ -30,6 +30,15 @@
     "retained_install_increment_bytes_including_anchors": 1956,
     "solver_only_savings_bytes": 2152
   },
+  "hosted_ci": {
+    "executed_steps": 0,
+    "observed_head_sha": "e21d2fe6e9fc1fcfac351ad6d3cae7f9710d1bd7",
+    "run_ids": [
+      38002704043,
+      38002703971
+    ],
+    "status": "BLOCKED_ACCOUNT_BILLING_LOCK"
+  },
   "measured_implementation_sha": "8f3d0c6e738877daf735c86475d4312d8128f9bc",
   "numerical": {
     "condition_fits": 132,

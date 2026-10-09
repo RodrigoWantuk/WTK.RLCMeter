@@ -98,6 +98,10 @@ Wokwi local-file checks and lint pass; full scenarios were not executed.
 Supplementary curves ON/OFF are preserved. No board accuracy, safety, SNR, leakage,
 relay behavior or ADC timing has been qualified. Hosted CI is reported separately
 from local checks; Wokwi scenario execution is not evidence for this PC fixture.
+PR #10's initial [Flash forensics run](https://github.com/RodrigoWantuk/WTK.RLCMeter/actions/runs/38002704043)
+and [Virtual Hardware run](https://github.com/RodrigoWantuk/WTK.RLCMeter/actions/runs/38002703971)
+were blocked before execution: both job annotations report an account billing lock,
+and both job step arrays are empty. These are not passing CI or code-test failures.
 
 ## Measured memory and migration forecast
 
