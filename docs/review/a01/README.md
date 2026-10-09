@@ -314,8 +314,11 @@ features; do not expand the MCU assumption or silently raise project gates.
   twins are byte-identical. JSON/CSV fixed fixtures are deterministic.
 - Wokwi local `--check-only` and `--lint-only`: **passed**. Scenario simulation
   **not run**: `WOKWI_CLI_TOKEN` unavailable. Lint is not simulation evidence.
-- The new CI workflow must be observed on the PR; local checks do not assert a
-  hosted CI pass. The unrelated pre-existing virtual-hardware workflow still
+- Hosted CI is **environmentally blocked**: [Flash forensics run 37944009642](https://github.com/RodrigoWantuk/WTK.RLCMeter/actions/runs/37944009642)
+  was refused before any job steps ran. GitHub's annotation says: "The job was not
+  started because your account is locked due to a billing issue." The existing
+  Wokwi workflow was also refused before execution. No hosted CI pass is claimed.
+  The unrelated pre-existing virtual-hardware workflow still
   references the obsolete `stm32-lab` preset; this pre-existing issue is not
   silently fixed in A01.
 
