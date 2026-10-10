@@ -727,3 +727,16 @@ find_package(Python3 3.9 REQUIRED COMPONENTS Interpreter)
 add_test(NAME wtk_pc_osl_compatibility
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/../tools/pc_osl_compatibility.py
             --bridge $<TARGET_FILE:wtk_pc_osl_bridge>)
+
+add_executable(wtk_pc_cal_capture_bridge app/pc_cal_capture_bridge.c)
+target_link_libraries(wtk_pc_cal_capture_bridge PRIVATE wtk_firmware_common)
+target_include_directories(wtk_pc_cal_capture_bridge PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../src)
+wtk_configure_c_target(wtk_pc_cal_capture_bridge)
+wtk_apply_project_warnings(wtk_pc_cal_capture_bridge)
+wtk_apply_common_compile_options(wtk_pc_cal_capture_bridge)
+if(WTK_WARNINGS_AS_ERRORS_HOST)
+    wtk_treat_warnings_as_errors(wtk_pc_cal_capture_bridge)
+endif()
+add_test(NAME wtk_pc_cal_capture_integration
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/test_pc_cal_capture.py
+            --bridge $<TARGET_FILE:wtk_pc_cal_capture_bridge>)

@@ -93,6 +93,14 @@ D: cross-platform regression owner; independently audits safety and persistent c
 Measured real link savings, safe product functioning, tracked explicit residual Flash debt, no drift in measurement model or qualifying claims. Mark COMPLETE only when exact target size gate and regression evidence are in CI. Otherwise report IN_PROGRESS with net bytes recovered and detailed remaining candidates.
 
 ## Owner decision: calibration relocation and forward Flash forecasting (2026-10-09)
+
+A06.2a status: F11-05/F11-06 source separation is implemented for `BRINGUP_CAL`.
+An isolated BRINGUP link with capture service anchors requires 68,436 B Flash,
+2,900 B beyond silicon. The actual dedicated capture binary uses 27,408 B Flash
+and 12,712 B RAM including reserved stack. PRODUCT and existing BRINGUP sizes and
+behavior are unchanged. Capture/result/cancel and PC serial campaign are tested;
+installation, PRODUCT migration and physical qualification remain incomplete.
+See [measured evidence](../docs/review/a06/A06.2a-report.md).
 F11-19. Investigate moving **complete on-device 33-key OPEN/SHORT/LOAD campaign, solving and fixed LOAD preset menus** into PC/service profile. Estimate actual linked Flash savings (wizard + dependencies; do not assume whole TU savings); preserve basic product standalone AC measurements after PC/factory calibration. User prefers at most on-device OPEN/SHORT fixture compensation; a compact local preset LOAD is optional only if it earns its byte cost. Moving full OSL is a consequential change to current boot-calibration gate; design a new safe provisioning state machine and offline PC service workflow, then request approval before modifying PRODUCT.
 F11-20. Implement feature-aware capacity forecast in size report: baseline current bytes, gross code recovered, net code recovered, deferred feature tickets with optimistic/central/pessimistic incremental linked-byte estimates measured from prototype compile where possible, data-only W25Q features, mandatory safety/change reserve, and final forecast. Example report columns: feature, MUST/OPTIONAL, PRODUCT/BRINGUP/PC/W25Q, delta_low/central/high, current_status, dependencies, SHA. Stop feature accumulation when optimistic estimates alone leave no physical margin; demote optional features to PC/bringup.
 F11-21. Strict architecture outcome: bare PRODUCT image should contain only bounded deterministic acquisition, math, compact calibration interpretation + qualification/error metadata, safe control, minimal display/UI and persistent provisioning/recovery. Raw screenshots, point selection, fitting history, plots, tolerance solvers, scope data and laboratory diagnostics live on PC. Local O/S should not overwrite previous factory OSL coefficients with an underdetermined two-standard fit.

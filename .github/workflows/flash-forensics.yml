@@ -60,6 +60,7 @@ jobs:
           python3 tools/collect_flash_evidence.py build/stm32-release-curves-on \
             --profile stm32-release-curves-on --git-sha "$(git rev-parse HEAD)"
       - name: Capture per-commit evidence and regression deltas
+        # The development calibration image has no baseline preset before A06.2a.
         shell: bash
         run: |
           set -euo pipefail
@@ -69,6 +70,17 @@ jobs:
             python3 candidate/Firmware/tools/collect_flash_evidence.py "candidate/Firmware/build/$preset" \
               --profile "$preset" --git-sha "$(git -C candidate rev-parse HEAD)" \
               --baseline "baseline/Firmware/build/$preset/forensics/attribution.json"
+          done
+      - name: Build bounded calibration service OFF and ON
+        working-directory: candidate/Firmware
+        run: |
+          for curves in OFF ON; do
+            build="build/stm32-bringup-cal-$curves"
+            cmake --preset stm32-bringup-cal -B "$build" \
+              -DWTK_ENABLE_SUPPLEMENTARY_CURVES="$curves" -DWTK_FLASH_FORENSICS=ON
+            cmake --build "$build" --parallel 2
+            python3 tools/collect_flash_evidence.py "$build" \
+              --profile "stm32-bringup-cal-$curves" --git-sha "$(git rev-parse HEAD)"
           done
       - name: Retain evidence even on a build-gate failure
         if: always()

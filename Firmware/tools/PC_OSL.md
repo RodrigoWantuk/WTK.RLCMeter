@@ -60,6 +60,11 @@ It has no serial transport and does not change any hardware permissions. The act
 C solver/frame/store/PLC1 codecs are tested using host-only `wtk_pc_osl_bridge`.
 Its `PCOS` normalized-input bridge format is test-only, never a wire protocol.
 
+A06.2a adds the real development USART1 capture service and PC COM adapter in
+[PC_CAL_CAPTURE.md](PC_CAL_CAPTURE.md). It collects blank-device OPEN/SHORT/LOAD
+observations through the existing session; ADC provenance remains explicitly
+nominal and no device-side candidate installation is implemented yet.
+
 Run `cmake --build` and CTest using the existing host presets/configuration to build
 the bridge. `pc_osl_compatibility.py --bridge <path-to-wtk_pc_osl_bridge>` can also run
 the same compatibility suite directly. Python unit discovery lives under `tests/tools`.

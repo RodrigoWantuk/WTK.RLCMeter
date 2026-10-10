@@ -22,11 +22,27 @@ FORBIDDEN = {
         re.compile(r"app_product_"),
         re.compile(r"ui_product_"),
     ),
+    "BRINGUP_CAL": (
+        re.compile(r"app_product_|ui_product_|app_bringup_console|app_calibration_campaign|\blab_"),
+    ),
 }
 
 CURVE_SOURCES = {"measurement_cal_curve.c", "measurement_cal_curve_frame.c",
                  "measurement_cal_curve_store.c"}
 CURVE_SYMBOLS = re.compile(r"measurement_cal_curve_|product_(?:curve_|load_curve_|active_osl_crc32)|g_curve_store")
+
+
+def capture_composition_errors(commands: list[dict], profile: str) -> list[str]:
+    present = {Path(row["file"].replace("\\", "/")).name for row in commands}
+    service = {"app_cal_capture_service.c", "app_cal_capture_shell.c"}
+    if profile != "BRINGUP_CAL":
+        return ["capture development service compiled in " + profile] if present & service else []
+    forbidden = {"app_shell.c", "app_bringup_console.c", "app_calibration_campaign.c",
+                 "app_product.c", "ui_product.c", "resource_receiver.c", "resource_store.c",
+                 "app_settings_store.c", "ili9341.c", "ui_fallback_renderer.c"}
+    errors = ["BRINGUP_CAL missing capture source: " + name for name in sorted(service-present)]
+    errors += ["BRINGUP_CAL unrelated source: " + name for name in sorted(present & forbidden)]
+    return errors
 
 
 def curve_composition_errors(symbols: str, commands: list[dict], enabled: bool) -> list[str]:
@@ -71,6 +87,7 @@ def main() -> int:
             parser.error("--supplementary-curves requires --compile-commands")
         try:
             commands = json.loads(args.compile_commands.read_text(encoding="utf-8"))
+            matches.extend(capture_composition_errors(commands, args.profile))
             matches.extend(curve_composition_errors(completed.stdout, commands,
                                                     args.supplementary_curves == "ON"))
         except (OSError, ValueError, KeyError, TypeError) as error:

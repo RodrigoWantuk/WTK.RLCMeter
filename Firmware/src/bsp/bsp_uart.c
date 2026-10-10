@@ -125,3 +125,11 @@ bsp_status_t bsp_uart_try_read_byte(uint8_t *byte)
     *byte = (uint8_t)(USART1->DR & 0xFFu);
     return BSP_STATUS_OK;
 }
+
+bsp_status_t bsp_uart_try_write_byte(uint8_t byte)
+{
+    if (!g_uart_ready) return BSP_STATUS_ERROR;
+    if ((USART1->SR & USART_SR_TXE) == 0u) return BSP_STATUS_BUSY;
+    USART1->DR = byte;
+    return BSP_STATUS_OK;
+}

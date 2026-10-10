@@ -17,8 +17,8 @@ find_package(Python3 COMPONENTS Interpreter QUIET)
 
 set(WTK_TARGET_PLATFORM "host" CACHE STRING "Build target platform: host or stm32")
 set_property(CACHE WTK_TARGET_PLATFORM PROPERTY STRINGS host stm32)
-set(WTK_FIRMWARE_PROFILE "PRODUCT" CACHE STRING "Firmware feature profile: PRODUCT or BRINGUP")
-set_property(CACHE WTK_FIRMWARE_PROFILE PROPERTY STRINGS PRODUCT BRINGUP)
+set(WTK_FIRMWARE_PROFILE "PRODUCT" CACHE STRING "Firmware feature profile: PRODUCT, BRINGUP or BRINGUP_CAL")
+set_property(CACHE WTK_FIRMWARE_PROFILE PROPERTY STRINGS PRODUCT BRINGUP BRINGUP_CAL)
 
 option(WTK_WARNINGS_AS_ERRORS_HOST "Treat warnings as errors for host project targets" ON)
 option(WTK_WARNINGS_AS_ERRORS_STM32 "Treat warnings as errors for STM32 project targets" OFF)
@@ -57,7 +57,12 @@ if(WTK_BUILD_TYPE STREQUAL "Lab")
     message(FATAL_ERROR "CMAKE_BUILD_TYPE=Lab is obsolete. Use a standard build type plus WTK_FIRMWARE_PROFILE=BRINGUP.")
 endif()
 
-if(WTK_FIRMWARE_PROFILE STREQUAL "BRINGUP")
+set(WTK_ENABLE_CAL_CAPTURE_SERVICE 0)
+if(WTK_FIRMWARE_PROFILE STREQUAL "BRINGUP_CAL")
+    set(WTK_ENABLE_CAL_CAPTURE_SERVICE 1)
+    set(WTK_DIAGNOSTIC_LOG_LEVEL_DEFAULT 1)
+    set(WTK_ENABLE_BRINGUP_CONSOLE 0)
+elseif(WTK_FIRMWARE_PROFILE STREQUAL "BRINGUP")
     set(WTK_DIAGNOSTIC_LOG_LEVEL_DEFAULT 5)
     set(WTK_ENABLE_BRINGUP_CONSOLE 1)
 elseif(WTK_BUILD_TYPE STREQUAL "Release")
@@ -89,7 +94,7 @@ configure_file(
     @ONLY
 )
 
-add_library(wtk_firmware_common STATIC
+set(WTK_COMMON_SOURCES
     src/app/app_safety_fault.c
     src/app/app_calibration_runtime.c
     src/app/app_calibration_service.c
@@ -145,6 +150,49 @@ add_library(wtk_firmware_common STATIC
     src/ui/ui_text.c
     src/ui/ui_utf8.c
 )
+if(WTK_FIRMWARE_PROFILE STREQUAL "BRINGUP_CAL")
+    # Exclusive calibration service image: no PRODUCT UI, lab/DC or write commands.
+    set(WTK_COMMON_SOURCES
+        src/app/app_safety_fault.c
+        src/app/app_calibration_runtime.c
+        src/app/app_calibration_service.c
+        src/app/app_calibration_session.c
+        src/app/app_calibration_workflow.c
+        src/app/app_io_workspace.c
+        src/app/app_pc_link_protocol.c
+        src/app/app_version.c
+        src/bsp/bsp_adc_common.c
+        src/bsp/bsp_adc_core.c
+        src/bsp/bsp_status.c
+        src/drivers/w25q_core.c
+        src/hardware/hw_aux_sensors.c
+        src/hardware/hw_buzzer_policy.c
+        src/hardware/hw_charger.c
+        src/hardware/hw_k1.c
+        src/hardware/hw_k2.c
+        src/hardware/hw_measure_permit.c
+        src/hardware/hw_metrology_clock.c
+        src/hardware/hw_excitation.c
+        src/hardware/hw_metrology_raw.c
+        src/hardware/hw_metrology_session.c
+        src/hardware/hw_metrology_measure.c
+        src/hardware/hw_power.c
+        src/hardware/hw_range.c
+        src/hardware/hw_residual.c
+        src/hardware/hw_safety.c
+        src/measurement/measurement_dsp.c
+        src/measurement/measurement_condition.c
+        src/measurement/measurement_calibration.c
+        src/measurement/measurement_calibration_solver.c
+        src/measurement/measurement_calibration_store.c
+        src/storage/storage_crc32.c
+        src/storage/storage_layout.c
+    )
+endif()
+add_library(wtk_firmware_common STATIC ${WTK_COMMON_SOURCES})
+if(WTK_TARGET_PLATFORM STREQUAL "host" OR WTK_FIRMWARE_PROFILE STREQUAL "BRINGUP_CAL")
+    target_sources(wtk_firmware_common PRIVATE src/app/app_cal_capture_service.c)
+endif()
 if(WTK_ENABLE_SUPPLEMENTARY_CURVES)
     target_sources(wtk_firmware_common PRIVATE
         src/measurement/measurement_cal_curve.c
@@ -174,8 +222,9 @@ if(WTK_TARGET_PLATFORM STREQUAL "host")
     add_subdirectory(tests)
 elseif(WTK_TARGET_PLATFORM STREQUAL "stm32")
     if((NOT WTK_FIRMWARE_PROFILE STREQUAL "BRINGUP") AND
+       (NOT WTK_FIRMWARE_PROFILE STREQUAL "BRINGUP_CAL") AND
        (NOT WTK_FIRMWARE_PROFILE STREQUAL "PRODUCT"))
-        message(FATAL_ERROR "Unsupported WTK_FIRMWARE_PROFILE='${WTK_FIRMWARE_PROFILE}'. Use PRODUCT or BRINGUP.")
+        message(FATAL_ERROR "Unsupported WTK_FIRMWARE_PROFILE='${WTK_FIRMWARE_PROFILE}'.")
     endif()
 
     if(CMAKE_C_COMPILER_ID MATCHES "GNU")
@@ -189,14 +238,17 @@ elseif(WTK_TARGET_PLATFORM STREQUAL "stm32")
         target_compile_options(wtk_firmware_common PRIVATE ${WTK_PRODUCT_OPTIMIZATION_LEVEL} -fno-unwind-tables -fno-asynchronous-unwind-tables)
     endif()
 
+    set(WTK_SHELL_SOURCE src/app/app_shell.c)
+    if(WTK_FIRMWARE_PROFILE STREQUAL "BRINGUP_CAL")
+        set(WTK_SHELL_SOURCE src/app/app_cal_capture_shell.c)
+    endif()
     add_executable(wtk_rlcmeter
-        src/app/app_shell.c
+        ${WTK_SHELL_SOURCE}
         src/app/main.c
         src/bsp/bsp_clock.c
         src/bsp/bsp_adc.c
         src/bsp/bsp_excitation.c
         src/bsp/bsp_metrology_adc.c
-        src/bsp/bsp_diagnostics.c
         src/bsp/bsp_gpio.c
         src/bsp/bsp_quiet.c
         src/bsp/bsp_reset.c
@@ -205,20 +257,22 @@ elseif(WTK_TARGET_PLATFORM STREQUAL "stm32")
         src/bsp/bsp_time.c
         src/bsp/bsp_uart.c
         src/bsp/bsp_watchdog.c
-        src/drivers/ili9341.c
         src/drivers/spi_bus.c
         src/drivers/w25q_device.c
         src/storage/measurement_cal_w25q_adapter.c
         src/hardware/hw_backlight.c
         src/hardware/hw_buzzer.c
         src/hardware/hw_peripherals.c
-        src/ui/ui_fallback_renderer.c
         src/bsp/startup_stm32f103c8tx.c
         src/bsp/system_stm32f1xx.c
     )
+    if(NOT WTK_FIRMWARE_PROFILE STREQUAL "BRINGUP_CAL")
+        target_sources(wtk_rlcmeter PRIVATE src/bsp/bsp_diagnostics.c
+            src/drivers/ili9341.c src/ui/ui_fallback_renderer.c)
+    endif()
     if(WTK_FIRMWARE_PROFILE STREQUAL "BRINGUP")
         target_sources(wtk_rlcmeter PRIVATE src/app/app_bringup_console.c)
-    else()
+    elseif(WTK_FIRMWARE_PROFILE STREQUAL "PRODUCT")
         target_sources(wtk_rlcmeter PRIVATE
             src/storage/app_settings_w25q_adapter.c
             src/storage/resource_w25q_adapter.c
@@ -256,7 +310,7 @@ elseif(WTK_TARGET_PLATFORM STREQUAL "stm32")
     set(WTK_FIRMWARE_BASE "${CMAKE_CURRENT_BINARY_DIR}/WTK.RLCMeter")
     set(WTK_FIRMWARE_MAP "${WTK_FIRMWARE_BASE}.map")
     set(WTK_SIZE_BUDGET "none")
-    if(WTK_FIRMWARE_PROFILE STREQUAL "BRINGUP")
+    if(WTK_FIRMWARE_PROFILE STREQUAL "BRINGUP" OR WTK_FIRMWARE_PROFILE STREQUAL "BRINGUP_CAL")
         set(WTK_SIZE_BUDGET "bringup")
     elseif(WTK_FIRMWARE_PROFILE STREQUAL "PRODUCT" AND
            NOT WTK_BUILD_TYPE STREQUAL "Debug")

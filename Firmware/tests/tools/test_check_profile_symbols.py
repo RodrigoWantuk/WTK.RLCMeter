@@ -10,6 +10,17 @@ SPEC.loader.exec_module(tool)
 
 
 class CurveCompositionTest(unittest.TestCase):
+    def test_capture_service_excluded_from_normal_profiles(self):
+        for profile in ("PRODUCT","BRINGUP"):
+            self.assertTrue(tool.capture_composition_errors([{"file":"app_cal_capture_service.c"}],profile))
+            self.assertEqual(tool.capture_composition_errors([{"file":"app_shell.c"}],profile),[])
+
+    def test_calibration_profile_requires_service_and_excludes_laboratory(self):
+        sources=[{"file":name} for name in ("app_cal_capture_service.c","app_cal_capture_shell.c")]
+        self.assertEqual(tool.capture_composition_errors(sources,"BRINGUP_CAL"),[])
+        self.assertTrue(tool.capture_composition_errors(sources+[{"file":"app_bringup_console.c"}],"BRINGUP_CAL"))
+        self.assertTrue(tool.capture_composition_errors([],"BRINGUP_CAL"))
+
     def test_off_rejects_compiled_sources_even_if_lto_hides_symbols(self):
         for source in tool.CURVE_SOURCES:
             self.assertTrue(tool.curve_composition_errors("", [{"file": "C:\\src\\" + source}], False))
