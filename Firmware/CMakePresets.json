@@ -61,6 +61,13 @@
       }
     },
     {
+      "name": "stm32-bringup-cal",
+      "inherits": "stm32-bringup",
+      "displayName": "STM32 Calibration Capture Service",
+      "binaryDir": "${sourceDir}/build/stm32-bringup-cal",
+      "cacheVariables": { "WTK_FIRMWARE_PROFILE": "BRINGUP_CAL" }
+    },
+    {
       "name": "stm32-bringup",
       "displayName": "STM32 Bringup",
       "description": "Configure the size-optimized STM32F103C8T6 hardware bringup firmware profile.",
@@ -77,6 +84,10 @@
     }
   ],
   "buildPresets": [
+    {
+      "name": "stm32-bringup-cal",
+      "configurePreset": "stm32-bringup-cal"
+    },
     {
       "name": "host-debug",
       "configurePreset": "host-debug",

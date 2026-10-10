@@ -16,6 +16,7 @@ typedef enum
 bsp_reset_reason_t bsp_reset_capture_reason(void);
 bsp_reset_reason_t bsp_reset_get_reason(void);
 uint32_t bsp_reset_get_raw_flags(void);
+void bsp_reset_read_device_uid(uint8_t uid[12]);
 const char *bsp_reset_reason_string(bsp_reset_reason_t reason);
 
 #endif

@@ -48,6 +48,13 @@ uint32_t bsp_reset_get_raw_flags(void)
     return g_reset_raw_flags;
 }
 
+void bsp_reset_read_device_uid(uint8_t uid[12])
+{
+    if (uid == 0) return;
+    const volatile uint8_t *source = (const volatile uint8_t *)UID_BASE;
+    for (uint32_t i = 0u; i < 12u; i++) uid[i] = source[i];
+}
+
 const char *bsp_reset_reason_string(bsp_reset_reason_t reason)
 {
     switch (reason)
