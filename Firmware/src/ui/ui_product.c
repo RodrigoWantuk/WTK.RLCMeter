@@ -509,9 +509,10 @@ static bool prepare_result_primary_line(const ui_product_t *ui,
         else
             (void)format_primary_value(result, value, sizeof(value));
         localize_decimal(value, view->menu.language_id);
-        /* The present external large numeric face has no usable Omega shape;
-           the medium face does. No Resource Pack or internal font additions. */
-        line_set(line, 12u, 84u, strstr(value, "Ω") != NULL ? 2u : 3u, UI_COLOR_WHITE, value);
+        /* The present external large numeric face has no usable Omega shape.
+           Reuse large emergency text with explicit ASCII units for this field. */
+        line_set(line, 12u, 84u, 3u, UI_COLOR_WHITE, value);
+        if (strstr(value, "Ω") != NULL) line->emergency = true;
     }
     else if (index == 2u)
     {

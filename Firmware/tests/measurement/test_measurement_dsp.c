@@ -358,6 +358,20 @@ static int test_quality_and_errors(void)
     failures += expect_true(measurement_process_block(&block, &adc, &config, &processed) == BSP_STATUS_ERROR,
                             "clipping rejected");
     failures += expect_true(processed.status == MEASUREMENT_STATUS_CLIPPED, "clip status");
+#if WTK_PRODUCT_FACTORY_PROVISIONED
+    make_empty_block(&block, raw, HW_EXCITATION_FREQ_1KHZ, HW_RANGE_ID_1K);
+    fill_impedance_block(&block, raw, measurement_complex(1000.0f,0.0f),
+        measurement_complex(0.05f,0.0f),config.ret_hg_transfer);
+    block.clipped = true;
+    block.streams[HW_METROLOGY_STREAM_RET_HG].hard_clipped = true;
+    failures += expect_true(measurement_process_block(&block,&adc,&config,&processed)==BSP_STATUS_OK &&
+        processed.selected_channel==MEASUREMENT_RETURN_1X && !processed.ret_1x_quality.clipped &&
+        processed.ret_hg_quality.clipped,"actual DSP retains valid 1X when HG clips");
+    failures += expect_near(processed.impedance.z_ohms.re,1000.0f,25.0f,"ADC/DSP 1X resistor fixture");
+    block.streams[HW_METROLOGY_STREAM_RET_1X].hard_clipped = true;
+    failures += expect_true(measurement_process_block(&block,&adc,&config,&processed)==BSP_STATUS_ERROR,
+        "actual DSP rejects both clipped return paths");
+#endif
     return failures;
 }
 
