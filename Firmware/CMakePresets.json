@@ -65,7 +65,9 @@
       "inherits": "stm32-bringup",
       "displayName": "STM32 Calibration Capture Service",
       "binaryDir": "${sourceDir}/build/stm32-bringup-cal",
-      "cacheVariables": { "WTK_FIRMWARE_PROFILE": "BRINGUP_CAL" }
+      "cacheVariables": {
+        "WTK_FIRMWARE_PROFILE": "BRINGUP_CAL"
+      }
     },
     {
       "name": "stm32-bringup",
@@ -80,6 +82,24 @@
         "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
         "WTK_TARGET_PLATFORM": "stm32",
         "WTK_FIRMWARE_PROFILE": "BRINGUP"
+      }
+    },
+    {
+      "name": "stm32-factory-debug",
+      "inherits": "stm32-debug",
+      "displayName": "Experimental factory PRODUCT debug",
+      "binaryDir": "${sourceDir}/build/stm32-factory-debug",
+      "cacheVariables": {
+        "WTK_PRODUCT_FACTORY_PROVISIONED": "ON"
+      }
+    },
+    {
+      "name": "stm32-factory-release",
+      "inherits": "stm32-release",
+      "displayName": "Experimental factory PRODUCT release",
+      "binaryDir": "${sourceDir}/build/stm32-factory-release",
+      "cacheVariables": {
+        "WTK_PRODUCT_FACTORY_PROVISIONED": "ON"
       }
     }
   ],
@@ -112,6 +132,14 @@
       "name": "stm32-bringup",
       "configurePreset": "stm32-bringup",
       "configuration": "MinSizeRel"
+    },
+    {
+      "name": "stm32-factory-debug",
+      "configurePreset": "stm32-factory-debug"
+    },
+    {
+      "name": "stm32-factory-release",
+      "configurePreset": "stm32-factory-release"
     }
   ],
   "testPresets": [

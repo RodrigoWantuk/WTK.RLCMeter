@@ -25,6 +25,7 @@ enum
     UI_COLOR_GREEN = 0xA5CFu,
 };
 
+#if !WTK_PRODUCT_FACTORY_PROVISIONED
 static const char *cal_load_preset_token(uint8_t preset)
 {
     switch (preset)
@@ -38,6 +39,7 @@ static const char *cal_load_preset_token(uint8_t preset)
         return "NOMINAL";
     }
 }
+#endif
 
 static const char *freq_token(hw_excitation_freq_t frequency)
 {
@@ -122,6 +124,7 @@ static ui_format_status_t write_literal(const char *text, char *dst, size_t capa
                                                     UI_FORMAT_STATUS_TRUNCATED;
 }
 
+#if !WTK_PRODUCT_FACTORY_PROVISIONED
 static ui_text_id_t wizard_standard_text_id(uint8_t standard)
 {
     switch ((ui_product_wizard_standard_t)standard)
@@ -135,7 +138,9 @@ static ui_text_id_t wizard_standard_text_id(uint8_t standard)
         return UI_TEXT_ID_LOAD;
     }
 }
+#endif
 
+#if !WTK_PRODUCT_FACTORY_PROVISIONED
 static const char *range_prompt_text(hw_range_id_t range_id)
 {
     switch (range_id)
@@ -157,6 +162,7 @@ static const char *range_prompt_text(hw_range_id_t range_id)
         return "RANGE?";
     }
 }
+#endif
 
 static ui_text_id_t blocker_text_id(ui_product_blocker_t blocker)
 {
@@ -1088,6 +1094,7 @@ static bool prepare_calibration_status_line(const ui_product_t *ui,
         line_set(line, 12u, 108u, 2u, UI_COLOR_WHITE, text);
         return true;
     }
+#if !WTK_PRODUCT_FACTORY_PROVISIONED
     if (index == 3u)
     {
         char text[32] = {0};
@@ -1106,9 +1113,22 @@ static bool prepare_calibration_status_line(const ui_product_t *ui,
         line_set_id(ui, view, line, 12u, 248u, 2u, UI_COLOR_GREEN, UI_TEXT_ID_FULL_CALIBRATION);
         return true;
     }
+#endif
+#if WTK_PRODUCT_FACTORY_PROVISIONED
+    if (index == 3u || index == 4u)
+    {
+        line_set(line, 8u, index == 3u ? 152u : 196u, 1u, UI_COLOR_WHITE,
+                 index == 3u ? "SWD: BRINGUP_CAL" :
+                 view->menu.language_id == (uint8_t)UI_LANGUAGE_PT_BR ?
+                     "OSL NO PC -> SWD: PRODUCT" : "PC OSL -> SWD: PRODUCT");
+        line->emergency = true;
+        return true;
+    }
+#endif
     return false;
 }
 
+#if !WTK_PRODUCT_FACTORY_PROVISIONED
 static bool progress_line(char *dst, size_t capacity, uint8_t a, uint8_t b)
 {
     size_t used = 0u;
@@ -1116,7 +1136,9 @@ static bool progress_line(char *dst, size_t capacity, uint8_t a, uint8_t b)
            append_text(dst, capacity, &used, " / ") &&
            ui_format_append_u32(dst, capacity, &used, b);
 }
+#endif
 
+#if !WTK_PRODUCT_FACTORY_PROVISIONED
 static bool condition_line(const ui_product_wizard_t *wizard, char *dst, size_t capacity)
 {
     size_t used = 0u;
@@ -1124,7 +1146,9 @@ static bool condition_line(const ui_product_wizard_t *wizard, char *dst, size_t 
            append_char(dst, capacity, &used, ' ') &&
            append_text(dst, capacity, &used, amp_token((hw_excitation_amp_t)wizard->amplitude));
 }
+#endif
 
+#if !WTK_PRODUCT_FACTORY_PROVISIONED
 static bool prepare_wizard_line(const ui_product_t *ui,
                                 const ui_product_view_t *view,
                                 const ui_product_wizard_t *wizard,
@@ -1329,6 +1353,7 @@ static bool prepare_wizard_line(const ui_product_t *ui,
         return false;
     }
 }
+#endif
 
 static UI_COMPACT_CALL bool prepare_line(const ui_product_t *ui,
                          const ui_product_view_t *view,
@@ -1363,6 +1388,23 @@ static UI_COMPACT_CALL bool prepare_line(const ui_product_t *ui,
         }
         return false;
     case UI_PRODUCT_STATE_CALIBRATION_REQUIRED:
+#if WTK_PRODUCT_FACTORY_PROVISIONED
+        if (index < 3u)
+        {
+            const bool pt = view->menu.language_id == (uint8_t)UI_LANGUAGE_PT_BR;
+            const bool unavailable = view->storage_unavailable ||
+                view->calibration_status == (uint8_t)UI_PRODUCT_CAL_STORAGE_ERROR;
+            const char *messages[] = {
+                unavailable ? (pt ? "ERRO FLASH / SEM OSL" : "STORAGE ERROR / NO OSL") :
+                              (pt ? "SEM CALIBRACAO OSL" : "UNCALIBRATED / NO OSL"),
+                "SWD: BRINGUP_CAL", pt ? "OSL NO PC -> SWD: PRODUCT" : "PC OSL -> SWD: PRODUCT"};
+            line_set(line, 8u, (uint16_t)(24u + 40u * index), 1u,
+                     UI_COLOR_AMBER, messages[index]);
+            line->emergency = true;
+            return true;
+        }
+        return false;
+#else
         if (index == 0u)
         {
             const bool storage_error =
@@ -1379,6 +1421,7 @@ static UI_COMPACT_CALL bool prepare_line(const ui_product_t *ui,
             return true;
         }
         return false;
+#endif
     case UI_PRODUCT_STATE_RESOURCE_ERROR:
         if (index == 0u)
         {
@@ -1433,8 +1476,10 @@ static UI_COMPACT_CALL bool prepare_line(const ui_product_t *ui,
         return prepare_about_line(ui, view, index, line);
     case UI_PRODUCT_STATE_CALIBRATION_STATUS:
         return prepare_calibration_status_line(ui, view, index, line);
+#if !WTK_PRODUCT_FACTORY_PROVISIONED
     case UI_PRODUCT_STATE_CALIBRATION_WIZARD:
         return prepare_wizard_line(ui, view, &view->wizard, index, line);
+#endif
     case UI_PRODUCT_STATE_MEASURING:
         if (index == 0u)
         {

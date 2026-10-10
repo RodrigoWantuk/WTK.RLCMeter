@@ -33,6 +33,19 @@ splitting and physical qualification remain incomplete.
 Plan 11 is not COMPLETE: no production savings or physical qualification claimed.
 All hardware acceptance remains `REQUIRES_BENCH_VALIDATION`.
 
+## A06.2c-prep execution evidence — 2026-10-10
+
+[Opt-in factory PRODUCT evidence](../docs/review/a06/A06.2c-prep-report.md) starts
+at PR #13 main `334798c54e372b1267b01156bd742e20a4ea1460`. Legacy Release remains
+62,052 B OFF / 64,476 B ON. Factory Release links at 48,496 / 50,992 B, recovering
+13,556 / 13,484 B with full OSL validation/runtime, Resource Pack recovery and
+safety retained. Actual source/symbol exclusions and C-backed PRODUCT boot/measurement
+tests pass. Both modes, curves and host build types pass; twelve ARM images fit.
+The remaining MUST forecast is 1920 / 4224 / 8832 B including reserve; conservative
+factory ON is 59,824 B. These future costs are estimates, not linked features.
+Default PRODUCT remains legacy; physical evidence and owner approval are required
+before permanent retirement. F11 migration/release acceptance remains IN_PROGRESS.
+
 ## Objective and non-negotiables
 Recover measured Flash margin without regression of the fail-safe state, acquisition timing, OSL integrity, 33 condition keys, W25Q recovery, click measurement, or bilingual essential results. No fixed 56 KiB or 60 KiB PRODUCT acceptance gate is authorized. Recover the maximum demonstrably removable linked code, initially investigate **4–8 KiB of measured net/gross opportunities** (planning ambition, not a guaranteed saving). Use a per-feature forward budget to determine space for all missing mandatory product functionality, plus change/maintenance contingency. 65,536 B remains the physical silicon limit. 16 KiB preferred accounted PRODUCT RAM; keep hard/physical RAM constraints. Do not tune thresholds merely to conceal regressions.
 

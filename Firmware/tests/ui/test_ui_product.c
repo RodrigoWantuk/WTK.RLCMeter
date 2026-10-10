@@ -1,4 +1,5 @@
 #include "ui/ui_product.h"
+#include "wtk_build_config.h"
 
 #include <stdbool.h>
 #include <stdio.h>
@@ -632,9 +633,40 @@ static int test_normal_text_uses_external_font_roles(void)
     return failures;
 }
 
+#if WTK_PRODUCT_FACTORY_PROVISIONED
+static int test_factory_guidance_uses_internal_font_and_no_wizard_prompt(void)
+{
+    int failures = 0;
+    for (uint8_t language = (uint8_t)UI_LANGUAGE_EN; language <= (uint8_t)UI_LANGUAGE_PT_BR; language++)
+    {
+        reset_render_counters();
+        ui_product_t ui;
+        ili9341_t display = {.ready = true};
+        ui_product_init(&ui);
+        ui_product_set_text_provider(&ui, fake_text_provider, NULL);
+        ui_product_view_t view = ready_view(50u);
+        view.state = UI_PRODUCT_STATE_CALIBRATION_REQUIRED;
+        view.calibration_active_valid = false;
+        view.menu.language_id = language;
+        ui_product_request(&ui, &view);
+        failures += expect_true(drain_render(&ui, &display) == 0, "factory guidance drains");
+        failures += expect_true(g_provider_calls == 0u && g_font_start_count == 0u,
+                                "factory guidance uses internal resources only");
+        failures += expect_true(rendered_text_starts_with(language == (uint8_t)UI_LANGUAGE_EN ? "UNCALIBRATED" : "SEM CALIBRACAO"),
+                                "explicit uncalibrated state in both languages");
+        failures += expect_true(rendered_text_starts_with("SWD: BRINGUP_CAL"), "service deployment guidance");
+        failures += expect_true(!rendered_text_starts_with("OK"), "no unavailable wizard action");
+    }
+    return failures;
+}
+#endif
+
 int main(void)
 {
     int failures = 0;
+#if WTK_PRODUCT_FACTORY_PROVISIONED
+    failures += test_factory_guidance_uses_internal_font_and_no_wizard_prompt();
+#endif
     failures += test_quiet_pause_retains_render_state();
     failures += test_partial_region_and_latest_generation_wins();
     failures += test_update_during_active_text_restarts_with_newest_generation();

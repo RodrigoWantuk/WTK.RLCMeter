@@ -149,6 +149,14 @@ def provision_simulation(bridge,output):
             raise CaptureError('persisted C runtime standalone measurement failed')
         report.update(captures=99,conditions=33,reboot_verified=True,
                       synthetic_standalone_z_ohms=[re,im],evidence='REQUIRES_BENCH_VALIDATION')
+        boot=struct.unpack('<8I2f',transport.control(9,bytes((0,0,0))))
+        if boot[0]!=4 or boot[1]!=1 or boot[2]!=1 or boot[3]!=0:
+            raise CaptureError('actual PRODUCT boot gate failed or auto-started acquisition')
+        measured=struct.unpack('<8I2f',transport.control(9,bytes((0,0,1))))
+        if measured[0]!=20 or not measured[3] or not measured[4] or not measured[5] or measured[6]!=2:
+            raise CaptureError('actual PRODUCT measurement session failed')
+        report.update(product_boot_verified=True,factory_product=bool(boot[7]),
+                      product_attempts=measured[3],product_z_ohms=list(measured[8:10]))
         (output/'installation.json').write_text(json.dumps(report,indent=2)+'\n',encoding='utf-8')
         return report
     finally:transport.close()

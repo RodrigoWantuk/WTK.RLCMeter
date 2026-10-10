@@ -38,13 +38,15 @@ jobs:
         run: |
           for preset in host-debug host-release; do
             for curves in OFF ON; do
-              build="build/$preset-curves-$curves"
-              cmake --preset "$preset" -G Ninja -B "$build" -DWTK_ENABLE_SUPPLEMENTARY_CURVES="$curves"
-              cmake --build "$build" --parallel 2
-              ctest --test-dir "$build" --output-on-failure
+              for factory in OFF ON; do
+                build="build/$preset-curves-$curves-factory-$factory"
+                cmake --preset "$preset" -G Ninja -B "$build" -DWTK_ENABLE_SUPPLEMENTARY_CURVES="$curves" -DWTK_PRODUCT_FACTORY_PROVISIONED="$factory"
+                cmake --build "$build" --parallel 2
+                ctest --test-dir "$build" --output-on-failure
+                WTK_CAPTURE_BRIDGE="$PWD/$build/tests/wtk_pc_cal_capture_bridge" python3 -m unittest discover -s tests/tools -v
+              done
             done
           done
-          python3 -m unittest discover -s tests/tools -v
       - name: Build base and candidate with the same installed compiler
         shell: bash
         run: |
@@ -86,6 +88,17 @@ jobs:
             cmake --build "$build" --parallel 2
             python3 tools/collect_flash_evidence.py "$build" \
               --profile "stm32-bringup-cal-$curves" --git-sha "$(git rev-parse HEAD)"
+          done
+      - name: Build experimental factory PRODUCT Debug/Release OFF/ON
+        working-directory: candidate/Firmware
+        run: |
+          for preset in stm32-factory-debug stm32-factory-release; do
+            for curves in OFF ON; do
+              build="build/$preset-$curves"
+              cmake --preset "$preset" -B "$build" -DWTK_ENABLE_SUPPLEMENTARY_CURVES="$curves" -DWTK_FLASH_FORENSICS=ON
+              cmake --build "$build" --parallel 2
+              python3 tools/collect_flash_evidence.py "$build" --profile "$preset-$curves" --git-sha "$(git rev-parse HEAD)"
+            done
           done
       - name: Retain evidence even on a build-gate failure
         if: always()

@@ -56,6 +56,17 @@ retaining acquisition AND installation APIs; a future protocol cost is still est
 capture/install dispatch, physical qualification and boot/wizard migration are open.
 The full wizard and safety/boot gates remain unchanged. A06 is not complete; proceed
 through the [A06.2 checklist](../docs/review/a06/A06.2-checklist.md).
+
+**A06.2c-prep STATUS: IMPLEMENTED_TESTED_HOST / COMPILES_TARGET.**
+The opt-in factory PRODUCT excludes full wizard/session/fitting sources and LOAD
+selection/rendering. It accepts only full usable W25Q OSL, preserves Resource Pack
+recovery and ordinary safe measurement, and blocks blank/corrupt media. The real
+C-backed 99-capture → PC solve → BRINGUP_CAL install → reset → PRODUCT controller
+measurement workflow passes. Eight host combinations and twelve ARM images pass;
+factory Release is 48,496 B OFF / 50,992 B ON against 62,052 / 64,476 B legacy.
+See [evidence and remaining budget](../docs/review/a06/A06.2c-prep-report.md).
+Legacy remains default; permanent wizard retirement and W3/W9 physical gates remain
+open. No PCB or safety-threshold changes and no metrology qualification are claimed.
 **A03 Calibration model unit analysis (agent: metrology mathematical)**. Read plan 13. Run synthetic OSL, scalar, two-axis and 12-coefficient WCRV candidates with independent FIT vs VALIDATION; compute rank, singularities, false accuracy claims, interval conflicts, float32 drift. Write recommendation with images/CSV on PC only. Done: evidence explaining which coefficient family can be identified by which reference standards. Do not change embedded model yet.
 **A04 PC UX scaffold (agent: desktop)**. Read plan 14 and existing Firmware/tools. Implement offline reference inventory, OSL import, capture SHA inspection, condition/curve chooser, uncertainty-interval plots, suggested E12/E24 points and editable reference tolerance. Use test fixture CSV/JSON; don't write W25Q. Done: screenshot/automated GUI model test and no MCU Flash increase.
 **A05 STATUS: SOURCE/FABRICATION AUDIT DELIVERED / PHYSICAL SIGN-OFF OPEN.**
@@ -136,8 +147,10 @@ collected in a synthetic serial campaign using the production C parser/session/D
 A06.2b adds actual BRINGUP_CAL candidate installation, bounded transfer, W25Q A/B
 commit/readback and usable-slot recovery. The C-backed 99-capture-to-reboot workflow
 and interrupted transactions are tested. This is not a release or physical
-qualification gate: bench validation and PRODUCT wizard/boot-gate migration remain
-pending. See [installation evidence](../docs/review/a06/A06.2b-report.md).
+qualification gate: bench validation and permanent PRODUCT wizard retirement remain
+pending. Experimental PRODUCT software migration is implemented above; boot still
+requires full usable OSL and valid resources. See
+[installation evidence](../docs/review/a06/A06.2b-report.md).
 - **Pre-assembly is now P0**: before soldering, A05 must review DNP choices K2/R0_BANK, TVS/link, optional guards and actual TFT footprint/pinout; do not say bringup is physically underway. Suggested baseline only pending schematic: K2 DNP with R0_BANK populated, D_TVS/R_TVS_LINK DNP, active guard DNP unless specific bench plan.
 - No purchased reference standard components yet; source affordable 1% film resistor kit and a repeatable fixture first. Do not demand precise capacitor/inductor ESR/Q parts.
 - Oscilloscope Hantek DSO2C10: prioritize waveforms, frequency/phase, source distortion, channel gain, time-domain transient evidence, and PC CSV/SCPI import; do not claim its native 8-bit input has better voltage gain accuracy than an honest 1% reference.

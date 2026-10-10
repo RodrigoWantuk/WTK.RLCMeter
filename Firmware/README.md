@@ -111,6 +111,15 @@ Flash headroom before later Phase 08 resource/UI work. Bringup uses
 `WTK_FIRMWARE_PROFILE=BRINGUP` with the standard `MinSizeRel` optimization build type;
 feature selection is no longer encoded as a custom CMake build type.
 
+`WTK_PRODUCT_FACTORY_PROVISIONED=ON` selects experimental PRODUCT with PC-provisioned
+OSL and excludes the full embedded wizard/solver fit path. It defaults OFF, preserving
+legacy PRODUCT. Use `stm32-factory-debug` / `stm32-factory-release` configure/build
+presets; supplementary curves remain an independent OFF/ON option. Factory Debug
+and Release both retain Resource Pack upload recovery. Blank or unusable OSL cannot
+unlock measurement. Provision with BRINGUP_CAL, then deploy PRODUCT via SWD while
+preserving external W25Q; there is no native USB firmware switch. See
+[tested behavior, reproducible matrix and physical approval gates](../docs/review/a06/A06.2c-prep-report.md).
+
 Expected STM32 build artifacts are generated under the selected build directory:
 
 ```text
