@@ -2,6 +2,9 @@
 
 #include <stddef.h>
 #include "wtk_build_config.h"
+#if WTK_PRODUCT_FACTORY_PROVISIONED
+#include <math.h>
+#endif
 
 #define WTK_NOINLINE
 
@@ -477,6 +480,9 @@ static bool drain_runtime_teardown(app_product_t *product,
 
 #endif
     product->runtime_teardown_kind = APP_PRODUCT_RUNTIME_TEARDOWN_NONE;
+#if WTK_PRODUCT_FACTORY_PROVISIONED
+    product->view.measurement_canceling = false;
+#endif
     const ui_product_state_t target = (ui_product_state_t)product->runtime_teardown_target_state;
     (void)activate_measurement_runtime(product);
     set_state(product, target);
@@ -511,8 +517,90 @@ static ui_product_measurement_t ui_measurement_from_result(const measurement_ses
     out.derived_valid = publish_values && result->primary_attempt.derived.valid;
     out.capacitance_valid = out.derived_valid && result->primary_attempt.derived.capacitance_valid;
     out.inductance_valid = out.derived_valid && result->primary_attempt.derived.inductance_valid;
+#if WTK_PRODUCT_FACTORY_PROVISIONED
+    const measurement_attempt_result_t *attempt = &result->primary_attempt;
+    const measurement_derived_result_t *derived = &attempt->derived;
+    const measurement_channel_quality_t *selected =
+        attempt->selected_channel == MEASUREMENT_RETURN_HG ?
+            &attempt->ret_hg_quality : &attempt->ret_1x_quality;
+    const measurement_cal_key_t key = measurement_cal_key(MEASUREMENT_CAL_HARDWARE_REV1,
+        MEASUREMENT_CAL_MODEL_VERSION_CURRENT, attempt->config.range_id,
+        attempt->config.frequency, attempt->config.amplitude);
+    out.session_sequence = result->session_sequence;
+    out.calibration_sequence = attempt->calibration.set_sequence;
+    out.range_id = (uint8_t)attempt->config.range_id;
+    out.return_channel = (uint8_t)attempt->selected_channel;
+    out.confidence = (uint8_t)result->confidence.publication_confidence;
+    out.attempt_count = result->attempt_count;
+    /* Reuse DSP derivation/guards and the session classifier. A clipped unused HG
+       path does not invalidate an unclipped usable selected 1X path. */
+    out.derived_valid = out.derived_valid &&
+        (attempt->selected_channel == MEASUREMENT_RETURN_1X ||
+         attempt->selected_channel == MEASUREMENT_RETURN_HG) &&
+        attempt->dsp_status == MEASUREMENT_STATUS_OK &&
+        !attempt->phase05_failed && !attempt->canceled && !attempt->safety_abort &&
+        selected->usable && selected->calibration_valid && !selected->clipped &&
+        result->confidence.measurement_quality != MEASUREMENT_QUALITY_INVALID &&
+        measurement_complex_is_finite(attempt->z_ohms) &&
+        isfinite(derived->resistance_ohms) && derived->resistance_ohms >= 0.0f &&
+        isfinite(derived->reactance_ohms) && isfinite(derived->magnitude_ohms) &&
+        derived->magnitude_ohms >= 0.0f && isfinite(derived->phase_rad) &&
+        measurement_auto_condition_allowed(attempt->config.range_id,
+            attempt->config.frequency, attempt->config.amplitude) &&
+        attempt->calibration.source == MEASUREMENT_CAL_SOURCE_PERSISTED &&
+        (attempt->calibration.status == MEASUREMENT_CAL_RESOLVE_FOUND ||
+         attempt->calibration.status == MEASUREMENT_CAL_RESOLVE_UNQUALIFIED) &&
+        attempt->calibration.model_version == MEASUREMENT_CAL_MODEL_VERSION_CURRENT &&
+        attempt->calibration.condition_id == measurement_cal_condition_id(&key);
+    out.capacitance_valid = out.derived_valid && derived->capacitance_valid &&
+        result->classification.interpretation == MEASUREMENT_INTERPRET_CAPACITIVE &&
+        derived->reactance_ohms < 0.0f && isfinite(derived->capacitance_f) && derived->capacitance_f > 0.0f;
+    out.inductance_valid = out.derived_valid && derived->inductance_valid &&
+        result->classification.interpretation == MEASUREMENT_INTERPRET_INDUCTIVE &&
+        derived->reactance_ohms > 0.0f && isfinite(derived->inductance_h) && derived->inductance_h > 0.0f;
+    const bool reactive_model = out.capacitance_valid || out.inductance_valid;
+    out.esr_valid = out.capacitance_valid;
+    out.q = derived->q;
+    out.d = derived->d;
+    out.q_valid = reactive_model && derived->q_valid && derived->resistance_ohms > 0.0f &&
+        isfinite(derived->q) && derived->q > 0.0f;
+    out.d_valid = reactive_model && derived->d_valid && derived->resistance_ohms > 0.0f &&
+        isfinite(derived->d) && derived->d > 0.0f;
+    out.max_error_status = out.derived_valid ? MEASUREMENT_ERROR_NOT_CHARACTERIZED :
+        (result->status == MEASUREMENT_AUTO_STATUS_OPEN_LIKE ||
+         result->status == MEASUREMENT_AUTO_STATUS_SHORT_LIKE) ?
+            MEASUREMENT_ERROR_NOT_APPLICABLE : MEASUREMENT_ERROR_INVALID_RESULT;
+    if (result->primary_attempt_index >= result->attempt_count)
+    {
+        out.frequency = (uint8_t)HW_EXCITATION_FREQ_INVALID;
+        out.amplitude = (uint8_t)HW_EXCITATION_AMP_INVALID;
+        out.range_id = (uint8_t)HW_RANGE_ID_INVALID;
+    }
+#endif
     return out;
 }
+
+#if WTK_PRODUCT_FACTORY_PROVISIONED
+static void invalidate_measurement(app_product_t *product)
+{
+    const bool changed = product->view.has_measurement_result ||
+        product->view.measurement_result_partial || product->next_hint.valid ||
+        product->view.page != UI_PRODUCT_PAGE_PRIMARY ||
+        product->view.measurement_result.max_error_status != MEASUREMENT_ERROR_INVALID_RESULT;
+    product->view.measurement_result = (ui_product_measurement_t){
+        .frequency = HW_EXCITATION_FREQ_INVALID, .amplitude = HW_EXCITATION_AMP_INVALID,
+        .range_id = HW_RANGE_ID_INVALID,
+        .max_error_status = MEASUREMENT_ERROR_INVALID_RESULT};
+    product->view.has_measurement_result = false;
+    product->view.measurement_result_partial = false;
+    product->next_hint = (measurement_auto_hint_t){0};
+    set_page(product, UI_PRODUCT_PAGE_PRIMARY);
+    if (changed)
+    {
+        mark_dirty(product);
+    }
+}
+#endif
 
 #if !WTK_PRODUCT_FACTORY_PROVISIONED
 _Static_assert(ENUM_INT(APP_CAL_WIZARD_IDLE) == ENUM_INT(UI_PRODUCT_WIZARD_IDLE),
@@ -610,6 +698,14 @@ static void update_measurement_result(app_product_t *product, app_measurement_ev
         if (partial != NULL)
         {
             product->view.measurement_result = ui_measurement_from_result(partial);
+#if WTK_PRODUCT_FACTORY_PROVISIONED
+            if (partial->session_sequence != product->session_sequence ||
+                partial->primary_attempt.calibration.set_sequence != product->view.calibration_sequence)
+            {
+                invalidate_measurement(product);
+                return;
+            }
+#endif
             product->view.has_measurement_result = true;
             product->view.measurement_result_partial = true;
             mark_dirty(product);
@@ -622,12 +718,38 @@ static void update_measurement_result(app_product_t *product, app_measurement_ev
         if (final != NULL)
         {
             product->view.measurement_result = ui_measurement_from_result(final);
+#if WTK_PRODUCT_FACTORY_PROVISIONED
+            if (final->session_sequence != product->session_sequence ||
+                final->primary_attempt.calibration.set_sequence != product->view.calibration_sequence)
+            {
+                product->view.measurement_result = (ui_product_measurement_t){
+                    .status = MEASUREMENT_AUTO_STATUS_FAILED,
+                    .frequency = HW_EXCITATION_FREQ_INVALID, .amplitude = HW_EXCITATION_AMP_INVALID,
+                    .range_id = HW_RANGE_ID_INVALID,
+                    .max_error_status = MEASUREMENT_ERROR_INVALID_RESULT};
+            }
+            set_page(product, UI_PRODUCT_PAGE_PRIMARY);
+#endif
             product->view.has_measurement_result = true;
             product->view.measurement_result_partial = false;
             product->next_hint = measurement_auto_make_hint(final);
+#if WTK_PRODUCT_FACTORY_PROVISIONED
+            if (!product->view.measurement_result.derived_valid)
+            {
+                product->next_hint.valid = false;
+            }
+#endif
             mark_dirty(product);
         }
     }
+#if WTK_PRODUCT_FACTORY_PROVISIONED
+    else if (event == APP_MEASUREMENT_EVENT_ERROR)
+    {
+        invalidate_measurement(product);
+        product->view.measurement_result.status = MEASUREMENT_AUTO_STATUS_FAILED;
+        product->view.has_measurement_result = true;
+    }
+#endif
 }
 
 static void request_settings_save(app_product_t *product)
@@ -933,6 +1055,18 @@ void app_product_step(app_product_t *product,
         ui_cal_state(inputs->calibration_status, inputs->calibration_active_valid);
     const ui_product_blocker_t next_blocker = ui_blocker(inputs->safety_result.primary_blocker);
     const bool next_storage_unavailable = inputs->calibration_status == APP_CAL_SERVICE_STORAGE_UNAVAILABLE;
+#if WTK_PRODUCT_FACTORY_PROVISIONED
+    const bool calibration_changed = product->view.calibration_active_valid &&
+        (!inputs->calibration_active_valid ||
+         product->view.calibration_sequence != inputs->calibration_active_sequence);
+    if (calibration_changed || !inputs->safety_result.measure_allowed ||
+        inputs->safety_fault_mask != 0u || inputs->display_fault ||
+        resource_status_requires_upload(inputs->resource_status))
+    {
+        invalidate_measurement(product);
+        product->measurement_deferred_for_settings = false;
+    }
+#endif
     if ((product->view.calibration_status != next_cal) ||
         (product->view.safety_blocker != next_blocker) ||
         (product->view.safety_fault_mask != inputs->safety_fault_mask) ||
@@ -991,6 +1125,24 @@ void app_product_step(app_product_t *product,
     service_pending_settings_save(product, inputs, now_ms);
     sync_settings_view(product);
     update_backlight_idle(product, inputs, now_ms);
+
+#if WTK_PRODUCT_FACTORY_PROVISIONED
+    /* Revoke presentation immediately, then drain the existing hardware owner.
+       A changed valid OSL sequence also cannot finish an old capture as new. */
+    if (product->runtime_kind == APP_PRODUCT_RUNTIME_MEASUREMENT && runtime_active(product) &&
+        (calibration_changed || !inputs->safety_result.measure_allowed))
+    {
+        const ui_product_state_t target = !inputs->safety_result.measure_allowed ?
+            UI_PRODUCT_STATE_SAFETY_BLOCKED : inputs->calibration_active_valid ?
+            UI_PRODUCT_STATE_READY : UI_PRODUCT_STATE_CALIBRATION_REQUIRED;
+        set_state(product, target);
+        begin_runtime_teardown(product, target);
+        (void)drain_runtime_teardown(product, &inputs->safety_result, clock_summary,
+            clock_status, inputs->temperature_mC, inputs->temperature_valid, now_ms);
+        clear_requests(product);
+        return;
+    }
+#endif
 
     if (drain_runtime_teardown(product,
                                &inputs->safety_result,
@@ -1339,6 +1491,19 @@ void app_product_step(app_product_t *product,
     if ((product->runtime_kind == APP_PRODUCT_RUNTIME_MEASUREMENT) &&
         app_measurement_session_active(measurement_runtime(product)))
     {
+#if WTK_PRODUCT_FACTORY_PROVISIONED
+        if (product->request_click || product->request_menu)
+        {
+            invalidate_measurement(product);
+            product->view.measurement_canceling = true;
+            mark_dirty(product);
+            begin_runtime_teardown(product, UI_PRODUCT_STATE_READY);
+            (void)drain_runtime_teardown(product, &inputs->safety_result, clock_summary,
+                clock_status, inputs->temperature_mC, inputs->temperature_valid, now_ms);
+            clear_requests(product);
+            return;
+        }
+#endif
         const app_measurement_event_t event = app_measurement_session_step(measurement_runtime(product), now_ms);
         update_measurement_result(product, event);
         set_state(product, app_measurement_session_active(measurement_runtime(product)) ?
@@ -1373,6 +1538,15 @@ void app_product_step(app_product_t *product,
     if (product->view.has_measurement_result && !product->view.measurement_result_partial &&
         (product->view.state == UI_PRODUCT_STATE_RESULT))
     {
+#if WTK_PRODUCT_FACTORY_PROVISIONED
+        if (product->view.page == UI_PRODUCT_PAGE_DETAILS && product->request_click)
+        {
+            invalidate_measurement(product);
+            set_state(product, UI_PRODUCT_STATE_READY);
+            clear_requests(product);
+            return;
+        }
+#endif
         if (product->request_page_next)
         {
             set_page(product,
@@ -1420,6 +1594,9 @@ void app_product_step(app_product_t *product,
                                           now_ms);
         if ((start_status == BSP_STATUS_BUSY) || (start_status == BSP_STATUS_OK))
         {
+#if WTK_PRODUCT_FACTORY_PROVISIONED
+            invalidate_measurement(product);
+#endif
             product->view.measurement_result_partial = false;
             set_state(product, UI_PRODUCT_STATE_MEASURING);
         }

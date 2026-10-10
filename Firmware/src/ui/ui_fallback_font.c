@@ -1,4 +1,5 @@
 #include "ui/ui_fallback_font.h"
+#include "wtk_build_config.h"
 
 #include <stddef.h>
 
@@ -60,6 +61,16 @@ bool ui_fallback_font_get_glyph(uint32_t codepoint, uint8_t rows[UI_FALLBACK_GLY
     {
         return false;
     }
+#if WTK_PRODUCT_FACTORY_PROVISIONED
+    /* Derive the comma from the existing dot; no additional font asset. */
+    if (codepoint == (uint32_t)',')
+    {
+        (void)ui_fallback_font_get_glyph((uint32_t)'.', rows);
+        rows[4] = rows[5];
+        rows[6] = (uint8_t)(rows[6] >> 1u);
+        return true;
+    }
+#endif
     if ((codepoint >= (uint32_t)'a') && (codepoint <= (uint32_t)'z'))
     {
         codepoint -= (uint32_t)('a' - 'A');

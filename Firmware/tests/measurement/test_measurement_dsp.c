@@ -2,6 +2,8 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <math.h>
+#include "wtk_build_config.h"
 
 #define TEST_PI_F (3.14159265358979323846f)
 #define TEST_TWO_PI_F (6.28318530717958647692f)
@@ -396,5 +398,12 @@ int main(void)
     failures += test_impedance_vectors();
     failures += test_quality_and_errors();
     failures += test_derived_values();
+#if WTK_PRODUCT_FACTORY_PROVISIONED
+    const float components[] = {-1000.0f,-10.0f,-1.0f,0.0f,1.0f,10.0f,1000.0f};
+    for(size_t i=0u;i<sizeof(components)/sizeof(components[0]);i++)
+        for(size_t j=0u;j<sizeof(components)/sizeof(components[0]);j++)
+            failures += expect_near(measurement_complex_phase_rad(measurement_complex(components[i],components[j])),
+                atan2f(components[j],components[i]),0.002f,"phase range reduction vs host atan2");
+#endif
     return (failures == 0) ? 0 : 1;
 }

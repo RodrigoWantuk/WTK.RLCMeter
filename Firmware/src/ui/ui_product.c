@@ -8,6 +8,9 @@
 
 #include "ui/ui_fallback_renderer.h"
 #include "ui/ui_format.h"
+#if WTK_PRODUCT_FACTORY_PROVISIONED
+#include "ui/ui_utf8.h"
+#endif
 
 #if defined(__GNUC__) && defined(__arm__)
 #define UI_COMPACT_CALL __attribute__((noinline))
@@ -140,7 +143,6 @@ static ui_text_id_t wizard_standard_text_id(uint8_t standard)
 }
 #endif
 
-#if !WTK_PRODUCT_FACTORY_PROVISIONED
 static const char *range_prompt_text(hw_range_id_t range_id)
 {
     switch (range_id)
@@ -162,7 +164,6 @@ static const char *range_prompt_text(hw_range_id_t range_id)
         return "RANGE?";
     }
 }
-#endif
 
 static ui_text_id_t blocker_text_id(ui_product_blocker_t blocker)
 {
@@ -444,6 +445,229 @@ static bool append_label_space(const ui_product_t *ui,
     return true;
 }
 
+#if WTK_PRODUCT_FACTORY_PROVISIONED
+static bool result_pt(const ui_product_view_t *view)
+{
+    return view->menu.language_id == (uint8_t)UI_LANGUAGE_PT_BR;
+}
+
+static void result_label(const ui_product_t *ui, const ui_product_view_t *view,
+                         ui_product_line_t *line, uint16_t y, ui_text_id_t id,
+                         const char *fallback)
+{
+    line_set_id(ui, view, line, 12u, y, 2u, UI_COLOR_CYAN, id);
+    if (!line->deferred && (line->emergency || strcmp(line->text, "?") == 0))
+    {
+        line_set(line, 12u, y, 2u, UI_COLOR_CYAN, fallback);
+        line->emergency = true;
+    }
+}
+
+static const char *error_status_text(const ui_product_view_t *view,
+                                    measurement_error_status_t status)
+{
+    if (status == MEASUREMENT_ERROR_INVALID_RESULT)
+        return result_pt(view) ? "resultado invalido" : "invalid result";
+    if (status == MEASUREMENT_ERROR_NOT_APPLICABLE)
+        return result_pt(view) ? "nao aplicavel" : "not applicable";
+    /* QUALIFIED_BOUND_AVAILABLE is reserved. Without a compatible persisted
+       bound reader, even a malformed view cannot invent a numeric accuracy. */
+    return result_pt(view) ? "nao caracterizado" : "not characterized";
+}
+
+static void condition_line_text(const ui_product_measurement_t *result, char *text, size_t capacity)
+{
+    size_t used = 0u;
+    (void)append_text(text, capacity, &used, freq_token((hw_excitation_freq_t)result->frequency));
+    (void)append_char(text, capacity, &used, ' ');
+    (void)append_text(text, capacity, &used,
+        result->amplitude == (uint8_t)HW_EXCITATION_AMP_100MVRMS ? "100mVrms" :
+        result->amplitude == (uint8_t)HW_EXCITATION_AMP_500MVRMS ? "500mVrms" : "AMP?");
+}
+
+static bool prepare_result_primary_line(const ui_product_t *ui,
+                                        const ui_product_view_t *view,
+                                        const ui_product_measurement_t *result,
+                                        uint8_t index, ui_product_line_t *line)
+{
+    const bool pt = result_pt(view);
+    if (index == 0u)
+    {
+        const char *model = result->interpretation == MEASUREMENT_INTERPRET_RESISTIVE ? "RESISTOR" :
+            result->interpretation == MEASUREMENT_INTERPRET_CAPACITIVE ? "CAPACITOR" :
+            result->interpretation == MEASUREMENT_INTERPRET_INDUCTIVE ? (pt ? "INDUTOR" : "INDUCTOR") :
+            (pt ? "IMPEDANCIA" : "IMPEDANCE");
+        result_label(ui, view, line, 46u, interpretation_text_id(result->interpretation), model);
+    }
+    else if (index == 1u)
+    {
+        char value[32] = {0};
+        if (result->status == MEASUREMENT_AUTO_STATUS_OPEN_LIKE ||
+            result->status == MEASUREMENT_AUTO_STATUS_SHORT_LIKE)
+            (void)write_literal(result->status == MEASUREMENT_AUTO_STATUS_OPEN_LIKE ?
+                (pt ? "ABERTO" : "OPEN") : (pt ? "CURTO" : "SHORT"), value, sizeof(value));
+        else
+            (void)format_primary_value(result, value, sizeof(value));
+        localize_decimal(value, view->menu.language_id);
+        /* The present external large numeric face has no usable Omega shape;
+           the medium face does. No Resource Pack or internal font additions. */
+        line_set(line, 12u, 84u, strstr(value, "Ω") != NULL ? 2u : 3u, UI_COLOR_WHITE, value);
+    }
+    else if (index == 2u)
+    {
+        char text[32] = {0};
+        condition_line_text(result, text, sizeof(text));
+        line_set(line, 12u, 132u, 1u, UI_COLOR_WHITE, text);
+    }
+    else if (index == 3u)
+        line_set(line, 12u, 160u, 1u, UI_COLOR_AMBER,
+            pt ? "AC / PROVISORIO" : "AC / PROVISIONAL");
+    else if (index == 4u)
+        line_set(line, 12u, 188u, 1u, UI_COLOR_AMBER,
+            view->measurement_result_partial ? (pt ? "PARCIAL" : "PARTIAL") :
+            result->status == MEASUREMENT_AUTO_STATUS_OPEN_LIKE ||
+            result->status == MEASUREMENT_AUTO_STATUS_SHORT_LIKE ?
+                (pt ? "FORA DA FAIXA" : "OUT OF RANGE") :
+            !result->derived_valid ? (pt ? "RESULTADO INVALIDO" : "INVALID RESULT") :
+            result->confidence == (uint8_t)MEASUREMENT_CONFIDENCE_LOW_CONFIDENCE ?
+                (pt ? "BAIXA CONFIANCA" : "LOW CONFIDENCE") :
+                (pt ? "SINAL UTILIZAVEL" : "USABLE SIGNAL"));
+    else if (index == 5u)
+        line_set(line, 12u, 232u, 1u, UI_COLOR_AMBER, pt ? "Erro max.:" : "Max error:");
+    else if (index == 6u)
+        line_set(line, 12u, 252u, 1u, UI_COLOR_AMBER, error_status_text(view, result->max_error_status));
+    else if (index == 7u)
+        line_set(line, 12u, 296u, 1u, UI_COLOR_WHITE,
+            view->measurement_result_partial ? (pt ? "OK: cancelar" : "OK: cancel") :
+                (pt ? "UP/DOWN: detalhes" : "UP/DOWN: details"));
+    else return false;
+    return true;
+}
+
+static bool prepare_result_details_line(const ui_product_t *ui,
+                                        const ui_product_view_t *view,
+                                        const ui_product_measurement_t *result,
+                                        uint8_t index, ui_product_line_t *line)
+{
+    const bool pt = result_pt(view);
+    if (index == 0u)
+    {
+        result_label(ui, view, line, 12u, UI_TEXT_ID_DETAILS, pt ? "DETALHES" : "DETAILS");
+        return true;
+    }
+    if (index > 11u) return false;
+    char text[32] = {0};
+    char value[24] = {0};
+    size_t used = 0u;
+    if (index <= 5u)
+    {
+        const bool valid = result->derived_valid && (index != 5u || result->esr_valid);
+        const float number = index == 1u || index == 5u ? result->resistance_ohms :
+            index == 2u ? result->reactance_ohms : index == 3u ? result->magnitude_ohms : result->phase_rad;
+        const char *label = index == 1u ? "R(AC) " : index == 2u ? "X " : index == 3u ? "|Z| " :
+            index == 4u ? (pt ? "FASE " : "PHASE ") : "ESR(AC) ";
+        if (valid)
+            (void)(index == 4u ? ui_format_phase_rad(number, value, sizeof(value)) :
+                                  ui_format_resistance(number, value, sizeof(value)));
+        else (void)write_literal("n/a", value, sizeof(value));
+        (void)append_text(text, sizeof(text), &used, label);
+        (void)append_text(text, sizeof(text), &used, value);
+    }
+    else if (index == 6u)
+    {
+        (void)(result->derived_valid && result->q_valid ? ui_format_q(result->q, text, sizeof(text)) :
+                                write_literal("Q n/a", text, sizeof(text)));
+        used = strlen(text);
+        (void)append_text(text, sizeof(text), &used, " / ");
+        (void)(result->derived_valid && result->d_valid ? ui_format_d(result->d, value, sizeof(value)) :
+                                write_literal("D n/a", value, sizeof(value)));
+        if (!append_text(text, sizeof(text), &used, value))
+            (void)write_literal("Q/D n/a", text, sizeof(text));
+    }
+    else if (index == 7u) condition_line_text(result, text, sizeof(text));
+    else if (index == 8u)
+    {
+        (void)append_text(text, sizeof(text), &used, range_prompt_text((hw_range_id_t)result->range_id));
+        (void)append_text(text, sizeof(text), &used,
+            result->return_channel == (uint8_t)MEASUREMENT_RETURN_HG ? " / RET HG / " : " / RET 1X / ");
+        (void)ui_format_append_u32(text, sizeof(text), &used, result->attempt_count);
+        (void)append_text(text, sizeof(text), &used, pt ? " tent." : " att.");
+    }
+    else if (index == 9u) (void)write_literal(pt ? "Erro max.:" : "Max error:", text, sizeof(text));
+    else if (index == 10u) (void)write_literal(error_status_text(view, result->max_error_status), text, sizeof(text));
+    else (void)write_literal(pt ? "OK: PRONTO; UP/DOWN: voltar" : "OK: READY; UP/DOWN: back", text, sizeof(text));
+    if (index <= 6u) localize_decimal(text, view->menu.language_id);
+    static const uint16_t y[] = {0u, 44u, 74u, 104u, 134u, 166u, 192u, 216u, 236u, 256u, 276u, 300u};
+    line_set(line, 12u, y[index], index <= 4u ? 2u : 1u,
+             index == 9u || index == 10u ? UI_COLOR_AMBER : UI_COLOR_WHITE, text);
+    return true;
+}
+
+static bool fit_result_line(const ui_product_t *ui, ui_product_line_t *line,
+                            ui_font_role_t *role)
+{
+    const uint16_t width = (uint16_t)(ILI9341_WIDTH - line->x - 12u);
+    const uint16_t height = line->y == 84u ? 44u : line->scale >= 2u ? 28u : 20u;
+    if (!line->emergency && ui->font_catalog != NULL && ui_font_catalog_ready(ui->font_catalog))
+    {
+        *role = font_role_from_scale(line->scale);
+        for (;;)
+        {
+            uint16_t measured = 0u;
+            const resource_status_t status = ui_font_measure_text(ui->font_catalog, *role, line->text, &measured);
+            if (status == RESOURCE_STATUS_DEFERRED) return false;
+            if (status == RESOURCE_STATUS_OK && measured <= width &&
+                ui->font_catalog->faces[*role].line_height <= height) return true;
+            if (*role == UI_FONT_ROLE_SMALL) break;
+            *role = (ui_font_role_t)((unsigned)*role - 1u);
+        }
+        line->emergency = true;
+    }
+    /* Emergency font has ASCII letters but no unit symbols or parentheses.
+       Transliterate at presentation time, preserving the numeric formatter. */
+    char ascii[sizeof(line->text)] = {0};
+    size_t used = 0u;
+    const size_t source_length = strlen(line->text);
+    size_t source_offset = 0u;
+    uint32_t cp = 0u;
+    while (ui_utf8_decode_next(line->text, source_length, &source_offset, &cp) == UI_UTF8_STATUS_OK)
+    {
+        /* The emergency font uppercases ASCII. Spell prefixes out so m/M and
+           micro never become an ambiguous physical unit. */
+        if (cp == (uint32_t)' ' && source_offset < source_length)
+        {
+            const char prefix = line->text[source_offset];
+            const char next = source_offset + 1u < source_length ? line->text[source_offset + 1u] : '\0';
+            const bool unit = next == 'F' || next == 'H' || next == 'D' ||
+                (uint8_t)next == 0xCEu;
+            const char *word = !unit ? NULL : prefix == 'm' ? "milli" : prefix == 'M' ? "mega" :
+                prefix == 'k' ? "kilo" : prefix == 'n' ? "nano" : prefix == 'p' ? "pico" : NULL;
+            if (word != NULL)
+            {
+                (void)append_char(ascii, sizeof(ascii), &used, ' ');
+                (void)append_text(ascii, sizeof(ascii), &used, word);
+                source_offset++;
+                continue;
+            }
+        }
+        if (cp == 0x03A9u) (void)append_text(ascii, sizeof(ascii), &used, "ohm");
+        else if (cp == 0x00B5u) (void)append_text(ascii, sizeof(ascii), &used, "micro");
+        else if (cp == 0x00B0u) (void)append_text(ascii, sizeof(ascii), &used, "deg");
+        else if (cp == (uint32_t)'(') (void)append_char(ascii, sizeof(ascii), &used, ' ');
+        else if (cp == (uint32_t)')' || cp == (uint32_t)'|') { /* omit */ }
+        else (void)append_char(ascii, sizeof(ascii), &used, cp == (uint32_t)';' ? ':' : (char)cp);
+    }
+    (void)write_literal(ascii, line->text, sizeof(line->text));
+    /* Count UTF-8 glyphs, not bytes: Omega, micro and degree occupy one cell. */
+    const size_t length = strlen(line->text);
+    size_t offset = 0u;
+    uint16_t glyphs = 0u;
+    uint32_t codepoint = 0u;
+    while (ui_utf8_decode_next(line->text, length, &offset, &codepoint) == UI_UTF8_STATUS_OK) glyphs++;
+    while (line->scale > 1u && (uint32_t)glyphs * 6u * line->scale > width) line->scale--;
+    return true;
+}
+#else
 static bool prepare_result_primary_line(const ui_product_t *ui,
                                         const ui_product_view_t *view,
                                         const ui_product_measurement_t *result,
@@ -552,6 +776,8 @@ static bool prepare_result_details_line(const ui_product_t *ui,
     line_set(line, 12u, y, 2u, UI_COLOR_WHITE, row);
     return true;
 }
+
+#endif
 
 static bool prepare_menu_line(const ui_product_t *ui,
                               const ui_product_view_t *view,
@@ -1481,6 +1707,24 @@ static UI_COMPACT_CALL bool prepare_line(const ui_product_t *ui,
         return prepare_wizard_line(ui, view, &view->wizard, index, line);
 #endif
     case UI_PRODUCT_STATE_MEASURING:
+#if WTK_PRODUCT_FACTORY_PROVISIONED
+        if (index == 0u)
+        {
+            line_set(line, 12u, 12u, 1u, UI_COLOR_AMBER,
+                view->measurement_canceling ? (result_pt(view) ? "CANCELANDO" : "CANCELING") :
+                    (result_pt(view) ? "MEDINDO" : "MEASURING"));
+            return true;
+        }
+        if (!view->has_measurement_result || !view->measurement_result_partial)
+        {
+            if (index != 1u) return false;
+            line_set(line, 12u, 72u, 1u, UI_COLOR_WHITE,
+                result_pt(view) ? "OK: cancelar" : "OK: cancel");
+            return true;
+        }
+        return prepare_result_primary_line(ui, view, &view->measurement_result,
+                                           (uint8_t)(index - 1u), line);
+#else
         if (index == 0u)
         {
             line_set_id(ui, view, line, 8u, 24u, 2u, UI_COLOR_WHITE, UI_TEXT_ID_MEASURING);
@@ -1493,6 +1737,7 @@ static UI_COMPACT_CALL bool prepare_line(const ui_product_t *ui,
                                                (uint8_t)(index - 1u),
                                                line) :
                    false;
+#endif
     case UI_PRODUCT_STATE_RESULT:
         if (!view->has_measurement_result)
         {
@@ -1591,6 +1836,14 @@ static void start_clear_region(ui_product_t *ui)
     }
     else
     {
+#if WTK_PRODUCT_FACTORY_PROVISIONED
+        if (ui->pending.state == UI_PRODUCT_STATE_RESULT ||
+            ui->pending.state == UI_PRODUCT_STATE_MEASURING)
+        {
+            ili9341_fill_start(&ui->clear_fill, 0u, 0u, ILI9341_WIDTH, ILI9341_HEIGHT, UI_COLOR_BLACK);
+        }
+        else
+#endif
         ili9341_fill_start(&ui->clear_fill, 0u, 0u, ILI9341_WIDTH, 216u, UI_COLOR_BLACK);
     }
     ui->clear_started = true;
@@ -1794,6 +2047,11 @@ bsp_status_t ui_product_step(ui_product_t *ui, const ili9341_t *display, bool qu
         line.emergency = true;
         line.failed = false;
     }
+    ui_font_role_t role = font_role_from_scale(line.scale);
+#if WTK_PRODUCT_FACTORY_PROVISIONED
+    if ((ui->pending.state == UI_PRODUCT_STATE_RESULT || ui->pending.state == UI_PRODUCT_STATE_MEASURING) &&
+        !fit_result_line(ui, &line, &role)) return BSP_STATUS_BUSY;
+#endif
     if (line.emergency || (ui->font_catalog == NULL) || !ui_font_catalog_ready(ui->font_catalog))
     {
         ui_fallback_text_scaled_start(&ui->text_op,
@@ -1809,12 +2067,13 @@ bsp_status_t ui_product_step(ui_product_t *ui, const ili9341_t *display, bool qu
         }
         return BSP_STATUS_BUSY;
     }
-    ui_font_role_t role = font_role_from_scale(line.scale);
+#if !WTK_PRODUCT_FACTORY_PROVISIONED
     const size_t text_bytes = strlen(line.text);
     if ((role == UI_FONT_ROLE_LARGE) && (text_bytes > 12u))
     {
         role = UI_FONT_ROLE_MEDIUM;
     }
+#endif
     ui_font_text_start(&ui->font_text_op,
                        ui->font_catalog,
                        role,
