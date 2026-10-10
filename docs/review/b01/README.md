@@ -99,6 +99,9 @@ Hardware extraction/doc consistency and **17 PCB tests** pass. `git diff --check
 passes. Wokwi local checks, custom-chip compilation and CLI lint pass. Smoke was
 attempted but **not executed: WOKWI_CLI_TOKEN is absent**. No physical bench result
 or Wokwi scenario pass is implied. Hosted CI status is separate from local tests.
+PR #16's Flash-forensics and Virtual-Hardware jobs did not start: both GitHub
+annotations report **account locked due to a billing issue**. This external
+account blocker is separate from passing local tests and the absent Wokwi token.
 
 ## Fresh memory evidence — no embedded changes
 
