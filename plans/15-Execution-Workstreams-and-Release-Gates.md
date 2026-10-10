@@ -88,6 +88,18 @@ actual board assembler and discrepancies resolved before measurement; delivery o
 the source audit alone does not satisfy that physical acceptance criterion.
 
 ### Sprint B — first physical board evidence
+**B01.0 STATUS: IMPLEMENTED_TESTED_HOST / REQUIRES_BENCH_VALIDATION.**
+The [first-power toolkit](../Firmware/tools/PC_BRINGUP.md) prepares UNKNOWN/
+NOT_TESTED sessions, collects nine read-only BRINGUP diagnostics after physical
+prerequisites and passive identity, and writes JSON/Markdown/raw evidence with
+bounded parsing and deterministic fake/replay tests. Synthetic evidence is
+conspicuously marked; manual provenance and R02/R05/A05-Y04 gates remain pending.
+No embedded or PCB code change, active command or safety permission is added.
+Fresh legacy/factory/curves builds preserve BRINGUP's 88-B Flash margin.
+See [B01.0 results](../docs/review/b01/README.md). This software delivery does not
+complete B01/W3: assembled-board power, GPIO/contact, watchdog, charger and analog
+evidence still require the owner and the staged A05 procedure.
+
 **B01 Digital safe boot**: SWD, power, UART, W25Q JEDEC, TFT/locale, GPIO safe, watchdog, charger interlock, K1/RANGE disabled boot/fault; record video/traces and test logs. Do not attach energized DUTs.
 **B02 Source/ADC timing**: PWM carrier, reconstruction at 100/1k/10k, duty amplitudes, harmonic distortion, VMID, RET HG with scope and ADC raw; log probe loading; adjust timing only after backed measurement. Recalibrate/version bump on path change.
 **B03 OSL and coarse metrology**: 6 resistor LOAD refs, fixture OPEN/SHORT, verify exact 33 keys where physically safe; bench-disqualify unobservable high Z or clipping conditions, never fake full 33 accuracy.
