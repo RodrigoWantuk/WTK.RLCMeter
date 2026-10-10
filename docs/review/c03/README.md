@@ -123,6 +123,9 @@ Debug/Release × legacy/factory × curves OFF/ON, BRINGUP and BRINGUP_CAL OFF/ON
 Wokwi file checks, custom-chip compilation and CLI lint pass; smoke scenarios were
 attempted but **not executed because WOKWI_CLI_TOKEN is absent**. Static checks
 and synthetic host VCD fixtures do not constitute scenario or physical execution.
+PR #15's hosted Flash-forensics and Virtual-Hardware jobs did not start: both
+annotations report **account locked due to a billing issue**. This external CI
+blocker is separate from local code/test results and the absent local Wokwi token.
 
 ## Linked memory evidence
 
