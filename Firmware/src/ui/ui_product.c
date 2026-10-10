@@ -60,6 +60,7 @@ static const char *freq_token(hw_excitation_freq_t frequency)
     }
 }
 
+#if !WTK_PRODUCT_FACTORY_PROVISIONED
 static const char *amp_token(hw_excitation_amp_t amplitude)
 {
     switch (amplitude)
@@ -73,6 +74,8 @@ static const char *amp_token(hw_excitation_amp_t amplitude)
         return "AMP?";
     }
 }
+
+#endif
 
 static bool append_char(char *dst, size_t capacity, size_t *used, char ch)
 {
