@@ -471,7 +471,13 @@ static int test_details_phase_label_uses_catalog(void)
     };
     ui_product_request(&ui, &view);
     failures += expect_true(drain_render(&ui, &display) == 0, "details render drains");
-    failures += expect_true(rendered_font_text_starts_with("R 1,0"), "details resistance renders with PT decimal");
+    failures += expect_true(rendered_font_text_starts_with(
+#if WTK_PRODUCT_FACTORY_PROVISIONED
+        "R(AC) 1,0"
+#else
+        "R 1,0"
+#endif
+        ), "details resistance renders with PT decimal");
     failures += expect_true(rendered_font_text_starts_with("X 0,0"), "details reactance renders with PT decimal");
     failures += expect_true(rendered_font_text_starts_with("|Z| 1,0"), "impedance magnitude renders");
     failures += expect_true(rendered_font_text_starts_with("FASE "), "PHASE label is localized");
@@ -498,28 +504,55 @@ static int test_capacitor_esr_and_invalid_details(void)
         .reactance_ohms = -3386.0f,
         .magnitude_ohms = 3386.0f,
         .derived_valid = true,
+#if WTK_PRODUCT_FACTORY_PROVISIONED
+        .esr_valid = true,
+#endif
     };
     ui_product_request(&ui, &view);
     failures += expect_true(drain_render(&ui, &display) == 0, "capacitor details render");
-    failures += expect_true(rendered_font_text_starts_with("ESR 1.6"), "capacitor AC series R labeled ESR");
+    failures += expect_true(rendered_font_text_starts_with(
+#if WTK_PRODUCT_FACTORY_PROVISIONED
+        "ESR(AC) 1.6"
+#else
+        "ESR 1.6"
+#endif
+        ), "capacitor AC series R labeled ESR");
 
     reset_render_counters();
     view.generation++;
     view.measurement_result.resistance_ohms = 0.04f;
     ui_product_request(&ui, &view);
     failures += expect_true(drain_render(&ui, &display) == 0, "small ESR details render");
-    failures += expect_true(rendered_font_text_starts_with("ESR 40.0 mΩ"), "sub-ohm ESR uses mOhm");
+    failures += expect_true(rendered_font_text_starts_with(
+#if WTK_PRODUCT_FACTORY_PROVISIONED
+        "ESR(AC) 40.0 mΩ"
+#else
+        "ESR 40.0 mΩ"
+#endif
+        ), "sub-ohm ESR uses mOhm");
 
     reset_render_counters();
     view.generation++;
     view.measurement_result.derived_valid = false;
     ui_product_request(&ui, &view);
     failures += expect_true(drain_render(&ui, &display) == 0, "invalid details render");
-    failures += expect_true(rendered_font_text_starts_with("ESR n/a"), "invalid ESR is not a number");
+    failures += expect_true(rendered_font_text_starts_with(
+#if WTK_PRODUCT_FACTORY_PROVISIONED
+        "ESR(AC) n/a"
+#else
+        "ESR n/a"
+#endif
+        ), "invalid ESR is not a number");
     failures += expect_true(rendered_font_text_starts_with("X n/a"), "invalid X is not a number");
     failures += expect_true(rendered_font_text_starts_with("|Z| n/a"), "invalid magnitude is not a number");
     failures += expect_true(rendered_font_text_starts_with("PHASE n/a"), "invalid phase is not a number");
-    failures += expect_true(g_partial_clears == 1u, "same details page clears all occupied rows");
+    failures += expect_true(
+#if WTK_PRODUCT_FACTORY_PROVISIONED
+        g_full_clears == 1u,
+#else
+        g_partial_clears == 1u,
+#endif
+        "same details page clears all occupied rows");
     return failures;
 }
 
@@ -634,6 +667,70 @@ static int test_normal_text_uses_external_font_roles(void)
 }
 
 #if WTK_PRODUCT_FACTORY_PROVISIONED
+static int test_factory_result_contract(void)
+{
+    int failures = 0;
+    const ili9341_t display = {.ready = true};
+    for (uint8_t language = (uint8_t)UI_LANGUAGE_EN; language <= (uint8_t)UI_LANGUAGE_PT_BR; language++)
+    {
+        for (uint8_t fallback = 0u; fallback < 2u; fallback++)
+        {
+            reset_render_counters();
+            ui_product_t ui;
+            ui_product_init(&ui);
+            if (!fallback) { ui_product_set_text_provider(&ui, fake_text_provider, NULL); attach_external_font(&ui); }
+            ui_product_view_t view = ready_view(60u);
+            view.menu.language_id = language;
+            view.state = UI_PRODUCT_STATE_RESULT;
+            view.has_measurement_result = true;
+            view.measurement_result = (ui_product_measurement_t){
+                .status=MEASUREMENT_AUTO_STATUS_FINAL_OK,
+                .interpretation=MEASUREMENT_INTERPRET_CAPACITIVE,
+                .frequency=HW_EXCITATION_FREQ_1KHZ,.amplitude=HW_EXCITATION_AMP_500MVRMS,
+                .resistance_ohms=0.04f,.reactance_ohms=-100.0f,.magnitude_ohms=100.0f,
+                .capacitance_f=1.0e-6f,.derived_valid=true,.capacitance_valid=true,.esr_valid=true,
+                .q=2500.0f,.d=0.0004f,.q_valid=true,.d_valid=true,
+                .max_error_status=MEASUREMENT_ERROR_NOT_CHARACTERIZED};
+            ui_product_request(&ui,&view);
+            failures += expect_true(drain_render(&ui,&display)==0,"bilingual primary drains");
+            const bool pt=language==(uint8_t)UI_LANGUAGE_PT_BR;
+            failures += expect_true(fallback ? rendered_text_starts_with(pt?"1,0":"1.0") :
+                rendered_font_text_starts_with(pt?"1,0":"1.0"),"C uses locale decimal and units");
+            failures += expect_true(fallback ? rendered_text_starts_with("1KHZ 500mVrms") :
+                rendered_font_text_starts_with("1KHZ 500mVrms"),"actual excitation condition");
+            failures += expect_true(fallback ? rendered_text_starts_with(pt?"nao caracterizado":"not characterized") :
+                rendered_font_text_starts_with(pt?"nao caracterizado":"not characterized"),"no invented error percentage");
+            reset_render_counters(); view.generation++; view.page=UI_PRODUCT_PAGE_DETAILS;
+            ui_product_request(&ui,&view);
+            failures += expect_true(drain_render(&ui,&display)==0,"bilingual details drains");
+            failures += expect_true(fallback ? rendered_text_starts_with(pt?"ESR AC 40,0":"ESR AC 40.0") :
+                rendered_font_text_starts_with(pt?"ESR(AC) 40,0":"ESR(AC) 40.0"),"ESR explicitly AC");
+            failures += expect_true(fallback ? rendered_text_starts_with(pt?"2500,0 Q / 0,4 milliD":"2500.0 Q / 0.4 milliD") :
+                rendered_font_text_starts_with(pt?"2500,0 Q / 0,4 mD":"2500.0 Q / 0.4 mD"),"Q/D bounded localized line");
+            reset_render_counters(); view.generation++; view.measurement_result.q_valid=false;
+            view.measurement_result.d_valid=false; view.measurement_result.esr_valid=false;
+            view.measurement_result.max_error_status=MEASUREMENT_ERROR_INVALID_RESULT;
+            ui_product_request(&ui,&view); failures += expect_true(drain_render(&ui,&display)==0,"unavailable detail drains");
+            failures += expect_true(fallback ? rendered_text_starts_with("Q n/a / D n/a") :
+                rendered_font_text_starts_with("Q n/a / D n/a"),"inapplicable Q/D not zero");
+            failures += expect_true(fallback ? rendered_text_starts_with("ESR AC n/a") :
+                rendered_font_text_starts_with("ESR(AC) n/a"),"inapplicable ESR not zero");
+            reset_render_counters(); view.generation++;
+            view.measurement_result.max_error_status=MEASUREMENT_ERROR_QUALIFIED_BOUND_AVAILABLE;
+            ui_product_request(&ui,&view); failures += expect_true(drain_render(&ui,&display)==0,"reserved status drains");
+            failures += expect_true(fallback ? rendered_text_starts_with(pt?"nao caracterizado":"not characterized") :
+                rendered_font_text_starts_with(pt?"nao caracterizado":"not characterized"),
+                "reserved enum without evidence reader never creates an error bound");
+            reset_render_counters(); view.generation++; view.state=UI_PRODUCT_STATE_MEASURING;
+            view.page=UI_PRODUCT_PAGE_PRIMARY; view.measurement_result_partial=true;
+            ui_product_request(&ui,&view); failures += expect_true(drain_render(&ui,&display)==0,"partial drains");
+            failures += expect_true(fallback ? rendered_text_starts_with(pt?"PARCIAL":"PARTIAL") :
+                rendered_font_text_starts_with(pt?"PARCIAL":"PARTIAL"),"partial explicit");
+        }
+    }
+    return failures;
+}
+
 static int test_factory_guidance_uses_internal_font_and_no_wizard_prompt(void)
 {
     int failures = 0;
@@ -665,6 +762,7 @@ int main(void)
 {
     int failures = 0;
 #if WTK_PRODUCT_FACTORY_PROVISIONED
+    failures += test_factory_result_contract();
     failures += test_factory_guidance_uses_internal_font_and_no_wizard_prompt();
 #endif
     failures += test_quiet_pause_retains_render_state();

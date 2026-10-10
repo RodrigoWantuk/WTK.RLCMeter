@@ -361,6 +361,22 @@ int main(int argc, char **argv)
         ui_product_set_image_catalog(&ui, &images);
     }
     ui_product_view_t view = make_view(argv[3], language);
+    /* Ephemeral host snapshot from the controller test in this same build.
+       This is deliberately not a device protocol or persistent format. */
+    if (argv[3][0] == '@')
+    {
+        FILE *snapshot = NULL;
+#if defined(_MSC_VER)
+        (void)fopen_s(&snapshot, argv[3] + 1, "rb");
+#else
+        snapshot = fopen(argv[3] + 1, "rb");
+#endif
+        if (snapshot == NULL) return 7;
+        const bool valid = fread(&view, sizeof(view), 1u, snapshot) == 1u && fgetc(snapshot) == EOF;
+        (void)fclose(snapshot);
+        if (!valid) return 7;
+        view.menu.language_id = (uint8_t)language;
+    }
     const bool refresh = strcmp(argv[3], "result-refresh") == 0;
     if (strcmp(argv[3], "result-updated") == 0)
     {

@@ -6,12 +6,19 @@
 #include <stdio.h>
 #include "wtk_build_config.h"
 #include <string.h>
+#include <math.h>
+#include <float.h>
+#include "ui/ui_format.h"
 
 typedef struct
 {
     measurement_complex_t z;
     measurement_interpretation_t interpretation;
     bool fail_phase05;
+    uint8_t path_faults;
+    uint8_t invalid_quantity;
+    uint8_t electrical_model; /* 1 series C, 2 series L; otherwise complex Z. */
+    float reactive_value;
 } fake_outcome_t;
 
 typedef struct
@@ -200,6 +207,11 @@ static bsp_status_t fake_process_block(const hw_metrology_block_t *block,
         .status = MEASUREMENT_CAL_RESOLVE_UNQUALIFIED,
         .model_version = MEASUREMENT_CAL_MODEL_VERSION_CURRENT,
         .uncalibrated = true,
+        .set_sequence = 1u,
+        .condition_id = measurement_cal_condition_id(&(const measurement_cal_key_t){
+            .hardware_revision = MEASUREMENT_CAL_HARDWARE_REV1,
+            .model_version = MEASUREMENT_CAL_MODEL_VERSION_CURRENT,
+            .range_id = attempt->range_id, .frequency = attempt->frequency, .amplitude = attempt->amplitude}),
     };
     measurement_result_t *result = &processed->result;
     result->status = MEASUREMENT_STATUS_OK;
@@ -212,19 +224,34 @@ static bsp_status_t fake_process_block(const hw_metrology_block_t *block,
     };
     result->ret_hg_quality = result->ret_1x_quality;
     result->selected_channel = MEASUREMENT_RETURN_1X;
+    measurement_complex_t z = outcome->z;
+    const float omega = 6.28318530717958647692f * (float)frequency_hz(attempt->frequency);
+    if (outcome->electrical_model == 1u) z.im = -1.0f / (omega * outcome->reactive_value);
+    if (outcome->electrical_model == 2u) z.im = omega * outcome->reactive_value;
     result->impedance = (measurement_impedance_result_t){
         .status = MEASUREMENT_STATUS_OK,
         .channel = MEASUREMENT_RETURN_1X,
         .vs_v = {0.100f, 0.0f},
         .vx_v = {0.030f, 0.0f},
-        .z_ohms = outcome->z,
+        .z_ohms = z,
     };
     const measurement_dsp_config_t config = measurement_dsp_config_ideal(attempt->range_id);
-    result->derived = measurement_derive_quantities(outcome->z,
+    result->derived = measurement_derive_quantities(z,
                                                     frequency_hz(attempt->frequency),
                                                     &config,
                                                     MEASUREMENT_STATUS_OK);
     result->derived.interpretation = outcome->interpretation;
+    if (outcome->path_faults & 1u) { result->ret_hg_quality.clipped = true; result->ret_hg_quality.usable = false; }
+    if (outcome->path_faults & 2u) { result->ret_1x_quality.clipped = true; result->ret_1x_quality.usable = false; }
+    if (outcome->path_faults & 4u) result->selected_channel = MEASUREMENT_RETURN_HG;
+    if (outcome->invalid_quantity == 1u) result->derived.q = NAN;
+    if (outcome->invalid_quantity == 2u) result->derived.d = INFINITY;
+    if (outcome->invalid_quantity == 3u) result->derived.capacitance_f = -1.0f;
+    if (outcome->invalid_quantity == 4u) result->derived.inductance_h = NAN;
+    if (outcome->invalid_quantity == 5u) result->derived.phase_rad = NAN;
+    if (outcome->invalid_quantity == 6u) processed->provenance.condition_id++;
+    if (outcome->invalid_quantity == 7u) processed->provenance.model_version++;
+    if (outcome->invalid_quantity == 8u) processed->provenance.set_sequence++;
     return BSP_STATUS_OK;
 }
 
@@ -590,7 +617,9 @@ static int test_ok_gestures_and_measurement_flow(void)
     failures += expect_u32(fake.start_count, 0u, "start is deferred until session steps");
     app_product_step(&product, &inputs, &clock, BSP_STATUS_OK, 5u);
     failures += expect_u32(fake.start_count, 0u, "auto begin precedes hardware start");
+#if !WTK_PRODUCT_FACTORY_PROVISIONED
     click_ok(&product);
+#endif
     app_product_step(&product, &inputs, &clock, BSP_STATUS_OK, 6u);
     failures += expect_u32(fake.start_count, 1u, "repeated OK while measuring ignored");
     bool saw_partial = false;
@@ -977,6 +1006,222 @@ static int test_missing_resources_force_pc_link_upload_mode(void)
     return failures;
 }
 
+#if WTK_PRODUCT_FACTORY_PROVISIONED
+static void ac_fixture(fake_io_t *fake, fake_outcome_t outcome)
+{
+    *fake = (fake_io_t){0};
+    fake->outcome_count = MEASUREMENT_AUTO_MAX_ATTEMPTS;
+    for (uint8_t i = 0u; i < fake->outcome_count; i++) fake->outcomes[i] = outcome;
+}
+
+static void ac_run(app_product_t *product, const app_product_inputs_t *inputs)
+{
+    const bsp_clock_summary_t clock = {.source=BSP_CLOCK_SOURCE_HSE_PLL,
+        .sysclk_hz=72000000u,.hse_ready=true};
+    click_ok(product);
+    for (uint32_t now = 3u; now < 150u; now++)
+        app_product_step(product, inputs, &clock, BSP_STATUS_OK, now);
+}
+
+static int ac_snapshot(const char *directory, const char *name, const app_product_t *product)
+{
+    if (directory == NULL) return 0;
+    char path[512];
+    if (snprintf(path, sizeof(path), "%s/%s.view", directory, name) >= (int)sizeof(path)) return 1;
+    FILE *file = NULL;
+#if defined(_MSC_VER)
+    if (fopen_s(&file, path, "wb") != 0) return 1;
+#else
+    file = fopen(path, "wb");
+    if (file == NULL) return 1;
+#endif
+    /* Ephemeral same-build host snapshot, not a persistent or device wire format. */
+    const bool okay = fwrite(&product->view, sizeof(product->view), 1u, file) == 1u;
+    return fclose(file) == 0 && okay ? 0 : 1;
+}
+
+static int test_factory_ac_results(const char *directory)
+{
+    int failures = 0;
+    const fake_outcome_t cases[] = {
+        {.z={1000.0f,0.0f},.interpretation=MEASUREMENT_INTERPRET_RESISTIVE},
+        {.z={5.0f,0.0f},.interpretation=MEASUREMENT_INTERPRET_CAPACITIVE,.electrical_model=1u,.reactive_value=1.0e-7f},
+        {.z={2.0f,0.0f},.interpretation=MEASUREMENT_INTERPRET_INDUCTIVE,.electrical_model=2u,.reactive_value=0.01f},
+        {.z={1000.0f,150.0f},.interpretation=MEASUREMENT_INTERPRET_MIXED_OR_UNKNOWN},
+        {.z={0.01f,0.0f},.interpretation=MEASUREMENT_INTERPRET_CAPACITIVE,.electrical_model=1u,.reactive_value=1.0e-6f},
+        {.z={1000.0f,1.0e-8f},.interpretation=MEASUREMENT_INTERPRET_RESISTIVE},
+        {.z={-1000.0f,500.0f},.interpretation=MEASUREMENT_INTERPRET_INDUCTIVE},
+        {.z={1.0e9f,0.0f},.interpretation=MEASUREMENT_INTERPRET_RESISTIVE},
+        {.z={1.0e-8f,0.0f},.interpretation=MEASUREMENT_INTERPRET_RESISTIVE},
+        {.z={1000.0f,0.0f},.interpretation=MEASUREMENT_INTERPRET_RESISTIVE,.path_faults=1u},
+        {.z={1000.0f,0.0f},.interpretation=MEASUREMENT_INTERPRET_RESISTIVE,.path_faults=3u},
+        {.z={NAN,0.0f},.interpretation=MEASUREMENT_INTERPRET_MIXED_OR_UNKNOWN},
+        {.z={FLT_MAX,FLT_MAX},.interpretation=MEASUREMENT_INTERPRET_MIXED_OR_UNKNOWN},
+    };
+    const char *names[] = {"resistor","capacitor","inductor","mixed","low-esr","near-zero-x",
+        "negative-loss","open-like","short-like","hg-clipped","both-invalid","nonfinite","overflow"};
+    app_product_inputs_t inputs = inputs_ready();
+    for (size_t i = 0u; i < sizeof(cases)/sizeof(cases[0]); i++)
+    {
+        fake_io_t fake;
+        ac_fixture(&fake, cases[i]);
+        app_product_t product;
+        failures += expect_true(init_product(&product, &fake) == BSP_STATUS_OK, names[i]);
+        boot_to_ready(&product, &inputs);
+        failures += expect_u32(fake.start_count, 0u, "boot never acquires");
+        ac_run(&product, &inputs);
+        const ui_product_measurement_t *result = &product.view.measurement_result;
+        failures += expect_true(product.view.state == UI_PRODUCT_STATE_RESULT &&
+            product.view.has_measurement_result && !product.view.measurement_result_partial, names[i]);
+        const bool valid = i <= 5u || i == 9u;
+        failures += expect_true(result->derived_valid == valid, names[i]);
+        if (valid)
+        {
+            failures += expect_true(result->max_error_status == MEASUREMENT_ERROR_NOT_CHARACTERIZED,
+                "persisted unqualified OSL has no physical error bound");
+            failures += expect_u32(result->calibration_sequence, 1u, "OSL sequence identity");
+            failures += expect_u32(result->session_sequence, 1u, "measurement sequence identity");
+            failures += expect_true(result->frequency == fake.requests[product.runtime.measurement.policy.last_result.primary_attempt_index].frequency,
+                "frequency belongs to selected primary attempt");
+            failures += expect_true(result->amplitude == fake.requests[product.runtime.measurement.policy.last_result.primary_attempt_index].amplitude,
+                "amplitude belongs to selected primary attempt");
+            failures += expect_true(fabsf(result->phase_rad - atan2f(result->reactance_ohms,result->resistance_ohms)) < 0.002f,
+                "displayed phase follows complex impedance, including dominant reactance");
+        }
+        const bool reactive = i == 1u || i == 2u || i == 4u;
+        failures += expect_true(result->q_valid == reactive && result->d_valid == reactive, names[i]);
+        failures += expect_true(result->esr_valid == (i == 1u || i == 4u), "ESR is capacitive series AC only");
+        failures += expect_true(result->capacitance_valid == (i == 1u || i == 4u), "capacitive model gate");
+        failures += expect_true(result->inductance_valid == (i == 2u), "inductive model gate");
+        if (reactive)
+        {
+            char q[24], d[24];
+            failures += expect_true(ui_format_q(result->q, q, sizeof(q)) == UI_FORMAT_STATUS_OK &&
+                ui_format_d(result->d, d, sizeof(d)) == UI_FORMAT_STATUS_OK, "real Q/D formatters");
+        }
+        failures += ac_snapshot(directory, names[i], &product);
+        if (i <= 2u)
+        {
+            send_button(&product, BUTTON_ID_DOWN, BUTTON_EVENT_PRESS);
+            app_product_step(&product, &inputs, NULL, BSP_STATUS_OK, 151u);
+            failures += expect_true(product.view.page == UI_PRODUCT_PAGE_DETAILS, "RESULT -> DETAILS");
+            char name[32];
+            (void)snprintf(name, sizeof(name), "%s-details", names[i]);
+            failures += ac_snapshot(directory, name, &product);
+            click_ok(&product);
+            app_product_step(&product, &inputs, NULL, BSP_STATUS_OK, 152u);
+            failures += expect_true(product.view.state == UI_PRODUCT_STATE_READY &&
+                !product.view.has_measurement_result, "DETAILS -> READY clears result without acquisition");
+        }
+    }
+    for (uint8_t quantity = 1u; quantity <= 8u; quantity++)
+    {
+        fake_io_t fake;
+        fake_outcome_t outcome = cases[quantity == 4u ? 2u : 1u];
+        outcome.invalid_quantity = quantity;
+        ac_fixture(&fake, outcome);
+        app_product_t product;
+        failures += expect_true(init_product(&product, &fake) == BSP_STATUS_OK, "invalid field init");
+        boot_to_ready(&product, &inputs); ac_run(&product, &inputs);
+        const ui_product_measurement_t *result = &product.view.measurement_result;
+        failures += expect_true(quantity == 1u ? !result->q_valid : quantity == 2u ? !result->d_valid :
+            quantity == 3u ? !result->capacitance_valid : quantity == 4u ? !result->inductance_valid :
+            !result->derived_valid, "nonfinite/incompatible field is not published");
+    }
+    fake_io_t ideal;
+    fake_outcome_t ideal_cap = cases[1]; ideal_cap.z.re=0.0f;
+    ac_fixture(&ideal,ideal_cap);
+    app_product_t ideal_product;
+    failures += expect_true(init_product(&ideal_product,&ideal)==BSP_STATUS_OK,"lossless init");
+    boot_to_ready(&ideal_product,&inputs); ac_run(&ideal_product,&inputs);
+    failures += expect_true(ideal_product.view.measurement_result.capacitance_valid &&
+        !ideal_product.view.measurement_result.q_valid && !ideal_product.view.measurement_result.d_valid,
+        "zero loss denominator cannot claim finite Q/D");
+    return failures;
+}
+
+static int test_factory_ac_lifecycle(const char *directory)
+{
+    int failures = 0;
+    const bsp_clock_summary_t clock = {.source=BSP_CLOCK_SOURCE_HSE_PLL,.sysclk_hz=72000000u,.hse_ready=true};
+    app_product_inputs_t inputs = inputs_ready();
+    fake_io_t fake;
+    ac_fixture(&fake, good_outcome(measurement_complex(1000.0f,0.0f),MEASUREMENT_INTERPRET_RESISTIVE));
+    app_product_t product;
+    failures += expect_true(init_product(&product,&fake)==BSP_STATUS_OK,"repeat init");
+    boot_to_ready(&product,&inputs); ac_run(&product,&inputs);
+    click_ok(&product); app_product_step(&product,&inputs,&clock,BSP_STATUS_OK,151u);
+    failures += expect_true(product.view.state==UI_PRODUCT_STATE_MEASURING &&
+        !product.view.has_measurement_result,"new click clears old number immediately");
+    failures += ac_snapshot(directory,"measuring",&product);
+    for(uint32_t now=152u;now<170u;now++) app_product_step(&product,&inputs,&clock,BSP_STATUS_OK,now);
+    failures += expect_u32(product.view.measurement_result.session_sequence,2u,"consecutive result has fresh identity");
+    failures += expect_u32(fake.start_count,2u,"two clicks produce two captures");
+    for(uint8_t i=fake.start_count;i<fake.outcome_count;i++) fake.outcomes[i].fail_phase05=true;
+    click_ok(&product);
+    for(uint32_t now=175u;now<200u;now++) app_product_step(&product,&inputs,&clock,BSP_STATUS_OK,now);
+    failures += expect_true(product.view.state==UI_PRODUCT_STATE_RESULT &&
+        !product.view.measurement_result.derived_valid && !product.view.measurement_result.q_valid &&
+        product.view.measurement_result.max_error_status==MEASUREMENT_ERROR_INVALID_RESULT,
+        "failed third capture cannot republish successful second measurement");
+    for (uint8_t reason=0u;reason<6u;reason++)
+    {
+        inputs=inputs_ready(); ac_fixture(&fake,good_outcome(measurement_complex(1000.0f,0.0f),MEASUREMENT_INTERPRET_RESISTIVE));
+        fake.abort_delay_steps=2u;
+        failures += expect_true(init_product(&product,&fake)==BSP_STATUS_OK,"interrupt init");
+        boot_to_ready(&product,&inputs); step_until_attempt_active(&product,&inputs,&clock,3u,&fake);
+        if(reason==0u) click_ok(&product);
+        if(reason==1u) { inputs.safety_result.measure_allowed=false; inputs.safety_result.primary_blocker=HW_SAFETY_BLOCKED_CHARGER; }
+        if(reason==2u) { inputs.safety_result.measure_allowed=false; inputs.safety_result.primary_blocker=HW_SAFETY_BLOCKED_RESIDUAL; }
+        if(reason==3u) inputs.calibration_active_valid=false;
+        if(reason==4u) inputs.calibration_active_sequence=2u;
+        if(reason==5u) inputs.resource_status=RESOURCE_STATUS_CORRUPT;
+        for(uint32_t now=10u;now<26u;now++) app_product_step(&product,&inputs,&clock,BSP_STATUS_OK,now);
+        failures += expect_true(fake.abort_called && !fake.active && !product.view.has_measurement_result,
+            "interruption drains acquisition and cannot finish as valid");
+        failures += expect_true(app_io_workspace_owner(&g_workspace)==APP_IO_WORKSPACE_OWNER_FREE,
+            "workspace released by hardware owner after teardown");
+        failures += expect_true(product.view.state== (reason==0u||reason==4u?UI_PRODUCT_STATE_READY:
+            reason==3u?UI_PRODUCT_STATE_CALIBRATION_REQUIRED:reason==5u?UI_PRODUCT_STATE_PC_LINK_STATUS:
+            UI_PRODUCT_STATE_SAFETY_BLOCKED),"interruption terminal state");
+        if(reason==0u) failures += ac_snapshot(directory,"canceled-ready",&product);
+    }
+    /* A resource/calibration change while browsing a menu must also revoke old results. */
+    inputs=inputs_ready(); ac_fixture(&fake,good_outcome(measurement_complex(1000.0f,0.0f),MEASUREMENT_INTERPRET_RESISTIVE));
+    failures += expect_true(init_product(&product,&fake)==BSP_STATUS_OK,"stale menu init");
+    boot_to_ready(&product,&inputs); ac_run(&product,&inputs);
+    send_button(&product,BUTTON_ID_OK,BUTTON_EVENT_PRESS); send_button(&product,BUTTON_ID_OK,BUTTON_EVENT_LONG_PRESS);
+    send_button(&product,BUTTON_ID_OK,BUTTON_EVENT_RELEASE); app_product_step(&product,&inputs,&clock,BSP_STATUS_OK,151u);
+    inputs.calibration_active_sequence=2u; app_product_step(&product,&inputs,&clock,BSP_STATUS_OK,152u);
+    failures += expect_true(!product.view.has_measurement_result,"OSL replacement invalidates menu's old result");
+    inputs=inputs_ready();
+    fake_outcome_t capacitor = good_outcome(measurement_complex(5.0f,0.0f),MEASUREMENT_INTERPRET_CAPACITIVE);
+    capacitor.electrical_model=1u; capacitor.reactive_value=1.0e-7f;
+    ac_fixture(&fake,capacitor);
+    failures += expect_true(init_product(&product,&fake)==BSP_STATUS_OK,"partial init");
+    boot_to_ready(&product,&inputs); click_ok(&product);
+    bool saw_partial=false;
+    for(uint32_t now=3u;now<150u;now++)
+    {
+        app_product_step(&product,&inputs,&clock,BSP_STATUS_OK,now);
+        if(product.view.measurement_result_partial)
+        {
+            saw_partial=true;
+            failures += expect_true(product.view.state==UI_PRODUCT_STATE_MEASURING,
+                "partial remains visibly measuring");
+            failures += ac_snapshot(directory,"partial",&product);
+            click_ok(&product);
+            break;
+        }
+    }
+    failures += expect_true(saw_partial,"multifrequency session emits partial");
+    for(uint32_t now=151u;now<175u;now++) app_product_step(&product,&inputs,&clock,BSP_STATUS_OK,now);
+    failures += expect_true(product.view.state==UI_PRODUCT_STATE_READY && !product.view.has_measurement_result,
+        "cancel after partial cannot publish a final number");
+    return failures;
+}
+#endif
+
 int main(int argc, char **argv)
 {
     if ((argc == 2) && (strcmp(argv[1], "--sizes") == 0))
@@ -1005,6 +1250,11 @@ int main(int argc, char **argv)
         return 0;
     }
     int failures = 0;
+#if WTK_PRODUCT_FACTORY_PROVISIONED
+    const char *directory = argc==3 && strcmp(argv[1],"--ac-snapshots")==0 ? argv[2] : NULL;
+    failures += test_factory_ac_results(directory);
+    failures += test_factory_ac_lifecycle(directory);
+#endif
     failures += test_boot_calibration_gate();
     failures += test_ok_gestures_and_measurement_flow();
     failures += test_failed_refinement_hides_stale_primary();

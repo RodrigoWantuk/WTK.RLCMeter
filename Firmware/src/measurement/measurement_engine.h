@@ -89,6 +89,16 @@ typedef enum
     MEASUREMENT_QUALIFICATION_DISABLED,
 } measurement_qualification_t;
 
+/* Accuracy evidence is separate from OSL correction and publication confidence.
+   No compatible persisted physical error-bound source exists yet. */
+typedef enum
+{
+    MEASUREMENT_ERROR_NOT_CHARACTERIZED = 0,
+    MEASUREMENT_ERROR_QUALIFIED_BOUND_AVAILABLE,
+    MEASUREMENT_ERROR_NOT_APPLICABLE,
+    MEASUREMENT_ERROR_INVALID_RESULT,
+} measurement_error_status_t;
+
 typedef enum
 {
     MEASUREMENT_AUTO_REASON_NONE = 0u,

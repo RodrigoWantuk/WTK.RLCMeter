@@ -2,6 +2,9 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <float.h>
+#include <math.h>
+#include "wtk_build_config.h"
 
 static int expect_text(const char *actual, const char *expected, const char *message)
 {
@@ -93,5 +96,24 @@ int main(void)
     int failures = 0;
     failures += test_si_units();
     failures += test_unavailable_and_primary();
+#if WTK_PRODUCT_FACTORY_PROVISIONED
+    char text[24];
+    const float invalid[] = {NAN, INFINITY, -INFINITY, FLT_MAX};
+    for (size_t i = 0u; i < sizeof(invalid) / sizeof(invalid[0]); i++)
+    {
+        failures += expect_status(ui_format_resistance(invalid[i], text, sizeof(text)),
+            UI_FORMAT_STATUS_UNAVAILABLE, "nonfinite/overflow resistance");
+        failures += expect_text(text, "n/a", "invalid is never zero");
+        failures += expect_status(ui_format_phase_rad(invalid[i], text, sizeof(text)),
+            UI_FORMAT_STATUS_UNAVAILABLE, "phase integer conversion guarded");
+    }
+    failures += expect_status(ui_format_phase_rad(4.0f, text, sizeof(text)),
+        UI_FORMAT_STATUS_UNAVAILABLE, "phase outside atan2 domain");
+    failures += expect_status(ui_format_phase_rad(-1.5707963f, text, sizeof(text)),
+        UI_FORMAT_STATUS_OK, "capacitive phase");
+    failures += expect_text(text, "-90.0 °", "capacitive phase retains sign");
+    failures += expect_status(ui_format_q(1.0e-20f, text, sizeof(text)),
+        UI_FORMAT_STATUS_UNAVAILABLE, "nonzero below display precision");
+#endif
     return failures == 0 ? 0 : 1;
 }

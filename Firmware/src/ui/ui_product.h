@@ -10,6 +10,7 @@
 #include "ui/ui_font.h"
 #include "ui/ui_image.h"
 #include "ui/ui_text.h"
+#include "wtk_build_config.h"
 
 typedef enum
 {
@@ -114,6 +115,20 @@ typedef struct
     bool derived_valid;
     bool capacitance_valid;
     bool inductance_valid;
+#if WTK_PRODUCT_FACTORY_PROVISIONED
+    float q;
+    float d;
+    uint32_t session_sequence;
+    uint32_t calibration_sequence;
+    measurement_error_status_t max_error_status;
+    uint8_t range_id;
+    uint8_t return_channel;
+    uint8_t confidence;
+    uint8_t attempt_count;
+    bool esr_valid;
+    bool q_valid;
+    bool d_valid;
+#endif
 } ui_product_measurement_t;
 
 typedef struct
@@ -153,6 +168,9 @@ typedef struct
     ui_product_wizard_t wizard;
     bool has_measurement_result;
     bool measurement_result_partial;
+#if WTK_PRODUCT_FACTORY_PROVISIONED
+    bool measurement_canceling;
+#endif
     bool storage_unavailable;
     uint8_t resource_status;
     bool calibration_active_valid;

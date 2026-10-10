@@ -2,6 +2,7 @@
 
 #include <math.h>
 #include <stdint.h>
+#include "wtk_build_config.h"
 
 enum
 {
@@ -99,6 +100,16 @@ static ui_format_status_t write_scaled(float value, float scale, const char *uni
         return UI_FORMAT_STATUS_TRUNCATED;
     }
     const float scaled_abs = absf_local(value) / scale;
+#if WTK_PRODUCT_FACTORY_PROVISIONED
+    /* Binary32 rounding precedes the integer conversion. 2^32 is the first
+       unrepresentable uint32_t value; tiny nonzero values must not become zero. */
+    const float rounded = scaled_abs * (float)UI_FORMAT_DECIMAL_SCALE + 0.5f;
+    if (!isfinite(rounded) || rounded >= 4294967296.0f ||
+        ((value != 0.0f) && rounded < 1.0f))
+    {
+        return write_unavailable(dst, capacity);
+    }
+#endif
     const uint32_t x10 = (uint32_t)((scaled_abs * (float)UI_FORMAT_DECIMAL_SCALE) + 0.5f);
     const uint32_t whole = x10 / UI_FORMAT_DECIMAL_SCALE;
     const uint32_t frac = x10 % UI_FORMAT_DECIMAL_SCALE;
@@ -185,6 +196,13 @@ ui_format_status_t ui_format_phase_rad(float radians, char *dst, size_t capacity
     {
         return write_unavailable(dst, capacity);
     }
+#if WTK_PRODUCT_FACTORY_PROVISIONED
+    /* The authoritative atan2 impedance phase lies in [-pi, pi]. */
+    if (absf_local(radians) > 3.14159274f)
+    {
+        return write_unavailable(dst, capacity);
+    }
+#endif
     const int32_t deg_x10 = (int32_t)((radians * (float)UI_FORMAT_DEG_PER_RAD_X10) +
                                       ((radians >= 0.0f) ? 0.5f : -0.5f));
     return write_scaled((float)deg_x10 / 10.0f, 1.0f, "°", dst, capacity);

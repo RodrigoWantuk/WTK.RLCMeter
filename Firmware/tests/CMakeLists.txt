@@ -724,6 +724,12 @@ if(WTK_WARNINGS_AS_ERRORS_HOST)
     wtk_treat_warnings_as_errors(wtk_pc_osl_bridge)
 endif()
 find_package(Python3 3.9 REQUIRED COMPONENTS Interpreter)
+if(WTK_PRODUCT_FACTORY_PROVISIONED)
+    add_test(NAME wtk_product_ac_ui_integration
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/../tools/verify_product_ac_ui.py
+                --controller $<TARGET_FILE:wtk_app_product_test>
+                --preview $<TARGET_FILE:wtk_ui_product_preview>)
+endif()
 add_test(NAME wtk_pc_osl_compatibility
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/../tools/pc_osl_compatibility.py
             --bridge $<TARGET_FILE:wtk_pc_osl_bridge>)

@@ -2,6 +2,8 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <math.h>
+#include "wtk_build_config.h"
 
 #define TEST_PI_F (3.14159265358979323846f)
 #define TEST_TWO_PI_F (6.28318530717958647692f)
@@ -356,6 +358,20 @@ static int test_quality_and_errors(void)
     failures += expect_true(measurement_process_block(&block, &adc, &config, &processed) == BSP_STATUS_ERROR,
                             "clipping rejected");
     failures += expect_true(processed.status == MEASUREMENT_STATUS_CLIPPED, "clip status");
+#if WTK_PRODUCT_FACTORY_PROVISIONED
+    make_empty_block(&block, raw, HW_EXCITATION_FREQ_1KHZ, HW_RANGE_ID_1K);
+    fill_impedance_block(&block, raw, measurement_complex(1000.0f,0.0f),
+        measurement_complex(0.05f,0.0f),config.ret_hg_transfer);
+    block.clipped = true;
+    block.streams[HW_METROLOGY_STREAM_RET_HG].hard_clipped = true;
+    failures += expect_true(measurement_process_block(&block,&adc,&config,&processed)==BSP_STATUS_OK &&
+        processed.selected_channel==MEASUREMENT_RETURN_1X && !processed.ret_1x_quality.clipped &&
+        processed.ret_hg_quality.clipped,"actual DSP retains valid 1X when HG clips");
+    failures += expect_near(processed.impedance.z_ohms.re,1000.0f,25.0f,"ADC/DSP 1X resistor fixture");
+    block.streams[HW_METROLOGY_STREAM_RET_1X].hard_clipped = true;
+    failures += expect_true(measurement_process_block(&block,&adc,&config,&processed)==BSP_STATUS_ERROR,
+        "actual DSP rejects both clipped return paths");
+#endif
     return failures;
 }
 
@@ -396,5 +412,12 @@ int main(void)
     failures += test_impedance_vectors();
     failures += test_quality_and_errors();
     failures += test_derived_values();
+#if WTK_PRODUCT_FACTORY_PROVISIONED
+    const float components[] = {-1000.0f,-10.0f,-1.0f,0.0f,1.0f,10.0f,1000.0f};
+    for(size_t i=0u;i<sizeof(components)/sizeof(components[0]);i++)
+        for(size_t j=0u;j<sizeof(components)/sizeof(components[0]);j++)
+            failures += expect_near(measurement_complex_phase_rad(measurement_complex(components[i],components[j])),
+                atan2f(components[j],components[i]),0.002f,"phase range reduction vs host atan2");
+#endif
     return (failures == 0) ? 0 : 1;
 }

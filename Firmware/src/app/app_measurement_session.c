@@ -1,6 +1,7 @@
 #include "app/app_measurement_session.h"
 
 #include <stddef.h>
+#include "wtk_build_config.h"
 
 static bool io_ready(const app_measurement_session_io_t *io)
 {
@@ -391,10 +392,18 @@ measurement_attempt_result_t app_measurement_attempt_from_dsp(
         result.selected_channel = dsp->selected_channel;
         result.open_like = dsp->impedance.open_like;
         result.short_like = dsp->impedance.short_like;
+#if WTK_PRODUCT_FACTORY_PROVISIONED
+        /* The DSP already selected an independently validated acquisition path.
+           Clipping on the unused HG path remains in ret_evidence diagnostics. */
+        result.clipped = (dsp->selected_channel == MEASUREMENT_RETURN_HG ?
+            dsp->ret_hg_quality.clipped : dsp->ret_1x_quality.clipped) ||
+            dsp->status == MEASUREMENT_STATUS_CLIPPED;
+#else
         result.clipped = dsp->phasors.clipped ||
                          dsp->ret_1x_quality.clipped ||
                          dsp->ret_hg_quality.clipped ||
                          (dsp->status == MEASUREMENT_STATUS_CLIPPED);
+#endif
         result.source_peak_v = max_float(dsp->phasors.vexc_1_peak_v, dsp->phasors.vexc_2_peak_v);
         result.return_peak_v = selected_return_peak(dsp);
         const measurement_complex_t denominator =
