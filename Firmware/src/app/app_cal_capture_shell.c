@@ -271,7 +271,8 @@ void app_shell_run(void)
     else app_calibration_service_mark_storage_unavailable(&calibration);
     latch(hw_metrology_measure_init(&measure, &hardware_io,
         app_io_workspace_metrology_raw_words(&workspace), HW_METROLOGY_RAW_WORD_COUNT), APP_SAFETY_FAULT_METROLOGY_RUNTIME);
-    app_cal_capture_io_t io = {.snapshot = service_snapshot, .try_write_byte = try_write};
+    app_cal_capture_io_t io = {.snapshot = service_snapshot, .try_write_byte = try_write,
+        .installation_supported = WTK_ENABLE_CAL_INSTALL_SERVICE != 0u};
     bsp_reset_read_device_uid(io.device_uid);
     latch(app_cal_capture_init(&capture, &calibration, &capture_io, &io,
         bsp_clock_get_summary(), clock_status), APP_SAFETY_FAULT_METROLOGY_RUNTIME);

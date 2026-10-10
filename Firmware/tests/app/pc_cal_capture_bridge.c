@@ -20,6 +20,59 @@ static const bsp_clock_summary_t clock_info = {.source=BSP_CLOCK_SOURCE_HSE_PLL,
     .hse_ready=true,.sysclk_hz=72000000u,.hclk_hz=72000000u,.pclk1_hz=36000000u,
     .pclk2_hz=72000000u,.tim_apb1_hz=72000000u,.tim_apb2_hz=72000000u,.adc_hz=12000000u};
 
+enum { CAPACITY=2097152u, BASE=CAPACITY-STORAGE_LAYOUT_MUTABLE_RESERVED_BYTES };
+static uint8_t nor[8192], pending[256];
+static uint32_t pending_address, operations;
+static uint32_t pending_started;
+static size_t pending_size;
+static unsigned pending_kind, poll_ticks;
+static bsp_status_t flash_read(uint32_t address,void *dst,size_t size,void *user)
+{
+    (void)user;
+    if(address<BASE || address-BASE>=sizeof(nor) || size>sizeof(nor)-(address-BASE)) return BSP_STATUS_ERROR;
+    memcpy(dst,nor+(address-BASE),size);
+    if((injection&32u) && size!=0u) ((uint8_t *)dst)[0]^=1u;
+    return BSP_STATUS_OK;
+}
+static bsp_status_t flash_erase(uint32_t address,uint32_t time,void *user)
+{
+    (void)time;(void)user;
+    if(pending_kind || address<BASE || address-BASE>=sizeof(nor) || (address%4096u)!=0u) return BSP_STATUS_ERROR;
+    pending_kind=1u;pending_address=address-BASE;pending_size=4096u;poll_ticks=0u;operations++;pending_started=time;
+    return BSP_STATUS_BUSY;
+}
+static bsp_status_t flash_program(uint32_t address,const void *src,size_t size,uint32_t time,void *user)
+{
+    (void)time;(void)user;
+    if(pending_kind || address<BASE || address-BASE>=sizeof(nor) || size>sizeof(pending) ||
+        size>256u-address%256u || size>sizeof(nor)-(address-BASE)) return BSP_STATUS_ERROR;
+    memcpy(pending,src,size);pending_kind=2u;pending_address=address-BASE;pending_size=size;
+    poll_ticks=0u;operations++;pending_started=time;return BSP_STATUS_BUSY;
+}
+static void apply_pending(size_t amount)
+{
+    if(amount>pending_size) amount=pending_size;
+    for(size_t i=0;i<amount;i++)
+        if(pending_kind==1u) nor[pending_address+i]=0xffu;
+        else if(pending_kind==2u) nor[pending_address+i]&=pending[i];
+    pending_kind=0u;
+}
+static bsp_status_t flash_poll(uint32_t time,void *user)
+{
+    (void)time;(void)user;
+    if(injection&128u)
+    {
+        if(time-pending_started<1000u) return BSP_STATUS_BUSY;
+        pending_kind=0u;return BSP_STATUS_TIMEOUT;
+    }
+    if(++poll_ticks<2u) return BSP_STATUS_BUSY;
+    const bool fail=(injection&64u)!=0u;
+    apply_pending(fail?pending_size/2u:pending_size);
+    return fail?BSP_STATUS_ERROR:BSP_STATUS_OK;
+}
+static const measurement_cal_store_io_t flash_io={.read=flash_read,.erase_sector_start=flash_erase,
+    .program_start=flash_program,.poll=flash_poll};
+
 static uint16_t raw(float volts)
 {
     int value=(int)(volts*(4095.0f/3.3f)+0.5f);
@@ -118,14 +171,16 @@ int main(void)
     (void)_setmode(_fileno(stdin),_O_BINARY);
     (void)_setmode(_fileno(stdout),_O_BINARY);
 #endif
-    app_io_workspace_init(&workspace);
-    app_calibration_service_init(&calibration);
-    app_calibration_service_attach_workspace(&calibration,&workspace);
+    memset(nor,0xff,sizeof(nor));
     const app_cal_session_io_t session={.start_capture=start_capture,.step_capture=step_capture,
         .capture_active=is_active,.capture_done=is_done,.capture_dumpable=dumpable,.capture_block=get_block,
         .capture_error=error,.capture_acknowledge=ack,.capture_abort=abort_capture};
-    const app_cal_capture_io_t io={.snapshot=snapshot,.try_write_byte=write_byte,.synthetic=true,
+    const app_cal_capture_io_t io={.snapshot=snapshot,.try_write_byte=write_byte,.synthetic=true,.installation_supported=true,
         .device_uid={1u,2u,3u,4u,5u,6u,7u,8u,9u,10u,11u,12u}};
+    app_io_workspace_init(&workspace);
+    app_calibration_service_init(&calibration);
+    app_calibration_service_attach_workspace(&calibration,&workspace);
+    (void)app_calibration_service_load(&calibration,&flash_io,CAPACITY);
     if(app_cal_capture_init(&capture,&calibration,&session,&io,&clock_info,BSP_STATUS_OK)!=BSP_STATUS_OK) return 2;
     for(;;)
     {
@@ -141,6 +196,46 @@ int main(void)
         }
         else if(header[0]==3u && count==1u)
         { injection=data[0]; capture.clock_status=injection&16u?BSP_STATUS_ERROR:BSP_STATUS_OK; }
+        else if(header[0]==4u && count==2u)
+        {
+            apply_pending((size_t)data[0]+((size_t)data[1]<<8u));
+            injection=0u;active=false;done=false;now=0u;
+            app_io_workspace_init(&workspace);app_calibration_service_init(&calibration);
+            app_calibration_service_attach_workspace(&calibration,&workspace);
+            (void)app_calibration_service_load(&calibration,&flash_io,CAPACITY);
+            (void)app_cal_capture_init(&capture,&calibration,&session,&io,&clock_info,BSP_STATUS_OK);
+        }
+        else if(header[0]==5u && count>=3u)
+        {
+            size_t offset=(size_t)data[1]+((size_t)data[2]<<8u)+(size_t)data[0]*4096u;
+            if(data[0]>1u || offset>=sizeof(nor) || count-3u>sizeof(nor)-offset) return 5;
+            memcpy(nor+offset,data+3,count-3u);
+        }
+        else if(header[0]==6u && count==0u)
+        {
+            output[0]=(uint8_t)calibration.store.state;output[1]=(uint8_t)calibration.store.target_slot;
+            output[2]=(uint8_t)pending_kind;output[3]=(uint8_t)workspace.owner;
+            const uint32_t values[4]={(uint32_t)calibration.store.program_offset,(uint32_t)pending_size,
+                operations,app_calibration_service_active_sequence(&calibration)};
+            memcpy(output+4,values,sizeof(values));output_size=20u;
+        }
+        else if(header[0]==8u && count==0u)
+        {
+            calibration.workflow.request.standard.type=APP_CAL_STANDARD_LOAD;
+            calibration.workflow.request.standard.z_ohms=measurement_complex(600.0f,0.0f);
+            const hw_metrology_measure_request_t request={.frequency=HW_EXCITATION_FREQ_1KHZ,
+                .amplitude=HW_EXCITATION_AMP_100MVRMS,.range_id=HW_RANGE_ID_1K};
+            (void)start_capture(&request,now,NULL);active=false;done=false;
+            const measurement_cal_key_t key=measurement_cal_key(MEASUREMENT_CAL_HARDWARE_REV1,
+                MEASUREMENT_CAL_MODEL_VERSION_CURRENT,HW_RANGE_ID_1K,HW_EXCITATION_FREQ_1KHZ,HW_EXCITATION_AMP_100MVRMS);
+            measurement_calibrated_result_t result;
+            const bsp_status_t status=measurement_cal_process_block(&block,
+                app_calibration_service_active_set(&calibration),&key,false,&result);
+            const uint32_t values[4]={(uint32_t)status,result.provenance.set_sequence,
+                result.output_corrected?1u:0u,(uint32_t)result.provenance.source};
+            memcpy(output,values,sizeof(values));
+            memcpy(output+16,&result.result.impedance.z_ohms,sizeof(measurement_complex_t));output_size=24u;
+        }
         else return 4;
         uint8_t size[2]={(uint8_t)output_size,(uint8_t)(output_size>>8u)};
         (void)fwrite(size,1u,2u,stdout);(void)fwrite(output,1u,output_size,stdout);(void)fflush(stdout);

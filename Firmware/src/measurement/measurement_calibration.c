@@ -222,7 +222,7 @@ static bool model_is_current(uint16_t model_version)
 
 static bool scale_finite(measurement_adc_scale_t scale)
 {
-    return finite_f(scale.code_to_volts) && finite_f(scale.offset_volts);
+    return finite_f(scale.code_to_volts) && scale.code_to_volts > 0.0f && finite_f(scale.offset_volts);
 }
 
 static bool adc_finite(const measurement_adc_calibration_t *adc)

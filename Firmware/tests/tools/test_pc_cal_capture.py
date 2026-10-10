@@ -48,7 +48,7 @@ class SerialIntegration(unittest.TestCase):
                 self.assertEqual(hashlib.sha256(bytes.fromhex(row["artifact_hex"])).hexdigest(),row["sha256"])
 
     def test_invalid_command_payload_condition_and_sequence(self):
-        for command,body,error in ((0x59,b"","BAD_COMMAND"),(capture.IDENTIFY,b"x","BAD_PAYLOAD"),
+        for command,body,error in ((0x5f,b"","BAD_COMMAND"),(capture.IDENTIFY,b"x","BAD_PAYLOAD"),
                                    (capture.START,struct.pack("<4B2f",0,0,1,0,0,0),"UNSUPPORTED")):
             with self.assertRaisesRegex(capture.CaptureError,error):self.client.command(command,body)
         self.client.next_id=1

@@ -20,7 +20,8 @@ from pc_link_resource_pack import encode_frame, decode_frame
 IDENTIFY, STATUS, START, RESULT, CANCEL = range(0x50, 0x55)
 STANDARDS = ("OPEN", "SHORT", "LOAD")
 ERRORS = ("OK", "BAD_FRAME", "BAD_COMMAND", "BAD_PAYLOAD", "STALE_REQUEST", "BUSY",
-          "UNSUPPORTED", "SAFETY_BLOCKED", "NOT_READY", "CANCELED", "TIMEOUT", "ACQUISITION_ERROR")
+          "UNSUPPORTED", "SAFETY_BLOCKED", "NOT_READY", "CANCELED", "TIMEOUT", "ACQUISITION_ERROR",
+          "INVALID_CANDIDATE", "SEQUENCE_ERROR", "STORAGE_ERROR", "TOO_LATE")
 
 
 class CaptureError(ValueError):
@@ -32,6 +33,7 @@ class FakeSerial:
     def __init__(self, bridge):
         self.process = subprocess.Popen([str(bridge)], stdin=subprocess.PIPE, stdout=subprocess.PIPE)
         self.pending = bytearray()
+        self.read_ticks = 100
 
     def control(self, command, data):
         self.process.stdin.write(struct.pack("<BH", command, len(data)) + data)
@@ -39,7 +41,9 @@ class FakeSerial:
         size = self.process.stdout.read(2)
         if len(size) != 2:
             raise CaptureError("C fixture terminated")
-        self.pending.extend(self.process.stdout.read(struct.unpack("<H", size)[0]))
+        result=self.process.stdout.read(struct.unpack("<H", size)[0])
+        if command<=3: self.pending.extend(result)
+        return result
 
     def write(self, data):
         for offset in range(0, len(data), 144):
@@ -54,7 +58,7 @@ class FakeSerial:
 
     def read(self, size=1):
         if not self.pending:
-            self.advance(100)
+            self.advance(self.read_ticks)
         result = bytes(self.pending[:size])
         del self.pending[:size]
         return result

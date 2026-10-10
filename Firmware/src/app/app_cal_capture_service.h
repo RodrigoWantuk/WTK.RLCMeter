@@ -12,6 +12,13 @@ enum
     APP_CAL_CAPTURE_START = 0x52u,
     APP_CAL_CAPTURE_RESULT = 0x53u,
     APP_CAL_CAPTURE_CANCEL = 0x54u,
+    APP_CAL_INSTALL_BEGIN = 0x55u,
+    APP_CAL_INSTALL_CHUNK = 0x56u,
+    APP_CAL_INSTALL_VALIDATE = 0x57u,
+    APP_CAL_INSTALL_COMMIT = 0x58u,
+    APP_CAL_INSTALL_STATUS = 0x59u,
+    APP_CAL_INSTALL_READBACK = 0x5au,
+    APP_CAL_INSTALL_ABORT = 0x5bu,
     APP_CAL_CAPTURE_RESPONSE = 0x80u,
     APP_CAL_CAPTURE_OBSERVATION_BYTES = 188u,
     APP_CAL_CAPTURE_CHUNK_BYTES = 96u,
@@ -35,7 +42,18 @@ typedef enum
     APP_CAL_CAPTURE_CANCELED,
     APP_CAL_CAPTURE_TIMEOUT,
     APP_CAL_CAPTURE_ACQUISITION_ERROR,
+    APP_CAL_CAPTURE_INVALID_CANDIDATE,
+    APP_CAL_CAPTURE_SEQUENCE_ERROR,
+    APP_CAL_CAPTURE_STORAGE_ERROR,
+    APP_CAL_CAPTURE_TOO_LATE,
 } app_cal_capture_error_t;
+
+typedef enum
+{
+    APP_CAL_INSTALL_IDLE = 0, APP_CAL_INSTALL_RECEIVING, APP_CAL_INSTALL_VALIDATED,
+    APP_CAL_INSTALL_WRITING, APP_CAL_INSTALL_INSTALLED, APP_CAL_INSTALL_FAILED,
+    APP_CAL_INSTALL_ABORTED,
+} app_cal_install_state_t;
 
 typedef struct
 {
@@ -54,6 +72,7 @@ typedef struct
     void *user;
     uint8_t device_uid[12];
     bool synthetic;
+    bool installation_supported;
 } app_cal_capture_io_t;
 
 typedef struct
@@ -84,6 +103,13 @@ typedef struct
     app_cal_capture_error_t capture_status;
     bool result_valid;
     bool cancel_requested;
+    app_cal_install_state_t install_state;
+    app_cal_capture_error_t install_error;
+    uint32_t install_id;
+    uint32_t install_sequence;
+    uint32_t install_crc;
+    uint32_t install_deadline;
+    uint16_t install_received;
 } app_cal_capture_service_t;
 
 bsp_status_t app_cal_capture_init(app_cal_capture_service_t *service,

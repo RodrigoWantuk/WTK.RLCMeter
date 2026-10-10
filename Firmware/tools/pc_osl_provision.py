@@ -125,6 +125,8 @@ class FakeDevice:
             active_sequence = validate_frame(self.active_frame).sequence
             if active_sequence == 0xffffffff or summary.sequence != active_sequence+1:
                 raise ValueError("candidate must use the next nonzero calibration sequence")
+        elif summary.sequence != 1:
+            raise ValueError("blank device requires sequence 1")
         # Candidate frames cannot self-assert physical qualification.
         if any(struct.unpack_from("<I", frame, 120+i*80+18)[0]&wire.FLAG_QUALIFIED for i in range(33)):
             raise ValueError("ordinary PC candidates cannot assert QUALIFIED")

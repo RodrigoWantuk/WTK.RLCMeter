@@ -740,3 +740,6 @@ endif()
 add_test(NAME wtk_pc_cal_capture_integration
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/test_pc_cal_capture.py
             --bridge $<TARGET_FILE:wtk_pc_cal_capture_bridge>)
+add_test(NAME wtk_pc_osl_install_integration
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/test_pc_osl_install.py
+            --bridge $<TARGET_FILE:wtk_pc_cal_capture_bridge>)

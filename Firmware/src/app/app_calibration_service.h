@@ -84,6 +84,7 @@ bsp_status_t app_calibration_service_candidate_insert_record(app_calibration_ser
                                                              const measurement_cal_record_t *record);
 app_cal_candidate_state_t app_calibration_service_candidate_state(const app_calibration_service_t *service);
 bsp_status_t app_calibration_service_candidate_commit_start(app_calibration_service_t *service);
+bsp_status_t app_calibration_service_candidate_commit_bound(app_calibration_service_t *service);
 bsp_status_t app_calibration_service_step(app_calibration_service_t *service, uint32_t now_ms);
 uint32_t app_calibration_service_context_size_bytes(void);
 const char *app_calibration_service_status_string(app_cal_service_status_t status);

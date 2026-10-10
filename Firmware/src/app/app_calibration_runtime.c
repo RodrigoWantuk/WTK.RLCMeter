@@ -41,20 +41,10 @@ bsp_status_t app_calibration_runtime_refresh(app_calibration_runtime_t *runtime,
         return status;
     }
 
-    status = measurement_cal_store_load_newest_usable(store_scratch,
-                                                      NULL,
-                                                      MEASUREMENT_CAL_HARDWARE_REV1,
-                                                      MEASUREMENT_CAL_MODEL_VERSION_CURRENT,
-                                                      &runtime->active_set,
-                                                      &runtime->active_slot,
-                                                      runtime->slots);
-    if (status == BSP_STATUS_OK)
-    {
-        const measurement_cal_validity_t validity =
-            measurement_cal_validate_rev1_full_set(&runtime->active_set);
-        status = (validity.status == MEASUREMENT_CAL_VALIDITY_VALID) ? BSP_STATUS_OK :
-                                                                       BSP_STATUS_ERROR;
-    }
+    status = measurement_cal_store_load_full_usable(store_scratch,
+                                                    &runtime->active_set,
+                                                    &runtime->active_slot,
+                                                    runtime->slots);
     runtime->active_valid = status == BSP_STATUS_OK;
     runtime->last_status = status;
     return status;

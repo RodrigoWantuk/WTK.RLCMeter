@@ -269,14 +269,14 @@ bsp_status_t measurement_cal_store_load_newest(measurement_cal_store_t *store,
     return BSP_STATUS_OK;
 }
 
-bsp_status_t measurement_cal_store_load_newest_usable(
+static bsp_status_t load_newest_usable(
     measurement_cal_store_t *store,
     const measurement_cal_requirements_t *requirements,
     uint32_t hardware_revision,
     uint16_t model_version,
     measurement_cal_set_t *set,
     measurement_cal_store_slot_t *slot,
-    measurement_cal_store_slot_info_t diagnostics[2])
+    measurement_cal_store_slot_info_t diagnostics[2], bool full)
 {
     if ((store == NULL) || (set == NULL))
     {
@@ -297,12 +297,17 @@ bsp_status_t measurement_cal_store_load_newest_usable(
                                             requirements,
                                             hardware_revision,
                                             model_version);
-        const measurement_cal_validity_t validity = (diagnostics != NULL) ?
+        measurement_cal_validity_t validity = (diagnostics != NULL) ?
             diagnostics[i].validity :
             measurement_cal_validate_set(decoded ? candidate : NULL,
                                          requirements,
                                          hardware_revision,
                                          model_version);
+        if (decoded && full)
+        {
+            validity = measurement_cal_validate_rev1_full_set(candidate);
+            if (diagnostics != NULL) diagnostics[i].validity = validity;
+        }
         if (decoded && (validity.status == MEASUREMENT_CAL_VALIDITY_VALID) &&
             (!have_best || measurement_cal_store_sequence_newer(candidate->sequence, set->sequence)))
         {
@@ -323,9 +328,29 @@ bsp_status_t measurement_cal_store_load_newest_usable(
     return BSP_STATUS_OK;
 }
 
-bsp_status_t measurement_cal_store_write_start(measurement_cal_store_t *store,
+bsp_status_t measurement_cal_store_load_newest_usable(
+    measurement_cal_store_t *store, const measurement_cal_requirements_t *requirements,
+    uint32_t hardware_revision, uint16_t model_version, measurement_cal_set_t *set,
+    measurement_cal_store_slot_t *slot, measurement_cal_store_slot_info_t diagnostics[2])
+{
+    return load_newest_usable(store, requirements, hardware_revision, model_version,
+                             set, slot, diagnostics, false);
+}
+
+bsp_status_t measurement_cal_store_load_full_usable(measurement_cal_store_t *store,
+    measurement_cal_set_t *set, measurement_cal_store_slot_t *slot,
+    measurement_cal_store_slot_info_t diagnostics[2])
+{
+    return load_newest_usable(store, NULL, MEASUREMENT_CAL_HARDWARE_REV1,
+                             MEASUREMENT_CAL_MODEL_VERSION_CURRENT, set, slot, diagnostics, true);
+}
+
+static bsp_status_t write_start(measurement_cal_store_t *store,
                                                const measurement_cal_set_t *candidate,
-                                               const measurement_cal_requirements_t *requirements)
+                                               const measurement_cal_requirements_t *requirements,
+                                               bool bound, bool active_valid,
+                                               measurement_cal_store_slot_t active_slot,
+                                               uint32_t active_sequence)
 {
     if ((store == NULL) || (candidate == NULL))
     {
@@ -342,7 +367,17 @@ bsp_status_t measurement_cal_store_write_start(measurement_cal_store_t *store,
     measurement_cal_store_slot_t target_slot = MEASUREMENT_CAL_STORE_SLOT_A;
     uint32_t next_sequence = candidate->sequence;
     uint32_t newest_sequence = 0u;
-    if (find_newest_committed_frame(store, NULL, &newest_sequence))
+    if (bound)
+    {
+        if ((active_valid && active_sequence == UINT32_MAX) ||
+            candidate->sequence != (active_valid ? active_sequence + 1u : 1u) ||
+            measurement_cal_validate_rev1_full_set(candidate).status != MEASUREMENT_CAL_VALIDITY_VALID)
+            return BSP_STATUS_INVALID_ARG;
+        next_sequence = candidate->sequence;
+        target_slot = active_valid && active_slot == MEASUREMENT_CAL_STORE_SLOT_A ?
+            MEASUREMENT_CAL_STORE_SLOT_B : MEASUREMENT_CAL_STORE_SLOT_A;
+    }
+    else if (find_newest_committed_frame(store, NULL, &newest_sequence))
     {
         next_sequence = newest_sequence + 1u;
     }
@@ -350,7 +385,7 @@ bsp_status_t measurement_cal_store_write_start(measurement_cal_store_t *store,
     {
         next_sequence = 1u;
     }
-    if (find_newest_committed_frame(store, &newest_slot, NULL))
+    if (!bound && find_newest_committed_frame(store, &newest_slot, NULL))
     {
         target_slot = (newest_slot == MEASUREMENT_CAL_STORE_SLOT_A) ? MEASUREMENT_CAL_STORE_SLOT_B :
                                                                       MEASUREMENT_CAL_STORE_SLOT_A;
@@ -391,6 +426,8 @@ bsp_status_t measurement_cal_store_write_start(measurement_cal_store_t *store,
                                                           MEASUREMENT_CAL_HARDWARE_REV1,
                                                           MEASUREMENT_CAL_MODEL_VERSION_CURRENT);
     store->expected_sequence = store->scan_set.sequence;
+    store->expected_crc32 = (uint32_t)store->image[56] | ((uint32_t)store->image[57] << 8u) |
+        ((uint32_t)store->image[58] << 16u) | ((uint32_t)store->image[59] << 24u);
     store->expected_hardware_revision = store->scan_set.hardware_revision;
     store->expected_model_version = store->scan_set.model_version;
     store->expected_record_count = store->scan_set.record_count;
@@ -400,7 +437,32 @@ bsp_status_t measurement_cal_store_write_start(measurement_cal_store_t *store,
     store->current_chunk = 0u;
     store->target_slot = target_slot;
     store->state = MEASUREMENT_CAL_STORE_ERASE_START;
+    store->abort_requested = false;
     store->last_status = BSP_STATUS_BUSY;
+    return BSP_STATUS_BUSY;
+}
+
+bsp_status_t measurement_cal_store_write_start(measurement_cal_store_t *store,
+    const measurement_cal_set_t *candidate, const measurement_cal_requirements_t *requirements)
+{
+    return write_start(store, candidate, requirements, false, false, MEASUREMENT_CAL_STORE_SLOT_A, 0u);
+}
+
+bsp_status_t measurement_cal_store_write_bound(measurement_cal_store_t *store,
+    const measurement_cal_set_t *candidate, bool active_valid,
+    measurement_cal_store_slot_t active_slot, uint32_t active_sequence)
+{
+    return write_start(store, candidate, NULL, true, active_valid, active_slot, active_sequence);
+}
+
+bsp_status_t measurement_cal_store_abort(measurement_cal_store_t *store)
+{
+    if (store == NULL) return BSP_STATUS_INVALID_ARG;
+    /* Once the commit command was issued, finish verification; never claim rollback. */
+    if (store->state == MEASUREMENT_CAL_STORE_PROGRAM_COMMIT_WAIT ||
+        store->state == MEASUREMENT_CAL_STORE_VERIFY || store->state == MEASUREMENT_CAL_STORE_DONE)
+        return BSP_STATUS_NOT_SUPPORTED;
+    store->abort_requested = true;
     return BSP_STATUS_BUSY;
 }
 
@@ -489,6 +551,19 @@ bsp_status_t measurement_cal_store_step(measurement_cal_store_t *store, uint32_t
     {
         return BSP_STATUS_INVALID_ARG;
     }
+    if (store->abort_requested)
+    {
+        if (store->state == MEASUREMENT_CAL_STORE_ERASE_WAIT ||
+            store->state == MEASUREMENT_CAL_STORE_PROGRAM_HEADER_WAIT ||
+            store->state == MEASUREMENT_CAL_STORE_PROGRAM_PAYLOAD_WAIT)
+        {
+            const bsp_status_t pending = store->io.poll(now_ms, store->io.user);
+            if (pending == BSP_STATUS_BUSY) return pending;
+        }
+        store->state = MEASUREMENT_CAL_STORE_ERROR;
+        store->last_status = BSP_STATUS_ERROR;
+        return BSP_STATUS_ERROR;
+    }
 
     switch (store->state)
     {
@@ -547,14 +622,35 @@ bsp_status_t measurement_cal_store_step(measurement_cal_store_t *store, uint32_t
                                    MEASUREMENT_CAL_FRAME_HEADER_BYTES,
                                    store->image_size,
                                    MEASUREMENT_CAL_STORE_PROGRAM_PAYLOAD_WAIT,
-                                   MEASUREMENT_CAL_STORE_PROGRAM_COMMIT_START,
+                                   MEASUREMENT_CAL_STORE_VERIFY_UNCOMMITTED,
                                    now_ms);
     case MEASUREMENT_CAL_STORE_PROGRAM_PAYLOAD_WAIT:
         return wait_program_chunk(store,
                                   store->image_size,
                                   MEASUREMENT_CAL_STORE_PROGRAM_PAYLOAD_START,
-                                  MEASUREMENT_CAL_STORE_PROGRAM_COMMIT_START,
+                                  MEASUREMENT_CAL_STORE_VERIFY_UNCOMMITTED,
                                   now_ms);
+    case MEASUREMENT_CAL_STORE_VERIFY_UNCOMMITTED:
+    {
+        uint8_t readback[128];
+        if (store->program_offset == store->image_size) store->program_offset = 0u;
+        const size_t remaining = store->image_size - store->program_offset;
+        const size_t amount = remaining < sizeof(readback) ? remaining : sizeof(readback);
+        const uint32_t address = store->slots[(unsigned)store->target_slot].start + (uint32_t)store->program_offset;
+        if (store->io.read(address, readback, amount, store->io.user) != BSP_STATUS_OK)
+        { store->state = MEASUREMENT_CAL_STORE_ERROR; store->last_status = BSP_STATUS_ERROR; return BSP_STATUS_ERROR; }
+        for (size_t i = 0u; i < amount; i++)
+        {
+            const size_t position = store->program_offset + i;
+            const uint8_t expected = position >= COMMIT_OFFSET && position < COMMIT_OFFSET+COMMIT_BYTES ?
+                0xffu : store->image[position];
+            if (readback[i] != expected)
+            { store->state = MEASUREMENT_CAL_STORE_ERROR; store->last_status = BSP_STATUS_ERROR; return BSP_STATUS_ERROR; }
+        }
+        store->program_offset += amount;
+        if (store->program_offset == store->image_size) store->state = MEASUREMENT_CAL_STORE_PROGRAM_COMMIT_START;
+        return BSP_STATUS_BUSY;
+    }
     case MEASUREMENT_CAL_STORE_PROGRAM_COMMIT_START:
     {
         const uint32_t address = store->slots[(uint8_t)store->target_slot].start + COMMIT_OFFSET;
@@ -600,6 +696,7 @@ bsp_status_t measurement_cal_store_step(measurement_cal_store_t *store, uint32_t
                             store->expected_hardware_revision,
                             store->expected_model_version) ||
             (store->scan_set.sequence != store->expected_sequence) ||
+            (info.frame.crc32 != store->expected_crc32) ||
             (store->scan_set.hardware_revision != store->expected_hardware_revision) ||
             (store->scan_set.model_version != store->expected_model_version) ||
             (store->scan_set.record_count != store->expected_record_count) ||
@@ -634,6 +731,7 @@ bsp_status_t measurement_cal_store_acknowledge(measurement_cal_store_t *store)
         return BSP_STATUS_BUSY;
     }
     store->state = MEASUREMENT_CAL_STORE_IDLE;
+    store->abort_requested = false;
     store->last_status = BSP_STATUS_OK;
     return BSP_STATUS_OK;
 }
