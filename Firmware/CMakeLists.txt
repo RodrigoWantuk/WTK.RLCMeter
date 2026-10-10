@@ -24,6 +24,8 @@ option(WTK_WARNINGS_AS_ERRORS_HOST "Treat warnings as errors for host project ta
 option(WTK_WARNINGS_AS_ERRORS_STM32 "Treat warnings as errors for STM32 project targets" OFF)
 option(WTK_FLASH_FORENSICS "Emit GNU link, discarded-section and LTO stack-usage evidence" OFF)
 option(WTK_CAL_INSTALL_SERVICE "Include installation in the calibration service profile" ON)
+option(WTK_PRODUCT_FACTORY_PROVISIONED
+       "Experimental PRODUCT: require PC-provisioned OSL and exclude the embedded wizard" OFF)
 option(WTK_ENABLE_SUPPLEMENTARY_CURVES "Enable optional post-OSL WCRV calibration runtime" OFF)
 set(WTK_ENABLE_SUPPLEMENTARY_CURVES_VALUE 0)
 if(WTK_ENABLE_SUPPLEMENTARY_CURVES)
@@ -46,8 +48,13 @@ if(NOT WTK_BUILD_TYPE)
     set(WTK_BUILD_TYPE "MultiConfig")
 endif()
 string(TOUPPER "${WTK_FIRMWARE_PROFILE}" WTK_FIRMWARE_PROFILE)
+set(WTK_PRODUCT_FACTORY_PROVISIONED_VALUE 0)
+if(WTK_PRODUCT_FACTORY_PROVISIONED AND WTK_FIRMWARE_PROFILE STREQUAL "PRODUCT")
+    set(WTK_PRODUCT_FACTORY_PROVISIONED_VALUE 1)
+endif()
 
 if(WTK_ENABLE_PRODUCT_RESOURCE_UPDATE OR
+   WTK_PRODUCT_FACTORY_PROVISIONED_VALUE OR
    (WTK_FIRMWARE_PROFILE STREQUAL "PRODUCT" AND WTK_BUILD_TYPE STREQUAL "Release"))
     set(WTK_ENABLE_PRODUCT_RESOURCE_UPDATE_VALUE 1)
 else()
@@ -193,6 +200,12 @@ if(WTK_FIRMWARE_PROFILE STREQUAL "BRINGUP_CAL")
         src/storage/storage_crc32.c
         src/storage/storage_layout.c
     )
+endif()
+if(WTK_PRODUCT_FACTORY_PROVISIONED_VALUE AND WTK_TARGET_PLATFORM STREQUAL "stm32")
+    list(REMOVE_ITEM WTK_COMMON_SOURCES
+        src/app/app_calibration_session.c
+        src/app/app_calibration_wizard.c
+        src/measurement/measurement_calibration_solver.c)
 endif()
 add_library(wtk_firmware_common STATIC ${WTK_COMMON_SOURCES})
 if(WTK_TARGET_PLATFORM STREQUAL "host" OR WTK_FIRMWARE_PROFILE STREQUAL "BRINGUP_CAL")
@@ -367,6 +380,7 @@ elseif(WTK_TARGET_PLATFORM STREQUAL "stm32")
                     "${CMAKE_CURRENT_SOURCE_DIR}/tools/check_profile_symbols.py"
                     $<TARGET_FILE:wtk_rlcmeter>
                     --profile ${WTK_FIRMWARE_PROFILE}
+                    --factory-provisioned $<IF:$<BOOL:${WTK_PRODUCT_FACTORY_PROVISIONED_VALUE}>,ON,OFF>
                     --supplementary-curves $<IF:$<BOOL:${WTK_ENABLE_SUPPLEMENTARY_CURVES}>,ON,OFF>
                     --compile-commands "${CMAKE_CURRENT_BINARY_DIR}/compile_commands.json"
                     --nm-tool ${CMAKE_NM}

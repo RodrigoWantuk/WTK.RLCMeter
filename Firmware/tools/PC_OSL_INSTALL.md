@@ -40,6 +40,13 @@ There is no native USB firmware-switch mechanism. PRODUCT keeps its full-set boo
 prerequisite and embedded wizard. Installed coefficients remain unqualified until
 independent bench evidence supports metrology qualification.
 
+An opt-in PRODUCT variant now supports factory-only calibration without the embedded
+wizard: `cmake --preset stm32-factory-release`, then
+`cmake --build --preset stm32-factory-release`. Full usable OSL and the Resource Pack
+remain required. Default PRODUCT retains the wizard. See
+[A06.2c-prep deployment and qualification gates](../../docs/review/a06/A06.2c-prep-report.md)
+before evaluating this configuration on an assembled board.
+
 ## Bounded PLC1 contract
 
 API 1 preserves the 16-byte PLC1 header, payload CRC and 128-byte payload limit.

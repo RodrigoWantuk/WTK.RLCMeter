@@ -1,5 +1,7 @@
 /* Synthetic ADC fixture; production PLC1 dispatch, session and DSP are linked unchanged. */
 #include "app/app_cal_capture_service.h"
+#include "app/app_product.h"
+#include "wtk_build_config.h"
 #include <stdio.h>
 #include <string.h>
 #ifdef _WIN32
@@ -16,6 +18,8 @@ static size_t output_size;
 static uint32_t now, injection;
 static bool active, done, aborted;
 static unsigned ticks;
+static uint32_t product_attempts;
+static measurement_calibrated_result_t product_result;
 static const bsp_clock_summary_t clock_info = {.source=BSP_CLOCK_SOURCE_HSE_PLL,
     .hse_ready=true,.sysclk_hz=72000000u,.hclk_hz=72000000u,.pclk1_hz=36000000u,
     .pclk2_hz=72000000u,.tim_apb1_hz=72000000u,.tim_apb2_hz=72000000u,.adc_hz=12000000u};
@@ -84,6 +88,7 @@ static bsp_status_t start_capture(const hw_metrology_measure_request_t *request,
 {
     (void)user;
     if(injection&3u) return BSP_STATUS_ERROR;
+    product_attempts++;
     uint32_t *words=app_io_workspace_metrology_raw_words(&workspace);
     hw_metrology_adc_profile_t profile;
     hw_excitation_freq_profile_t freq;
@@ -152,6 +157,60 @@ static hw_metrology_measure_error_t error(void *u)
 {(void)u;return injection&4u ? HW_METROLOGY_MEASURE_ERR_DMA : HW_METROLOGY_MEASURE_OK;}
 static void ack(void *u){(void)u;done=false;active=false;}
 static bsp_status_t abort_capture(void *u){(void)u;aborted=true;return BSP_STATUS_BUSY;}
+static bsp_status_t product_process(const hw_metrology_block_t *raw_block,
+                                     const measurement_attempt_config_t *attempt,
+                                     measurement_calibrated_result_t *result, void *user)
+{
+    (void)user;
+    const measurement_cal_key_t key=measurement_cal_key(MEASUREMENT_CAL_HARDWARE_REV1,
+        MEASUREMENT_CAL_MODEL_VERSION_CURRENT,attempt->range_id,attempt->frequency,attempt->amplitude);
+    const bsp_status_t status=measurement_cal_process_block(raw_block,
+        app_calibration_service_active_set(&calibration),&key,false,&product_result);
+    *result=product_result;
+    return status;
+}
+
+/* Test-only firmware switch: real PRODUCT initialization, gate, session and DSP.
+   Resource mount and electrical I/O are mocks; no such control exists on USART1. */
+static void product_boot(uint8_t resources, uint8_t safety, bool click,
+                         const app_cal_session_io_t *cal_io)
+{
+    app_product_t product;
+    app_settings_service_t settings={0};
+    app_settings_service_use_defaults(&settings);
+    const app_measurement_session_io_t io={.start_attempt=start_capture,.step_attempt=step_capture,
+        .attempt_active=is_active,.attempt_done=is_done,.attempt_dumpable=dumpable,.attempt_block=get_block,
+        .attempt_error=error,.attempt_acknowledge=ack,.attempt_abort=abort_capture,.process_block=product_process};
+    active=false;done=false;product_attempts=0u;memset(&product_result,0,sizeof(product_result));
+    calibration.workflow.request.standard.type=APP_CAL_STANDARD_LOAD;
+    calibration.workflow.request.standard.z_ohms=measurement_complex(600.0f,0.0f);
+    (void)app_product_init(&product,&calibration,&settings,&io,cal_io);
+    const app_product_inputs_t inputs={
+        .calibration_status=app_calibration_service_status(&calibration),
+        .calibration_active_valid=app_calibration_service_active_valid(&calibration),
+        .calibration_active_sequence=app_calibration_service_active_sequence(&calibration),
+        .resource_status=(resource_status_t)resources,
+        .safety_result={.measure_allowed=safety==0u,
+            .primary_blocker=safety==1u?HW_SAFETY_BLOCKED_CHARGER:
+                safety==3u?HW_SAFETY_BLOCKED_RESIDUAL:HW_SAFETY_MEASURE_ALLOWED},
+        .safety_fault_mask=safety==2u?APP_SAFETY_FAULT_METROLOGY_RUNTIME:0u};
+    for(uint32_t tick=0;tick<3u;tick++) app_product_step(&product,&inputs,&clock_info,BSP_STATUS_OK,tick);
+    if(click)
+    {
+        const button_event_t press={.button=BUTTON_ID_OK,.type=BUTTON_EVENT_PRESS,.timestamp_ms=3u};
+        const button_event_t release={.button=BUTTON_ID_OK,.type=BUTTON_EVENT_RELEASE,.timestamp_ms=4u};
+        app_product_handle_button_event(&product,&press);app_product_handle_button_event(&product,&release);
+        for(uint32_t tick=4u;tick<200u;tick++) app_product_step(&product,&inputs,&clock_info,BSP_STATUS_OK,tick);
+    }
+    const uint32_t values[8]={(uint32_t)product.view.state,product.view.calibration_active_valid?1u:0u,
+        product.view.calibration_sequence,product_attempts,product.view.has_measurement_result?1u:0u,
+        product_result.output_corrected?1u:0u,(uint32_t)product_result.provenance.source,
+        WTK_PRODUCT_FACTORY_PROVISIONED};
+    memcpy(output,values,sizeof(values));
+    const measurement_complex_t primary=measurement_complex(product.view.measurement_result.resistance_ohms,
+                                                            product.view.measurement_result.reactance_ohms);
+    memcpy(output+32,&primary,sizeof(primary));output_size=40u;
+}
 static void snapshot(app_cal_capture_snapshot_t *state,void *u)
 {
     (void)u;
@@ -236,6 +295,7 @@ int main(void)
             memcpy(output,values,sizeof(values));
             memcpy(output+16,&result.result.impedance.z_ohms,sizeof(measurement_complex_t));output_size=24u;
         }
+        else if(header[0]==9u && count==3u) product_boot(data[0],data[1],data[2]!=0u,&session);
         else return 4;
         uint8_t size[2]={(uint8_t)output_size,(uint8_t)(output_size>>8u)};
         (void)fwrite(size,1u,2u,stdout);(void)fwrite(output,1u,output_size,stdout);(void)fflush(stdout);

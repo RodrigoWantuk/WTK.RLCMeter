@@ -1,6 +1,7 @@
 #include "app/app_product.h"
 
 #include <stddef.h>
+#include "wtk_build_config.h"
 
 #define WTK_NOINLINE
 
@@ -41,6 +42,7 @@ enum
 static void mark_dirty(app_product_t *product);
 static void set_state(app_product_t *product, ui_product_state_t state);
 
+#if !WTK_PRODUCT_FACTORY_PROVISIONED
 static float calibration_load_preset_value(uint8_t preset, hw_range_id_t range_id)
 {
     static const float nominal[] = {10.0f, 100.0f, 1000.0f, 10000.0f, 100000.0f, 1000000.0f};
@@ -61,7 +63,9 @@ static float calibration_load_preset_value(uint8_t preset, hw_range_id_t range_i
     }
     return nominal[index];
 }
+#endif
 
+#if !WTK_PRODUCT_FACTORY_PROVISIONED
 static bsp_status_t product_calibration_load_z(hw_range_id_t range_id,
                                                hw_excitation_freq_t frequency,
                                                measurement_complex_t *z_ohms,
@@ -81,6 +85,7 @@ static bsp_status_t product_calibration_load_z(hw_range_id_t range_id,
     *z_ohms = measurement_complex(ohms, 0.0f);
     return BSP_STATUS_OK;
 }
+#endif
 
 static ui_product_calibration_state_t ui_cal_state(app_cal_service_status_t status,
                                                   bool calibration_active_valid)
@@ -272,14 +277,19 @@ static const app_measurement_session_t *measurement_runtime_const(const app_prod
     return (product == NULL) ? NULL : &product->runtime.measurement;
 }
 
+#if !WTK_PRODUCT_FACTORY_PROVISIONED
 static app_calibration_wizard_t *wizard_runtime(app_product_t *product)
 {
     return (product == NULL) ? NULL : &product->runtime.calibration;
 }
+#endif
 
+#if !WTK_PRODUCT_FACTORY_PROVISIONED
 static bsp_status_t activate_wizard_runtime(app_product_t *product);
 static void update_wizard_view(app_product_t *product);
+#endif
 
+#if !WTK_PRODUCT_FACTORY_PROVISIONED
 static void try_start_calibration_wizard(app_product_t *product,
                                          const app_product_inputs_t *inputs,
                                          app_cal_wizard_mode_t mode)
@@ -309,6 +319,7 @@ static void try_start_calibration_wizard(app_product_t *product,
         set_state(product, UI_PRODUCT_STATE_CALIBRATION_WIZARD);
     }
 }
+#endif
 
 static bsp_status_t activate_measurement_runtime(app_product_t *product)
 {
@@ -320,11 +331,13 @@ static bsp_status_t activate_measurement_runtime(app_product_t *product)
     {
         return BSP_STATUS_OK;
     }
+#if !WTK_PRODUCT_FACTORY_PROVISIONED
     if ((product->runtime_kind == APP_PRODUCT_RUNTIME_CALIBRATION) &&
         app_calibration_wizard_active(wizard_runtime(product)))
     {
         return BSP_STATUS_BUSY;
     }
+#endif
     const bsp_status_t status =
         app_measurement_session_init(&product->runtime.measurement, product->measurement_io);
     if (status == BSP_STATUS_OK)
@@ -334,6 +347,7 @@ static bsp_status_t activate_measurement_runtime(app_product_t *product)
     return status;
 }
 
+#if !WTK_PRODUCT_FACTORY_PROVISIONED
 static bsp_status_t activate_wizard_runtime(app_product_t *product)
 {
     if (product == NULL)
@@ -363,6 +377,7 @@ static bsp_status_t activate_wizard_runtime(app_product_t *product)
     }
     return status;
 }
+#endif
 
 static void clear_requests(app_product_t *product)
 {
@@ -387,10 +402,12 @@ static bool runtime_active(const app_product_t *product)
     {
         return app_measurement_session_active(measurement_runtime_const(product));
     }
+#if !WTK_PRODUCT_FACTORY_PROVISIONED
     if (product->runtime_kind == APP_PRODUCT_RUNTIME_CALIBRATION)
     {
         return app_calibration_wizard_active(&product->runtime.calibration);
     }
+#endif
     return false;
 }
 
@@ -406,11 +423,13 @@ static void begin_runtime_teardown(app_product_t *product, ui_product_state_t ta
         product->runtime_teardown_kind = APP_PRODUCT_RUNTIME_TEARDOWN_MEASUREMENT;
         (void)app_measurement_session_cancel(measurement_runtime(product));
     }
+#if !WTK_PRODUCT_FACTORY_PROVISIONED
     else if (product->runtime_kind == APP_PRODUCT_RUNTIME_CALIBRATION)
     {
         product->runtime_teardown_kind = APP_PRODUCT_RUNTIME_TEARDOWN_CALIBRATION;
         (void)app_calibration_wizard_cancel(wizard_runtime(product));
     }
+#endif
 }
 
 static bool drain_runtime_teardown(app_product_t *product,
@@ -421,6 +440,10 @@ static bool drain_runtime_teardown(app_product_t *product,
                                    bool temperature_valid,
                                    uint32_t now_ms)
 {
+#if WTK_PRODUCT_FACTORY_PROVISIONED
+    (void)safety; (void)clock_summary; (void)clock_status;
+    (void)temperature_mC; (void)temperature_valid;
+#endif
     if ((product == NULL) ||
         (product->runtime_teardown_kind == APP_PRODUCT_RUNTIME_TEARDOWN_NONE))
     {
@@ -435,6 +458,7 @@ static bool drain_runtime_teardown(app_product_t *product,
             return true;
         }
     }
+#if !WTK_PRODUCT_FACTORY_PROVISIONED
     else if (product->runtime_teardown_kind == APP_PRODUCT_RUNTIME_TEARDOWN_CALIBRATION)
     {
         if (app_calibration_wizard_active(wizard_runtime(product)))
@@ -451,6 +475,7 @@ static bool drain_runtime_teardown(app_product_t *product,
         }
     }
 
+#endif
     product->runtime_teardown_kind = APP_PRODUCT_RUNTIME_TEARDOWN_NONE;
     const ui_product_state_t target = (ui_product_state_t)product->runtime_teardown_target_state;
     (void)activate_measurement_runtime(product);
@@ -489,6 +514,7 @@ static ui_product_measurement_t ui_measurement_from_result(const measurement_ses
     return out;
 }
 
+#if !WTK_PRODUCT_FACTORY_PROVISIONED
 _Static_assert(ENUM_INT(APP_CAL_WIZARD_IDLE) == ENUM_INT(UI_PRODUCT_WIZARD_IDLE),
                "wizard state enum mapping");
 _Static_assert(ENUM_INT(APP_CAL_WIZARD_INTRO) == ENUM_INT(UI_PRODUCT_WIZARD_INTRO),
@@ -528,18 +554,24 @@ _Static_assert(ENUM_INT(APP_CAL_STANDARD_SHORT) == ENUM_INT(UI_PRODUCT_WIZARD_ST
 _Static_assert(ENUM_INT(APP_CAL_STANDARD_LOAD) == ENUM_INT(UI_PRODUCT_WIZARD_STANDARD_LOAD),
                "wizard standard enum mapping");
 
+#endif
+#if !WTK_PRODUCT_FACTORY_PROVISIONED
 static ui_product_wizard_state_t ui_wizard_state(app_cal_wizard_state_t state)
 {
     return (state <= APP_CAL_WIZARD_CANCELED) ? (ui_product_wizard_state_t)state :
                                                 UI_PRODUCT_WIZARD_IDLE;
 }
+#endif
 
+#if !WTK_PRODUCT_FACTORY_PROVISIONED
 static ui_product_wizard_standard_t ui_wizard_standard(app_cal_standard_type_t standard)
 {
     return (standard <= APP_CAL_STANDARD_LOAD) ? (ui_product_wizard_standard_t)standard :
                                                  UI_PRODUCT_WIZARD_STANDARD_LOAD;
 }
+#endif
 
+#if !WTK_PRODUCT_FACTORY_PROVISIONED
 static void update_wizard_view(app_product_t *product)
 {
     if ((product == NULL) || (product->runtime_kind != APP_PRODUCT_RUNTIME_CALIBRATION))
@@ -563,6 +595,7 @@ static void update_wizard_view(app_product_t *product)
     };
     mark_dirty(product);
 }
+#endif
 
 static void update_measurement_result(app_product_t *product, app_measurement_event_t event)
 {
@@ -706,6 +739,7 @@ static WTK_NOINLINE void service_pending_settings_save(app_product_t *product,
     }
 }
 
+#if !WTK_PRODUCT_FACTORY_PROVISIONED
 static bool calibration_forces_awake(const app_product_t *product)
 {
     if ((product == NULL) || (product->runtime_kind != APP_PRODUCT_RUNTIME_CALIBRATION))
@@ -726,6 +760,7 @@ static bool calibration_forces_awake(const app_product_t *product)
         return false;
     }
 }
+#endif
 
 static WTK_NOINLINE void update_backlight_idle(app_product_t *product,
                                   const app_product_inputs_t *inputs,
@@ -739,7 +774,9 @@ static WTK_NOINLINE void update_backlight_idle(app_product_t *product,
         (product->view.state == UI_PRODUCT_STATE_MEASURING) ||
         (product->view.state == UI_PRODUCT_STATE_FAULT) ||
         (product->view.state == UI_PRODUCT_STATE_SAFETY_BLOCKED) ||
+#if !WTK_PRODUCT_FACTORY_PROVISIONED
         calibration_forces_awake(product) ||
+#endif
         !inputs->safety_result.measure_allowed;
     if (force_awake)
     {
@@ -772,7 +809,11 @@ bsp_status_t app_product_init(app_product_t *product,
                               const app_cal_session_io_t *calibration_io)
 {
     if ((product == NULL) || (calibration_service == NULL) || (settings_service == NULL) ||
-        (measurement_io == NULL) || (calibration_io == NULL))
+        (measurement_io == NULL)
+#if !WTK_PRODUCT_FACTORY_PROVISIONED
+        || (calibration_io == NULL)
+#endif
+        )
     {
         return BSP_STATUS_INVALID_ARG;
     }
@@ -1177,6 +1218,7 @@ void app_product_step(app_product_t *product,
         {
             set_state(product, UI_PRODUCT_STATE_MENU);
         }
+#if !WTK_PRODUCT_FACTORY_PROVISIONED
         else if (product->request_page_next || product->request_page_prev)
         {
             if (product->request_page_next)
@@ -1203,6 +1245,7 @@ void app_product_step(app_product_t *product,
         {
             try_start_calibration_wizard(product, inputs, APP_CAL_WIZARD_MODE_MANUAL);
         }
+#endif
         product->request_click = false;
         product->request_menu = false;
         product->request_page_next = false;
@@ -1210,6 +1253,7 @@ void app_product_step(app_product_t *product,
         return;
     }
 
+#if !WTK_PRODUCT_FACTORY_PROVISIONED
     if (product->view.state == UI_PRODUCT_STATE_CALIBRATION_WIZARD)
     {
         if (product->request_menu)
@@ -1257,6 +1301,7 @@ void app_product_step(app_product_t *product,
         return;
     }
 
+#endif
     if (!active_calibration_allows_ready(inputs))
     {
         if ((product->runtime_kind == APP_PRODUCT_RUNTIME_MEASUREMENT) &&
@@ -1273,12 +1318,14 @@ void app_product_step(app_product_t *product,
             clear_requests(product);
             return;
         }
+#if !WTK_PRODUCT_FACTORY_PROVISIONED
         if ((inputs->calibration_status != APP_CAL_SERVICE_STORAGE_UNAVAILABLE) &&
             (product->request_click || product->calibration_deferred_for_settings))
         {
             try_start_calibration_wizard(product, inputs, APP_CAL_WIZARD_MODE_MANDATORY);
         }
         else
+#endif
         {
             set_state(product, UI_PRODUCT_STATE_CALIBRATION_REQUIRED);
         }

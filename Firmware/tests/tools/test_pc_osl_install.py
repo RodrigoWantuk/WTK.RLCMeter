@@ -1,6 +1,7 @@
 """Real C installation parser/service/NOR state machine fault injection."""
 import argparse
 import json
+import math
 import os
 from pathlib import Path
 import struct
@@ -57,6 +58,52 @@ class ProvisioningTests(unittest.TestCase):
             self.assertEqual((result['captures'],result['conditions']),(99,33))
             self.assertTrue(result['reboot_verified']);self.assertFalse(result['physically_qualified'])
             self.assertEqual(result['candidate_sha256'],result['readback_sha256'])
+            self.assertTrue(result['product_boot_verified'])
+
+    def product(self,resources=0,safety=0,click=True):
+        return struct.unpack('<8I2f',self.serial.control(9,bytes((resources,safety,int(click)))))
+
+    def test_actual_product_blank_gate_resource_and_safety_independence(self):
+        blank=self.product(click=False)
+        self.assertEqual(blank[0],3);self.assertEqual(blank[1:4],(0,0,0))
+        clicked=self.product()
+        self.assertEqual(clicked[0],3 if clicked[7] else 18)
+        self.assertEqual(clicked[3:5],(0,0))
+        self.reset()  # SWD switch/restart discards a legacy wizard's RAM candidate.
+        self.installer.install(frame(1));self.reset()
+        ready=self.product(click=False)
+        self.assertEqual(ready[:4],(4,1,1,0))
+        for resource in (1,2,3,4,5):
+            blocked=self.product(resources=resource)
+            self.assertEqual(blocked[:4],(13,1,1,0))
+        for safety in (1,2,3):
+            blocked=self.product(safety=safety)
+            self.assertEqual(blocked[0],22 if safety==2 else 21)
+            self.assertEqual(blocked[3:5],(0,0))
+        measured=self.product()
+        self.assertEqual(measured[0],20);self.assertTrue(measured[3]);self.assertEqual(measured[4:7],(1,1,2))
+        # This candidate uses the Python fixture's transfer model; the complete
+        # serial campaign below fits the C fixture's own captures. Check runtime
+        # correction/provenance here without treating unlike fixtures as standards.
+        self.assertTrue(all(math.isfinite(x) for x in measured[8:10]))
+
+    def test_actual_product_recovers_old_after_interrupted_replacement(self):
+        self.installer.install(frame(1));self.reset()
+        transaction=self.ready(frame(2));self.commit_raw(transaction);self.serial.advance(4)
+        self.reset(13)
+        self.assert_old()
+        self.assertEqual(self.product(click=False)[:4],(4,1,1,0))
+        self.assertEqual(self.product()[4:7],(1,1,2))
+
+    def test_actual_product_corrupt_or_incompatible_media_stays_uncalibrated(self):
+        for mode in ('crc','model','incomplete'):
+            data=bytearray(frame(1))
+            if mode=='crc':data[200]^=1
+            elif mode=='model':struct.pack_into('<H',data,20,99);data=crc_frame(data)
+            else:struct.pack_into('<H',data,64,32);data=crc_frame(data)
+            self.seed(0,data);self.reset()
+            blocked=self.product(click=False)
+            self.assertEqual(blocked[:4],(3,0,0,0),mode)
 
     def test_existing_two_slots_replay_and_rollover(self):
         self.seed(0,frame(1));self.seed(1,frame(2));self.reset()

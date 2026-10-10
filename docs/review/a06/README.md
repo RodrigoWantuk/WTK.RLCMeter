@@ -1,7 +1,18 @@
 # A06.1 PC OSL calibration foundation
 
 STATUS: IMPLEMENTED_TESTED_HOST / SYNTHETIC_END_TO_END. A06 migration remains open.
-REQUIRES_BENCH_VALIDATION: Rev.1 PCB unassembled. Real-device provisioning is not implemented.
+REQUIRES_BENCH_VALIDATION: Rev.1 PCB unassembled. A06.1 alone is host-only;
+A06.2a/b subsequently add linked BRINGUP_CAL capture and installation below.
+
+## Current migration status — A06.2c-prep
+
+An opt-in `WTK_PRODUCT_FACTORY_PROVISIONED=ON` now excludes the embedded wizard/fit
+path while retaining full OSL boot validation, standalone measurement, safety and
+Resource Pack recovery. Legacy PRODUCT remains the default. Actual C-backed
+installation → reset → PRODUCT acceptance/measurement passes synthetically.
+Release measures 48,496 B OFF / 50,992 B ON, saving 13,556 / 13,484 B against fresh
+main. See [implementation, tests, memory and deployment](A06.2c-prep-report.md).
+Permanent wizard retirement and physical qualification remain open.
 
 Starting SHA: `29bb74adcd5bf95e0a57b8756201392ab53cd388`, confirmed merge of PR #9.
 The clean checkout was fetched, fast-forwarded to origin/main, and recursive

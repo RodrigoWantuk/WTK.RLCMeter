@@ -1,0 +1,13 @@
+profile,mode,curves,before_flash,after_flash,before_ram,after_ram,stack_floor,flash_margin
+stm32-debug,legacy,OFF,58712,58712,14536,14536,2048,6824
+stm32-debug,legacy,ON,61320,61320,14600,14600,2048,4216
+stm32-debug,factory,OFF,58712,47584,14536,14784,2052,17952
+stm32-debug,factory,ON,61320,50080,14600,14840,2052,15456
+stm32-release,legacy,OFF,62052,62052,14984,14984,2052,3484
+stm32-release,legacy,ON,64476,64476,15048,15048,2052,1060
+stm32-release,factory,OFF,62052,48496,14984,14984,2052,17040
+stm32-release,factory,ON,64476,50992,15048,15048,2052,14544
+stm32-bringup,legacy,OFF,65448,65448,14596,14596,2048,88
+stm32-bringup,legacy,ON,65448,65448,14596,14596,2048,88
+stm32-bringup-cal,legacy,OFF,31944,31944,12744,12744,2048,33592
+stm32-bringup-cal,legacy,ON,31944,31944,12744,12744,2048,33592

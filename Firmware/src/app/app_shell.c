@@ -1073,6 +1073,7 @@ static const app_measurement_session_io_t g_product_session_io = {
     .user = NULL,
 };
 
+#if !WTK_PRODUCT_FACTORY_PROVISIONED
 static const app_cal_session_io_t g_product_calibration_io = {
     .start_capture = product_auto_start_attempt,
     .step_capture = product_auto_step_attempt,
@@ -1085,6 +1086,7 @@ static const app_cal_session_io_t g_product_calibration_io = {
     .capture_abort = product_auto_attempt_abort,
     .user = NULL,
 };
+#endif
 
 static bsp_status_t product_init_controller(void)
 {
@@ -1103,7 +1105,11 @@ static bsp_status_t product_init_controller(void)
                             &g_calibration_service,
                             &g_settings_service,
                             &g_product_session_io,
+#if WTK_PRODUCT_FACTORY_PROVISIONED
+                            NULL);
+#else
                             &g_product_calibration_io);
+#endif
 }
 
 static void product_apply_outputs(void)
@@ -1298,6 +1304,7 @@ static void app_step(void)
     }
 #if !WTK_ENABLE_BRINGUP_CONSOLE
     app_flash_access_snapshot_t flash_access = product_flash_access_snapshot(NULL);
+#if !WTK_PRODUCT_FACTORY_PROVISIONED
     if (app_flash_access_allowed(&flash_access, APP_FLASH_ACCESS_CALIBRATION_MUTATION))
     {
         const bsp_status_t cal_step_status = app_calibration_service_step(&g_calibration_service, now_ms);
@@ -1306,6 +1313,7 @@ static void app_step(void)
             APP_VERBOSE_DIAG_TEXT("calibration_step", bsp_status_string(cal_step_status));
         }
     }
+#endif
 #endif
     app_update_safety_state();
 

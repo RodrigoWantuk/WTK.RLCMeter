@@ -4,6 +4,7 @@
 #include "ui/ui_text_catalog.h"
 
 #include <stdio.h>
+#include "wtk_build_config.h"
 #include <string.h>
 
 typedef struct
@@ -369,6 +370,7 @@ static int test_calibration_validity_loss_drains_measurement(void)
     return failures;
 }
 
+#if !WTK_PRODUCT_FACTORY_PROVISIONED
 static void start_product_wizard_capture(app_product_t *product,
                                          app_product_inputs_t *inputs,
                                          const bsp_clock_summary_t *clock,
@@ -471,6 +473,8 @@ static int test_user_cancel_during_calibration_capture_drains_runtime(void)
     return failures;
 }
 
+#endif
+
 static bsp_status_t init_product(app_product_t *product, fake_io_t *fake)
 {
     init_test_cal_service();
@@ -545,9 +549,14 @@ static int test_boot_calibration_gate(void)
                      BSP_STATUS_OK,
                      3u);
     app_product_make_view(&product, &view);
+#if !WTK_PRODUCT_FACTORY_PROVISIONED
     failures += expect_true(view.state == UI_PRODUCT_STATE_CALIBRATION_WIZARD,
                             "missing calibration starts mandatory wizard on short OK");
     failures += expect_true(view.wizard.mandatory, "missing calibration wizard is mandatory");
+#else
+    failures += expect_true(view.state == UI_PRODUCT_STATE_CALIBRATION_REQUIRED,
+                            "factory blank remains blocked after OK");
+#endif
     failures += expect_u32(fake.start_count, 0u, "cal gate starts no measurement acquisition");
 
     failures += expect_true(init_product(&product, &fake) == BSP_STATUS_OK, "product storage reinit");
@@ -681,6 +690,7 @@ static int test_menu_calibration_status_and_dirty_candidate(void)
     send_button(&product, BUTTON_ID_DOWN, BUTTON_EVENT_PRESS);
     app_product_step(&product, &inputs, &clock, BSP_STATUS_OK, 5u);
     app_product_make_view(&product, &view);
+#if !WTK_PRODUCT_FACTORY_PROVISIONED
     failures += expect_u32(view.menu.calibration_load_preset, 1u, "calibration status cycles load preset forward");
 
     send_button(&product, BUTTON_ID_UP, BUTTON_EVENT_PRESS);
@@ -688,6 +698,10 @@ static int test_menu_calibration_status_and_dirty_candidate(void)
     app_product_make_view(&product, &view);
     failures += expect_u32(view.menu.calibration_load_preset, 0u, "calibration status cycles load preset backward");
 
+#else
+    failures += expect_u32(view.menu.calibration_load_preset, 0u,
+                            "factory status does not edit LOAD presets");
+#endif
     failures += expect_true(app_calibration_service_candidate_begin(&g_service) == BSP_STATUS_OK,
                             "dirty candidate setup");
     inputs.calibration_status = APP_CAL_SERVICE_CANDIDATE_DIRTY;
@@ -1003,8 +1017,10 @@ int main(int argc, char **argv)
     failures += test_missing_resources_force_pc_link_upload_mode();
     failures += test_fault_during_measurement_capture_drains_runtime();
     failures += test_calibration_validity_loss_drains_measurement();
+#if !WTK_PRODUCT_FACTORY_PROVISIONED
     failures += test_fault_during_calibration_capture_drains_runtime();
     failures += test_user_cancel_during_calibration_capture_drains_runtime();
+#endif
     failures += expect_true(sizeof(ui_product_measurement_t) < sizeof(measurement_session_result_t),
                             "compact UI result is smaller than session result");
     failures += expect_true(sizeof(ui_product_measurement_t) < 128u,

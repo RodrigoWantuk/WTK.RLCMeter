@@ -32,6 +32,21 @@ CURVE_SOURCES = {"measurement_cal_curve.c", "measurement_cal_curve_frame.c",
 CURVE_SYMBOLS = re.compile(r"measurement_cal_curve_|product_(?:curve_|load_curve_|active_osl_crc32)|g_curve_store")
 
 
+def factory_composition_errors(symbols: str, commands: list[dict], enabled: bool) -> list[str]:
+    present = {Path(row["file"].replace("\\", "/")).name for row in commands}
+    exclusive = {"app_calibration_wizard.c", "app_calibration_session.c", "measurement_calibration_solver.c"}
+    if not enabled:
+        return []
+    errors = ["factory PRODUCT compiled wizard source: " + name for name in sorted(present & exclusive)]
+    pattern = re.compile(r"app_calibration_wizard_|app_calibration_session_|measurement_cal_solver_|measurement_cal_store_(?:step|write_start)|prepare_wizard_line|calibration_load_preset_value|cal_load_preset_token")
+    errors += [line for line in symbols.splitlines() if pattern.search(line)]
+    for name in ("app_product.c", "app_calibration_runtime.c", "measurement_calibration.c",
+                 "measurement_calibration_store.c", "app_resource_update.c", "hw_safety.c"):
+        if name not in present:
+            errors.append("factory PRODUCT missing retained source: " + name)
+    return errors
+
+
 def capture_composition_errors(commands: list[dict], profile: str) -> list[str]:
     present = {Path(row["file"].replace("\\", "/")).name for row in commands}
     service = {"app_cal_capture_service.c", "app_cal_capture_shell.c"}
@@ -65,6 +80,7 @@ def main() -> int:
     parser.add_argument("--nm-tool", default="arm-none-eabi-nm")
     parser.add_argument("--supplementary-curves", choices=("ON", "OFF"))
     parser.add_argument("--compile-commands", type=Path)
+    parser.add_argument("--factory-provisioned", choices=("ON", "OFF"), default="OFF")
     args = parser.parse_args()
 
     if not args.elf.exists():
@@ -88,6 +104,8 @@ def main() -> int:
         try:
             commands = json.loads(args.compile_commands.read_text(encoding="utf-8"))
             matches.extend(capture_composition_errors(commands, args.profile))
+            matches.extend(factory_composition_errors(completed.stdout, commands,
+                                                       args.factory_provisioned == "ON"))
             matches.extend(curve_composition_errors(completed.stdout, commands,
                                                     args.supplementary_curves == "ON"))
         except (OSError, ValueError, KeyError, TypeError) as error:
