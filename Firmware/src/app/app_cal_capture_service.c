@@ -1,6 +1,7 @@
 #include "app/app_cal_capture_service.h"
 
 #include <string.h>
+#include "wtk_build_config.h"
 
 #include "app/app_version.h"
 #include "measurement/measurement_condition.h"
@@ -107,7 +108,7 @@ static void identify(app_cal_capture_service_t *service, uint32_t id)
     put32(body, MEASUREMENT_CAL_HARDWARE_REV1);
     put16(body+4, MEASUREMENT_CAL_MODEL_VERSION_CURRENT);
     put16(body+6, 1u); /* BRINGUP_CAL service profile */
-    put32(body+8, 0x0fu); /* identify, status, capture, cancel; NO installation */
+    put32(body+8, 0x0fu | (WTK_ENABLE_CAL_INSTALL_SERVICE && service->io.installation_supported ? 0x10u : 0u));
     put16(body+12, MEASUREMENT_CONDITION_REV1_MAX_SUPPORTED);
     put16(body+14, APP_CAL_CAPTURE_OBSERVATION_BYTES);
     put32(body+16, APP_CAL_CAPTURE_TIMEOUT_MS);
@@ -154,7 +155,8 @@ static void start(app_cal_capture_service_t *service, uint32_t id,
     request.standard = (app_cal_standard_t){.type = (app_cal_standard_type_t)body[3],
         .z_ohms = {get_float(body+4), get_float(body+8)}, .z_valid = body[3] == APP_CAL_STANDARD_LOAD};
     const app_cal_capture_snapshot_t state = snapshot(service);
-    if (app_calibration_session_active(&service->session) || app_calibration_service_busy(service->session.service))
+    if (app_calibration_session_active(&service->session) || app_calibration_service_busy(service->session.service) ||
+        service->session.service->store_workspace_held)
         error = APP_CAL_CAPTURE_BUSY;
     else if (!measurement_condition_supported(request.key.range_id, request.key.frequency, request.key.amplitude))
         error = APP_CAL_CAPTURE_UNSUPPORTED;
@@ -218,6 +220,196 @@ static void result_reply(app_cal_capture_service_t *service, uint32_t id,
     reply(service, APP_CAL_CAPTURE_RESULT, id, error, result, written);
 }
 
+#if WTK_ENABLE_CAL_INSTALL_SERVICE
+static bool installing(const app_cal_capture_service_t *s)
+{
+    return s->install_state == APP_CAL_INSTALL_RECEIVING || s->install_state == APP_CAL_INSTALL_VALIDATED ||
+           s->install_state == APP_CAL_INSTALL_WRITING;
+}
+
+static uint32_t successor(const app_cal_capture_service_t *s)
+{
+    const uint32_t sequence = app_calibration_service_active_sequence(s->session.service);
+    return sequence == UINT32_MAX ? 0u : sequence + 1u;
+}
+
+static uint32_t active_crc(const app_calibration_service_t *cal)
+{
+    return cal->runtime.active_valid ? cal->runtime.slots[(unsigned)cal->runtime.active_slot].frame.crc32 : 0u;
+}
+
+static void install_finish(app_cal_capture_service_t *s, app_cal_capture_error_t error)
+{
+    app_calibration_service_t *cal = s->session.service;
+    /* A pending NOR operation must be drained by the writer before releasing its workspace. */
+    (void)app_calibration_service_candidate_discard(cal);
+    if (cal->store_workspace_held)
+    {
+        (void)app_io_workspace_release(cal->workspace, APP_IO_WORKSPACE_OWNER_CALIBRATION_STORE);
+        cal->store_workspace_held = false;
+    }
+    s->install_error = error;
+    s->install_state = error == APP_CAL_CAPTURE_CANCELED ? APP_CAL_INSTALL_ABORTED : APP_CAL_INSTALL_FAILED;
+}
+
+static bool valid_candidate(app_cal_capture_service_t *s)
+{
+    app_calibration_service_t *cal = s->session.service;
+    const uint8_t *p = app_io_workspace_calibration_frame(cal->workspace);
+    measurement_cal_frame_info_t frame;
+    if (s->install_received != 2760u || storage_crc32(p, 2760u) != s->install_crc ||
+        get16(p+10) != 2696u || get16(p+22) != 1u || get16(p+66) != 0u || get32(p+68) != 1u ||
+        measurement_cal_inspect_frame(p, 2760u, MEASUREMENT_CAL_HARDWARE_REV1,
+            MEASUREMENT_CAL_MODEL_VERSION_CURRENT, &frame).status != MEASUREMENT_CAL_VALIDITY_VALID ||
+        !measurement_cal_decode_set(p, 2760u, &cal->store.scan_set, NULL) ||
+        measurement_cal_validate_rev1_full_set(&cal->store.scan_set).status != MEASUREMENT_CAL_VALIDITY_VALID ||
+        cal->store.scan_set.sequence != s->install_sequence || successor(s) != s->install_sequence)
+        return false;
+    for (size_t i = 24u; i < 56u; i++) if (p[i] != 0u) return false;
+    for (size_t i = 0u; i < 6u; i++) if (get_float(p+72u+i*8u) <= 0.0f) return false;
+    for (unsigned i = 0u; i < 33u; i++)
+    {
+        const measurement_cal_record_t *record = &cal->store.scan_set.records[i];
+        const uint32_t flags = record->correction.flags;
+        const uint32_t required = MEASUREMENT_CAL_FLAG_OSL_MODEL | MEASUREMENT_CAL_FLAG_LOAD_REFERENCE;
+        const uint32_t allowed = required | MEASUREMENT_CAL_FLAG_TEMPERATURE_VALID | MEASUREMENT_CAL_FLAG_HG_OBSERVED;
+        if ((flags & required) != required || (flags & ~allowed) != 0u ||
+            record->key.hardware_revision != MEASUREMENT_CAL_HARDWARE_REV1 ||
+            record->key.model_version != MEASUREMENT_CAL_MODEL_VERSION_CURRENT ||
+            record->correction.load_z_ohms.re < 0.0f ||
+            record->correction.reserved.re != 0.0f || record->correction.reserved.im != 0.0f ||
+            record->temperature_mC < -40000 || record->temperature_mC > 125000 ||
+            (!(flags & MEASUREMENT_CAL_FLAG_TEMPERATURE_VALID) && record->temperature_mC != 0)) return false;
+        for (unsigned j = 70u; j < 80u; j++) if (p[120u+i*80u+j] != 0u) return false;
+    }
+    cal->candidate_state = APP_CAL_CANDIDATE_COMPLETE;
+    return true;
+}
+
+static void install_dispatch(app_cal_capture_service_t *s, uint8_t cmd, uint32_t id,
+    const uint8_t *body, uint16_t length, uint32_t now)
+{
+    app_calibration_service_t *cal = s->session.service;
+    app_cal_capture_error_t error = APP_CAL_CAPTURE_BAD_PAYLOAD;
+    uint8_t out[108] = {0};
+    uint16_t count = 0u;
+    const app_cal_capture_snapshot_t safe = snapshot(s);
+    if (!s->io.installation_supported) error = APP_CAL_CAPTURE_UNSUPPORTED;
+    else if (cmd == APP_CAL_INSTALL_STATUS && length == 0u)
+    {
+        put32(out, s->install_id); put32(out+4, s->install_sequence);
+        put16(out+8, s->install_received); put16(out+10, 2760u);
+        put32(out+12, app_calibration_service_active_sequence(cal)); put32(out+16, active_crc(cal));
+        out[20] = (uint8_t)s->install_state; out[21] = (uint8_t)s->install_error;
+        out[22] = (uint8_t)cal->store.state; out[23] = cal->storage_available ? 1u : 0u;
+        put32(out+24, successor(s)); out[28] = (uint8_t)cal->runtime.active_slot;
+        out[29] = cal->runtime.active_valid ? 1u : 0u;
+        count = 32u; error = APP_CAL_CAPTURE_OK;
+    }
+    else if (cmd == APP_CAL_INSTALL_BEGIN && length == 12u)
+    {
+        if (installing(s) || app_calibration_service_busy(cal) ||
+            app_io_workspace_owner(cal->workspace) != APP_IO_WORKSPACE_OWNER_FREE) error = APP_CAL_CAPTURE_BUSY;
+        else if (!safe.factory_allowed || !safe.transfer_safe) error = APP_CAL_CAPTURE_SAFETY_BLOCKED;
+        else if (!cal->storage_available) error = APP_CAL_CAPTURE_STORAGE_ERROR;
+        else if (get32(body) != 2760u) error = APP_CAL_CAPTURE_INVALID_CANDIDATE;
+        else if (successor(s) == 0u || get32(body+8) != successor(s)) error = APP_CAL_CAPTURE_SEQUENCE_ERROR;
+        else if (app_calibration_service_candidate_begin(cal) != BSP_STATUS_OK) error = APP_CAL_CAPTURE_BUSY;
+        else if (app_io_workspace_acquire(cal->workspace, APP_IO_WORKSPACE_OWNER_CALIBRATION_STORE) != BSP_STATUS_OK)
+            error = APP_CAL_CAPTURE_BUSY;
+        else
+        {
+            cal->store_workspace_held = true;
+            s->install_id = id; s->install_sequence = get32(body+8); s->install_crc = get32(body+4);
+            s->install_received = 0u; s->install_state = APP_CAL_INSTALL_RECEIVING;
+            s->install_error = APP_CAL_CAPTURE_OK; s->install_deadline = now+20000u;
+            s->result_valid = false; error = APP_CAL_CAPTURE_OK;
+        }
+    }
+    else if (cmd == APP_CAL_INSTALL_READBACK && length == 8u)
+    {
+        const uint16_t offset = get16(body+4); const uint8_t amount = body[6];
+        if (installing(s) || app_calibration_service_busy(cal)) error = APP_CAL_CAPTURE_BUSY;
+        else if (!safe.transfer_safe || !safe.factory_allowed) error = APP_CAL_CAPTURE_SAFETY_BLOCKED;
+        else if (!cal->runtime.active_valid || get32(body) != app_calibration_service_active_sequence(cal))
+            error = APP_CAL_CAPTURE_SEQUENCE_ERROR;
+        else if (body[7] != 0u || amount == 0u || amount > 96u || offset >= 2760u || amount > 2760u-offset)
+            error = APP_CAL_CAPTURE_BAD_PAYLOAD;
+        else
+        {
+            put32(out, get32(body)); put16(out+4, offset); put16(out+6, 2760u); put32(out+8, active_crc(cal));
+            const uint32_t address = cal->store.slots[(unsigned)cal->runtime.active_slot].start+offset;
+            error = cal->store.io.read(address,out+12,amount,cal->store.io.user) == BSP_STATUS_OK ?
+                APP_CAL_CAPTURE_OK : APP_CAL_CAPTURE_STORAGE_ERROR;
+            if (error == APP_CAL_CAPTURE_OK) count = (uint16_t)(12u+amount);
+        }
+    }
+    else if (length >= 4u && get32(body) == s->install_id && s->install_id != 0u)
+    {
+        if (cmd == APP_CAL_INSTALL_ABORT && length == 4u)
+        {
+            if (s->install_state == APP_CAL_INSTALL_WRITING)
+            {
+                if (measurement_cal_store_abort(&cal->store) == BSP_STATUS_NOT_SUPPORTED)
+                    error = APP_CAL_CAPTURE_TOO_LATE;
+                else { s->install_error = APP_CAL_CAPTURE_CANCELED; error = APP_CAL_CAPTURE_OK; }
+            }
+            else if (installing(s)) { install_finish(s,APP_CAL_CAPTURE_CANCELED); error = APP_CAL_CAPTURE_OK; }
+            else error = APP_CAL_CAPTURE_NOT_READY;
+        }
+        else if (!safe.factory_allowed || !safe.transfer_safe) error = APP_CAL_CAPTURE_SAFETY_BLOCKED;
+        else if (cmd == APP_CAL_INSTALL_CHUNK && length > 6u && length <= 102u &&
+                 s->install_state == APP_CAL_INSTALL_RECEIVING)
+        {
+            const uint16_t offset = get16(body+4); const uint16_t amount = (uint16_t)(length-6u);
+            if (offset != s->install_received || amount > 2760u-offset) error = APP_CAL_CAPTURE_BAD_PAYLOAD;
+            else
+            {
+                (void)memcpy(app_io_workspace_calibration_frame(cal->workspace)+offset,body+6,amount);
+                s->install_received = (uint16_t)(offset+amount); s->install_deadline = now+20000u;
+                error = APP_CAL_CAPTURE_OK;
+            }
+        }
+        else if (cmd == APP_CAL_INSTALL_VALIDATE && length == 4u && s->install_state == APP_CAL_INSTALL_RECEIVING)
+        {
+            if (!valid_candidate(s)) { install_finish(s,APP_CAL_CAPTURE_INVALID_CANDIDATE); error = APP_CAL_CAPTURE_INVALID_CANDIDATE; }
+            else { s->install_state = APP_CAL_INSTALL_VALIDATED; error = APP_CAL_CAPTURE_OK; }
+        }
+        else if (cmd == APP_CAL_INSTALL_COMMIT && length == 4u && s->install_state == APP_CAL_INSTALL_VALIDATED)
+        {
+            if (app_calibration_service_candidate_commit_bound(cal) != BSP_STATUS_BUSY)
+            { install_finish(s,APP_CAL_CAPTURE_STORAGE_ERROR); error = APP_CAL_CAPTURE_STORAGE_ERROR; }
+            else
+            { s->install_state = APP_CAL_INSTALL_WRITING; s->install_deadline = now+30000u; error = APP_CAL_CAPTURE_OK; }
+        }
+        else error = APP_CAL_CAPTURE_NOT_READY;
+    }
+    reply(s,cmd,id,error,out,count);
+}
+
+static void install_step(app_cal_capture_service_t *s, uint32_t now)
+{
+    if (!installing(s)) return;
+    app_calibration_service_t *cal = s->session.service;
+    const app_cal_capture_snapshot_t safe = snapshot(s);
+    if (expired(now,s->install_deadline) || !safe.factory_allowed || !safe.transfer_safe)
+    {
+        if (s->install_error == APP_CAL_CAPTURE_OK)
+            s->install_error = expired(now,s->install_deadline) ? APP_CAL_CAPTURE_TIMEOUT : APP_CAL_CAPTURE_SAFETY_BLOCKED;
+        if (s->install_state != APP_CAL_INSTALL_WRITING) { install_finish(s,s->install_error); return; }
+        (void)measurement_cal_store_abort(&cal->store);
+    }
+    if (s->install_state != APP_CAL_INSTALL_WRITING) return;
+    const bsp_status_t status = app_calibration_service_step(cal,now);
+    if (status == BSP_STATUS_BUSY) return;
+    if (status == BSP_STATUS_OK && cal->candidate_state == APP_CAL_CANDIDATE_ACTIVATED)
+    { s->install_state = APP_CAL_INSTALL_INSTALLED; s->install_error = APP_CAL_CAPTURE_OK; }
+    else if (status != BSP_STATUS_OK) install_finish(s,s->install_error == APP_CAL_CAPTURE_OK ?
+                                                   APP_CAL_CAPTURE_STORAGE_ERROR : s->install_error);
+}
+
+#endif
+
 static void dispatch(app_cal_capture_service_t *service, uint32_t now_ms)
 {
     app_pc_link_frame_t frame;
@@ -247,6 +439,15 @@ static void dispatch(app_cal_capture_service_t *service, uint32_t now_ms)
     service->last_request = id;
     const uint16_t length = (uint16_t)(frame.payload_length-8u);
     const uint8_t *body = frame.payload+8;
+    if (command >= APP_CAL_INSTALL_BEGIN && command <= APP_CAL_INSTALL_ABORT)
+    {
+#if WTK_ENABLE_CAL_INSTALL_SERVICE
+        install_dispatch(service,command,id,body,length,now_ms);
+#else
+        reply(service,command,id,APP_CAL_CAPTURE_UNSUPPORTED,NULL,0u);
+#endif
+        return;
+    }
     switch (command)
     {
     case APP_CAL_CAPTURE_IDENTIFY:
@@ -415,6 +616,9 @@ static void serialize_observation(app_cal_capture_service_t *service)
 void app_cal_capture_step(app_cal_capture_service_t *service, uint32_t now_ms)
 {
     if (service == NULL) return;
+#if WTK_ENABLE_CAL_INSTALL_SERVICE
+    install_step(service,now_ms);
+#endif
     if (service->rx_size != 0u && expired(now_ms, service->rx_deadline))
     {
         service->protocol_errors++;

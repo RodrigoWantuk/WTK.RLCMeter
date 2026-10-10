@@ -66,7 +66,7 @@ def main():
         slots, installed = root/'slots.bin', root/'installed.bin'
         slots.write_bytes(old+b'\xff'*(8192-len(old)))
         seen = set()
-        for cut in range(45):
+        for cut in range(80):
             result = run(bridge, 'store', source, slots, installed, cut)
             sequence = int(re.search(r'active_sequence=(\d+)', result)[1])
             assert sequence in (1, 2), result
@@ -90,7 +90,7 @@ def main():
         result = run(bridge, 'store', source, slots, installed, 100)
         assert 'active_sequence=2' in result  # Blank C store preserves a nonzero supplied sequence.
     print(f'132 condition fits (including 33 HG); 100 PLC1 vectors; 4 exact frame round trips; '
-          f'45 C store interruption states + blank install; max normalized coefficient error={maximum:.9g}')
+          f'80 C store interruption states + blank install; max normalized coefficient error={maximum:.9g}')
 
 
 if __name__ == '__main__':

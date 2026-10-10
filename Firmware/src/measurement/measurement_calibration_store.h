@@ -29,6 +29,7 @@ typedef enum
     MEASUREMENT_CAL_STORE_VERIFY,
     MEASUREMENT_CAL_STORE_DONE,
     MEASUREMENT_CAL_STORE_ERROR,
+    MEASUREMENT_CAL_STORE_VERIFY_UNCOMMITTED,
 } measurement_cal_store_state_t;
 
 typedef struct
@@ -61,6 +62,7 @@ typedef struct
     measurement_cal_set_t scan_set;
     measurement_cal_validity_t staged_validity;
     uint32_t expected_sequence;
+    uint32_t expected_crc32;
     uint32_t expected_hardware_revision;
     uint16_t expected_model_version;
     uint8_t expected_record_count;
@@ -68,6 +70,7 @@ typedef struct
     measurement_cal_store_slot_t target_slot;
     measurement_cal_store_state_t state;
     bsp_status_t last_status;
+    bool abort_requested;
 } measurement_cal_store_t;
 
 bsp_status_t measurement_cal_store_init(measurement_cal_store_t *store,
@@ -86,10 +89,18 @@ bsp_status_t measurement_cal_store_load_newest_usable(
     measurement_cal_set_t *set,
     measurement_cal_store_slot_t *slot,
     measurement_cal_store_slot_info_t diagnostics[2]);
+bsp_status_t measurement_cal_store_load_full_usable(measurement_cal_store_t *store,
+    measurement_cal_set_t *set, measurement_cal_store_slot_t *slot,
+    measurement_cal_store_slot_info_t diagnostics[2]);
 bsp_status_t measurement_cal_store_write_start(measurement_cal_store_t *store,
                                                const measurement_cal_set_t *candidate,
                                                const measurement_cal_requirements_t *requirements);
 bsp_status_t measurement_cal_store_step(measurement_cal_store_t *store, uint32_t now_ms);
+/* Full-service path: protect the runtime's usable slot and bind the exact sequence. */
+bsp_status_t measurement_cal_store_write_bound(measurement_cal_store_t *store,
+    const measurement_cal_set_t *candidate, bool active_valid,
+    measurement_cal_store_slot_t active_slot, uint32_t active_sequence);
+bsp_status_t measurement_cal_store_abort(measurement_cal_store_t *store);
 bsp_status_t measurement_cal_store_acknowledge(measurement_cal_store_t *store);
 bsp_status_t measurement_cal_store_refresh_diagnostics(
     measurement_cal_store_t *store,

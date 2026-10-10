@@ -415,7 +415,7 @@ app_cal_candidate_state_t app_calibration_service_candidate_state(const app_cali
     return (service == NULL) ? APP_CAL_CANDIDATE_NONE : service->candidate_state;
 }
 
-bsp_status_t app_calibration_service_candidate_commit_start(app_calibration_service_t *service)
+static bsp_status_t commit_start(app_calibration_service_t *service, bool bound)
 {
     if (service == NULL)
     {
@@ -467,8 +467,15 @@ bsp_status_t app_calibration_service_candidate_commit_start(app_calibration_serv
     }
     service->store.image = app_io_workspace_calibration_frame(service->workspace);
     service->store.image_capacity = app_io_workspace_calibration_frame_bytes();
-    const bsp_status_t status =
-        measurement_cal_store_write_start(&service->store, &service->store.scan_set, NULL);
+    if (!bound)
+    {
+        const uint32_t active_sequence = app_calibration_service_active_sequence(service);
+        /* The bound writer rejects UINT32_MAX before any erase (no rollover). */
+        service->store.scan_set.sequence = active_sequence + 1u;
+    }
+    const bsp_status_t status = measurement_cal_store_write_bound(&service->store, &service->store.scan_set,
+        service->runtime.active_valid, service->runtime.active_slot,
+        app_calibration_service_active_sequence(service));
     service->last_store_status = status;
     if (status == BSP_STATUS_BUSY)
     {
@@ -483,6 +490,11 @@ bsp_status_t app_calibration_service_candidate_commit_start(app_calibration_serv
     }
     return status;
 }
+
+bsp_status_t app_calibration_service_candidate_commit_start(app_calibration_service_t *service)
+{ return commit_start(service, false); }
+bsp_status_t app_calibration_service_candidate_commit_bound(app_calibration_service_t *service)
+{ return commit_start(service, true); }
 
 static bsp_status_t activate_verified_commit(app_calibration_service_t *service)
 {

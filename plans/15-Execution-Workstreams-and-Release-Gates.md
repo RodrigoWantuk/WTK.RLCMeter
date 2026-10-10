@@ -117,9 +117,11 @@ A normal user can power the assembled board, calibrate by an available repeatabl
 A06 execution status: A06.1 host OSL foundation is merged; A06.2a adds an actual
 development STM32 calibration capture service plus PC COM client. All 33 keys are
 collected in a synthetic serial campaign using the production C parser/session/DSP.
-This is not a release or physical qualification gate. A06.2b candidate installation,
-readback/recovery and the later PRODUCT wizard/boot-gate migration remain pending.
-See [implementation and measured sizes](../docs/review/a06/A06.2a-report.md).
+A06.2b adds actual BRINGUP_CAL candidate installation, bounded transfer, W25Q A/B
+commit/readback and usable-slot recovery. The C-backed 99-capture-to-reboot workflow
+and interrupted transactions are tested. This is not a release or physical
+qualification gate: bench validation and PRODUCT wizard/boot-gate migration remain
+pending. See [installation evidence](../docs/review/a06/A06.2b-report.md).
 - **Pre-assembly is now P0**: before soldering, A05 must review DNP choices K2/R0_BANK, TVS/link, optional guards and actual TFT footprint/pinout; do not say bringup is physically underway. Suggested baseline only pending schematic: K2 DNP with R0_BANK populated, D_TVS/R_TVS_LINK DNP, active guard DNP unless specific bench plan.
 - No purchased reference standard components yet; source affordable 1% film resistor kit and a repeatable fixture first. Do not demand precise capacitor/inductor ESR/Q parts.
 - Oscilloscope Hantek DSO2C10: prioritize waveforms, frequency/phase, source distortion, channel gain, time-domain transient evidence, and PC CSV/SCPI import; do not claim its native 8-bit input has better voltage gain accuracy than an honest 1% reference.
