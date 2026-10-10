@@ -93,6 +93,9 @@ reconciliation tests and document consistency checks pass; `git diff --check` pa
 Wokwi local file checks, custom-chip compilation and CLI lint pass. Smoke was
 attempted but **not executed: WOKWI_CLI_TOKEN is absent**. No scenario pass or
 physical qualification is implied. Hosted CI status is reported separately.
+PR #17's Flash-forensics and Virtual-Hardware jobs did not start: GitHub annotations
+report **account locked due to a billing issue**. This external account blocker
+is separate from the passing local matrix and absent local Wokwi token.
 
 ## Fresh memory evidence
 
