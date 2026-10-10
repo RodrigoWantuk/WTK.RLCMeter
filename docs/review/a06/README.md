@@ -162,6 +162,13 @@ the current forecast is not a release acceptance result.
 
 ## Next task
 
+A06.2a capture is now implemented in the development STM32 `BRINGUP_CAL` profile
+and PC serial adapter, with synthetic C-backed serial evidence. See
+[A06.2a report](A06.2a-report.md). The next executable step is bounded candidate
+installation/readback/recovery, A06.2b; physical qualification is still pending.
+
+The following recommendation records the A06.1 handoff and is fulfilled by A06.2a:
+
 Implement a development-only, safe initial-standard capture command and PC adapter,
 including device identity, exact condition echo, ADC provenance and cancellation.
 Exercise it against the existing acquisition abstractions on the host. Keep the
