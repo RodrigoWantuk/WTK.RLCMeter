@@ -96,6 +96,20 @@ the source audit alone does not satisfy that physical acceptance criterion.
 **B06 Scope metadata**: sample CSV import, 2-ch versus 4-ch limitations, ground reference only, differential math, probe capacitance effects on high-Z. Done: reproducible captures linked to OSL and hardware SHA.
 
 ### Sprint C — integrate validated calibrator and PRODUCT
+**C03.1 STATUS: IMPLEMENTED_TESTED_HOST / COMPILES_TARGET / REQUIRES_BENCH_VALIDATION.**
+The opt-in factory PRODUCT now publishes validated R/X/Z/phase, classified C/L and
+conditional AC ESR/Q/D, with selected condition and explicit unknown-error status.
+Its real C controller covers click/partial/final/details/cancel, safety/resource
+interruption and calibration revocation. Bilingual resource/fallback renders and
+the full legacy/factory OFF/ON regression matrix are recorded in
+[C03.1 evidence](../docs/review/c03/README.md). Factory Release uses 52,648/55,124 B
+Flash OFF/ON; the 4152/4132-B result/status/lifecycle cost is measured, not a new
+Flash-recovery exercise. Default legacy PRODUCT and its wizard remain intact.
+No persisted accuracy-bound source or numerical error certificate was invented;
+C03's physically qualified bound reader remains gated by B04 evidence and an
+approved storage contract. C05's measurement-page/lifecycle portion is implemented;
+broader service/menu UX and all physical release gates remain open.
+
 **C01 Minimal correction decision**: choose OSL only or sparse single-/two-gain correction based on B04 holdouts, not aesthetic smoothness. Decide if WCRV v1 stays in experimental BRINGUP or migrates to v2; version storage.
 **C02 Desktop campaign**: FIT vs VALIDATION, interval constraints, manual custom calibration X point, recommended realistic points, graph uncertainty band, out-of-domain warnings, exported evidence and concise calibration report.
 **C03 Runtime numeric error display**: provide a result with a max_error_status on every valid quantity. Display an actually qualified maximum bound only for qualified conditions; otherwise visibly 'not determined' and do not imply certification. Store compact bound values in W25Q. Full uncertainty numerical analysis stays PC side.

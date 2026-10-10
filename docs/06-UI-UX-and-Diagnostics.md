@@ -96,6 +96,23 @@ The reviewed host-rendered EN/PT-BR contact sheets are
 
 ## Measurement result pages
 
+The experimental `WTK_PRODUCT_FACTORY_PROVISIONED=ON` implementation is specified
+and tested in [C03.1](review/c03/README.md). Its primary page shows R/C/L or complex
+impedance interpretation, selected frequency/amplitude, provisional signal
+confidence and explicit unknown maximum error. Details show R(AC), X, |Z|, phase,
+applicable ESR(AC)/Q/D and selected RREF/return path/attempt count. Numerical values
+require compatible persisted OSL, valid source evidence and an applicable model;
+unavailable values show `n/a`. AC series loss does not claim DC winding resistance.
+
+In that experimental mode, UP/DOWN wrap primary/details; short OK in details
+returns READY, short OK in READY/primary requests one measurement, and short OK
+while measuring cancels. PARTIAL is explicit. A new request, safety/resource
+interruption or calibration revocation clears the old snapshot. Boot never starts
+measurement automatically. Valid results state `Max error: not characterized` /
+`Erro max.: nao caracterizado`; qualified numerical bounds require a future
+compatible physically qualified evidence reader. The legacy default retains its
+existing wizard and result interaction. No Resource Pack wire or text-ID change.
+
 UP and DOWN navigate the pages of the last measurement result. Pages should wrap or stop consistently; the final interaction policy is frozen during implementation, but UP/DOWN must never change metrology parameters while the user is browsing normal result pages.
 
 Pages that do not have meaningful data for the current result may be omitted.

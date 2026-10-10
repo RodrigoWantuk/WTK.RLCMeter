@@ -1,12 +1,12 @@
 feature,classification,delta_low_bytes,delta_central_bytes,delta_high_bytes,status_dependencies
-Standalone AC RLC and reliable display incl. Q/D,MUST_HAVE_PRODUCT,128,512,1024,Existing measurement and TFT; finish valid quantities
+Standalone AC RLC and reliable display incl. Q/D,MUST_HAVE_PRODUCT,0,0,0,IMPLEMENTED_TESTED_HOST / COMPILES_TARGET in C03.1; measured result/status/lifecycle cost included in its new linked baseline
 Safety and fault recovery corrections,MUST_HAVE_PRODUCT,128,256,768,Retain existing gates; reserve for bench-discovered fixes
 Calibrated impedance and RLC calculations,MUST_HAVE_PRODUCT,0,128,384,Existing; no new fitting on device
 Read provisioned OSL and validity/provenance,MUST_HAVE_PRODUCT,0,0,0,IMPLEMENTED_TESTED_HOST / COMPILES_TARGET; fully usable OSL reader is already linked; physical gates open
 PC/factory provisioning device support,MUST_HAVE_PRODUCT,0,0,0,IMPLEMENTED_TESTED_HOST / COMPILES_TARGET; BRINGUP_CAL capture/install then SWD PRODUCT adds zero PRODUCT protocol bytes; physical gates open
 W25Q resource/calibration recovery,MUST_HAVE_PRODUCT,0,0,0,IMPLEMENTED_TESTED_HOST / COMPILES_TARGET; A/B recovery and Resource Pack receiver already linked; physical gates open
-Usable UI and stale/cancel/state finishing,MUST_HAVE_PRODUCT,128,512,1024,Existing menus/results; C05 completion
-Per-result error qualification status,MUST_HAVE_PRODUCT,256,768,1536,C03 metadata/reader/display; unknown unless physical evidence
+Usable measurement UI and stale/cancel/state finishing,MUST_HAVE_PRODUCT,0,0,0,IMPLEMENTED_TESTED_HOST / COMPILES_TARGET in C03.1; broader service/menu UX remains C05; physical gates open
+Qualified error-bound reader/display after B04,MUST_HAVE_PRODUCT,256,768,1536,C03.1 unknown-status contract is already linked; this remaining estimate needs physical evidence and a separately approved compatible reader/storage contract
 Integration overhead reserve,MUST_HAVE_PRODUCT,256,512,1024,"Estimate replaces unmeasured integration overhead, not measured code"
 Maintenance and change contingency,MUST_HAVE_PRODUCT,1024,1536,3072,Unallocated engineering allowance; not a silicon gate
 Local Open/Short fixture trim,OPTIONAL_PRODUCT,512,1024,2048,Separate model needed; never overwrite OSL with two-standard fit
