@@ -164,8 +164,9 @@ the current forecast is not a release acceptance result.
 
 A06.2a capture is now implemented in the development STM32 `BRINGUP_CAL` profile
 and PC serial adapter, with synthetic C-backed serial evidence. See
-[A06.2a report](A06.2a-report.md). The next executable step is bounded candidate
-installation/readback/recovery, A06.2b; physical qualification is still pending.
+[A06.2a report](A06.2a-report.md). A06.2b installation/readback/recovery is now
+implemented below. The next smallest task is bench qualification of this service;
+PRODUCT wizard/boot-gate migration remains a separate review.
 
 The following recommendation records the A06.1 handoff and is fulfilled by A06.2a:
 
@@ -174,3 +175,13 @@ including device identity, exact condition echo, ADC provenance and cancellation
 Exercise it against the existing acquisition abstractions on the host. Keep the
 wizard and boot gate until the complete candidate installation/recovery path passes
 [the A06.2 migration checklist](A06.2-checklist.md).
+
+## A06.2b installation implementation
+
+The actual BRINGUP_CAL binary now receives, validates and installs complete PC OSL
+candidates through PLC1, the existing workspace and the existing W25Q A/B store.
+The 99-capture C-backed serial workflow includes readback, reset recovery and the
+normal C calibration application path. See [report](A06.2b-report.md) and
+[operating instructions](../../../Firmware/tools/PC_OSL_INSTALL.md).
+Physical behavior remains REQUIRES_BENCH_VALIDATION; PRODUCT wizard/gate migration
+is a separate remaining step.

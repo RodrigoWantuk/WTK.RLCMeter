@@ -2,8 +2,8 @@
 
 Build `cmake --preset stm32-bringup-cal` and `cmake --build --preset stm32-bringup-cal`
 from Firmware. This development image runs an actual USART1 service at 115200 8N1.
-It has no product UI, ordinary measurement command, resource receiver or installation
-command. PRODUCT and BRINGUP keep their existing wizard, boot gate and resource behavior.
+It has no product UI, ordinary measurement command or resource receiver. A06.2b
+adds the [installation service](PC_OSL_INSTALL.md) in the same development profile. PRODUCT and BRINGUP keep their existing wizard, boot gate and resource behavior.
 The PCB is unassembled: the binary is built, but physical operation requires bench validation.
 
 Install `pyserial` on the PC for COM access. The backend and C-backed simulation do
@@ -66,7 +66,7 @@ Identity offsets: 0 hardware revision u32 (0x10001), 4 model u16 (4), 6 profile
 u16 (1=BRINGUP_CAL), 8 capability bitmap u32 (bits 0 identity, 1 status, 2 capture,
 3 cancel), 12 condition count u16, 14 artifact size u16, 16 timeout ms u32,
 20 ADC provenance u16 (1), 22 synthetic u8, 23 zero, 24 UID[12], 36 git[8],
-44 firmware version[16], NUL padded. No installation capability is advertised.
+44 firmware version[16], NUL padded. Capability bit 4 now advertises the optional A06.2b installation handler.
 Status offsets: 0 capture ID, 4 active OSL sequence, 8 faults, 12 safety blockers,
 16 protocol errors (all u32), 20 temperature mC i32; bytes 24 capture error,
 25 session busy, 26 result available, 27 active calibration valid, 28 transfer safe,
@@ -117,8 +117,10 @@ of PC connectivity and drains the existing hardware abort FSM. CANCEL also drain
 that FSM. TX occurs only after SAFE, excitation OFF, range disabled, acquisition
 inactive and quiet mode released. Main-loop byte reads/writes are bounded; TXE
 polling is nonblocking. Queue overflow aborts capture and invalidates its result.
-Only one volatile result exists; another START invalidates it. Reset/disconnect
-does not install anything. Resend IDENTIFY/STATUS to recover port state; do not
+Only one volatile result exists; another START invalidates it. Capture commands
+do not install anything; use the separate A06.2b installer afterwards. An installation
+already programming can complete after disconnect. Resend IDENTIFY/STATUS to recover
+port state; do not
 automatically replay START after an ambiguous interrupted write.
 
 The host fixture links this same parser, session, stable evidence extraction and
