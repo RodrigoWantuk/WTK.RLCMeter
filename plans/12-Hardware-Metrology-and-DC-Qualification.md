@@ -1,7 +1,28 @@
 # 12 — Hardware/Metrology Requalification, DC and Capability Map
 
-STATUS: NOT_STARTED — HARDWARE RECONCILIATION AND BENCH EVIDENCE REQUIRED
+STATUS: IN_PROGRESS — A05 SOURCE/FABRICATION AUDIT DELIVERED; PHYSICAL INSPECTION, ASSEMBLER SIGN-OFF AND BENCH EVIDENCE REQUIRED
 PRIORITY: P0/P1. REQUIRES_BENCH_VALIDATION is not a synonym for supported/accurate.
+
+## A05 pre-assembly evidence
+
+The [A05 audit](../docs/review/a05/README.md), starting from merged PR #12 main
+`47bd1f264899ea10e948494e5a3e546e5b51558c`, decodes the real EasyEDA source and
+reconciles 149 BOM references, 434 pads, 115 connected nets and fabrication copper/
+drill pad locations. Thirty of the 33 requested MCU pins are carrier-connected;
+PA13/14/PB2 remain module-only inspection items. The later export shifts RSCK by
+0.127 mm with unchanged connectivity. There are 6 RED / 11 YELLOW / 7 GREEN /
+3 UNKNOWN findings, a complete population matrix and an unexecuted bench procedure.
+Confirmed topology recommendations are K2 DNP/R0_BANK populated and TVS/link DNP;
+no live guard footprint exists. U4 bypass links must be populated. The TFT is 1×9,
+its unbuffered LED connection is HOLD, UART documentation was reversed (corrected),
+and the BOM buzzer's voltage/type is incompatible with the intended drive.
+
+M12-01/M12-03 now have source/export evidence, not physical measurements or complete
+native DRC. M12-02 purchased parts/power modules and all bench/qualification items
+remain open. The owner identified only MCU/controller families and an unspecified
+1S charger/boost/18650: module wiring/ratings and manufactured-board identity are
+still required. Do not start power-on or consider A05 signed off until applicable
+RED resolutions and the physical inspection gates are recorded.
 
 ## A. Electrical contract (from current repo docs and Rev.1 BOM; verify against EasyEDA and assembled PCB)
 - +3V3/2 VMID buffered by U4A MCP6002; PA8 TIM1 PWM ~450 kHz -> three RC 5.1k/1nF stages -> U4B MCP6002 VEXC. DC-coupled path, not a precision DAC. Effective reconstruction and waveform distortion require scope data.

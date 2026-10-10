@@ -2,6 +2,13 @@
 
 The objective is to discover faults while energizing the smallest possible portion of the circuit at each step.
 
+**Current pre-assembly gate:** follow the [A05 physical checklist](review/a05/bringup-checklist.md)
+and resolve its applicable RED findings before soldering/power-on. The sequence
+below is general historical guidance, not evidence that the unassembled board has
+passed any stage. Current A05 permits only de-energized passive fixtures; no live
+external DUT voltage or charged-capacitor test is authorized. Scope ground clips
+connect only to actual GND, never VMID or either DUT terminal.
+
 ## 0. Before soldering
 
 - photograph the bare PCB;
@@ -27,6 +34,11 @@ Verify:
 ## 2. VMID and AFE
 
 Assemble the MCP6002 devices and VMID network.
+
+Before energizing them, establish a verified +3V3 rail as well as +5V_A. The ADC
+clamps can backfeed an unpowered module rail; powering the 5 V AFE alone is not an
+approved staged test. Do not assume an unspecified module supplies the required
+3V3 before its regulator/header/power sequence is checked.
 
 Expected baseline:
 
@@ -88,13 +100,10 @@ Outside measurement acquisition:
 
 Keep K1 in SAFE.
 
-Test progressively:
-
-- 0 V at terminals;
-- small positive/negative DC voltages from a controlled current-limited source;
-- validate `ADC_OV_HI/LO`, polarity, conversion, and thresholds;
-- increase test voltage only after low-voltage behavior is understood;
-- do not begin validation by applying ~100 V directly.
+For current A05, check the empty, de-energized fixture and raw `ADC_OV_HI/LO`, VMID,
+sensor validity and safe-state reporting. Deliberate energized/charged-input
+rejection experiments require a separately reviewed low-energy test fixture and
+are deferred; this document does not authorize live external voltage tests.
 
 Verify that `CHG_VBUS` prevents K1 from entering MEASURE at the hardware level.
 

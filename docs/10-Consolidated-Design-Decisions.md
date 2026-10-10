@@ -680,6 +680,13 @@ PB0 controls TFT backlight PWM.
 
 PB1 controls an external passive piezo through BC817. The piezo is located in the enclosure rather than on the analog PCB.
 
+A05 source reconciliation: that is the intended transducer behavior, but the
+manufactured-design export contains an on-board BUZZER1 footprint and an incompatible
+9–15 V magnetic-indicator BOM entry. [HOLD BUZZER1](review/a05/README.md) until type/
+drive/footprint is resolved; an external passive part remains a possible explicitly
+verified assembly alternative, not the current BOM's electrical behavior. PB0's
+direct 0 Ω display LED link is also HOLD pending the exact module input/driver.
+
 Display settings include brightness and backlight timeout.
 
 Sound settings include at least persistent enable/disable for ordinary UI feedback. The policy for mandatory safety-critical audible warnings while ordinary sound is disabled must be decided explicitly before release.

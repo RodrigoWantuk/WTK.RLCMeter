@@ -75,7 +75,7 @@ This is separate from `CHG_VBUS`: the external 1S charge/boost module has its ow
 2 TEST_LO
 ```
 
-### J_KEY — 1×4
+### J_BTN — 1×4
 
 ```text
 1 GND
@@ -90,37 +90,47 @@ Buttons are external to the main PCB. Firmware uses pull-ups and interprets clos
 
 ```text
 1 GND
-2 DEBUG_RX
-3 DEBUG_TX
+2 DEBUG_TX (PA9, STM32 output)
+3 DEBUG_RX (PA10, STM32 input)
 ```
 
-`DEBUG_RX/TX` names are from the STM32 point of view.
+`DEBUG_RX/TX` names are from the STM32 point of view. Adapter RX connects to
+pin 2 and adapter TX to pin 3. Use 3.3 V logic and GND only, without an adapter
+power lead. The pre-A05 documentation reversed pins 2/3.
 
-### J_BUZZ — 1×2
+### BUZZER1 — on-board two-pin footprint
 
 ```text
-1 BUZZ_LOW
-2 +5V_SYS
+1 +5V_SYS
+2 switched low side (QBUZZ collector)
 ```
 
-The external passive piezo is connected between these pins. `BUZZ_LOW` is switched by BC817. A 4.7 kΩ resistor across the piezo provides a discharge path for its capacitance.
+There is no J_BUZZ connector in the live source/fabrication BOM. QBUZZ is a BC817
+low-side switch; RPBUZZ is 4.7 kΩ across the load. **HOLD BUZZER1**: the actual
+BOM specifies a 9–15 V internally driven magnetic indicator, incompatible with
+the 5 V rail and intended passive tone generation. Resolve the component type,
+drive and pin pitch before assembly; see [A05](review/a05/README.md).
 
-### J_TFT — 2×5
+### J_TFT — 1×9, 2.54 mm pitch
 
 ```text
-1  TFT_DC
-2  TFT_MISO
-3  TFT_RST
-4  TFT_MOSI
-5  TFT_CS
-6  +3V3
-7  TFT_LED
-8  TFT_SCK
-9  GND
-10 GND
+1 +3V3
+2 GND
+3 TFT_CS
+4 TFT_RST
+5 TFT_DC
+6 TFT_MOSI
+7 TFT_SCK
+8 LED connection through R_TFT_LED (0 Ω) to PB0
+9 TFT_MISO
 ```
 
-The second ground improves return paths through the display cable. Keep the cable short and maintain sensible return placement around SCK and backlight current.
+This is the extracted source and fabrication pin order, replacing the historical
+2×5 description. It does not establish compatibility with an unspecified ILI9341
+module. **HOLD R_TFT_LED and display connection** until the module's pinout,
+mechanical fit and LED input type/current are verified. The carrier has no
+backlight power driver or current-limiting resistor. Raw LED current must not
+be sourced from PB0. Keep the SPI cable short with a GND return.
 
 ## Pinout as a firmware contract
 
