@@ -69,6 +69,17 @@ Legacy remains default; permanent wizard retirement and W3/W9 physical gates rem
 open. No PCB or safety-threshold changes and no metrology qualification are claimed.
 **A03 Calibration model unit analysis (agent: metrology mathematical)**. Read plan 13. Run synthetic OSL, scalar, two-axis and 12-coefficient WCRV candidates with independent FIT vs VALIDATION; compute rank, singularities, false accuracy claims, interval conflicts, float32 drift. Write recommendation with images/CSV on PC only. Done: evidence explaining which coefficient family can be identified by which reference standards. Do not change embedded model yet.
 **A04 PC UX scaffold (agent: desktop)**. Read plan 14 and existing Firmware/tools. Implement offline reference inventory, OSL import, capture SHA inspection, condition/curve chooser, uncertainty-interval plots, suggested E12/E24 points and editable reference tolerance. Use test fixture CSV/JSON; don't write W25Q. Done: screenshot/automated GUI model test and no MCU Flash increase.
+
+**A04.1 STATUS: IMPLEMENTED_TESTED_HOST / REQUIRES_BENCH_VALIDATION.**
+The [guided terminal campaign](../Firmware/tools/PC_OSL_CAMPAIGN.md) reuses
+BRINGUP_CAL capture, raw CRC/hash validation, model-v4 fitting and installer
+candidate validation. Default OPEN/SHORT/LOAD grouping needs eight fixture setups
+and 99 human capture confirmations. Atomic progress, identity/ADC/sequence binding,
+rejection and replacement audit, interruption after 42/resume at 43, and canonical
+2760-byte candidate/report export are tested against the real C serial fixture.
+No unattended physical mode, installation, firmware/PCB change or QUALIFIED flag.
+See [test/size evidence](../docs/review/a04/README.md). This completes the assigned
+OSL terminal subset; GUI/curve/scope and W3/W5/W9 physical gates remain open.
 **A05 STATUS: SOURCE/FABRICATION AUDIT DELIVERED / PHYSICAL SIGN-OFF OPEN.**
 The [pre-assembly audit](../docs/review/a05/README.md) checks the real epro2,
 schematic/PCB PDFs, BOM and Gerber/probe/drill exports on merged PR #12 main.
