@@ -2,6 +2,17 @@
 
 STATUS: IMPLEMENTED_REQUIRES_BENCH_VALIDATION
 
+## B01.0 first-startup host toolkit — 2026-10-10
+
+[Executable read-only evidence collection](../Firmware/tools/PC_BRINGUP.md)
+supports offline preparation, manual provenance, BRINGUP serial snapshots and
+deterministic simulated replay. It requires a passive BRINGUP identity banner and
+uses only nine audited status/info commands. PRODUCT/BRINGUP_CAL text targets,
+active commands and unknown identity are refused. R02, R05 and A05-Y04 remain
+explicit pending physical gates. No firmware or PCB change is introduced.
+See [test and memory evidence](../docs/review/b01/README.md). B01 physical safe
+boot, contact/GPIO behavior and electrical qualification remain unexecuted.
+
 Phase 09A freezes feature expansion and turns the existing firmware into a bench-usable Rev.1 MVP. It does not qualify accuracy, finish visual polish, add Live mode, or start later UI/resource work. Its purpose is to let a freshly assembled Rev.1 board boot safely, expose a compact readiness snapshot, run the real automatic measurement chain from UART, and support the first known passive DUT measurements.
 
 ## Implemented Software Boundary

@@ -1,0 +1,17 @@
+{
+  "SIMULATED": true,
+  "source": "app_bringup_console.c write_*_status/info and bsp_diagnostics.c boot banner; values are synthetic, not measured; app_shell.c post-banner peripheral initialization and first safety transition",
+  "banner": "\r\nWTK.RLCMeter\r\nfirmware: 0.1.0\r\ngit: 032371d0293a\r\nbuild: MinSizeRel\r\nprofile: BRINGUP\r\nhardware: Rev1-STM32F103C8T6-BluePill\r\nreset: POWER_ON\r\nclock_status: OK\r\nclock_source: HSE_PLL\r\nsysclk_hz: 72000000\r\nhclk_hz: 72000000\r\npclk1_hz: 36000000\r\npclk2_hz: 72000000\r\nadc_hz: 12000000\r\nswd: PRESERVED\r\nboot_state: SAFE_BOOT\r\nwatchdog_policy: IWDG_START_AFTER_UART_BANNER\r\n",
+  "responses": {
+    "lab fault status": "lab fault: 0x00000000\r\n",
+    "lab charger status": "charger: ABSENT\r\n",
+    "lab sensors status": "lab sensors vmid_raw: 2048 valid=1\r\nlab sensors vmid: 1650mV\r\nlab sensors ov_raw: hi=2048 lo=2048\r\nlab sensors safe_hi: 1650mV\r\nlab sensors safe_lo: 1650mV\r\nlab sensors residual_diff: 0mV\r\nlab sensors residual_state: SAFE safe_count=5 age_ms=10\r\nlab sensors battery: 3800mV\r\nlab sensors battery_state: OK raw=2358 age_ms=100\r\nlab sensors ntc: raw=2048 mv=1650 resistance_ohm=100000 valid=1 ntc_temperature_mC=25000 ntc_temperature_valid=1 age_ms=100\r\n",
+    "lab safety status": "lab safety: BLOCKED_RANGE flags=8 allowed=0\r\n",
+    "lab range status": "lab range: DISABLED requested=INVALID current=INVALID\r\n",
+    "lab adc status": "lab adc: IDLE channel=INVALID last=OK\r\n",
+    "lab flash info": "lab flash info: W25Q64 0x00EF4017 8388608\r\n",
+    "lab mvp status": "MVP_BEGIN\r\nclock=HSE_PLL sysclk_hz=72000000\r\nflash=DETECTED jedec=0x00EF4017\r\ndisplay=NOT_READY\r\ncharger=ABSENT\r\nsafety=BLOCKED blocker=BLOCKED_RANGE faults=0x00000000\r\nk1=SAFE\r\nrange_state=DISABLED current=INVALID safety=DISABLED\r\ncalibration=NO_VALID_CALIBRATION active=0 sequence=0\r\nresidual=SAFE battery=OK\r\nresource=BRINGUP_NA\r\nlast_metrology=NONE\r\nMVP_END\r\n",
+    "lab cal status": "CAL sch=2 model=4 hw=0x00010001 svc=NO_VALID_CALIBRATION act=0\r\nCALST max=3072 ctx=3072 rt=2700 svc=5776 lab=1000\r\nCALWF st=IDLE res=NONE\r\nCAL_SLOT A start=0x007F8000 size=4096\r\nCAL_SLOT B start=0x007F9000 size=4096\r\nCAL_S A fr=INVALID seq=0 sch=0 hw=0x00000000 model=0 val=MISSING fl=0x00000000 rec=0\r\nCAL_S B fr=INVALID seq=0 sch=0 hw=0x00000000 model=0 val=MISSING fl=0x00000000 rec=0\r\n"
+  },
+  "startup": "k1: OK\r\nk2: OK\r\nrange: OK\r\ncharger_init: OK\r\nadc: OK\r\naux_sensors: OK\r\ncharger: UNKNOWN\r\nk2_topology: FIXED_0R_LINK\r\nsafety_faults: 0x00000000\r\nspi2: OK\r\nbacklight: OK\r\nbacklight_pwm_hz: 1000\r\nbuzzer: OK\r\nw25q: OK\r\ncalibration: ERROR\r\ncalibration_state: NO_VALID_CALIBRATION\r\nw25q_part: W25Q64\r\nw25q_jedec: 0x00EF4017\r\nw25q_capacity: 8388608\r\nw25q_test_sector: 8384512\r\nsafety_state: WAIT_SAFE\r\nsafety_block: BLOCKED_SENSOR_INVALID\r\n"
+}

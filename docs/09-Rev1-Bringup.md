@@ -9,6 +9,16 @@ passed any stage. Current A05 permits only de-energized passive fixtures; no liv
 external DUT voltage or charged-capacitor test is authorized. Scope ground clips
 connect only to actual GND, never VMID or either DUT terminal.
 
+For B01.0, use the [read-only PC toolkit](../Firmware/tools/PC_BRINGUP.md) to prepare
+the evidence session now and collect BRINGUP UART status after earlier physical
+gates pass. It never executes the active commands in the historical stages below.
+**R02:** keep R_TFT_LED open until the module LED input/load is verified; PB0 must
+not drive an unknown raw LED. **R05:** inspect the complete Bluepill header/power/
+VBAT/SWD/regulator/HSE/PA11/PA12 equivalence before soldering or power-on.
+Both reminders remain unresolved until physical evidence is recorded. The
+5V MCP6002/BAT54S-to-3V3 injection risk (A05-Y04) also needs actual rail/waveform
+evidence; no UART status or synthetic report resolves it.
+
 ## 0. Before soldering
 
 - photograph the bare PCB;
