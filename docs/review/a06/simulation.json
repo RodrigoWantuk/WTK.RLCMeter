@@ -1,0 +1,12 @@
+{
+  "evidence": "SYNTHETIC_NOT_PHYSICALLY_QUALIFIED",
+  "captures": 99,
+  "conditions": 33,
+  "frame_bytes": 2760,
+  "transfer_frames": 25,
+  "reboot_sequence": 1,
+  "blank_measurement_blocked": true,
+  "qualified": false,
+  "max_holdout_relative_error": 0.0011700812776083542,
+  "real_device_provisioning": false
+}

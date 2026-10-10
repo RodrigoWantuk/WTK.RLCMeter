@@ -34,6 +34,7 @@ Prerequisites:
 
 - CMake 3.25 or newer;
 - a host C compiler for host tests;
+- Python 3.9 or newer for the PC OSL tools and host CTest compatibility driver;
 - Ninja for the STM32 bare-metal presets;
 - GNU Arm Embedded toolchain on `PATH` for STM32 builds:
   - `arm-none-eabi-gcc`;

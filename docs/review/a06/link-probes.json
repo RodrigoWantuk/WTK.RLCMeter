@@ -1,0 +1,26 @@
+{
+  "source_sha": "8f3d0c6e738877daf735c86475d4312d8128f9bc",
+  "warning": "LINKER_EXPERIMENT_ONLY_NEVER_FLASH",
+  "variants": {
+    "baseline": {
+      "flash_bytes": 61580,
+      "ram_accounted_bytes": 14976
+    },
+    "solver_stub": {
+      "flash_bytes": 59428,
+      "ram_accounted_bytes": 14976
+    },
+    "wizard_stub": {
+      "flash_bytes": 51092,
+      "ram_accounted_bytes": 14984
+    },
+    "wizard_stub_capture_retained": {
+      "flash_bytes": 55880,
+      "ram_accounted_bytes": 14976
+    },
+    "wizard_stub_capture_install_retained": {
+      "flash_bytes": 57836,
+      "ram_accounted_bytes": 14976
+    }
+  }
+}
