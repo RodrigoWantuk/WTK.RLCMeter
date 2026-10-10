@@ -58,7 +58,23 @@ The full wizard and safety/boot gates remain unchanged. A06 is not complete; pro
 through the [A06.2 checklist](../docs/review/a06/A06.2-checklist.md).
 **A03 Calibration model unit analysis (agent: metrology mathematical)**. Read plan 13. Run synthetic OSL, scalar, two-axis and 12-coefficient WCRV candidates with independent FIT vs VALIDATION; compute rank, singularities, false accuracy claims, interval conflicts, float32 drift. Write recommendation with images/CSV on PC only. Done: evidence explaining which coefficient family can be identified by which reference standards. Do not change embedded model yet.
 **A04 PC UX scaffold (agent: desktop)**. Read plan 14 and existing Firmware/tools. Implement offline reference inventory, OSL import, capture SHA inspection, condition/curve chooser, uncertainty-interval plots, suggested E12/E24 points and editable reference tolerance. Use test fixture CSV/JSON; don't write W25Q. Done: screenshot/automated GUI model test and no MCU Flash increase.
-**A05 Safety and physical audit (agent: hardware)**. Read plan 12, manually open binary EasyEDA/schematic. Generate red/yellow/green netlist and as-built DNP inspection checklist, including ground-clip cautions, gate polarity, PA15 charger, K1 states, ADC clamps and 1M leakage risk. Done: hardware review signed by actual board assembler; discrepancies resolved before measurement.
+**A05 STATUS: SOURCE/FABRICATION AUDIT DELIVERED / PHYSICAL SIGN-OFF OPEN.**
+The [pre-assembly audit](../docs/review/a05/README.md) checks the real epro2,
+schematic/PCB PDFs, BOM and Gerber/probe/drill exports on merged PR #12 main.
+149 references / 434 pads / 115 connected nets reconcile; 30/33 requested MCU pins
+are carrier-connected. Seventeen extraction/reconciliation tests pass. Findings:
+6 RED / 11 YELLOW / 7 GREEN / 3 UNKNOWN. The population table holds the unidentified
+MCU/TFT modules, direct LED link, incompatible buzzer and unverified MOSFET lots.
+K2 DNP/R0_BANK populated and TVS/link DNP agree with topology/firmware; U4 bypass
+links are required. Connector documentation is corrected, firmware/PCB unchanged.
+W1 has reproducible source/export evidence; manufactured-board continuity, exact
+external modules, RED resolution, full native DRC, assembler sign-off and all W3
+bench measurements remain open. No physical qualification or power-on approval.
+
+**A05 Safety and physical audit (agent: hardware)**. Read plan 12 and actual
+EasyEDA/schematic/fabrication outputs. Done requires hardware review signed by the
+actual board assembler and discrepancies resolved before measurement; delivery of
+the source audit alone does not satisfy that physical acceptance criterion.
 
 ### Sprint B — first physical board evidence
 **B01 Digital safe boot**: SWD, power, UART, W25Q JEDEC, TFT/locale, GPIO safe, watchdog, charger interlock, K1/RANGE disabled boot/fault; record video/traces and test logs. Do not attach energized DUTs.

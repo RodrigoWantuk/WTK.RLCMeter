@@ -28,6 +28,11 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends cmake ninja-build gcc gcc-arm-none-eabi binutils-arm-none-eabi libnewlib-arm-none-eabi python3 python3-pil
           arm-none-eabi-gcc --version
+      - name: Hardware source/export and review reconciliation
+        working-directory: candidate
+        run: |
+          python3 PCB/tools/audit_rev1.py --check
+          python3 -m unittest discover -s PCB/tests -v
       - name: Host and Python regression
         working-directory: candidate/Firmware
         run: |

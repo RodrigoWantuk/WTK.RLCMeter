@@ -2,6 +2,10 @@
 
 This document records the component choices that define Rev.1 and the assembly conventions for the first prototype. The BOM exported from the EDA project remains the source of truth for quantities and designators.
 
+Before soldering, use the [A05 population matrix and blockers](review/a05/README.md).
+Actual module identities, power subsystem and manufactured-board inspection are
+still pending. POPULATE preserves reviewed topology; HOLD requires resolution.
+
 ## Manual-assembly philosophy
 
 Rev.1 was deliberately adjusted for manual assembly and rework:
@@ -72,7 +76,13 @@ The footprint is retained for later robustness experiments. Do not populate the 
 
 ### K2
 
-K2 may remain DNP while `R0_BANK = 0 Ω` is the baseline connection between `LOWZ_BUS` and `RET`.
+The audited baseline is K2 DNP with `R0_BANK = 0 Ω` populated between `LOWZ_BUS`
+and `RET`. Its unused QK2/RK2B/RK2PD/DK2 chain may also be omitted. A relay-only
+alternative requires removing the hard link and reviewing firmware, which currently
+declares K2 absent. Do not approve both population paths simultaneously.
+
+`R_BYP_VM` and `R_BYP_VEXC` must be populated: they close the U4 output/feedback
+paths. They are not optional active-guard parts; no guard footprint was identified.
 
 ## Power
 
@@ -98,18 +108,27 @@ Rev.1 includes:
 - W25Q CS pull-up;
 - W25Q WP/HOLD kept inactive with pull-ups.
 
-Keep the TFT cable short. The display connector includes two grounds to improve signal/backlight current return.
+Keep the TFT cable short. The actual connector is 1×9 with one GND pin; use the
+[verified order](05-Pinout-and-Interfaces.md). HOLD its connection and R_TFT_LED
+until the exact module and backlight input are verified. The 0 Ω link to PB0 has
+no carrier power driver/current limit.
 
 ## Buzzer
 
-The passive piezo is located outside the PCB, in the enclosure.
+Firmware intends a passive tone transducer. The actual PCB has BUZZER1, a two-pin
+on-board footprint, rather than the historical external J_BUZZ connector.
+**HOLD BUZZER1:** the BOM's PB-12N23MPW-12Q is an internally driven magnetic
+indicator rated 9–15 V, incompatible with the 5 V/passive-tone circuit. A selected
+replacement must match type, drive/current, dimensions and pin pitch; none is
+approved by A05.
 
 ```text
 PB1 -> base resistor -> BC817
-+5V_SYS -> piezo -> BUZZ_LOW -> BC817 -> GND
++5V_SYS -> BUZZER1 pad 1 -> load -> pad 2 -> BC817 -> GND
 ```
 
-A 4.7 kΩ resistor across the piezo provides a discharge path for its capacitive load.
+A 4.7 kΩ resistor is across the load. It provides discharge for an intended
+capacitive transducer; it does not provide magnetic-load flyback protection.
 
 ## Suggested assembly order
 

@@ -67,3 +67,13 @@ These are project baselines and do not replace EasyEDA DRC or the fabrication ve
 In Rev.1, PA11 and PA12 are reused by board functions (`K2_CMD` and `FLASH_CS` in the current pinout). These pins are the STM32F103 native USB D-/D+ pins, so the Blue Pill Micro-USB connector must **not** be treated as an available native USB interface in this revision.
 
 See [`../docs/05-Pinout-and-Interfaces.md`](../docs/05-Pinout-and-Interfaces.md).
+
+## A05 pre-assembly audit
+
+The [source/fabrication review](../docs/review/a05/README.md) provides a complete
+population matrix, physical-pad/GPIO reconciliation, blockers and staged inspection
+worksheet. Run `python PCB/tools/audit_rev1.py --check` from the repository root;
+tests are `python -m unittest discover -s PCB/tests -v`. The extractor is read-only
+and uses Python's standard library. It does not replace native CAD DRC or physical
+continuity tests. Actual TFT/UART wiring supersedes the historical connector text;
+assembly/power approval remains withheld until applicable RED findings are resolved.
