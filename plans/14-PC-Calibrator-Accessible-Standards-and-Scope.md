@@ -17,6 +17,14 @@ resumption/recapture, B01 import/operator gate and candidate export without inst
 local Windows packaging and unchanged firmware from pending physical qualification.
 Plots, scope import and the broader workbench remain outside this MVP.
 
+A04.3a implements the [offline Oscilloscope tab](../Firmware/tools/PC_SCOPE_WAVEFORM.md):
+generic explicit CSV mapping/scaling, bounded plots/zoom, numerical rail/excitation/
+clamp/RET presets, uncertainty inputs and source-hashed B01 sidecars. Native Hantek
+layout remains unverified/unsupported pending a real export; no SCPI or physical
+qualification. [Software evidence](../docs/review/a04/A04.3a-report.md) records
+headless tests, Windows packaging and zero firmware delta. P14-08's generic CSV
+subset is tested; native adapters, real scope measurements and broader plots remain open.
+
 ## 1. Acquisition/procurement philosophy
 Design for small Brazilian electronic component stores. Ordinary E12/E24 values, through-hole 1/4W metal-film resistors, C0G/NP0 ceramic/film capacitors, and generic coils should complete first-pass validation. Printed tolerance is accepted as an interval and affects the eventual *best-possible confidence*: an uncertified 1% resistor alone cannot justify 0.1% overall accuracy. A scope measures waveform behavior, not automatically reference impedance or leakage current. Advanced precision/guarded standards can be optional upgrades.
 

@@ -3,6 +3,12 @@
 STATUS: IN_PROGRESS — A05 SOURCE/FABRICATION AUDIT DELIVERED; PHYSICAL INSPECTION, ASSEMBLER SIGN-OFF AND BENCH EVIDENCE REQUIRED
 PRIORITY: P0/P1. REQUIRES_BENCH_VALIDATION is not a synonym for supported/accurate.
 
+A04.3a supplies [tested offline waveform tools](../docs/review/a04/A04.3a-report.md)
+for rail sequencing, VEXC−VMID, output/ADC series-current estimates and RET paths.
+Synthetic numerical/GUI tests do not close M12 electrical or metrology gates.
+Unchanged real DSO2C10 exports/settings and assembled-board evidence remain required;
+native layout is explicitly unsupported until verified. No PCB/firmware change.
+
 ## A05 pre-assembly evidence
 
 The [A05 audit](../docs/review/a05/README.md), starting from merged PR #12 main
