@@ -1,6 +1,6 @@
 # 14 — PC Calibration Workbench, Brazilian Reference Kit and Oscilloscope
 
-STATUS: IN_PROGRESS — GUIDED OSL CLI IMPLEMENTED_TESTED_HOST / REQUIRES_BENCH_VALIDATION
+STATUS: IN_PROGRESS — OSL CLI AND DESKTOP MVP IMPLEMENTED_TESTED_HOST / REQUIRES_BENCH_VALIDATION
 PRIORITY: P1. A usable Windows PC utility is the standard calibration UX; Python CLI remains testable backend.
 
 A04.1 delivers the [guided OSL campaign](../Firmware/tools/PC_OSL_CAMPAIGN.md):
@@ -9,6 +9,13 @@ CCO1 evidence, real C-backed 99-observation workflow, existing 33-key solver and
 canonical candidate/report export. Installation remains a separate authorized
 utility. [Software evidence](../docs/review/a04/README.md) does not complete the
 broader GUI, plots, scope import, independent holdouts or physical qualification.
+
+A04.2 supplies the [Qt desktop OSL subset](../Firmware/tools/PC_OSL_WORKBENCH.md):
+reference forms, 33-key progress, human-confirmed captures, serial worker,
+resumption/recapture, B01 import/operator gate and candidate export without installation.
+[Desktop evidence](../docs/review/a04/A04.2-report.md) distinguishes C-backed simulation,
+local Windows packaging and unchanged firmware from pending physical qualification.
+Plots, scope import and the broader workbench remain outside this MVP.
 
 ## 1. Acquisition/procurement philosophy
 Design for small Brazilian electronic component stores. Ordinary E12/E24 values, through-hole 1/4W metal-film resistors, C0G/NP0 ceramic/film capacitors, and generic coils should complete first-pass validation. Printed tolerance is accepted as an interval and affects the eventual *best-possible confidence*: an uncertified 1% resistor alone cannot justify 0.1% overall accuracy. A scope measures waveform behavior, not automatically reference impedance or leakage current. Advanced precision/guarded standards can be optional upgrades.
