@@ -5,6 +5,10 @@ no browser, accounts, cloud service or Qt Addons. Only pyserial opens the real p
 The app calls the existing Campaign, capture client, solver and candidate validator.
 It never installs calibration. See [license/deployment review](WORKBENCH_LICENSES.md).
 
+The read-only **Oscilloscope** tab adds explicit generic CSV import, waveform plots,
+analog presets and B01 sidecars. See [waveform operation and limits](PC_SCOPE_WAVEFORM.md).
+Native Hantek DSO2C10 layout verification remains pending an actual owner export.
+
 ## First run from the repository
 
 ```powershell

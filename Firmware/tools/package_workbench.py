@@ -42,7 +42,7 @@ def main():
                 source = Path(distribution.locate_file(entry))
                 if source.is_file():
                     shutil.copy2(source, target / source.name)
-    for filename in ("WORKBENCH_LICENSES.md", "PC_OSL_WORKBENCH.md"):
+    for filename in ("WORKBENCH_LICENSES.md", "PC_OSL_WORKBENCH.md", "PC_SCOPE_WAVEFORM.md"):
         shutil.copy2(tools / filename, bundle / filename)
     # Keep application/backend source available for examination and modified-library use.
     sources = bundle / "application-source"

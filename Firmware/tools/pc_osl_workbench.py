@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
 import pc_osl
 import pc_osl_campaign as guided
 from pc_osl_workbench_model import Workbench, ACKNOWLEDGEMENTS, inventory_save
+from scope_workbench import ScopeTab
 
 
 class Worker(QObject):
@@ -328,6 +329,8 @@ class MainWindow(QMainWindow):
         self.import_button = QPushButton("Import B01 session / report…"); self.import_button.clicked.connect(self.import_b01); evrow.addWidget(self.import_button)
         self.gate_button = QPushButton("Review physical prerequisites…"); self.gate_button.clicked.connect(self.review_gate); evrow.addWidget(self.gate_button)
         self.evidence_view = QPlainTextEdit(); self.evidence_view.setReadOnly(True); ev.addWidget(self.evidence_view)
+        self.scope_tab = ScopeTab(); tabs.addTab(self.scope_tab, "Oscilloscope")
+        self.scope_tab.closed.connect(self.finish_close)
         self.log = QPlainTextEdit(); self.log.setReadOnly(True); self.log.setMaximumBlockCount(400); self.log.setMaximumHeight(110); layout.addWidget(self.log)
         self.controller.message.connect(self.log.appendPlainText)
         self.controller.updated.connect(self.update_view)
@@ -557,10 +560,13 @@ class MainWindow(QMainWindow):
         event.ignore()
         self.setEnabled(False)
         self.log.appendPlainText("Closing: cancel/drain acquisition and release the serial owner. No fixture changes until SAFE is known.")
+        self.scope_tab.shutdown()
         self.controller.shutdown()
 
     @Slot()
     def finish_close(self):
+        if self.controller.thread.isRunning() or self.scope_tab.thread.isRunning():
+            return  # Both independent workers must drain before QObject destruction.
         self.allow_close = True
         self.close()
 

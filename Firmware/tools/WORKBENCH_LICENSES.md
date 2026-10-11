@@ -7,6 +7,10 @@ unneeded browser/chart modules and reduces deployment size. Tkinter has a smalle
 installation footprint, but Qt supplies maintained forms/tables, signals, worker
 ownership and headless interaction tests for this interface without a web server.
 
+A04.3a adds standard-library CSV/numerics and QtGui QPainter/QPolygonF plots only.
+No new dependency or QtCharts/Graphs/QML module is required; the existing pinned
+runtime/build manifests and replaceable-library packaging remain applicable.
+
 - [Qt for Python](https://doc.qt.io/qtforpython-6/) offers LGPLv3/GPLv3 or commercial
   licensing. [Qt 6.8 licensing](https://doc.qt.io/qt-6.8/licensing.html) separately
   lists GPL-only modules and third-party code. This app imports only Core, Gui,
