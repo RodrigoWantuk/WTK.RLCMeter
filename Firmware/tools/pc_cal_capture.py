@@ -31,7 +31,8 @@ class CaptureError(ValueError):
 class FakeSerial:
     """Host test side channel advances time; all serial frames go to the production C parser."""
     def __init__(self, bridge):
-        self.process = subprocess.Popen([str(bridge)], stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+        self.process = subprocess.Popen([str(bridge)], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
         self.pending = bytearray()
         self.read_ticks = 100
 

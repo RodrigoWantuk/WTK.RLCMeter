@@ -26,8 +26,13 @@ jobs:
       - name: Install host and ARM build tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends cmake ninja-build gcc gcc-arm-none-eabi binutils-arm-none-eabi libnewlib-arm-none-eabi python3 python3-pil
+          sudo apt-get install -y --no-install-recommends cmake ninja-build gcc gcc-arm-none-eabi binutils-arm-none-eabi libnewlib-arm-none-eabi python3 python3-pil python3-venv libegl1 libgl1 fonts-dejavu-core
           arm-none-eabi-gcc --version
+      - name: Install pinned headless desktop runtime
+        working-directory: candidate
+        run: |
+          python3 -m venv --system-site-packages .workbench-env
+          .workbench-env/bin/python -m pip install -r Firmware/tools/requirements-workbench.txt
       - name: Hardware source/export and review reconciliation
         working-directory: candidate
         run: |
@@ -43,7 +48,7 @@ jobs:
                 cmake --preset "$preset" -G Ninja -B "$build" -DWTK_ENABLE_SUPPLEMENTARY_CURVES="$curves" -DWTK_PRODUCT_FACTORY_PROVISIONED="$factory"
                 cmake --build "$build" --parallel 2
                 ctest --test-dir "$build" --output-on-failure
-                WTK_CAPTURE_BRIDGE="$PWD/$build/tests/wtk_pc_cal_capture_bridge" python3 -m unittest discover -s tests/tools -v
+                QT_QPA_PLATFORM=offscreen WTK_CAPTURE_BRIDGE="$PWD/$build/tests/wtk_pc_cal_capture_bridge" ../.workbench-env/bin/python -m unittest discover -s tests/tools -v
               done
             done
           done

@@ -80,6 +80,15 @@ rejection and replacement audit, interruption after 42/resume at 43, and canonic
 No unattended physical mode, installation, firmware/PCB change or QUALIFIED flag.
 See [test/size evidence](../docs/review/a04/README.md). This completes the assigned
 OSL terminal subset; GUI/curve/scope and W3/W5/W9 physical gates remain open.
+
+**A04.2 STATUS: IMPLEMENTED_TESTED_HOST / REQUIRES_BENCH_VALIDATION.**
+The [Windows Qt workbench](../docs/review/a04/A04.2-report.md) consumes the same
+Campaign/PLC1/OSL backend, provides reference forms, human-confirmed captures and
+33-key progress, operator-bound B01 evidence, safe cancellation and candidate export.
+Real Qt/C-backed simulation survives abrupt application exit after 42 and resumes
+at 43; physical mode has no unattended confirmation or installation action.
+Pinned Windows packaging and headless interaction tests accompany zero firmware
+Flash/RAM delta. The broader curve/scope desktop and physical W3/W5/W9 remain open.
 **A05 STATUS: SOURCE/FABRICATION AUDIT DELIVERED / PHYSICAL SIGN-OFF OPEN.**
 The [pre-assembly audit](../docs/review/a05/README.md) checks the real epro2,
 schematic/PCB PDFs, BOM and Gerber/probe/drill exports on merged PR #12 main.

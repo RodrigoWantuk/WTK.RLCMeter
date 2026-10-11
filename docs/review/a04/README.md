@@ -1,5 +1,9 @@
 # A04.1 — guided OSL campaign evidence
 
+A04.2 now adds the [Windows desktop workbench](A04.2-report.md) over this backend,
+with reference forms, a bounded serial worker, physical-evidence review and
+headless C-backed Qt interaction tests. The terminal evidence below remains valid.
+
 Status: **IMPLEMENTED_TESTED_HOST / REQUIRES_BENCH_VALIDATION**. PCB unassembled;
 no physical UART, electrical capture, safety or accuracy qualification is claimed.
 

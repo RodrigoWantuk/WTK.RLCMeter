@@ -1,5 +1,9 @@
 # A04.1 — guided PC OSL campaign
 
+The [A04.2 Windows desktop](PC_OSL_WORKBENCH.md) now provides reference forms,
+progress, human-confirmed capture and candidate export over this same backend.
+The CLI remains available for scripts and diagnostics.
+
 `pc_osl_campaign.py` wraps the existing PLC1 capture client, CCO1 artifact checks,
 model-v4 OSL solver and canonical installer validator. Python 3.9+ standard
 library supports preparation, reports and C-backed simulation. Physical COM
