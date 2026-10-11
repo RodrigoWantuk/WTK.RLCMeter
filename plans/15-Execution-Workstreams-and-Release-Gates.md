@@ -89,6 +89,15 @@ Real Qt/C-backed simulation survives abrupt application exit after 42 and resume
 at 43; physical mode has no unattended confirmation or installation action.
 Pinned Windows packaging and headless interaction tests accompany zero firmware
 Flash/RAM delta. The broader curve/scope desktop and physical W3/W5/W9 remain open.
+
+**A04.3a STATUS: IMPLEMENTED_TESTED_HOST / REQUIRES_BENCH_VALIDATION.**
+The [offline scope backend and desktop tab](../docs/review/a04/A04.3a-report.md)
+import explicit generic CSV, compute/test supply/excitation/clamp/RET observations,
+plot bounded envelopes and export source-hashed B01 sidecars without granting PASS.
+Seventy-two numeric/Qt tests, existing host/C-backed regressions and twelve ARM
+profiles pass; firmware memory is unchanged. Hantek native layout awaits actual
+owner export/settings; independent acquisitions remain unsynchronized. W3/B06 real
+captures, electrical review and all physical qualification gates remain open.
 **A05 STATUS: SOURCE/FABRICATION AUDIT DELIVERED / PHYSICAL SIGN-OFF OPEN.**
 The [pre-assembly audit](../docs/review/a05/README.md) checks the real epro2,
 schematic/PCB PDFs, BOM and Gerber/probe/drill exports on merged PR #12 main.

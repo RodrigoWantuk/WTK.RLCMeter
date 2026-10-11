@@ -4,6 +4,10 @@ A04.2 now adds the [Windows desktop workbench](A04.2-report.md) over this backen
 with reference forms, a bounded serial worker, physical-evidence review and
 headless C-backed Qt interaction tests. The terminal evidence below remains valid.
 
+A04.3a adds [offline scope evidence](A04.3a-report.md): explicit generic waveform
+CSV, bounded Qt plots/zoom, supply/excitation/clamp/RET analysis and B01 sidecars.
+Native DSO2C10 layout verification and all physical bench qualification remain open.
+
 Status: **IMPLEMENTED_TESTED_HOST / REQUIRES_BENCH_VALIDATION**. PCB unassembled;
 no physical UART, electrical capture, safety or accuracy qualification is claimed.
 
