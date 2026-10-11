@@ -1,5 +1,9 @@
 # PC OSL input and provisioning contract
 
+The [guided campaign](PC_OSL_CAMPAIGN.md) now manages reference inventory, explicit
+fixture confirmations, resumable serial acquisition and candidate/report export.
+It reuses this backend and never automatically installs calibration.
+
 The reusable backend is `pc_osl.py`; CLI is `pc_osl_calibrate.py` (Python 3.9+,
 standard library only). [A06.1 evidence and commands](../../docs/review/a06/README.md)
 and [A06.2 acceptance](../../docs/review/a06/A06.2-checklist.md) define its limits.

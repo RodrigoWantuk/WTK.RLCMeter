@@ -1,7 +1,14 @@
 # 14 — PC Calibration Workbench, Brazilian Reference Kit and Oscilloscope
 
-STATUS: NOT_STARTED — CAN IMPLEMENT PC SHELL AND FIXTURE RECORDS NOW
+STATUS: IN_PROGRESS — GUIDED OSL CLI IMPLEMENTED_TESTED_HOST / REQUIRES_BENCH_VALIDATION
 PRIORITY: P1. A usable Windows PC utility is the standard calibration UX; Python CLI remains testable backend.
+
+A04.1 delivers the [guided OSL campaign](../Firmware/tools/PC_OSL_CAMPAIGN.md):
+six-reference inventory, explicit passive-fixture confirmations, atomic resumable
+CCO1 evidence, real C-backed 99-observation workflow, existing 33-key solver and
+canonical candidate/report export. Installation remains a separate authorized
+utility. [Software evidence](../docs/review/a04/README.md) does not complete the
+broader GUI, plots, scope import, independent holdouts or physical qualification.
 
 ## 1. Acquisition/procurement philosophy
 Design for small Brazilian electronic component stores. Ordinary E12/E24 values, through-hole 1/4W metal-film resistors, C0G/NP0 ceramic/film capacitors, and generic coils should complete first-pass validation. Printed tolerance is accepted as an interval and affects the eventual *best-possible confidence*: an uncertified 1% resistor alone cannot justify 0.1% overall accuracy. A scope measures waveform behavior, not automatically reference impedance or leakage current. Advanced precision/guarded standards can be optional upgrades.

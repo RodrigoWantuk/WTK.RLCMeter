@@ -1,5 +1,8 @@
 # A06.2a calibration capture
 
+For a complete resumable operator workflow use the [guided campaign](PC_OSL_CAMPAIGN.md).
+Individual capture commands below remain supported.
+
 Build `cmake --preset stm32-bringup-cal` and `cmake --build --preset stm32-bringup-cal`
 from Firmware. This development image runs an actual USART1 service at 115200 8N1.
 It has no product UI, ordinary measurement command or resource receiver. A06.2b
