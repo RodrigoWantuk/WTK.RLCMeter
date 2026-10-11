@@ -1,0 +1,4 @@
+# Runtime: Qt Widgets only; no Addons, browser, cloud or QtSerialPort.
+PySide6-Essentials==6.8.3
+shiboken6==6.8.3
+pyserial==3.5
