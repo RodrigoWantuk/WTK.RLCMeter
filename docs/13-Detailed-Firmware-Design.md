@@ -358,8 +358,9 @@ Stage 2 module: `hw_metrology_measure`. DUT measure FSM reuses the Stage 1 raw b
 Global shell: hw_k1_force_safe() each safety tick unless measure module owns K1
 Ownership window: from K1 request through operate guard, MEASURE, neutral post-capture, K1 SAFE, release guard
 Permit issue: after range READY, excitation NEUTRAL, 1 ms settle, quiet ON — uses pre-permit sensor evidence
-Permit validate: immediately before aux pause / K1 request; consumed single-use; TTL 5 ms
-hw_k1_request_measure(): builds hw_safety_input_t from pre-permit issue evidence
+Permit validate: immediately before K1 request; consumed single-use; TTL 5 ms
+hw_k1_request_measure(): builds hw_safety_input_t from fresh sensor evidence
+Aux pause: after K1 authorization, before operate-guard completion/ADC ownership; invalidates residual evidence
 Success shutdown: neutral excitation before K1 SAFE (not immediate OFF)
 Abort during MEASURE: excitation OFF immediately; 8 ms release guard before aux resume if K1 reached MEASURE
 ```

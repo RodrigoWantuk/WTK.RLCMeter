@@ -1,5 +1,10 @@
 # B02.0 — first-board manual bench card
 
+**B02.1 ACTIVE-TEST HOLD:** [software preflight](B02.1-preflight.md) found a
+pause/K1 ordering defect and an unresolved residual-reference discrepancy for
+floating passive fixtures. The latter remains blocking; do not execute steps 6–12
+until reviewed. Read-only assembly/power checks retain their existing gates.
+
 **NOT EXECUTED / REQUIRES_BENCH_VALIDATION.** Follow the
 [assembly decisions](assembly-decisions.md), then this order. Leave a STOP unresolved;
 never retry by bypassing a permit. Record numbers/settings in the
@@ -123,9 +128,9 @@ it is deliberately excluded here rather than used to evade interlocks. No DC pil
 
 ## Proceed only when evidence allows
 
-Existing firmware is sufficient for the fixed matched-resistor experiment and
-blank-device service acquisition **with real sensors/permits**. No new command or
-firmware change is needed. Real R05/HSE/power/contact/clamp/observability can still
+The original sufficiency claim is superseded by [B02.1](B02.1-preflight.md): the
+pause/K1 defect has a tested minimal correction, but the floating-terminal residual
+reference remains an unresolved software/schematic compatibility blocker. Real R05/HSE/power/contact/clamp/observability can still
 block it. No neutral-tone hold mode is invented; scope the existing finite bursts.
 
 After authorized OPEN/SHORT/LOAD checks, deploy BRINGUP_CAL separately through SWD,
