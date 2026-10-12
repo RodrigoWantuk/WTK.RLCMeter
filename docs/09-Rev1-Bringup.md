@@ -69,7 +69,11 @@ Before inserting/powering the module:
 
 **Do not rely on the Blue Pill Micro-USB connector as a Rev.1 USB interface**, because PA11/PA12 are reassigned.
 
-Initial programming may use ST-Link through the module SWD pads/header or the STM32 ROM USART1 bootloader where appropriate.
+For the first-board handoff, use the [authorized ST-Link SWD deployment toolkit](../Firmware/tools/PC_FIRMWARE_DEPLOY.md)
+through physically verified module SWD pads/header. It prepares the three exact
+firmware images, checks internal Flash readback and leaves boot acceptance to the
+separate physical procedure. Probe/verify can reset/halt the CPU; confirm SAFE and
+independent power before connecting. This workflow does not use the ROM bootloader.
 
 ## 4. UART and GPIO
 
