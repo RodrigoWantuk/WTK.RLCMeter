@@ -1,5 +1,8 @@
 #include "hardware/hw_metrology_measure.h"
+#include "hardware/hw_aux_sensors.h"
+#include "measurement/measurement_calibration.h"
 
+#include <math.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -45,6 +48,20 @@ typedef struct
     uint32_t seen_count;
     hw_measure_permit_issue_input_t issue_input;
     hw_measure_permit_validate_input_t validate_input;
+    hw_aux_sensors_t *sensors;
+    hw_range_t *real_range;
+    hw_k1_t *real_k1;
+    bool range_enabled;
+    bool address_while_enabled;
+    uint8_t address;
+    bool freeze_sensors;
+    uint32_t now_ms;
+    bool synthetic_resistor;
+    bool clip_hg;
+    bool clip_1x;
+    bool capture_timeout;
+    hw_excitation_freq_t requested_frequency;
+    hw_excitation_amp_t requested_amplitude;
 } fake_io_t;
 
 static int expect_true(bool condition, const char *message)
@@ -76,7 +93,8 @@ static bsp_clock_summary_t production_clock(void)
 
 static void record_state(fake_io_t *fake, hw_metrology_measure_state_t state)
 {
-    if (fake->seen_count < 96u)
+    if ((fake->seen_count < 96u) &&
+        ((fake->seen_count == 0u) || (fake->seen[fake->seen_count - 1u] != state)))
     {
         fake->seen[fake->seen_count] = state;
         fake->seen_count++;
@@ -85,6 +103,8 @@ static void record_state(fake_io_t *fake, hw_metrology_measure_state_t state)
 
 static bsp_status_t fake_k1_safe(void *user)
 {
+    if (((fake_io_t *)user)->real_k1 != NULL) { return hw_k1_force_safe(((fake_io_t *)user)->real_k1); }
+
     fake_io_t *fake = (fake_io_t *)user;
     if (fake->k1_safe_fail)
     {
@@ -98,6 +118,7 @@ static bsp_status_t fake_k1_request_measure(const hw_safety_result_t *permission
 {
     fake_io_t *fake = (fake_io_t *)user;
     fake->k1_request_calls++;
+    if (fake->real_k1 != NULL) { return hw_k1_request_measure(fake->real_k1, permission); }
     if (fake->k1_request_fail || (permission == NULL) || !permission->measure_allowed)
     {
         return BSP_STATUS_ERROR;
@@ -113,6 +134,8 @@ static hw_k1_state_t fake_k1_state(void *user)
 
 static bsp_status_t fake_range_request(hw_range_id_t id, uint32_t now_ms, void *user)
 {
+    if (((fake_io_t *)user)->real_range != NULL) { return hw_range_request(((fake_io_t *)user)->real_range, id, now_ms); }
+
     (void)now_ms;
     fake_io_t *fake = (fake_io_t *)user;
     if (fake->range_fail)
@@ -127,6 +150,8 @@ static bsp_status_t fake_range_request(hw_range_id_t id, uint32_t now_ms, void *
 
 static bsp_status_t fake_range_step(uint32_t now_ms, void *user)
 {
+    if (((fake_io_t *)user)->real_range != NULL) { return hw_range_step(((fake_io_t *)user)->real_range, now_ms); }
+
     (void)now_ms;
     (void)user;
     return BSP_STATUS_BUSY;
@@ -134,21 +159,29 @@ static bsp_status_t fake_range_step(uint32_t now_ms, void *user)
 
 static bool fake_range_ready(void *user)
 {
+    if (((fake_io_t *)user)->real_range != NULL) { return hw_range_is_ready(((fake_io_t *)user)->real_range); }
+
     return ((fake_io_t *)user)->range_ready;
 }
 
 static hw_range_id_t fake_range_current_id(void *user)
 {
+    if (((fake_io_t *)user)->real_range != NULL) { return hw_range_get_current(((fake_io_t *)user)->real_range); }
+
     return ((fake_io_t *)user)->range_id;
 }
 
 static hw_safety_range_state_t fake_range_safety_state(void *user)
 {
+    if (((fake_io_t *)user)->real_range != NULL) { return hw_range_safety_state(((fake_io_t *)user)->real_range); }
+
     return ((fake_io_t *)user)->range_state;
 }
 
 static bsp_status_t fake_range_disable(void *user)
 {
+    if (((fake_io_t *)user)->real_range != NULL) { return hw_range_force_disabled(((fake_io_t *)user)->real_range); }
+
     fake_io_t *fake = (fake_io_t *)user;
     if (fake->range_disable_fail)
     {
@@ -167,6 +200,10 @@ static void fake_quiet(bool requested, void *user)
 static void fake_aux_pause(void *user)
 {
     fake_io_t *fake = (fake_io_t *)user;
+    if (fake->sensors != NULL)
+    {
+        hw_aux_sensors_pause(fake->sensors);
+    }
     fake->aux_paused = true;
     fake->aux_resumed = false;
 }
@@ -174,6 +211,10 @@ static void fake_aux_pause(void *user)
 static void fake_aux_resume(uint32_t now_ms, void *user)
 {
     fake_io_t *fake = (fake_io_t *)user;
+    if (fake->sensors != NULL)
+    {
+        hw_aux_sensors_resume(fake->sensors, now_ms);
+    }
     fake->aux_paused = false;
     fake->aux_resumed = true;
     fake->resume_calls++;
@@ -191,12 +232,29 @@ static bsp_status_t fake_adc_start(uint32_t *raw_words,
                                    const hw_metrology_adc_profile_t *profile,
                                    void *user)
 {
-    (void)raw_words;
-    (void)word_count;
-    (void)profile;
     fake_io_t *fake = (fake_io_t *)user;
+    if (fake->synthetic_resistor)
+    {
+        if ((profile->sample_rate_hz != 6400u) || (word_count != HW_METROLOGY_RAW_WORD_COUNT))
+        {
+            return BSP_STATUS_ERROR;
+        }
+        /* Independent divider: 1k DUT / (1k RREF + 1k DUT), ADC quantization only. */
+        for (uint32_t n = 0u; n < HW_METROLOGY_SAMPLES_PER_BLOCK; n++)
+        {
+            const float wave = cosf((float)n * 0.09817477042f);
+            const uint16_t source = (uint16_t)((1.65f + 0.141421356f * wave) * 4095.0f / 3.3f + 0.5f);
+            uint16_t ret = (uint16_t)((1.65f + 0.070710678f * wave) * 4095.0f / 3.3f + 0.5f);
+            uint16_t hg = (uint16_t)((1.65f + (1.0f + 68000.0f / 4700.0f) * 0.070710678f * wave) * 4095.0f / 3.3f + 0.5f);
+            if (fake->clip_1x) { ret = (n % 2u == 0u) ? 0u : 4095u; }
+            if (fake->clip_hg) { hg = (n % 2u == 0u) ? 0u : 4095u; }
+            raw_words[3u * n] = hw_metrology_pack_word(source, ret);
+            raw_words[3u * n + 1u] = hw_metrology_pack_word(source, hg);
+            raw_words[3u * n + 2u] = hw_metrology_pack_word(2048u, 2048u);
+        }
+    }
     fake->capture_started = true;
-    if (!fake->dma_error)
+    if (!fake->dma_error && !fake->capture_timeout)
     {
         fake->dma_complete = true;
     }
@@ -258,13 +316,13 @@ static bsp_status_t fake_exc_neutral(void *user)
 
 static bsp_status_t fake_exc_sine(hw_excitation_freq_t frequency, hw_excitation_amp_t amplitude, void *user)
 {
-    (void)frequency;
-    (void)amplitude;
     fake_io_t *fake = (fake_io_t *)user;
     if (fake->exc_fail || (fake->exc != HW_EXCITATION_MODE_NEUTRAL))
     {
         return BSP_STATUS_ERROR;
     }
+    fake->requested_frequency = frequency;
+    fake->requested_amplitude = amplitude;
     fake->exc = HW_EXCITATION_MODE_SINE;
     return BSP_STATUS_OK;
 }
@@ -297,7 +355,8 @@ static hw_charger_state_t fake_charger(void *user)
 
 static uint32_t fake_fault_mask(void *user)
 {
-    return ((fake_io_t *)user)->fault_mask;
+    const fake_io_t *fake = (const fake_io_t *)user;
+    return fake->fault_mask | ((fake->sensors != NULL) ? hw_aux_sensors_fault_mask(fake->sensors) : 0u);
 }
 
 static bsp_status_t fake_permit_issue_input(hw_measure_permit_issue_input_t *input, void *user)
@@ -309,6 +368,20 @@ static bsp_status_t fake_permit_issue_input(hw_measure_permit_issue_input_t *inp
         return BSP_STATUS_INVALID_ARG;
     }
     *input = fake->issue_input;
+    if (fake->sensors != NULL)
+    {
+        hw_aux_sensors_snapshot_t snapshot;
+        hw_aux_sensors_snapshot(fake->sensors, fake->now_ms, &snapshot);
+        input->range = fake_range_safety_state(user);
+        input->range_id = fake_range_current_id(user);
+        input->k1_state = fake_k1_state(user);
+        input->charger = fake->charger;
+        input->residual = snapshot.residual_state;
+        input->residual_age_ms = snapshot.residual_age_ms;
+        input->battery = snapshot.battery_state;
+        input->battery_age_ms = snapshot.battery_age_ms;
+        input->safety_fault_mask = fake->fault_mask | hw_aux_sensors_fault_mask(fake->sensors);
+    }
     return BSP_STATUS_OK;
 }
 
@@ -321,6 +394,14 @@ static bsp_status_t fake_permit_validate_input(hw_measure_permit_validate_input_
         return BSP_STATUS_INVALID_ARG;
     }
     *input = fake->validate_input;
+    if (fake->sensors != NULL)
+    {
+        input->range = fake_range_safety_state(user);
+        input->range_id = fake_range_current_id(user);
+        input->k1_state = fake_k1_state(user);
+        input->charger = fake->charger;
+        input->safety_fault_mask = fake_fault_mask(user);
+    }
     return BSP_STATUS_OK;
 }
 
@@ -408,6 +489,14 @@ static int run_until_idle(hw_metrology_measure_t *measure, fake_io_t *fake, uint
     for (uint32_t i = 0u; i < 12000u; i++)
     {
         record_state(fake, hw_metrology_measure_state(measure));
+        fake->now_ms = *now_ms;
+        if (fake->sensors != NULL && !fake->freeze_sensors)
+        {
+            for (uint8_t j = 0u; j < 8u; j++)
+            {
+                (void)hw_aux_sensors_step(fake->sensors, *now_ms);
+            }
+        }
         (void)hw_metrology_measure_step(measure, *now_ms);
         *now_ms += 1u;
         if ((hw_metrology_measure_state(measure) == HW_METROLOGY_MEASURE_DONE) ||
@@ -444,9 +533,251 @@ static hw_metrology_measure_request_t make_request(const bsp_clock_summary_t *cl
     };
 }
 
-int main(void)
+/* Real auxiliary conversion/policy and metrology/DSP composition. Only peripheral
+ * observations are injected; no calibration set or READY snapshot is fabricated. */
+typedef struct
+{
+    bsp_adc_channel_t channel;
+    bool floating_terminals;
+    bool invalid_vmid;
+    bool invalid_ntc;
+    bool fail_adc;
+} preflight_adc_t;
+
+static uint16_t preflight_code(float voltage)
+{
+    return (uint16_t)(voltage * 4095.0f / 3.3f + 0.5f);
+}
+
+static bsp_status_t preflight_adc_start(bsp_adc_channel_t channel, uint32_t now_ms, void *user)
+{
+    (void)now_ms;
+    ((preflight_adc_t *)user)->channel = channel;
+    return BSP_STATUS_OK;
+}
+
+static bsp_status_t preflight_adc_poll(uint16_t *raw, uint32_t now_ms, void *user)
+{
+    (void)now_ms;
+    const preflight_adc_t *adc = (const preflight_adc_t *)user;
+    if (adc->fail_adc) { return BSP_STATUS_ERROR; }
+    switch (adc->channel)
+    {
+    case BSP_ADC_CHANNEL_VMID:
+        *raw = adc->invalid_vmid ? 0u : preflight_code(1.65f);
+        break;
+    case BSP_ADC_CHANNEL_OV_HI:
+    case BSP_ADC_CHANNEL_OV_LO:
+        /* Conditional current software contract: absolute terminal = 0 V.
+         * Rev.1 floating-fixture bias is separately tested, never called SAFE. */
+        *raw = preflight_code(adc->floating_terminals ? 1.65f :
+                             1.65f - 1.65f / HW_RESIDUAL_TRANSFER_K);
+        break;
+    case BSP_ADC_CHANNEL_BAT:
+        /* 5 V -> 10k -> VBAT -> (33k || board 200k) -> GND. */
+        *raw = preflight_code(3.6954087f / 2.0f);
+        break;
+    case BSP_ADC_CHANNEL_NTC:
+        *raw = adc->invalid_ntc ? 0u : preflight_code(1.65f);
+        break;
+    default: return BSP_STATUS_INVALID_ARG;
+    }
+    return BSP_STATUS_OK;
+}
+
+static void preflight_adc_cancel(void *user)
+{
+    ((preflight_adc_t *)user)->channel = BSP_ADC_CHANNEL_INVALID;
+}
+
+static bsp_status_t preflight_range_enable(bool high, void *user)
+{
+    fake_io_t *fake = (fake_io_t *)user;
+    fake->range_enabled = high;
+    fake->range_ready = high;
+    return BSP_STATUS_OK;
+}
+
+static bsp_status_t preflight_range_address(uint8_t address, void *user)
+{
+    fake_io_t *fake = (fake_io_t *)user;
+    fake->address_while_enabled |= fake->range_enabled;
+    fake->address = address;
+    return BSP_STATUS_OK;
+}
+
+static bsp_status_t preflight_k1_write(bool high, void *user)
+{
+    ((fake_io_t *)user)->k1 = high ? HW_K1_STATE_MEASURE : HW_K1_STATE_SAFE;
+    return BSP_STATUS_OK;
+}
+
+static int test_first_measurement_preflight(void)
 {
     int failures = 0;
+    /* baseline, HG clipped, both paths clipped, floating passive fixture,
+     * invalid VMID, charger, conversion fault, DMA timeout, API cancellation,
+     * invalid NTC (metadata only), unknown charger, stale residual evidence,
+     * cancellation after K1 command but before auxiliary pause. */
+    for (uint32_t scenario = 0u; scenario < 13u; scenario++)
+    {
+        preflight_adc_t adc = {0};
+        adc.floating_terminals = scenario == 3u;
+        adc.invalid_vmid = scenario == 4u;
+        adc.fail_adc = scenario == 6u;
+        adc.invalid_ntc = scenario == 9u;
+        const hw_aux_adc_io_t aux_io = {preflight_adc_start, preflight_adc_poll,
+                                       preflight_adc_cancel, &adc};
+        hw_aux_sensors_t sensors;
+        failures += expect_true(hw_aux_sensors_init(&sensors, &aux_io, 0u) == BSP_STATUS_OK,
+                                "preflight POWER_ON sensor initialization");
+        uint32_t now = 0u;
+        for (; now < 200u; now++)
+        {
+            for (uint8_t j = 0u; j < 8u; j++) { (void)hw_aux_sensors_step(&sensors, now); }
+        }
+        hw_aux_sensors_snapshot_t snapshot;
+        hw_aux_sensors_snapshot(&sensors, now, &snapshot);
+        if (!adc.fail_adc)
+        {
+            failures += expect_true(snapshot.battery_state == HW_BATTERY_OK &&
+                                    fabsf(snapshot.battery_v - 3.6954087f) < 0.003f,
+                                    "bench fixture produces legitimate battery OK");
+            failures += expect_true(snapshot.ntc_valid != adc.invalid_ntc,
+                                    "nominal/invalid NTC correctly represented");
+        }
+        fake_io_t fake = {0};
+        fake.k1 = HW_K1_STATE_SAFE;
+        fake.exc = HW_EXCITATION_MODE_OFF;
+        fake.charger = (scenario == 5u) ? HW_CHARGER_PRESENT :
+                       ((scenario == 10u) ? HW_CHARGER_UNKNOWN : HW_CHARGER_ABSENT);
+        bind_default_permit_inputs(&fake, HW_RANGE_ID_1K);
+        fake.sensors = &sensors;
+        hw_range_t range;
+        hw_k1_t relay;
+        const hw_range_io_t range_io = {preflight_range_enable, preflight_range_address, &fake};
+        const hw_k1_io_t relay_io = {preflight_k1_write, &fake};
+        failures += expect_true(hw_range_init(&range, &range_io) == BSP_STATUS_OK &&
+                                hw_k1_init(&relay, &relay_io) == BSP_STATUS_OK,
+                                "safe range and relay boot");
+        fake.real_range = &range;
+        fake.real_k1 = &relay;
+        fake.synthetic_resistor = true;
+        fake.clip_hg = scenario == 1u || scenario == 2u;
+        fake.clip_1x = scenario == 2u;
+        fake.capture_timeout = scenario == 7u;
+        if (scenario == 11u)
+        {
+            /* Stop peripheral observations, age existing evidence without inventing a snapshot. */
+            fake.freeze_sensors = true;
+            now += 25u;
+        }
+        hw_metrology_measure_io_t io = {0};
+        bind_io(&io, &fake);
+        uint32_t raw[HW_METROLOGY_RAW_WORD_COUNT];
+        hw_metrology_measure_t measure;
+        failures += expect_true(hw_metrology_measure_init(&measure, &io, raw,
+                                HW_METROLOGY_RAW_WORD_COUNT) == BSP_STATUS_OK, "preflight init");
+        const bsp_clock_summary_t clock = production_clock();
+        hw_metrology_measure_request_t request = make_request(&clock, HW_RANGE_ID_1K,
+                                                               HW_EXCITATION_AMP_100MVRMS);
+        request.frequency = HW_EXCITATION_FREQ_100HZ;
+        failures += expect_true(hw_metrology_measure_start(&measure, &request, now) == BSP_STATUS_BUSY,
+                                "100 Hz / 100 mVrms / 1k request accepted");
+        uint32_t canceled_at_ms = 0u;
+        if (scenario == 8u || scenario == 12u)
+        {
+            for (uint32_t step = 0u; step < 300u; step++)
+            {
+                fake.now_ms = now;
+                for (uint8_t j = 0u; j < 8u; j++) { (void)hw_aux_sensors_step(&sensors, now); }
+                (void)hw_metrology_measure_step(&measure, now++);
+                if (scenario == 12u ? fake.k1 == HW_K1_STATE_MEASURE : fake.capture_started) { break; }
+            }
+            failures += expect_true(scenario == 12u ? !fake.aux_paused : fake.capture_started,
+                                    "cancel during acquisition or before auxiliary pause");
+            canceled_at_ms = now;
+            (void)hw_metrology_measure_abort(&measure);
+        }
+        failures += expect_true(run_until_idle(&measure, &fake, &now) == 0, "preflight terminates");
+        failures += expect_true(fake.k1 == HW_K1_STATE_SAFE && fake.exc == HW_EXCITATION_MODE_OFF &&
+                                !fake.range_ready && !fake.quiet && !fake.aux_paused,
+                                "all paths return K1 SAFE / excitation OFF / range OFF / ADC restored");
+        failures += expect_true(!fake.address_while_enabled && fake.address == 2u,
+                                "1k address selected only while RANGE_EN disabled");
+        if (scenario == 8u || scenario == 12u)
+        {
+            failures += expect_true(now >= canceled_at_ms + HW_METROLOGY_MEASURE_K1_RELEASE_GUARD_MS,
+                                    "cancel respects release guard even before auxiliary pause");
+        }
+        if (scenario == 7u)
+        {
+            failures += expect_true(hw_metrology_measure_error(&measure) == HW_METROLOGY_MEASURE_ERR_TIMEOUT,
+                                    "DMA timeout is explicit");
+        }
+        const bool captured = scenario < 3u || scenario == 9u;
+        if (!captured)
+        {
+            failures += expect_true(!hw_metrology_measure_dumpable(&measure), "failure cannot publish result");
+            if (scenario != 7u && scenario != 8u)
+            {
+                failures += expect_true(!fake.capture_started, "sensor/interlock block prevents acquisition");
+            }
+            if (scenario == 3u)
+            {
+                failures += expect_true(snapshot.residual_state == HW_RESIDUAL_UNSAFE &&
+                                        fake.k1_request_calls == 0u,
+                                        "floating VMID-biased terminals remain BLOCKED, no bypass");
+            }
+            continue;
+        }
+        failures += expect_true(saw_state(&fake, HW_METROLOGY_MEASURE_PERMIT_VALIDATE) &&
+                                saw_state(&fake, HW_METROLOGY_MEASURE_K1_REQUEST) &&
+                                saw_state(&fake, HW_METROLOGY_MEASURE_ADC_DMA_WAIT) &&
+                                saw_state(&fake, HW_METROLOGY_MEASURE_K1_RELEASE_GUARD),
+                                "production authorization/acquisition/release transitions reached");
+        failures += expect_true(hw_metrology_measure_dumpable(&measure),
+                                "real sensor evidence survives authorization before aux pause");
+        const hw_metrology_block_t *block = hw_metrology_measure_block(&measure);
+        if (block == NULL || !block->valid) { continue; }
+        failures += expect_true(block->excitation_frequency_hz == 100u &&
+                                block->requested_amplitude_mvrms == 100u && block->range_id == HW_RANGE_ID_1K &&
+                                block->sample_rate_hz == 6400u && fake.adc_stopped &&
+                                fake.requested_frequency == request.frequency &&
+                                fake.requested_amplitude == request.amplitude, "actual condition and cleanup provenance");
+        const measurement_cal_key_t key = {MEASUREMENT_CAL_HARDWARE_REV1, MEASUREMENT_CAL_MODEL_VERSION_CURRENT,
+                                         HW_RANGE_ID_1K, request.frequency, request.amplitude};
+        measurement_calibrated_result_t result;
+        const bsp_status_t status = measurement_cal_process_block(block, NULL, &key, true, &result);
+        if (scenario == 2u)
+        {
+            failures += expect_true(status != BSP_STATUS_OK, "both clipped return paths rejected");
+            continue;
+        }
+        failures += expect_true(status == BSP_STATUS_OK && result.result.status == MEASUREMENT_STATUS_OK &&
+                                isfinite(result.result.impedance.z_ohms.re) &&
+                                fabsf(result.result.impedance.z_ohms.re - 1000.0f) < 10.0f &&
+                                fabsf(result.result.impedance.z_ohms.im) < 5.0f &&
+                                result.result.derived.interpretation == MEASUREMENT_INTERPRET_RESISTIVE,
+                                "synthetic nominal resistor passes production DSP");
+        failures += expect_true(result.provenance.source == MEASUREMENT_CAL_SOURCE_IDEAL &&
+                                result.provenance.status == MEASUREMENT_CAL_RESOLVE_MISSING &&
+                                result.provenance.uncalibrated, "blank diagnostic result is explicitly ideal/unqualified");
+        failures += expect_true(result.result.selected_channel ==
+                                (scenario == 1u ? MEASUREMENT_RETURN_1X : MEASUREMENT_RETURN_HG),
+                                "clipped HG falls back to valid 1X");
+        (void)printf("SYNTHETIC preflight %u: R=%.3f X=%.3f source=IDEAL calibration=MISSING path=%s\n",
+                     (unsigned)scenario, (double)result.result.impedance.z_ohms.re,
+                     (double)result.result.impedance.z_ohms.im, scenario == 1u ? "RET_1X" : "RET_HG");
+        failures += expect_true(measurement_cal_process_block(block, NULL, &key, false, &result) != BSP_STATUS_OK,
+                                "ordinary no-fallback path rejects missing calibration");
+    }
+    return failures;
+}
+
+int main(void)
+{
+    int failures = test_first_measurement_preflight();
     uint32_t raw[HW_METROLOGY_RAW_WORD_COUNT];
     memset(raw, 0, sizeof(raw));
 
@@ -641,7 +972,7 @@ int main(void)
     uint32_t abort_enter_ms = 0u;
     for (uint32_t i = 0u; i < 8000u; i++)
     {
-        if (fake.k1 == HW_K1_STATE_MEASURE)
+        if (fake.k1 == HW_K1_STATE_MEASURE && fake.aux_paused && fake.fault_mask == 0u)
         {
             fake.fault_mask = 1u;
             abort_enter_ms = now;

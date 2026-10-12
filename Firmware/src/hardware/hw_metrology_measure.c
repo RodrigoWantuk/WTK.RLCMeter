@@ -629,14 +629,14 @@ static bsp_status_t step_success_path(hw_metrology_measure_t *measure, uint32_t 
         }
         measure->permit_validated = true;
         measure->block.permit_validate_ms = now_ms;
-        measure->state = HW_METROLOGY_MEASURE_AUX_PAUSE;
+        measure->state = HW_METROLOGY_MEASURE_K1_REQUEST;
         break;
     }
 
     case HW_METROLOGY_MEASURE_AUX_PAUSE:
         measure->io.aux_pause(measure->io.user);
         measure->aux_paused = true;
-        measure->state = HW_METROLOGY_MEASURE_K1_REQUEST;
+        measure->state = HW_METROLOGY_MEASURE_K1_OPERATE_GUARD;
         break;
 
     case HW_METROLOGY_MEASURE_K1_REQUEST:
@@ -668,7 +668,9 @@ static bsp_status_t step_success_path(hw_metrology_measure_t *measure, uint32_t 
         measure->k1_owned = true;
         measure->k1_reached_measure = true;
         measure->wait_deadline_ms = now_ms + HW_METROLOGY_MEASURE_K1_OPERATE_GUARD_MS;
-        measure->state = HW_METROLOGY_MEASURE_K1_OPERATE_GUARD;
+        /* Pause invalidates residual evidence: authorize K1 with fresh sensors
+         * first, then release the auxiliary ADC before metrology acquisition. */
+        measure->state = HW_METROLOGY_MEASURE_AUX_PAUSE;
         break;
     }
 

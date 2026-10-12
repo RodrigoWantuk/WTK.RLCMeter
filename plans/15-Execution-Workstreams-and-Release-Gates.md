@@ -141,6 +141,13 @@ complete B01/W3: assembled-board power, GPIO/contact, watchdog, charger and anal
 evidence still require the owner and the staged A05 procedure.
 
 **B01 Digital safe boot**: SWD, power, UART, W25Q JEDEC, TFT/locale, GPIO safe, watchdog, charger interlock, K1/RANGE disabled boot/fault; record video/traces and test logs. Do not attach energized DUTs.
+**B02.1 STATUS: CONDITIONAL_HOST_PATH_TESTED / FIRST_BOARD_MEASUREMENT_BLOCKED.**
+[Preflight](../docs/review/b02/B02.1-preflight.md) reproduces and minimally corrects
+auxiliary-pause invalidation before K1 authorization. The real C sensor/range/K1/
+metrology/DSP regression passes conditional observations; Rev.1 floating terminals
+biased to VMID still fail the unchanged absolute residual gate. No reference/threshold
+correction or physical qualification is approved; active B02.0 steps remain HOLD.
+
 **B02 Source/ADC timing**: PWM carrier, reconstruction at 100/1k/10k, duty amplitudes, harmonic distortion, VMID, RET HG with scope and ADC raw; log probe loading; adjust timing only after backed measurement. Recalibrate/version bump on path change.
 **B03 OSL and coarse metrology**: 6 resistor LOAD refs, fixture OPEN/SHORT, verify exact 33 keys where physically safe; bench-disqualify unobservable high Z or clipping conditions, never fake full 33 accuracy.
 **B04 Quantities & uncertainty**: held-out resistance, stable C/coil phase sign, error versus reference tolerance, multiple re-seats and repeats, negative R/X/Q/D guards, per-condition error table. No numerical bound without evidence.
