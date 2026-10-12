@@ -13,7 +13,7 @@ from reference_impedance import RawCapture, parse_raw_dump
 
 MAX_CAPTURE_LINES = 300
 MAX_LINE_BYTES = 160
-SAMPLE_RATES = {100: 6400, 1000: 64000, 10000: 160000}
+SAMPLE_RATES = {10: 640, 1000: 64000, 10000: 160000}
 ROW_HEADER = "i,v1,r1,v2,rh,vm1,vm2"
 
 

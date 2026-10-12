@@ -4,7 +4,7 @@
 
 static bool valid_frequency(hw_excitation_freq_t frequency)
 {
-    return (frequency == HW_EXCITATION_FREQ_100HZ) ||
+    return (frequency == HW_EXCITATION_FREQ_10HZ) ||
            (frequency == HW_EXCITATION_FREQ_1KHZ) ||
            (frequency == HW_EXCITATION_FREQ_10KHZ);
 }

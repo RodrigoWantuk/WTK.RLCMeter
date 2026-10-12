@@ -1,4 +1,4 @@
-"""PC model-4 OSL backend. Candidates are never physically qualified by this tool."""
+"""PC model-5 OSL backend. Candidates are never physically qualified by this tool."""
 
 from __future__ import annotations
 
@@ -242,18 +242,18 @@ def serialize(solutions, sequence, adc_values):
     payload_length = wire.SET_PAYLOAD_HEADER_BYTES + 33*wire.RECORD_BYTES
     frame = bytearray(wire.HEADER_BYTES+payload_length)
     struct.pack_into("<IHHHHIIHH", frame, 0, wire.MAGIC, 1, 2, 64, payload_length,
-                     sequence, wire.REV1_HARDWARE, 4, 1)
+                     sequence, wire.REV1_HARDWARE, wire.MODEL_CURRENT, 1)
     struct.pack_into("<HHI12f", frame, 64, 33, 0, 1, *adc)
     for i, solution in enumerate(sorted(solutions, key=lambda s: s.key)):
         rid, fid, aid = solution.key.ids()
-        condition_id = zlib.crc32(struct.pack("<IHBBB3x", wire.REV1_HARDWARE, 4, rid, fid, aid))
+        condition_id = zlib.crc32(struct.pack("<IHBBB3x", wire.REV1_HARDWARE, wire.MODEL_CURRENT, rid, fid, aid))
         flags = wire.FLAG_OSL_MODEL | wire.FLAG_LOAD_REFERENCE
         if solution.hg_observed:
             flags |= wire.FLAG_HG_OBSERVED
         if solution.temperature_mC is not None:
             flags |= 1 << 6
         offset = 120+i*80
-        struct.pack_into("<IHBBBBiII12f", frame, offset, wire.REV1_HARDWARE, 4,
+        struct.pack_into("<IHBBBBiII12f", frame, offset, wire.REV1_HARDWARE, wire.MODEL_CURRENT,
                          rid, fid, aid, 2, solution.temperature_mC or 0, condition_id,
                          flags, *solution.values())
     struct.pack_into("<I", frame, 56, wire.crc_frame(frame, payload_length))

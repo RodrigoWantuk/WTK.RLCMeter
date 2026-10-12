@@ -57,5 +57,5 @@ def generate(out, kind="excitation", frequency=1000, rate=None, samples=None):
 if __name__=="__main__":
     p=argparse.ArgumentParser(description=__doc__); p.add_argument("--out",type=Path,required=True)
     p.add_argument("--kind",choices=("powerup","powerdown","simultaneous","overshoot","excitation","carrier","ret","saturated","clamp","lower_clamp","noise"),default="excitation")
-    p.add_argument("--frequency",type=int,choices=(100,1000,10000),default=1000)
+    p.add_argument("--frequency",type=int,choices=(10,100,1000,10000),default=1000)
     a=p.parse_args(); generate(a.out,a.kind,a.frequency)

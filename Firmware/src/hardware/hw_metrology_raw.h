@@ -54,6 +54,7 @@ typedef enum
 typedef struct
 {
     uint32_t sample_rate_hz;
+    uint16_t tim2_psc;
     uint16_t tim2_arr;
     uint16_t tim2_ccr2;
     uint16_t samples_per_cycle;

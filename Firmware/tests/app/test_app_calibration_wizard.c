@@ -494,7 +494,7 @@ static int test_condition_enumeration(void)
     measurement_cal_key_t key;
     failures += expect_true(app_calibration_wizard_condition_key(HW_RANGE_ID_10R, 0u, &key) == BSP_STATUS_OK,
                             "10R first key exists");
-    failures += expect_u32((uint32_t)key.frequency, (uint32_t)HW_EXCITATION_FREQ_100HZ,
+    failures += expect_u32((uint32_t)key.frequency, (uint32_t)HW_EXCITATION_FREQ_10HZ,
                            "10R first key frequency");
     failures += expect_u32((uint32_t)key.amplitude, (uint32_t)HW_EXCITATION_AMP_100MVRMS,
                            "10R first key amplitude");

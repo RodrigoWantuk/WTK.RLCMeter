@@ -66,8 +66,8 @@ static uint32_t frequency_hz(hw_excitation_freq_t frequency)
 {
     switch (frequency)
     {
-    case HW_EXCITATION_FREQ_100HZ:
-        return 100u;
+    case HW_EXCITATION_FREQ_10HZ:
+        return 10u;
     case HW_EXCITATION_FREQ_1KHZ:
         return 1000u;
     case HW_EXCITATION_FREQ_10KHZ:
@@ -385,7 +385,7 @@ static int test_classification_vectors(void)
 
     measurement_attempt_config_t low_freq = {
         .range_id = HW_RANGE_ID_1K,
-        .frequency = HW_EXCITATION_FREQ_100HZ,
+        .frequency = HW_EXCITATION_FREQ_10HZ,
         .amplitude = HW_EXCITATION_AMP_100MVRMS,
         .ret_strategy = MEASUREMENT_RET_STRATEGY_DSP_AUTO,
         .attempt_number = 1u,

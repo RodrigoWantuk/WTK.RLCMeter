@@ -1,5 +1,7 @@
 #include "hardware/hw_aux_sensors.h"
+#include "hardware/hw_measure_permit.h"
 
+#include <math.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -152,8 +154,8 @@ static fake_adc_t safe_fake_adc(void)
     const float vmid_v = 1.65f;
     return (fake_adc_t){
         .vmid_raw = raw_from_voltage(vmid_v),
-        .hi_raw = raw_for_terminal(vmid_v, 0.0f),
-        .lo_raw = raw_for_terminal(vmid_v, 0.0f),
+        .hi_raw = raw_for_terminal(vmid_v, vmid_v),
+        .lo_raw = raw_for_terminal(vmid_v, vmid_v),
         .bat_raw = raw_from_voltage(1.80f),
         .ntc_raw = raw_from_voltage(1.65f),
         .poll_failure = BSP_STATUS_OK,
@@ -191,7 +193,7 @@ static int test_residual_sequence_and_policy(void)
     hw_aux_sensors_snapshot(&sensors, 80u, &snapshot);
     failures += expect_true(snapshot.residual_safe_count == HW_RESIDUAL_REQUIRED_SAFE_COUNT,
                             "safe count reaches required count");
-    failures += expect_true((snapshot.safe_hi_v > -0.10f) && (snapshot.safe_hi_v < 0.10f),
+    failures += expect_true(fabsf(snapshot.safe_hi_v - snapshot.vmid_v) < 0.10f,
                             "residual conversion uses transfer ratio");
     hw_aux_sensors_snapshot(&sensors, 200u, &snapshot);
     failures += expect_true((snapshot.residual_state == HW_RESIDUAL_UNKNOWN) && (snapshot.residual_safe_count == 0u),
@@ -376,9 +378,76 @@ static int test_adc_error_and_pause(void)
     return failures;
 }
 
+
+static int test_vmid_referenced_permission(void)
+{
+    int failures = 0;
+    const struct { float hi; float lo; bool safe; } cases[] = {
+        {0.0f, 0.0f, true}, /* OPEN and uncharged floating resistor bias */
+        {1.25f, 0.0f, false}, {-1.25f, 0.0f, false}, /* asymmetric */
+        {0.65f, -0.65f, false}, /* each below release, differential blocks */
+        {1.25f, 1.25f, false}, {-1.25f, -1.25f, false}, /* common mode */
+    };
+    const float references[] = {1.40f, 1.65f, 1.90f};
+    for (uint32_t v = 0u; v < 3u; v++)
+    {
+        for (uint32_t c = 0u; c < sizeof(cases) / sizeof(cases[0]); c++)
+        {
+            const float vmid = references[v];
+            fake_adc_t adc = safe_fake_adc();
+            adc.vmid_raw = raw_from_voltage(vmid);
+            adc.hi_raw = raw_for_terminal(vmid, vmid + cases[c].hi);
+            adc.lo_raw = raw_for_terminal(vmid, vmid + cases[c].lo);
+            const hw_aux_adc_io_t io = fake_io(&adc);
+            hw_aux_sensors_t sensors;
+            (void)hw_aux_sensors_init(&sensors, &io, 0u);
+            hw_aux_sensors_snapshot_t snapshot;
+            hw_aux_sensors_snapshot(&sensors, 0u, &snapshot);
+            failures += expect_true(snapshot.residual_state == HW_RESIDUAL_UNKNOWN,
+                                    "reset cannot grant residual SAFE");
+            for (uint32_t now = 0u; now < 200u; now++)
+            {
+                for (uint8_t j = 0u; j < 8u; j++) { (void)hw_aux_sensors_step(&sensors, now); }
+            }
+            hw_aux_sensors_snapshot(&sensors, 200u, &snapshot);
+            failures += expect_true((snapshot.residual_state == HW_RESIDUAL_SAFE) == cases[c].safe,
+                                    "real ADC conversion distinguishes passive/asymmetric/differential/common mode");
+            failures += expect_true(fabsf(snapshot.safe_hi_v - (vmid + cases[c].hi)) < 0.06f,
+                                    "absolute terminal diagnostics retained within ADC quantization");
+            hw_measure_permit_issue_input_t input = {
+                .charger = HW_CHARGER_ABSENT, .residual = snapshot.residual_state,
+                .residual_age_ms = snapshot.residual_age_ms, .battery = snapshot.battery_state,
+                .battery_age_ms = snapshot.battery_age_ms, .range = HW_RANGE_READY,
+                .range_id = HW_RANGE_ID_1K, .k1_state = HW_K1_STATE_SAFE,
+                .safety_fault_mask = hw_aux_sensors_fault_mask(&sensors),
+            };
+            hw_measure_permit_t permit;
+            hw_measure_permit_init(&permit);
+            failures += expect_true(hw_measure_permit_issue(&permit, &input, 200u).issued == cases[c].safe,
+                                    "permission uses actual residual/battery evidence");
+            input.charger = HW_CHARGER_PRESENT;
+            failures += expect_true(!hw_measure_permit_issue(&permit, &input, 201u).issued,
+                                    "charger blocks even passive biased fixture");
+            input.charger = HW_CHARGER_ABSENT;
+            input.residual_age_ms = HW_MEASURE_PERMIT_RESIDUAL_MAX_AGE_MS + 1u;
+            failures += expect_true(!hw_measure_permit_issue(&permit, &input, 201u).issued,
+                                    "freshness cannot be bypassed by correct reference");
+            input.residual_age_ms = 0u;
+            input.safety_fault_mask = 1u;
+            failures += expect_true(!hw_measure_permit_issue(&permit, &input, 201u).issued,
+                                    "power/reset/runtime fault blocks permission");
+            hw_aux_sensors_snapshot(&sensors, 300u, &snapshot);
+            failures += expect_true(snapshot.residual_state == HW_RESIDUAL_UNKNOWN,
+                                    "stale real observations are unknown");
+        }
+    }
+    return failures;
+}
+
 int main(void)
 {
     int failures = 0;
+    failures += test_vmid_referenced_permission();
     failures += test_residual_sequence_and_policy();
     failures += test_residual_invalid_and_saturated();
     failures += test_battery_and_ntc();

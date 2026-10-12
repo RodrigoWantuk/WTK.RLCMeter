@@ -102,18 +102,7 @@ static uint32_t crc_frame(const uint8_t *frame, size_t payload_length)
 
 static uint32_t frequency_hz(hw_excitation_freq_t frequency)
 {
-    switch (frequency)
-    {
-    case HW_EXCITATION_FREQ_100HZ:
-        return 100u;
-    case HW_EXCITATION_FREQ_1KHZ:
-        return 1000u;
-    case HW_EXCITATION_FREQ_10KHZ:
-        return 10000u;
-    case HW_EXCITATION_FREQ_INVALID:
-    default:
-        return 0u;
-    }
+    return hw_excitation_frequency_hz(frequency);
 }
 
 bool measurement_cal_condition_allowed(hw_range_id_t range_id,
@@ -438,7 +427,7 @@ measurement_cal_requirements_t measurement_cal_requirements_rev1_full(void)
     measurement_cal_requirements_t requirements = measurement_cal_requirements_empty();
     for (hw_range_id_t range = HW_RANGE_ID_10R; range <= HW_RANGE_ID_1M; range++)
     {
-        for (hw_excitation_freq_t freq = HW_EXCITATION_FREQ_100HZ;
+        for (hw_excitation_freq_t freq = HW_EXCITATION_FREQ_10HZ;
              freq <= HW_EXCITATION_FREQ_10KHZ;
              freq++)
         {

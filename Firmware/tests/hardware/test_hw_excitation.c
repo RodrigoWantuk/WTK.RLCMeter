@@ -1,6 +1,7 @@
 #include "hardware/hw_excitation.h"
 
 #include <stdio.h>
+#include <math.h>
 
 static int expect_true(bool condition, const char *message)
 {
@@ -44,11 +45,11 @@ int main(void)
     }
 
     hw_excitation_freq_profile_t profile;
-    failures += expect_true(hw_excitation_freq_profile(HW_EXCITATION_FREQ_100HZ, &profile) == BSP_STATUS_OK,
-                            "100 Hz profile");
-    failures += expect_u32(profile.rcr, 99u, "100 Hz RCR");
-    failures += expect_u32(profile.ccr_update_hz, 4500u, "100 Hz CCR update");
-    failures += expect_u32(profile.sine_settle_ms, 80u, "100 Hz settle");
+    failures += expect_true(hw_excitation_freq_profile(HW_EXCITATION_FREQ_10HZ, &profile) == BSP_STATUS_OK,
+                            "10 Hz profile");
+    failures += expect_u32(profile.rcr, 249u, "10 Hz RCR");
+    failures += expect_u32(profile.ccr_update_hz, 1800u, "10 Hz CCR update");
+    failures += expect_u32(profile.sine_settle_ms, 800u, "10 Hz settle");
 
     failures += expect_true(hw_excitation_freq_profile(HW_EXCITATION_FREQ_1KHZ, &profile) == BSP_STATUS_OK,
                             "1 kHz profile");
@@ -118,6 +119,71 @@ int main(void)
                             "parse 100m");
     failures += expect_true(hw_excitation_parse_range_token("10k", &range) && (range == HW_RANGE_ID_10K),
                             "parse 10k range");
+
+
+    const uint16_t original_tables[2][45] = {
+        {80, 81, 82, 83, 84, 84, 85, 86, 86, 87, 87, 87, 87, 87, 86, 86, 85, 85, 84, 83, 82, 81, 80, 80, 79, 78, 77, 76, 75, 75, 74, 74, 73, 73, 73, 73, 73, 74, 74, 75, 76, 76, 77, 78, 79},
+        {80, 85, 89, 94, 98, 102, 105, 108, 111, 113, 114, 114, 114, 113, 112, 110, 107, 104, 100, 96, 92, 87, 82, 78, 73, 68, 64, 60, 56, 53, 50, 48, 47, 46, 46, 46, 47, 49, 52, 55, 58, 62, 66, 71, 75},
+    };
+    uint16_t slow[HW_EXCITATION_LUT_POINTS_10HZ];
+    for (uint32_t amp_id = 0u; amp_id < 2u; amp_id++)
+    {
+        const hw_excitation_amp_t amplitude = (hw_excitation_amp_t)amp_id;
+        failures += expect_true(hw_excitation_fill_ccr_table(slow, 180u, amplitude) == BSP_STATUS_OK,
+                                "10 Hz interpolated circular DMA table");
+        (void)hw_excitation_fill_ccr_table(ccr, 45u, amplitude);
+        for (uint32_t i = 0u; i < 45u; i++)
+            failures += expect_true(ccr[i] == original_tables[amp_id][i], "1k/10k duty golden preserved bit-for-bit");
+        float cosine = 0.0f, sine_fit = 0.0f, energy = 0.0f;
+        int32_t total = 0;
+        for (uint32_t i = 0u; i < 180u; i++)
+        {
+            const float radians = (float)i * 0.03490658504f;
+            const int32_t delta = (int32_t)slow[i] - 80;
+            total += delta;
+            sine_fit += (float)delta * sinf(radians) / 90.0f;
+            cosine += (float)delta * cosf(radians) / 90.0f;
+            energy += (float)(delta * delta) / 180.0f;
+            failures += expect_true(slow[i] <= 159u, "all duty values within physical period");
+            if (i % 4u == 0u)
+            {
+                failures += expect_true(slow[i] == ccr[i / 4u], "45-point samples preserved exactly");
+            }
+            failures += expect_true(slow[i] + slow[(180u - i) % 180u] == 160u,
+                                    "zero DC departure from neutral");
+        }
+        const float nominal = (float)hw_excitation_peak_q8(amplitude) / 256.0f;
+        failures += expect_true(total == 0 && fabsf(cosine) < 0.01f &&
+                                fabsf(sine_fit - nominal) < 0.25f,
+                                "fundamental phase/amplitude bounded by duty quantization");
+        (void)printf("10HZ DUTY SYNTHETIC amp=%u fundamental_ticks=%.6f rms_ticks=%.6f\n",
+                     (unsigned)amp_id, (double)sine_fit, (double)sqrtf(energy));
+    }
+    for (hw_excitation_freq_t f = HW_EXCITATION_FREQ_10HZ; f <= HW_EXCITATION_FREQ_10KHZ;
+         f = (hw_excitation_freq_t)((unsigned)f + 1u))
+    {
+        (void)hw_excitation_freq_profile(f, &profile);
+        failures += expect_true(450000u / ((uint32_t)profile.rcr + 1u) == profile.ccr_update_hz &&
+                                profile.ccr_update_hz / profile.table_points == profile.frequency_hz,
+                                "integer carrier/repetition/DMA-length frequency identity");
+    }
+    failures += expect_true(hw_excitation_parse_freq_token("10", &freq) && freq == HW_EXCITATION_FREQ_10HZ &&
+                            !hw_excitation_parse_freq_token("100", &freq), "retired token cannot alias 10 Hz");
+
+    const char *const range_names[] = {"10r", "100r", "1k", "10k", "100k", "1m"};
+    for (uint8_t i = 0u; i < 6u; i++)
+        failures += expect_true(hw_excitation_parse_range_token(range_names[i], &range) &&
+                                (unsigned)range == i, "shared parser preserves all range IDs");
+    failures += expect_true(!hw_excitation_parse_range_token(NULL, &range) &&
+                            !hw_excitation_parse_range_token("1kextra", &range) &&
+                            !hw_excitation_parse_range_token("", &range) &&
+                            !hw_excitation_parse_freq_token("100", &freq) &&
+                            !hw_excitation_parse_amp_token("500mextra", &amp) &&
+                            !hw_excitation_parse_amp_token("500m", NULL), "malformed tokens rejected");
+    failures += expect_true(hw_excitation_validate_amplitude((hw_range_id_t)6, HW_EXCITATION_AMP_100MVRMS) ==
+                                BSP_STATUS_INVALID_ARG &&
+                            hw_excitation_validate_amplitude(HW_RANGE_ID_1K, (hw_excitation_amp_t)2) ==
+                                BSP_STATUS_INVALID_ARG, "compacted validation preserves domain bounds");
 
     return (failures == 0) ? 0 : 1;
 }

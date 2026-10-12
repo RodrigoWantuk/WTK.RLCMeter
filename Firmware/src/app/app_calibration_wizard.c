@@ -10,7 +10,7 @@ _Static_assert(HW_RANGE_ID_1K == 2, "Rev.1 range order is frozen");
 _Static_assert(HW_RANGE_ID_10K == 3, "Rev.1 range order is frozen");
 _Static_assert(HW_RANGE_ID_100K == 4, "Rev.1 range order is frozen");
 _Static_assert(HW_RANGE_ID_1M == 5, "Rev.1 range order is frozen");
-_Static_assert(HW_EXCITATION_FREQ_100HZ == 0, "Rev.1 frequency order is frozen");
+_Static_assert(HW_EXCITATION_FREQ_10HZ == 0, "Rev.1 frequency order is frozen");
 _Static_assert(HW_EXCITATION_FREQ_1KHZ == 1, "Rev.1 frequency order is frozen");
 _Static_assert(HW_EXCITATION_FREQ_10KHZ == 2, "Rev.1 frequency order is frozen");
 _Static_assert(HW_EXCITATION_AMP_100MVRMS == 0, "Rev.1 amplitude order is frozen");
@@ -348,7 +348,7 @@ bsp_status_t app_calibration_wizard_condition_key(hw_range_id_t range_id,
     {
         return BSP_STATUS_INVALID_ARG;
     }
-    hw_excitation_freq_t frequency = HW_EXCITATION_FREQ_100HZ;
+    hw_excitation_freq_t frequency = HW_EXCITATION_FREQ_10HZ;
     hw_excitation_amp_t amplitude = HW_EXCITATION_AMP_100MVRMS;
     if (range_id == HW_RANGE_ID_10R)
     {

@@ -22,7 +22,7 @@ from inspect_calibration_record import OslFrameSummary, SLOT_BYTES, decode_full_
 
 
 RANGES = (10, 100, 1000, 10000, 100000, 1000000)
-FREQUENCIES = (100, 1000, 10000)
+FREQUENCIES = (10, 1000, 10000)
 AMPLITUDES = (100, 500)
 KNOTS = (0.1, 1.0, 10.0)
 IDENTITY = (1.0, 0.0, 0.0, 1.0) * 3

@@ -401,8 +401,8 @@ def analyze(wave, preset="basic", parameters=None):
             result["analysis"]["regulator_inactive_observation"] = statistics(points)
         warnings.append("No permitted sequencing delay invented. Apparent backfeed needs recorded regulator state, adapters and independent review.")
     elif preset == "excitation":
-        if nets != ["VEXC", "VMID"] or p.get("frequency_hz") not in (100,1000,10000):
-            raise ValueError("Excitation requires VEXC/VMID and expected 100/1000/10000 Hz")
+        if nets != ["VEXC", "VMID"] or p.get("frequency_hz") not in (10,1000,10000):
+            raise ValueError("Excitation requires VEXC/VMID and expected 10/1000/10000 Hz")
         diff = array("d", (x-y for x,y in zip(a,b)))
         result["analysis"] = dict(VEXC_DIFF=statistics(diff), fundamental=fundamental(wave,diff,wave.config.channels[0],p["frequency_hz"]))
         # Both channels must support the requested band before their subtraction is evidence.

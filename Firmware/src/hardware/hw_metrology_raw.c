@@ -45,41 +45,21 @@ bool hw_metrology_raw_is_hard_clipped(uint16_t raw)
 bsp_status_t hw_metrology_adc_profile(hw_excitation_freq_t frequency,
                                       hw_metrology_adc_profile_t *profile)
 {
-    if (profile == NULL)
+    const uint32_t hz = hw_excitation_frequency_hz(frequency);
+    if ((profile == NULL) || (hz == 0u))
     {
         return BSP_STATUS_INVALID_ARG;
     }
-
-    switch (frequency)
-    {
-    case HW_EXCITATION_FREQ_100HZ:
-        profile->sample_rate_hz = 6400u;
-        profile->tim2_arr = 11249u;
-        profile->tim2_ccr2 = 5625u;
-        profile->samples_per_cycle = 64u;
-        profile->cycles_per_block = 4u;
-        profile->capture_us = 40000u;
-        return BSP_STATUS_OK;
-    case HW_EXCITATION_FREQ_1KHZ:
-        profile->sample_rate_hz = 64000u;
-        profile->tim2_arr = 1124u;
-        profile->tim2_ccr2 = 562u;
-        profile->samples_per_cycle = 64u;
-        profile->cycles_per_block = 4u;
-        profile->capture_us = 4000u;
-        return BSP_STATUS_OK;
-    case HW_EXCITATION_FREQ_10KHZ:
-        profile->sample_rate_hz = 160000u;
-        profile->tim2_arr = 449u;
-        profile->tim2_ccr2 = 225u;
-        profile->samples_per_cycle = 16u;
-        profile->cycles_per_block = 16u;
-        profile->capture_us = 1600u;
-        return BSP_STATUS_OK;
-    case HW_EXCITATION_FREQ_INVALID:
-    default:
-        return BSP_STATUS_INVALID_ARG;
-    }
+    profile->samples_per_cycle = (frequency == HW_EXCITATION_FREQ_10KHZ) ? 16u : 64u;
+    profile->sample_rate_hz = hz * profile->samples_per_cycle;
+    profile->tim2_psc = (frequency == HW_EXCITATION_FREQ_10HZ) ? 1u : 0u;
+    const uint32_t period = HW_METROLOGY_TIM_APB1_HZ /
+                            (profile->sample_rate_hz * ((uint32_t)profile->tim2_psc + 1u));
+    profile->tim2_arr = (uint16_t)(period - 1u);
+    profile->tim2_ccr2 = (uint16_t)(period / 2u);
+    profile->cycles_per_block = (uint16_t)(HW_METROLOGY_SAMPLES_PER_BLOCK / profile->samples_per_cycle);
+    profile->capture_us = (HW_METROLOGY_SAMPLES_PER_BLOCK * 1000000u) / profile->sample_rate_hz;
+    return BSP_STATUS_OK;
 }
 
 static void update_stream(hw_metrology_stream_stats_t *stats, uint16_t raw, bool *block_clipped)

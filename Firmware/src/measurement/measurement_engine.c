@@ -1,6 +1,7 @@
 #include "measurement/measurement_engine.h"
 
 #include <stddef.h>
+#include <math.h>
 
 #include "measurement/measurement_condition.h"
 
@@ -97,7 +98,7 @@ static bool frequency_index(hw_excitation_freq_t frequency, uint8_t *index)
     }
     switch (frequency)
     {
-    case HW_EXCITATION_FREQ_100HZ:
+    case HW_EXCITATION_FREQ_10HZ:
         *index = 0u;
         return true;
     case HW_EXCITATION_FREQ_1KHZ:
@@ -114,18 +115,7 @@ static bool frequency_index(hw_excitation_freq_t frequency, uint8_t *index)
 
 static uint32_t frequency_hz(hw_excitation_freq_t frequency)
 {
-    switch (frequency)
-    {
-    case HW_EXCITATION_FREQ_100HZ:
-        return 100u;
-    case HW_EXCITATION_FREQ_1KHZ:
-        return 1000u;
-    case HW_EXCITATION_FREQ_10KHZ:
-        return 10000u;
-    case HW_EXCITATION_FREQ_INVALID:
-    default:
-        return 0u;
-    }
+    return hw_excitation_frequency_hz(frequency);
 }
 
 static bool amplitude_index(hw_excitation_amp_t amplitude, uint8_t *index)
@@ -150,7 +140,7 @@ static bool amplitude_index(hw_excitation_amp_t amplitude, uint8_t *index)
 
 static float abs_float(float value)
 {
-    return (value < 0.0f) ? -value : value;
+    return fabsf(value);
 }
 
 static float max_float(float a, float b)
@@ -336,7 +326,7 @@ static bool choose_frequency_refinement(const measurement_auto_session_t *sessio
     {
         next = HW_EXCITATION_FREQ_1KHZ;
     }
-    else if (result->config.frequency == HW_EXCITATION_FREQ_100HZ)
+    else if (result->config.frequency == HW_EXCITATION_FREQ_10HZ)
     {
         next = HW_EXCITATION_FREQ_1KHZ;
     }

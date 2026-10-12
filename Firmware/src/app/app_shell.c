@@ -126,7 +126,7 @@ static bool g_pc_link_ack_deferred = false;
 static bool g_resource_update_configured = false;
 static bool g_resource_update_workspace_acquired = false;
 #endif
-static uint16_t g_product_ccr_table[HW_EXCITATION_LUT_POINTS];
+static uint16_t g_product_ccr_table[HW_EXCITATION_LUT_MAX_POINTS];
 static uint32_t g_product_output_tone_sequence = 0u;
 static uint8_t g_product_output_backlight_percent = UINT8_MAX;
 static bool g_product_output_sound_valid = false;
@@ -750,7 +750,7 @@ static bsp_status_t product_adc_start_capture(uint32_t *raw_words,
     {
         return BSP_STATUS_INVALID_ARG;
     }
-    return bsp_metrology_adc_start_capture(raw_words, word_count, profile->tim2_arr, profile->tim2_ccr2);
+    return bsp_metrology_adc_start_capture(raw_words, word_count, profile->tim2_psc, profile->tim2_arr, profile->tim2_ccr2);
 }
 
 static void product_adc_stop(void *user)
@@ -795,15 +795,16 @@ static bsp_status_t product_excitation_sine(hw_excitation_freq_t frequency,
 {
     (void)user;
     hw_excitation_freq_profile_t profile;
-    if (hw_excitation_freq_profile(frequency, &profile) != BSP_STATUS_OK)
+    if ((bsp_excitation_mode() != BSP_EXCITATION_MODE_NEUTRAL) ||
+        hw_excitation_freq_profile(frequency, &profile) != BSP_STATUS_OK)
     {
         return BSP_STATUS_INVALID_ARG;
     }
-    if (hw_excitation_fill_ccr_table(g_product_ccr_table, HW_EXCITATION_LUT_POINTS, amplitude) != BSP_STATUS_OK)
+    if (hw_excitation_fill_ccr_table(g_product_ccr_table, profile.table_points, amplitude) != BSP_STATUS_OK)
     {
         return BSP_STATUS_ERROR;
     }
-    return bsp_excitation_sine(profile.rcr, g_product_ccr_table, HW_EXCITATION_LUT_POINTS);
+    return bsp_excitation_sine(profile.rcr, g_product_ccr_table, profile.table_points);
 }
 
 static hw_excitation_mode_t product_excitation_mode(void *user)
