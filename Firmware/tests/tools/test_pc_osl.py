@@ -95,6 +95,17 @@ class CalibrationTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             osl.solve([replace(s, hg_observed=False) for s in group])
 
+    def test_open_unusable_hg_valid_1x(self):
+        group = osl.campaign_standards(self.ideal)[0]
+        group = [replace(s, ret_hg_valid=False, hg_observed=False)
+                 if s.standard == 'OPEN' else s for s in group]
+        solution = osl.solve(group)
+        self.assertEqual(solution.fit_channel, '1X')
+        self.assertLess(abs(solution.apply(group[2].t_1x)-group[2].load), 1e-4)
+        with self.assertRaises(ValueError):
+            osl.solve([replace(s, ret_1x_valid=False) if s.standard == 'OPEN' else s
+                       for s in group])
+
     def test_sequence_crc_and_trailing(self):
         for seq in (0, -1, 0x100000000, True):
             with self.assertRaises(ValueError):
