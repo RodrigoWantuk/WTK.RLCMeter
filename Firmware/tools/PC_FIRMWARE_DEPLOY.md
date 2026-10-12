@@ -167,7 +167,7 @@ python Firmware/tools/pc_firmware_deploy.py verify --manifest Firmware/build/han
    after its physical operator gate. Capture/install remain separately authorized.
 3. **Factory PRODUCT:** program with `--previous BRINGUP_CAL`, `--installation
    C:/bench/installation.json --cal-readback C:/bench/installed.bin`. Existing
-   canonical validator checks schema2/model4/all33 keys, actual sequence/CRC,
+   canonical validator checks schema2/model5/all33 keys, actual sequence/CRC,
    installation success/readback hashes and MCU UID. Synthetic installation cannot
    authorize physical PRODUCT. JSON consistency is **not a fresh W25Q check or an
    accuracy certificate**; owner independently reviews provenance before switching.

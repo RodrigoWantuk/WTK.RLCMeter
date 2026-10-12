@@ -9,6 +9,12 @@ Synthetic numerical/GUI tests do not close M12 electrical or metrology gates.
 Unchanged real DSO2C10 exports/settings and assembled-board evidence remain required;
 native layout is explicitly unsupported until verified. No PCB/firmware change.
 
+B02.2 updates the active software contract to 10 Hz / 1 kHz / 10 kHz, schema-v2/
+model-v5 (same OSL equations). The [preflight](../docs/review/b02/B02.2-report.md)
+corrects VMID-referenced residual permission and supplies synthetic endpoint
+feasibility. Earlier 100 Hz/model-v4 descriptions below are historical. No physical
+qualification, energized-DUT permission or large-capacitor approval is granted.
+
 ## A05 pre-assembly evidence
 
 The [A05 audit](../docs/review/a05/README.md), starting from merged PR #12 main

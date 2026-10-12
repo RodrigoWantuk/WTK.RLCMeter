@@ -10,7 +10,7 @@ The project combines a custom mixed-signal PCB, an **STM32 Blue Pill** module, a
 
 - Measure **resistance, capacitance, inductance, and complex impedance**.
 - Derive `R`, `X`, `|Z|`, phase, and, where meaningful, ESR, Q, and D.
-- Baseline test frequencies: **100 Hz, 1 kHz, and 10 kHz**.
+- Baseline test frequencies: **10 Hz, 1 kHz, and 10 kHz**.
 - Planned excitation levels: **100 mVrms** and **500 mVrms**, selected according to range and headroom; 500 mVrms is not allowed with the 10 Ω reference range.
 - Automatic selection among six reference impedances: **10 Ω, 100 Ω, 1 kΩ, 10 kΩ, 100 kΩ, and 1 MΩ**.
 - Initial engineering targets, still subject to qualification: approximately **1 Ω–10 MΩ**, **1 nF–10 mF**, and **10 µH–10 H**.

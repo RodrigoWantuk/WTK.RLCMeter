@@ -302,7 +302,7 @@ States:
 ```text
 OFF     TIM1 stopped, DMA off, PA8 GPIO LOW (boot/fault)
 NEUTRAL TIM1 50% duty (CCR1=80), DMA off
-SINE    TIM1 + circular DMA1 Ch5 feeding 45-entry CCR table
+SINE    TIM1 + circular DMA1 Ch5 feeding 180-entry CCR table at 10 Hz; 45 entries at 1/10 kHz
 ```
 
 Configuration changes occur only while SINE is stopped. Sequence: OFF → configure → fill CCR → NEUTRAL → 1 ms settle → reset phase → enable DMA → SINE → sine settle → ADC capture → OFF.
@@ -339,7 +339,7 @@ No TIM2 per-sample IRQ, no ADC EOC per-rank IRQ, no DSP/UART/TFT in ISRs.
 Bringup profile only:
 
 ```text
-lab metrology capture <100|1k|10k> <100m|500m> <10r|100r|1k|10k|100k|1m>
+lab metrology capture <10|1k|10k> <100m|500m> <10r|100r|1k|10k|100k|1m>
 ```
 
 Non-blocking session FSM; K1 forced SAFE throughout; UART raw dump after excitation OFF and quiet released. Never consumes measurement permit.
@@ -347,7 +347,7 @@ Non-blocking session FSM; K1 forced SAFE throughout; UART raw dump after excitat
 Bringup profile only (Stage 2):
 
 ```text
-lab metrology measure <100|1k|10k> <100m|500m> <10r|100r|1k|10k|100k|1m>
+lab metrology measure <10|1k|10k> <100m|500m> <10r|100r|1k|10k|100k|1m>
 ```
 
 Stage 2 module: `hw_metrology_measure`. DUT measure FSM reuses the Stage 1 raw buffer and transport contract but energizes K1 only after single-use permit validate. `app_shell` skips global `hw_k1_force_safe()` while `hw_metrology_measure_k1_owned()`; dynamic blockers inside the measure FSM handle emergency abort during K1 MEASURE. Capture (`hw_metrology_session`) and measure are mutually exclusive in the Bringup console.
@@ -362,7 +362,7 @@ Permit validate: immediately before K1 request; consumed single-use; TTL 5 ms
 hw_k1_request_measure(): builds hw_safety_input_t from fresh sensor evidence
 Aux pause: after K1 authorization, before operate-guard completion/ADC ownership; invalidates residual evidence
 Success shutdown: neutral excitation before K1 SAFE (not immediate OFF)
-Abort during MEASURE: excitation OFF immediately; 8 ms release guard before aux resume if K1 reached MEASURE
+Abort during MEASURE: stop ADC, request range OFF and K1 SAFE, then excitation OFF in one bounded cleanup step; 8 ms release guard before aux resume if K1 reached MEASURE
 ```
 
 ### Session closure fixes (Stage 1, Stage 2)
@@ -515,7 +515,7 @@ The classifier may use:
 - phase;
 - R/X dominance;
 - derived C/L validity;
-- frequency dependence across available 100 Hz / 1 kHz / 10 kHz measurements;
+- frequency dependence across available 10 Hz / 1 kHz / 10 kHz measurements;
 - stability/confidence information.
 
 A component with large parasitics or an ambiguous network must be allowed to return a mixed/unknown/low-confidence interpretation rather than forcing an incorrect R/L/C label.
@@ -837,7 +837,7 @@ LOAD standards directly to `measurement_cal_solver_solve()`, inserts the generat
 record through the calibration service candidate API, and commits only after full Rev.1
 validation. BRINGUP keeps a console-owned campaign for `lab cal campaign ...`.
 The Rev.1 calibration domain is fixed at 33 conditions: `10R` supports `100mV` at
-`100Hz/1kHz/10kHz`; every other Rev.1 range supports `100mV` and `500mV` at each of the
+`10Hz/1kHz/10kHz`; every other Rev.1 range supports `100mV` and `500mV` at each of the
 three frequencies. Static assertions freeze the enum order used by this direct mapping.
 
 Pre-Phase 08 cleanup removed embedded execution for development-era direct/affine

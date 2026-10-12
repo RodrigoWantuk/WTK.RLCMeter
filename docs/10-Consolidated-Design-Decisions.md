@@ -104,7 +104,7 @@ Dual regular simultaneous ADC1+ADC2, 7.5-cycle sample time on ranks
   ADC2: RET_1X, RET_HG, VMID
 TIM2_CC2 internal compare trigger; PA1 never configured as TIM2 GPIO output
 DMA1 Channel 1, packed ADC1/ADC2 32-bit words, 768-word static buffer (3072 B)
-Sample rates: 6400 / 64000 / 160000 SPS at 100 Hz / 1 kHz / 10 kHz excitation
+Sample rates: 640 / 64000 / 160000 SPS at 10 Hz / 1 kHz / 10 kHz excitation
 256 sample instants per block (64 spc x4 or 16 spc x16)
 ```
 
@@ -112,8 +112,8 @@ Sample rates: 6400 / 64000 / 160000 SPS at 100 Hz / 1 kHz / 10 kHz excitation
 
 ```text
 PA8 TIM1_CH1 PWM carrier 450 kHz (PSC=0, ARR=159)
-45-point Q15 sine LUT via DMA1 Channel 5 -> TIM1_CCR1
-RCR 99/9/0 for 100 Hz / 1 kHz / 10 kHz
+45-point Q15 basis; 180 interpolated duties at 10 Hz, original 45 duties at 1/10 kHz; DMA1 Channel 5 -> TIM1_CCR1
+RCR 249/9/0 for 10 Hz / 1 kHz / 10 kHz
 100 mVrms and 500 mVrms nominal classes; 500 mVrms forbidden on 10 Ω RREF
 OFF / NEUTRAL(50%) / SINE states; boot/fault = OFF
 ```
@@ -277,7 +277,7 @@ Floating correction coefficients are serialized as explicit IEEE754 binary32 fie
 Temperature metadata is stored as signed integer millidegrees C.
 
 Development-era model versions 1/2/3 are not executable firmware models. Current
-firmware only executes model version 4. Older model numbers may still be diagnosed from
+firmware only executes model version 5 (10 Hz / 1 kHz / 10 kHz identity; unchanged OSL equations). Older model numbers may still be diagnosed from
 frame headers as `INCOMPATIBLE_MODEL`, but the embedded runtime does not retain direct
 affine correction branches.
 
@@ -364,7 +364,7 @@ The Stage 2A.2 Rev.1 hardware-supported domain is:
 
 ```text
 range:      10 Ohm / 100 Ohm / 1 kOhm / 10 kOhm / 100 kOhm / 1 MOhm
-frequency: 100 Hz / 1 kHz / 10 kHz
+frequency: 10 Hz / 1 kHz / 10 kHz
 amplitude: 100 mVrms / 500 mVrms
 ```
 
@@ -707,7 +707,7 @@ K1_RELEASE_GUARD_MS = 8    (REQUIRES_BENCH_VALIDATION)
 HW_MEASURE_PERMIT_TTL_MS = 5
 ```
 
-Bringup DUT measure (`hw_metrology_measure`) issues the measurement permit after excitation NEUTRAL settle and quiet entry; validate is consumed immediately before `hw_k1_request_measure()`. The application shell continues global safety evaluation but skips `hw_k1_force_safe()` while the measure module owns K1. Successful measure shutdown returns excitation to NEUTRAL for 1 ms before commanding K1 SAFE; emergency abort during K1 MEASURE commands excitation OFF immediately. After K1 returns SAFE, the 8 ms release guard must complete before auxiliary ADC resume when K1 had reached MEASURE.
+Bringup DUT measure (`hw_metrology_measure`) issues the measurement permit after excitation NEUTRAL settle and quiet entry; validate is consumed immediately before `hw_k1_request_measure()`. The application shell continues global safety evaluation but skips `hw_k1_force_safe()` while the measure module owns K1. Successful measure shutdown returns excitation to NEUTRAL for 1 ms before commanding K1 SAFE; emergency abort during K1 MEASURE first requests range OFF and K1 SAFE, then excitation OFF in the same bounded step. After K1 returns SAFE, the 8 ms release guard must complete before auxiliary ADC resume when K1 had reached MEASURE.
 
 Raw capture (`hw_metrology_session`, `lab metrology capture`) keeps K1 SAFE and does not consume a permit.
 
@@ -792,7 +792,7 @@ target-side runtime trigonometric calls inside the sample loop by using fixed re
 coefficients for the current coherent sample profiles:
 
 ```text
-100 Hz  / 1 kHz: 64 samples per cycle
+10 Hz  / 1 kHz: 64 samples per cycle
 10 kHz:          16 samples per cycle
 ```
 
@@ -1009,3 +1009,14 @@ Any agent or contributor proposing to reverse a consolidated decision must docum
 4. calibration/qualification impact;
 5. migration cost;
 6. affected documentation/plans.
+
+## B02.2 frequency and residual-reference contract
+
+Schema v2/model v5 distinguishes the 10/1k/10k configuration from old model-v4
+100/1k/10k records. No W25Q layout migration or automatic erase is authorized.
+The 10 Hz ADC uses PSC1/ARR56249/CCR2=28125, 640 sample sets/s, 256 sets/400 ms;
+1/10 kHz remain PSC0. DMA uses one caller-owned persistent immutable duty table.
+Residual thresholds apply to both terminal-to-measured-VMID departures and their
+difference; absolute terminal diagnostics remain available. Thresholds, saturation,
+freshness and eight SAFE evaluations remain. This is not earth-referenced isolation.
+See [B02.2 evidence and electrical limits](review/b02/B02.2-report.md).

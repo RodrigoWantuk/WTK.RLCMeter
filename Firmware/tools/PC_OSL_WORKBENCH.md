@@ -51,7 +51,7 @@ Firmware/build/workbench-env/Scripts/python.exe Firmware/tools/pc_osl_workbench.
    reconnect and continue at 43. Accepted artifacts/hashes survive application exit.
 6. At 99/99 and 33/33, **Generate candidate & reports** creates a NEW directory:
    candidate.bin (2760 bytes), captures.json, campaign.json, report.json, report.md.
-   The candidate is schema v2/model v4, UNQUALIFIED and **NOT INSTALLED**.
+   The candidate is schema v2/model v5, UNQUALIFIED and **NOT INSTALLED**.
 
 No physical mode auto-confirm, timer-triggered acquisition, force/reset or installation
 action exists. Test automation supplies confirmations only from the test harness.

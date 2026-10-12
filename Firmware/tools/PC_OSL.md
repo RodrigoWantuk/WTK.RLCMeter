@@ -73,3 +73,10 @@ in BRINGUP_CAL; the A06.1 simulator operation IDs remain simulator-only.
 Run `cmake --build` and CTest using the existing host presets/configuration to build
 the bridge. `pc_osl_compatibility.py --bridge <path-to-wtk_pc_osl_bridge>` can also run
 the same compatibility suite directly. Python unit discovery lives under `tests/tools`.
+
+B02.2 compatibility: model v5 uses 10 Hz / 1 kHz / 10 kHz with the existing
+OSL equations and schema-v2 2,760-byte frame. Model-v4 100 Hz records, old capture
+artifacts and bound campaigns are not automatically migrated. Use matching current
+BRINGUP_CAL firmware and updated Python tooling; collect a new complete campaign.
+Read-only inspection reports old model-v4 frequency ID 0 as 100 Hz, never 10 Hz.
+No external Flash erase is required merely to upgrade firmware.
