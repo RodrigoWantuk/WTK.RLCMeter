@@ -83,8 +83,8 @@ static uint32_t frequency_hz(hw_excitation_freq_t frequency)
 {
     switch (frequency)
     {
-    case HW_EXCITATION_FREQ_100HZ:
-        return 100u;
+    case HW_EXCITATION_FREQ_10HZ:
+        return 10u;
     case HW_EXCITATION_FREQ_1KHZ:
         return 1000u;
     case HW_EXCITATION_FREQ_10KHZ:

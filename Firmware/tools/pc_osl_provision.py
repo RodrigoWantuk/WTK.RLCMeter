@@ -62,7 +62,7 @@ class FakeDevice:
 
     def identify(self):
         return {"device": "SYNTHETIC_FAKE_DEVICE", "hardware": wire.REV1_HARDWARE,
-                "schema": 2, "model": 4, "capture_install_dispatch": "SIMULATED_ONLY",
+                "schema": 2, "model": 5, "capture_install_dispatch": "SIMULATED_ONLY",
                 "active_sequence": validate_frame(self.active_frame).sequence if self.active_frame else 0,
                 "qualified": False}
 

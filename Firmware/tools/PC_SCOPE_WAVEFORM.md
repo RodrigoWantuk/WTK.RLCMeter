@@ -96,7 +96,7 @@ low ramp values are not automatically settled-rail failures. No permitted delay 
 invented. Regulator-inactive observations need an in-capture interval and independent
 state evidence. Apparent backfeed still needs regulator/adapters/current-limit/DMM review.
 
-**B — excitation:** CH1 VEXC, CH2 VMID, DC/GND; CH1−CH2 at expected 100/1k/10k Hz.
+**B — excitation:** CH1 VEXC, CH2 VMID, DC/GND; CH1−CH2 at expected 10/1k/10k Hz.
 Report mean/RMS/peak/frequency/phase and available harmonic evidence. 450 kHz targeted
 projection needs uniform time, both bandwidths >=450 kHz, >=16 samples/carrier cycle
 and four cycles in the fit segment; otherwise INSUFFICIENT_EVIDENCE. A finite
@@ -160,7 +160,7 @@ python Firmware/tools/scope_waveform.py Firmware/build/scope-demo/waveform.csv -
 ```
 
 Generator kinds also include powerdown/simultaneous/overshoot/excitation/carrier/
-ret/saturated/clamp/lower_clamp/noise; excitation accepts 100/1k/10k Hz. These are
+ret/saturated/clamp/lower_clamp/noise; excitation accepts 10/1k/10k Hz. These are
 **analytic synthetic signals, not Hantek exports or PCB recordings**. In the GUI load
 config.json, choose its preset and import; paired parameters.json loads if present.
 

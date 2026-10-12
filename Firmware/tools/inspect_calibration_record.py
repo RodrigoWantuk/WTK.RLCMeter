@@ -19,7 +19,7 @@ from typing import NamedTuple
 
 MAGIC = 0x434C4157
 SCHEMA_VERSION = 2
-MODEL_CURRENT = 4
+MODEL_CURRENT = 5
 FLAG_HG_OBSERVED = 1 << 7
 FLAG_QUALIFIED = 1 << 8
 FLAG_OSL_MODEL = 1 << 5
@@ -34,7 +34,7 @@ MAX_FRAME_BYTES = 3072
 SLOT_BYTES = 4096
 REV1_HARDWARE = 0x00010001
 RANGES = (10, 100, 1000, 10000, 100000, 1000000)
-FREQUENCIES = (100, 1000, 10000)
+FREQUENCIES = (10, 1000, 10000)
 AMPLITUDES = (100, 500)
 
 
@@ -122,6 +122,8 @@ def decode_record(data: bytes, index: int) -> dict[str, object]:
         "model_version": model,
         "range_id": range_id,
         "frequency": frequency,
+        "frequency_hz": ((100, 1000, 10000) if model == 4 else FREQUENCIES)[frequency]
+                        if model in (4, MODEL_CURRENT) and 0 <= frequency < 3 else None,
         "amplitude": amplitude,
         "record_type": record_type,
         "temperature_mC": temperature_mC,
@@ -172,6 +174,7 @@ def inspect(path: Path) -> int:
     print(f"sequence={sequence}")
     print(f"hardware_revision=0x{hardware:08X}")
     print(f"model_version={model}")
+    print("compatibility=" + ("CURRENT" if model == MODEL_CURRENT else "INCOMPATIBLE_READ_ONLY"))
     print(f"commit={'VALID' if commit == COMMIT_MARKER else 'MISSING'}")
     print(f"crc32_stored=0x{crc_stored:08X}")
     print(f"crc32_calculated=0x{crc_calc:08X}")
@@ -193,7 +196,7 @@ def inspect(path: Path) -> int:
         rec = decode_record(payload[begin : begin + RECORD_BYTES], i)
         line = (
             "record[{index}] hw={hardware_revision} model={model_version} "
-            "range={range_id} freq={frequency} amp={amplitude} "
+            "range={range_id} freq={frequency} frequency_hz={frequency_hz} amp={amplitude} "
             "type={record_type} temp_mC={temperature_mC} condition={condition_id} "
             "flags={flags} effective_hg_transfer={effective_hg_transfer} "
             "load_z_ohms={load_z_ohms} t_short={t_short} t_open={t_open} "

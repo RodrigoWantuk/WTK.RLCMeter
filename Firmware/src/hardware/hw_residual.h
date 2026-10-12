@@ -30,14 +30,16 @@ typedef struct
 {
     bool valid;
     bool saturated;
-    float safe_hi_v;
-    float safe_lo_v;
+    /* Departures from measured VMID; absolute diagnostics remain in sensors. */
+    float terminal_hi_to_vmid_v;
+    float terminal_lo_to_vmid_v;
     float residual_diff_v;
 } hw_residual_policy_input_t;
 
 void hw_residual_policy_init(hw_residual_policy_t *policy);
 hw_residual_state_t hw_residual_policy_evaluate(hw_residual_policy_t *policy,
                                                 const hw_residual_policy_input_t *input);
+float hw_residual_terminal_to_vmid_voltage(float vmid_v, float sense_v);
 float hw_residual_terminal_voltage(float vmid_v, float sense_v);
 float hw_residual_differential_voltage(float safe_hi_v, float safe_lo_v);
 bool hw_residual_raw_is_saturated(uint16_t raw);

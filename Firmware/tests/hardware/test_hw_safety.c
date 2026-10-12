@@ -6,6 +6,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <math.h>
 
 static int expect_true(bool condition, const char *message)
 {
@@ -115,8 +116,8 @@ static int test_residual_policy(void)
     const hw_residual_policy_input_t safe = {
         .valid = true,
         .saturated = false,
-        .safe_hi_v = 0.10f,
-        .safe_lo_v = -0.10f,
+        .terminal_hi_to_vmid_v = 0.10f,
+        .terminal_lo_to_vmid_v = -0.10f,
         .residual_diff_v = 0.20f,
     };
 
@@ -132,8 +133,8 @@ static int test_residual_policy(void)
     const hw_residual_policy_input_t hysteresis_080 = {
         .valid = true,
         .saturated = false,
-        .safe_hi_v = 0.80f,
-        .safe_lo_v = 0.0f,
+        .terminal_hi_to_vmid_v = 0.80f,
+        .terminal_lo_to_vmid_v = 0.0f,
         .residual_diff_v = 0.80f,
     };
     failures += expect_true(hw_residual_policy_evaluate(&policy, &hysteresis_080) == HW_RESIDUAL_SAFE,
@@ -142,8 +143,8 @@ static int test_residual_policy(void)
     const hw_residual_policy_input_t hysteresis_070 = {
         .valid = true,
         .saturated = false,
-        .safe_hi_v = 0.70f,
-        .safe_lo_v = 0.0f,
+        .terminal_hi_to_vmid_v = 0.70f,
+        .terminal_lo_to_vmid_v = 0.0f,
         .residual_diff_v = 0.70f,
     };
     failures += expect_true(hw_residual_policy_evaluate(&policy, &hysteresis_070) == HW_RESIDUAL_SAFE,
@@ -154,8 +155,8 @@ static int test_residual_policy(void)
     const hw_residual_policy_input_t hysteresis_099 = {
         .valid = true,
         .saturated = false,
-        .safe_hi_v = 0.99f,
-        .safe_lo_v = 0.0f,
+        .terminal_hi_to_vmid_v = 0.99f,
+        .terminal_lo_to_vmid_v = 0.0f,
         .residual_diff_v = 0.99f,
     };
     failures += expect_true(hw_residual_policy_evaluate(&policy, &hysteresis_099) == HW_RESIDUAL_SAFE,
@@ -164,8 +165,8 @@ static int test_residual_policy(void)
     const hw_residual_policy_input_t unsafe = {
         .valid = true,
         .saturated = false,
-        .safe_hi_v = 1.00f,
-        .safe_lo_v = 0.0f,
+        .terminal_hi_to_vmid_v = 1.00f,
+        .terminal_lo_to_vmid_v = 0.0f,
         .residual_diff_v = 1.00f,
     };
     failures += expect_true(hw_residual_policy_evaluate(&policy, &unsafe) == HW_RESIDUAL_UNSAFE,
@@ -180,8 +181,8 @@ static int test_residual_policy(void)
     const hw_residual_policy_input_t invalid_from_safe = {
         .valid = false,
         .saturated = false,
-        .safe_hi_v = 0.0f,
-        .safe_lo_v = 0.0f,
+        .terminal_hi_to_vmid_v = 0.0f,
+        .terminal_lo_to_vmid_v = 0.0f,
         .residual_diff_v = 0.0f,
     };
     failures += expect_true(hw_residual_policy_evaluate(&policy, &invalid_from_safe) == HW_RESIDUAL_UNKNOWN,
@@ -192,8 +193,8 @@ static int test_residual_policy(void)
     const hw_residual_policy_input_t hysteresis = {
         .valid = true,
         .saturated = false,
-        .safe_hi_v = 0.90f,
-        .safe_lo_v = 0.0f,
+        .terminal_hi_to_vmid_v = 0.90f,
+        .terminal_lo_to_vmid_v = 0.0f,
         .residual_diff_v = 0.90f,
     };
     failures += expect_true(hw_residual_policy_evaluate(&policy, &hysteresis) == HW_RESIDUAL_UNKNOWN,
@@ -204,8 +205,8 @@ static int test_residual_policy(void)
     const hw_residual_policy_input_t invalid = {
         .valid = false,
         .saturated = false,
-        .safe_hi_v = 0.0f,
-        .safe_lo_v = 0.0f,
+        .terminal_hi_to_vmid_v = 0.0f,
+        .terminal_lo_to_vmid_v = 0.0f,
         .residual_diff_v = 0.0f,
     };
     failures += expect_true(hw_residual_policy_evaluate(&policy, &invalid) == HW_RESIDUAL_UNKNOWN,
@@ -214,8 +215,8 @@ static int test_residual_policy(void)
     const hw_residual_policy_input_t saturated = {
         .valid = true,
         .saturated = true,
-        .safe_hi_v = 0.0f,
-        .safe_lo_v = 0.0f,
+        .terminal_hi_to_vmid_v = 0.0f,
+        .terminal_lo_to_vmid_v = 0.0f,
         .residual_diff_v = 0.0f,
     };
     failures += expect_true(hw_residual_policy_evaluate(&policy, &saturated) == HW_RESIDUAL_SATURATED,
@@ -229,6 +230,15 @@ static int test_residual_policy(void)
     failures += expect_true((terminal > 2.64f) && (terminal < 2.66f), "residual transfer K is about 63.222");
     failures += expect_true(hw_residual_differential_voltage(0.40f, -0.20f) > 0.59f,
                             "differential residual subtracts LO from HI");
+
+    hw_residual_policy_input_t nonfinite = safe;
+    nonfinite.terminal_hi_to_vmid_v = NAN;
+    failures += expect_true(hw_residual_policy_evaluate(&policy, &nonfinite) == HW_RESIDUAL_UNKNOWN,
+                            "NaN cannot retain previously SAFE policy state");
+    nonfinite = safe;
+    nonfinite.terminal_lo_to_vmid_v = INFINITY;
+    failures += expect_true(hw_residual_policy_evaluate(&policy, &nonfinite) == HW_RESIDUAL_UNKNOWN,
+                            "infinity cannot grant SAFE");
 
     return failures;
 }

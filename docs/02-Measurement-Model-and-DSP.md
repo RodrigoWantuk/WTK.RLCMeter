@@ -47,7 +47,7 @@ A full FFT is not required for the normal measurement path.
 
 Initial qualification targets:
 
-- 100 Hz;
+- 10 Hz;
 - 1 kHz;
 - 10 kHz.
 

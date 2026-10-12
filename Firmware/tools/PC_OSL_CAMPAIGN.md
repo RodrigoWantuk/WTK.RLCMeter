@@ -5,7 +5,7 @@ progress, human-confirmed capture and candidate export over this same backend.
 The CLI remains available for scripts and diagnostics.
 
 `pc_osl_campaign.py` wraps the existing PLC1 capture client, CCO1 artifact checks,
-model-v4 OSL solver and canonical installer validator. Python 3.9+ standard
+model-v5 OSL solver and canonical installer validator. Python 3.9+ standard
 library supports preparation, reports and C-backed simulation. Physical COM
 access needs `pyserial` on Windows. **The PCB is unassembled; all physical
 capture, electrical safety and accuracy remain REQUIRES_BENCH_VALIDATION.**
@@ -33,7 +33,7 @@ Example for one entry after inspecting a real resistor, with no independent
 measurement: `published_tolerance_pct: 1`, `actual_impedance_ohms: null`,
 `measured_interval_ohms: null`, `measurement: null`. Enter a descriptive
 `fixture_id`, assumptions (e.g. ambient temperature not measured; nominal
-resistance used across 100Hz/1kHz/10kHz, AC behavior not characterized), and notes.
+resistance used across 10Hz/1kHz/10kHz, AC behavior not characterized), and notes.
 Nominal `[1000, 0]` ohm remains an uncertain fit anchor, not measured truth.
 
 For an independently entered actual value use `[real, imaginary]` ohm and a
@@ -76,7 +76,7 @@ python Firmware/tools/pc_osl_campaign.py start --inventory Firmware/build/refere
 Device identity and UNCALIBRATED/CALIBRATED record status are explicit. A valid
 record is not physical qualification. A default campaign requests OPEN at all
 33 keys, SHORT at all 33 keys, then LOAD grouped by ascending RREF, each with
-100Hz/1kHz/10kHz and supported 100/500mVrms amplitudes. The forbidden
+10Hz/1kHz/10kHz and supported 100/500mVrms amplitudes. The forbidden
 10-ohm/500mVrms keys are absent. This takes **eight fixture setups, seven fixture
 changes, and 99 explicit CAPTURE confirmations** in an uninterrupted campaign.
 The operator can leave OPEN/SHORT attached across each group; these are 99
@@ -149,7 +149,7 @@ python Firmware/tools/pc_osl_campaign.py build --campaign Firmware/build/board1-
 python Firmware/tools/pc_osl_calibrate.py inspect Firmware/build/board1-candidate/candidate.bin
 ```
 
-The output contains canonical **2760-byte schema-v2/model-v4 candidate.bin**,
+The output contains canonical **2760-byte schema-v2/model-v5 candidate.bin**,
 solver-compatible captures.json, the complete campaign.json audit snapshot,
 report.json with hashes/provenance, and report.md with reference intervals,
 per-capture quality and the existing 33-condition solver table. An incomplete

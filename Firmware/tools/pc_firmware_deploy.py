@@ -383,7 +383,7 @@ def authorize(image,session_path,board,operator,supply,previous,uid,accept,acks,
             status.get("state")!=4 or status.get("error")!=0 or status.get("active_sequence")!=summary.sequence or not status.get("active_valid") or device.get("uid")!=uid):
             raise ValueError("OSL installation/readback/device identity mismatch")
         if device.get("synthetic") and not simulated: raise ValueError("synthetic installation cannot authorize physical PRODUCT")
-        result["osl"]=dict(report=observed,readback_path=str(Path(cal_readback).resolve()),sha256=sha(frame),schema=2,model=4,sequence=summary.sequence,
+        result["osl"]=dict(report=observed,readback_path=str(Path(cal_readback).resolve()),sha256=sha(frame),schema=2,model=5,sequence=summary.sequence,
             limitation="Hash/report consistency, not a fresh W25Q read or physical accuracy certificate")
     if resource:
         result["resource_pack"]["reference"]=evidence(resource)

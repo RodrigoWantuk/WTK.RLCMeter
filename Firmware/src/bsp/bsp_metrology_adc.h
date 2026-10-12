@@ -14,6 +14,7 @@ enum
 bsp_status_t bsp_metrology_adc_acquire(uint32_t now_ms);
 bsp_status_t bsp_metrology_adc_start_capture(uint32_t *raw_words,
                                              uint32_t word_count,
+                                             uint16_t tim2_psc,
                                              uint16_t tim2_arr,
                                              uint16_t tim2_ccr2);
 void bsp_metrology_adc_stop(void);

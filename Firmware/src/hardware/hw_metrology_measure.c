@@ -6,9 +6,6 @@ typedef enum
 {
     HW_METROLOGY_MEASURE_ABORT_NONE = 0,
     HW_METROLOGY_MEASURE_ABORT_STOP_ADC,
-    HW_METROLOGY_MEASURE_ABORT_EXC_OFF,
-    HW_METROLOGY_MEASURE_ABORT_K1_SAFE,
-    HW_METROLOGY_MEASURE_ABORT_RANGE_DISABLE,
     HW_METROLOGY_MEASURE_ABORT_RELEASE_GUARD,
     HW_METROLOGY_MEASURE_ABORT_ADC_RESTORE,
     HW_METROLOGY_MEASURE_ABORT_AUX_RESUME,
@@ -240,53 +237,30 @@ static void abort_cleanup_step(hw_metrology_measure_t *measure,
     switch (*phase)
     {
     case HW_METROLOGY_MEASURE_ABORT_STOP_ADC:
+    {
         if (measure->io.adc_stop != NULL)
         {
             measure->io.adc_stop(measure->io.user);
         }
-        *phase = HW_METROLOGY_MEASURE_ABORT_EXC_OFF;
-        break;
-
-    case HW_METROLOGY_MEASURE_ABORT_EXC_OFF:
-    {
-        const bsp_status_t exc_status = call_status(measure->io.excitation_off, measure->io.user);
-        if (exc_status != BSP_STATUS_OK)
+        /* Isolate DUT before OFF's VMID-to-ground source step. Never wait to
+         * attempt shutdown; every operation is bounded and tried on failure.
+         * These mandatory callbacks were validated by io_complete() at init. */
+        if (measure->io.range_force_disabled(measure->io.user) != BSP_STATUS_OK &&
+            measure->io.latch_range_io_fault != NULL)
         {
-            if (measure->io.latch_metrology_runtime_fault != NULL)
-            {
-                measure->io.latch_metrology_runtime_fault(measure->io.user);
-            }
+            measure->io.latch_range_io_fault(measure->io.user);
         }
-        *phase = HW_METROLOGY_MEASURE_ABORT_K1_SAFE;
-        break;
-    }
-
-    case HW_METROLOGY_MEASURE_ABORT_K1_SAFE:
-    {
-        const bsp_status_t k1_status = call_status(measure->io.k1_force_safe, measure->io.user);
-        if (k1_status != BSP_STATUS_OK)
+        if (measure->io.k1_force_safe(measure->io.user) != BSP_STATUS_OK &&
+            measure->io.latch_k1_io_fault != NULL)
         {
-            if (measure->io.latch_k1_io_fault != NULL)
-            {
-                measure->io.latch_k1_io_fault(measure->io.user);
-            }
+            measure->io.latch_k1_io_fault(measure->io.user);
+        }
+        if (measure->io.excitation_off(measure->io.user) != BSP_STATUS_OK &&
+            measure->io.latch_metrology_runtime_fault != NULL)
+        {
+            measure->io.latch_metrology_runtime_fault(measure->io.user);
         }
         measure->k1_owned = measure->abort_release_guard_pending;
-        *phase = HW_METROLOGY_MEASURE_ABORT_RANGE_DISABLE;
-        break;
-    }
-
-    case HW_METROLOGY_MEASURE_ABORT_RANGE_DISABLE:
-    {
-        const bsp_status_t range_status =
-            call_status(measure->io.range_force_disabled, measure->io.user);
-        if (range_status != BSP_STATUS_OK)
-        {
-            if (measure->io.latch_range_io_fault != NULL)
-            {
-                measure->io.latch_range_io_fault(measure->io.user);
-            }
-        }
         if (measure->abort_release_guard_pending)
         {
             measure->wait_deadline_ms = now_ms + HW_METROLOGY_MEASURE_K1_RELEASE_GUARD_MS;

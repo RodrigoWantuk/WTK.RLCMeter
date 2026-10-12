@@ -89,7 +89,7 @@ typedef struct
     app_bringup_dc_state_t dc_state;
     uint32_t dc_requalification_deadline_ms;
     bool dc_cancel_requested;
-    uint16_t ccr_table[HW_EXCITATION_LUT_POINTS];
+    uint16_t ccr_table[HW_EXCITATION_LUT_MAX_POINTS];
     hw_range_t *range_ref;
     hw_k1_t *k1_ref;
     hw_aux_sensors_t *sensors_ref;

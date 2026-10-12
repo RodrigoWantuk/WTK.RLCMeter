@@ -147,7 +147,7 @@ class ScopeTab(QWidget):
                 bandwidth=edit(cf,"Effective probe/channel bandwidth Hz"),error=edit(cf,"Optional tip-voltage error bound V"),
                 accuracy=edit(cf,"Accuracy / probe evidence"),low=edit(cf,"Known display low (V, optional)"),high=edit(cf,"Known display high (V, optional)"))
             self.channels.append(fields)
-        self.frequency=choice(form,"Expected excitation Hz",["1000","100","10000"])
+        self.frequency=choice(form,"Expected excitation Hz",["1000","10","10000"])
         self.resistor=edit(form,"Fitted series resistor Ω")
         self.component=edit(form,"Output / ADC / resistor component mapping")
         self.mapping=edit(form,"Mapping evidence")

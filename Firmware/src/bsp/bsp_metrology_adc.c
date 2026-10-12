@@ -182,6 +182,7 @@ bsp_status_t bsp_metrology_adc_acquire(uint32_t now_ms)
 
 bsp_status_t bsp_metrology_adc_start_capture(uint32_t *raw_words,
                                              uint32_t word_count,
+                                             uint16_t tim2_psc,
                                              uint16_t tim2_arr,
                                              uint16_t tim2_ccr2)
 {
@@ -212,7 +213,7 @@ bsp_status_t bsp_metrology_adc_start_capture(uint32_t *raw_words,
      */
     TIM2->CR1 = 0u;
     TIM2->DIER = 0u;
-    TIM2->PSC = 0u;
+    TIM2->PSC = tim2_psc;
     TIM2->ARR = tim2_arr;
     TIM2->CCR2 = tim2_ccr2;
     TIM2->CCMR1 = TIM_CCMR1_OC2M_1 | TIM_CCMR1_OC2M_2 | TIM_CCMR1_OC2PE;

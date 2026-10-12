@@ -1,3 +1,8 @@
+> Current configuration: [B02.2](B02.2-report.md) replaces 100 Hz with 10 Hz and
+> uses schema-v2/model-v5 calibration. Historical 100 Hz discussions below describe
+> B02.0 predictions, not another supported frequency or physical measurement.
+> Large-capacitor and endpoint qualification remain HOLD; see the current report.
+
 # B02.0 — analog expectations and affordable calibration baseline
 
 **All numbers below are calculations or cited device specifications, not measured
@@ -34,16 +39,17 @@ Component tolerances/loading/U4 response remain outside this exact nominal ladde
 
 | Frequency | Ladder amplitude / loss | Ladder phase vs averaged PWM | Predicted VEXC AC RMS, encoded 100 /500 mV settings at 3.3 V |
 | --- | --- | --- | --- |
-| 100 Hz | 0.999867 / −0.00116 dB | −1.10° | ~100.8 /499.2 mV |
+| 10 Hz (B02.2) | 0.999998665 / −0.0000116 dB | −0.11016° | ~101.08 /498.93 mV |
 | 1 kHz | 0.986906 / −0.114 dB | −10.94° | ~99.5 /492.7 mV |
 | 10 kHz | 0.512455 / −5.81 dB | −75.56° | ~51.6 /255.9 mV |
 
 Amplitudes include the source-code integer CCR fundamental/ZOH and a **typical
-one-pole 1 MHz unity buffer estimate**, not a guaranteed output. hw_excitation uses
-45 samples/cycle, ARR159 (160 ticks), center 80 and peak Q8=1755/8777, rounded to ±7/
+one-pole 1 MHz unity buffer estimate**, not a guaranteed output. B02.2 uses 180 interpolated samples/cycle at 10 Hz and retains
+45 samples/cycle at 1/10 kHz, ARR159 (160 ticks), center 80 and peak Q8=1755/8777, rounded to ±7/
 ±34 ticks. Actual duty table fundamental at 3.3 V is 100.787/499.279 mVrms after ZOH;
 the 100/500 names are requested classes, **no measured-frequency amplitude servo**.
-Sample hold contributes≈−4° relative to an ideal table-point sine; DMA/start timing
+At 10 Hz the duty fundamental is 6.931111/34.212521 ticks (100/500 classes),
+zero mean departure, with 180-entry ZOH≈−1°. At 1/10 kHz sample hold contributes≈−4° relative to an ideal table-point sine; DMA/start timing
 adds its own phase. Therefore ladder phase is not absolute burst phase. Typical
 U4 lag adds≈0.006/0.057/0.573° at 100/1 k/10 k. DSP uses observed complex Vs=VEXC−VMID;
 do not “correct” this loss by changing PWM during this task.

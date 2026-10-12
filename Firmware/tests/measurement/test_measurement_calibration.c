@@ -385,7 +385,7 @@ static measurement_cal_set_t full_supported_set(uint32_t sequence)
                              sequence);
     for (hw_range_id_t range = HW_RANGE_ID_10R; range <= HW_RANGE_ID_1M; range++)
     {
-        for (hw_excitation_freq_t freq = HW_EXCITATION_FREQ_100HZ;
+        for (hw_excitation_freq_t freq = HW_EXCITATION_FREQ_10HZ;
              freq <= HW_EXCITATION_FREQ_10KHZ;
              freq++)
         {
@@ -581,7 +581,7 @@ static int test_serialization_resolution_and_validity(void)
 
     measurement_cal_requirements_t req = measurement_cal_requirements_empty();
     const measurement_cal_key_t present = key_for(HW_RANGE_ID_10R, HW_EXCITATION_FREQ_1KHZ);
-    const measurement_cal_key_t missing = key_for(HW_RANGE_ID_1M, HW_EXCITATION_FREQ_100HZ);
+    const measurement_cal_key_t missing = key_for(HW_RANGE_ID_1M, HW_EXCITATION_FREQ_10HZ);
     (void)measurement_cal_requirements_add(&req, &present);
     measurement_cal_validity_t validity =
         measurement_cal_validate_set(&decoded, &req, MEASUREMENT_CAL_HARDWARE_REV1,
@@ -595,6 +595,14 @@ static int test_serialization_resolution_and_validity(void)
                                             MEASUREMENT_CAL_MODEL_VERSION_CURRENT);
     failures += expect_true(validity.status == MEASUREMENT_CAL_VALIDITY_INCOMPATIBLE_HARDWARE,
                             "hardware mismatch");
+
+    decoded.model_version = 4u;
+    failures += expect_true(measurement_cal_validate_set(&decoded, NULL,
+                                MEASUREMENT_CAL_HARDWARE_REV1,
+                                MEASUREMENT_CAL_MODEL_VERSION_CURRENT).status ==
+                                MEASUREMENT_CAL_VALIDITY_INCOMPATIBLE_MODEL,
+                            "old 100 Hz model-v4 calibration cannot become 10 Hz calibration");
+    decoded.model_version = MEASUREMENT_CAL_MODEL_VERSION_CURRENT;
 
     measurement_cal_resolved_t resolved;
     failures += expect_true(measurement_cal_resolve_condition(&decoded,
@@ -733,7 +741,7 @@ static int test_condition_domain_consistency(void)
     uint8_t supported_count = 0u;
     for (hw_range_id_t range = HW_RANGE_ID_10R; range <= HW_RANGE_ID_1M; range++)
     {
-        for (hw_excitation_freq_t freq = HW_EXCITATION_FREQ_100HZ;
+        for (hw_excitation_freq_t freq = HW_EXCITATION_FREQ_10HZ;
              freq <= HW_EXCITATION_FREQ_10KHZ;
              freq++)
         {
@@ -761,7 +769,7 @@ static int test_condition_domain_consistency(void)
     failures += expect_true(supported_count == MEASUREMENT_CONDITION_REV1_MAX_SUPPORTED,
                             "condition domain count");
     failures += expect_true(!measurement_condition_supported(HW_RANGE_ID_10R,
-                                                            HW_EXCITATION_FREQ_100HZ,
+                                                            HW_EXCITATION_FREQ_10HZ,
                                                             HW_EXCITATION_AMP_500MVRMS),
                             "10R 500m forbidden");
     failures += expect_true(measurement_condition_supported(HW_RANGE_ID_100K,
@@ -1025,7 +1033,7 @@ static int test_app_calibration_runtime_loads_active_set(void)
                              9u);
     for (hw_range_id_t range = HW_RANGE_ID_10R; range <= HW_RANGE_ID_1M; range++)
     {
-        for (hw_excitation_freq_t freq = HW_EXCITATION_FREQ_100HZ;
+        for (hw_excitation_freq_t freq = HW_EXCITATION_FREQ_10HZ;
              freq <= HW_EXCITATION_FREQ_10KHZ;
              freq++)
         {

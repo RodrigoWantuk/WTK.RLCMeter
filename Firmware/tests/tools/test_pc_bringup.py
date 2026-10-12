@@ -282,6 +282,10 @@ class BringupTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 b.replay(invalid)
 
+    def test_safe_without_eight_samples_is_unknown(self):
+        _, _, report = self.mutate(b.COMMANDS[2], "safe_count=8", "safe_count=5")
+        self.assertEqual(self.status(report, b.COMMANDS[2]), "UNKNOWN")
+
     def test_duplicate_sensor_field(self):
         _, _, report = self.mutate(b.COMMANDS[2], "lab sensors vmid: 1650mV", "lab sensors vmid_raw: 2048 valid=1")
         self.assertEqual(report["result"], "UNKNOWN")

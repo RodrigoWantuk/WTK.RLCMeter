@@ -116,18 +116,7 @@ static void write_complex_milli(measurement_complex_t value)
 
 static uint32_t lab_frequency_hz(hw_excitation_freq_t frequency)
 {
-    switch (frequency)
-    {
-    case HW_EXCITATION_FREQ_100HZ:
-        return 100u;
-    case HW_EXCITATION_FREQ_1KHZ:
-        return 1000u;
-    case HW_EXCITATION_FREQ_10KHZ:
-        return 10000u;
-    case HW_EXCITATION_FREQ_INVALID:
-    default:
-        return 0u;
-    }
+    return hw_excitation_frequency_hz(frequency);
 }
 
 static uint32_t lab_amplitude_mvrms(hw_excitation_amp_t amplitude)
@@ -891,7 +880,7 @@ static bsp_status_t lab_adc_start_capture(uint32_t *raw_words,
     {
         return BSP_STATUS_INVALID_ARG;
     }
-    return bsp_metrology_adc_start_capture(raw_words, word_count, profile->tim2_arr, profile->tim2_ccr2);
+    return bsp_metrology_adc_start_capture(raw_words, word_count, profile->tim2_psc, profile->tim2_arr, profile->tim2_ccr2);
 }
 
 static void lab_adc_stop(void *user)
@@ -942,15 +931,16 @@ static bsp_status_t lab_excitation_sine(hw_excitation_freq_t frequency,
 {
     app_bringup_console_t *console = (app_bringup_console_t *)user;
     hw_excitation_freq_profile_t profile;
-    if (hw_excitation_freq_profile(frequency, &profile) != BSP_STATUS_OK)
+    if ((bsp_excitation_mode() != BSP_EXCITATION_MODE_NEUTRAL) ||
+        hw_excitation_freq_profile(frequency, &profile) != BSP_STATUS_OK)
     {
         return BSP_STATUS_INVALID_ARG;
     }
-    if (hw_excitation_fill_ccr_table(console->ccr_table, HW_EXCITATION_LUT_POINTS, amplitude) != BSP_STATUS_OK)
+    if (hw_excitation_fill_ccr_table(console->ccr_table, profile.table_points, amplitude) != BSP_STATUS_OK)
     {
         return BSP_STATUS_ERROR;
     }
-    return bsp_excitation_sine(profile.rcr, console->ccr_table, HW_EXCITATION_LUT_POINTS);
+    return bsp_excitation_sine(profile.rcr, console->ccr_table, profile.table_points);
 }
 
 static hw_excitation_mode_t lab_excitation_mode(void *user)
@@ -2056,8 +2046,8 @@ static hw_excitation_freq_t lab_frequency_from_hz(uint32_t frequency_hz)
 {
     switch (frequency_hz)
     {
-    case 100u:
-        return HW_EXCITATION_FREQ_100HZ;
+    case 10u:
+        return HW_EXCITATION_FREQ_10HZ;
     case 1000u:
         return HW_EXCITATION_FREQ_1KHZ;
     case 10000u:

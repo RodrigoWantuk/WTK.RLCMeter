@@ -129,8 +129,10 @@ static void publish_residual(hw_aux_sensors_t *sensors)
     sensors->snapshot.vmid_valid = vmid_valid;
     sensors->snapshot.ov_hi_raw = hi_raw;
     sensors->snapshot.ov_lo_raw = lo_raw;
-    sensors->snapshot.safe_hi_v = vmid_valid ? hw_residual_terminal_voltage(vmid_v, hi_v) : 0.0f;
-    sensors->snapshot.safe_lo_v = vmid_valid ? hw_residual_terminal_voltage(vmid_v, lo_v) : 0.0f;
+    const float hi_relative = vmid_valid ? hw_residual_terminal_to_vmid_voltage(vmid_v, hi_v) : 0.0f;
+    const float lo_relative = vmid_valid ? hw_residual_terminal_to_vmid_voltage(vmid_v, lo_v) : 0.0f;
+    sensors->snapshot.safe_hi_v = vmid_valid ? vmid_v + hi_relative : 0.0f;
+    sensors->snapshot.safe_lo_v = vmid_valid ? vmid_v + lo_relative : 0.0f;
     sensors->snapshot.residual_diff_v =
         vmid_valid ? hw_residual_differential_voltage(sensors->snapshot.safe_hi_v, sensors->snapshot.safe_lo_v)
                    : 0.0f;
@@ -138,8 +140,8 @@ static void publish_residual(hw_aux_sensors_t *sensors)
     const hw_residual_policy_input_t input = {
         .valid = vmid_valid,
         .saturated = sensors->residual_group_saturated,
-        .safe_hi_v = sensors->snapshot.safe_hi_v,
-        .safe_lo_v = sensors->snapshot.safe_lo_v,
+        .terminal_hi_to_vmid_v = hi_relative,
+        .terminal_lo_to_vmid_v = lo_relative,
         .residual_diff_v = sensors->snapshot.residual_diff_v,
     };
     sensors->snapshot.residual_state = hw_residual_policy_evaluate(&sensors->residual_policy, &input);

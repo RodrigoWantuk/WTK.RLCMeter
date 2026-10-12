@@ -10,6 +10,8 @@
 enum
 {
     HW_EXCITATION_LUT_POINTS = 45u,
+    HW_EXCITATION_LUT_POINTS_10HZ = 180u,
+    HW_EXCITATION_LUT_MAX_POINTS = 180u,
     HW_EXCITATION_PWM_PSC = 0u,
     HW_EXCITATION_PWM_ARR = 159u,
     HW_EXCITATION_PWM_PERIOD_TICKS = 160u,
@@ -28,7 +30,7 @@ _Static_assert(HW_EXCITATION_PWM_PERIOD_TICKS == (HW_EXCITATION_PWM_ARR + 1u), "
 
 typedef enum
 {
-    HW_EXCITATION_FREQ_100HZ = 0,
+    HW_EXCITATION_FREQ_10HZ = 0,
     HW_EXCITATION_FREQ_1KHZ,
     HW_EXCITATION_FREQ_10KHZ,
     HW_EXCITATION_FREQ_INVALID = 255,
@@ -53,6 +55,7 @@ typedef struct
 {
     uint32_t frequency_hz;
     uint8_t rcr;
+    uint16_t table_points;
     uint32_t ccr_update_hz;
     uint32_t sine_settle_ms;
 } hw_excitation_freq_profile_t;
@@ -70,6 +73,7 @@ const int16_t *hw_excitation_sine_q15(void);
 uint16_t hw_excitation_peak_q8(hw_excitation_amp_t amplitude);
 uint16_t hw_excitation_amplitude_mvrms(hw_excitation_amp_t amplitude);
 bsp_status_t hw_excitation_validate_amplitude(hw_range_id_t range_id, hw_excitation_amp_t amplitude);
+uint32_t hw_excitation_frequency_hz(hw_excitation_freq_t frequency);
 bsp_status_t hw_excitation_freq_profile(hw_excitation_freq_t frequency,
                                         hw_excitation_freq_profile_t *profile);
 bsp_status_t hw_excitation_fill_ccr_table(uint16_t *ccr,

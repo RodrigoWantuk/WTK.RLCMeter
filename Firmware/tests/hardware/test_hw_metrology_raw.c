@@ -30,12 +30,15 @@ int main(void)
     int failures = 0;
     hw_metrology_adc_profile_t profile;
 
-    failures += expect_true(hw_metrology_adc_profile(HW_EXCITATION_FREQ_100HZ, &profile) == BSP_STATUS_OK, "100 Hz ADC");
-    failures += expect_u32(profile.sample_rate_hz, 6400u, "100 Hz SPS");
-    failures += expect_u32(profile.tim2_arr, 11249u, "100 Hz ARR");
-    failures += expect_u32(profile.tim2_ccr2, 5625u, "100 Hz CCR2");
-    failures += expect_u32(profile.samples_per_cycle, 64u, "100 Hz spc");
-    failures += expect_u32(profile.cycles_per_block, 4u, "100 Hz cycles");
+    failures += expect_true(hw_metrology_adc_profile(HW_EXCITATION_FREQ_10HZ, &profile) == BSP_STATUS_OK, "10 Hz ADC");
+    failures += expect_u32(profile.sample_rate_hz, 640u, "10 Hz SPS");
+    failures += expect_u32(profile.tim2_psc, 1u, "10 Hz PSC");
+    failures += expect_u32(profile.capture_us, 400000u, "10 Hz 4-cycle capture");
+    failures += expect_u32(72000000u / (((uint32_t)profile.tim2_psc + 1u) * ((uint32_t)profile.tim2_arr + 1u)), 640u, "10 Hz exact trigger rate");
+    failures += expect_u32(profile.tim2_arr, 56249u, "10 Hz ARR");
+    failures += expect_u32(profile.tim2_ccr2, 28125u, "10 Hz CCR2");
+    failures += expect_u32(profile.samples_per_cycle, 64u, "10 Hz spc");
+    failures += expect_u32(profile.cycles_per_block, 4u, "10 Hz cycles");
 
     failures += expect_true(hw_metrology_adc_profile(HW_EXCITATION_FREQ_1KHZ, &profile) == BSP_STATUS_OK, "1 kHz ADC");
     failures += expect_u32(profile.sample_rate_hz, 64000u, "1 kHz SPS");

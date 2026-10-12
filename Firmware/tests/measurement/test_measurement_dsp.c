@@ -137,7 +137,7 @@ static void make_empty_block(hw_metrology_block_t *block,
     block->valid = true;
     block->mode = HW_METROLOGY_MODE_DUT_MEASURE;
     block->dut_measure = true;
-    block->excitation_frequency_hz = (frequency == HW_EXCITATION_FREQ_100HZ) ? 100u :
+    block->excitation_frequency_hz = (frequency == HW_EXCITATION_FREQ_10HZ) ? 10u :
                                      (frequency == HW_EXCITATION_FREQ_1KHZ)  ? 1000u :
                                                                                 10000u;
     block->requested_amplitude_mvrms = 100u;
@@ -271,10 +271,10 @@ static int test_impedance_vectors(void)
 
     const float c_1k = 1.0f / (TEST_TWO_PI_F * 1000.0f * 1000.0f);
     (void)c_1k;
-    failures += test_impedance_vector(HW_EXCITATION_FREQ_100HZ,
+    failures += test_impedance_vector(HW_EXCITATION_FREQ_10HZ,
                                       HW_RANGE_ID_1K,
                                       measurement_complex(0.0f, -1000.0f),
-                                      "C 100Hz",
+                                      "C 10Hz",
                                       MEASUREMENT_INTERPRET_CAPACITIVE);
     failures += test_impedance_vector(HW_EXCITATION_FREQ_1KHZ,
                                       HW_RANGE_ID_1K,
@@ -286,10 +286,10 @@ static int test_impedance_vectors(void)
                                       measurement_complex(0.0f, -1000.0f),
                                       "C 10k",
                                       MEASUREMENT_INTERPRET_CAPACITIVE);
-    failures += test_impedance_vector(HW_EXCITATION_FREQ_100HZ,
+    failures += test_impedance_vector(HW_EXCITATION_FREQ_10HZ,
                                       HW_RANGE_ID_1K,
                                       measurement_complex(0.0f, 1000.0f),
-                                      "L 100Hz",
+                                      "L 10Hz",
                                       MEASUREMENT_INTERPRET_INDUCTIVE);
     failures += test_impedance_vector(HW_EXCITATION_FREQ_1KHZ,
                                       HW_RANGE_ID_1K,
@@ -403,6 +403,95 @@ static int test_derived_values(void)
     return failures;
 }
 
+
+/* Host-only feasibility, not measured accuracy. CSV rows use an independent
+ * double-precision divider/loaded-ladder oracle, then exercise production guards. */
+static int test_required_rlc_domain(void)
+{
+    int failures = 0;
+    double max_z_error = 0.0, max_lc_error = 0.0;
+    const double inductors[] = {500e-9, 1e-6, 10e-6, 100e-6, 1e-3, 10e-3, 100e-3, 1.0, 2.0};
+    const double capacitors[] = {1e-12, 2.2e-12, 10e-12, 100e-12, 1e-9, 10e-9, 100e-9,
+                                 1e-6, 10e-6, 100e-6, 1000e-6, 10e-3};
+    const double frequencies[] = {10.0, 1000.0, 10000.0};
+    const double ranges[] = {10.0, 100.0, 1000.0, 10000.0, 100000.0, 1000000.0};
+    const double pi = 3.14159265358979323846;
+    (void)puts("FEASIBILITY,evidence,type,value_si,frequency_hz,reactance_ohm,rref_ohm,amplitude_class_mvrms,source_peak_v,return_peak_v,hg_peak_v,current_peak_a,z_over_rref,ret_1x_peak_codes,ret_hg_peak_codes,math_observable,hg_headroom,classification");
+    for (unsigned type = 0u; type < 2u; type++)
+    {
+        const double *values = type == 0u ? inductors : capacitors;
+        const unsigned count = type == 0u ? 9u : 12u;
+        for (unsigned n = 0u; n < count; n++)
+        {
+            for (unsigned f = 0u; f < 3u; f++)
+            {
+                const double omega = 2.0 * pi * frequencies[f];
+                const double x = type == 0u ? omega * values[n] : -1.0 / (omega * values[n]);
+                unsigned r = 0u;
+                double best = fabs(log(fabs(x) / ranges[0]));
+                for (unsigned candidate = 1u; candidate < 6u; candidate++)
+                {
+                    const double distance = fabs(log(fabs(x) / ranges[candidate]));
+                    if (distance < best) { r = candidate; best = distance; }
+                }
+                const double rc = omega * 5100.0 * 1e-9;
+                const double ladder = 1.0 / hypot(1.0 - 5.0 * rc * rc, 6.0 * rc - rc * rc * rc);
+                const unsigned amplitude = r == 0u ? 100u : 500u;
+                const double source = sqrt(2.0) * (double)amplitude / 1000.0 * ladder;
+                const double denominator = ranges[r] * ranges[r] + x * x;
+                const double return_re = source * x * x / denominator;
+                const double return_im = source * ranges[r] * x / denominator;
+                const double return_peak = hypot(return_re, return_im);
+                const double hg = return_peak * (1.0 + 68000.0 / 4700.0);
+                const measurement_dsp_config_t config = measurement_dsp_config_ideal((hw_range_id_t)r);
+                const measurement_impedance_result_t actual = measurement_compute_impedance(
+                    measurement_complex((float)source, 0.0f),
+                    measurement_complex((float)return_re, (float)return_im),
+                    config.zref_ohms, &config, MEASUREMENT_RETURN_1X);
+                const bool observable = actual.status == MEASUREMENT_STATUS_OK &&
+                                        return_peak >= config.return_min_v_peak;
+                const double q = fabs(x) / ranges[r];
+                const char *classification = "PLAUSIBLE_FOR_BENCH_TEST";
+                if (!observable || (type == 0u && values[n] <= 1e-6) ||
+                    (type == 1u && values[n] <= 10e-12))
+                    classification = "OUTSIDE_DEMONSTRATED_CAPABILITY";
+                else if (q < 0.1 || q > 10.0 || (type == 1u && values[n] <= 100e-12) ||
+                         (r >= 4u && f == 2u))
+                    classification = "LOW_CONFIDENCE";
+                if (type == 1u && values[n] >= 100e-6)
+                    classification = "ELECTRICAL_SAFETY_HOLD"; /* Unapproved large/polarized parts. */
+                if (observable)
+                {
+                    const double z_error = fabs((double)actual.z_ohms.im / x - 1.0);
+                    if (z_error > max_z_error) { max_z_error = z_error; }
+                    failures += expect_true(isfinite(actual.z_ohms.im) &&
+                                            fabs((double)actual.z_ohms.im / x - 1.0) < 0.002,
+                                            "independent ideal divider agrees with production complex equation");
+                    const measurement_derived_result_t derived = measurement_derive_quantities(
+                        measurement_complex(1.0f, (float)x), (uint32_t)frequencies[f],
+                        &config, MEASUREMENT_STATUS_OK);
+                    if (fabs(x) > config.reactance_min_ohms)
+                    {
+                        const float recovered = type == 0u ? derived.inductance_h : derived.capacitance_f;
+                        const double lc_error = fabs((double)recovered / values[n] - 1.0);
+                        if (lc_error > max_lc_error) { max_lc_error = lc_error; }
+                        failures += expect_true(fabs((double)recovered / values[n] - 1.0) < 1e-5,
+                                                "all derived L/C use actual 10/1k/10k frequency");
+                    }
+                }
+                (void)printf("FEASIBILITY,SYNTHETIC,%s,%.9g,%.0f,%.9g,%.0f,%u,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%s,%s,%s\n",
+                             type == 0u ? "L" : "C", values[n], frequencies[f], x, ranges[r], amplitude,
+                             source, return_peak, hg, source / sqrt(denominator), q,
+                             return_peak * 4095.0 / 3.3, hg * 4095.0 / 3.3,
+                             observable ? "YES" : "NO",
+                             hg < 1.65 - 3.3 * HW_METROLOGY_CLIP_LOW_MAX / 4095.0 ? "YES" : "NO", classification);
+            }
+        }
+    }
+    (void)printf("FEASIBILITY_ERROR max_relative_z=%.9g max_relative_lc=%.9g SYNTHETIC_ONLY\n", max_z_error, max_lc_error);
+    return failures;
+}
+
 int main(void)
 {
     int failures = 0;
@@ -412,6 +501,7 @@ int main(void)
     failures += test_impedance_vectors();
     failures += test_quality_and_errors();
     failures += test_derived_values();
+    failures += test_required_rlc_domain();
 #if WTK_PRODUCT_FACTORY_PROVISIONED
     const float components[] = {-1000.0f,-10.0f,-1.0f,0.0f,1.0f,10.0f,1000.0f};
     for(size_t i=0u;i<sizeof(components)/sizeof(components[0]);i++)

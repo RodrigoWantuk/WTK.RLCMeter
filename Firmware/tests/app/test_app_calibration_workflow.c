@@ -781,7 +781,7 @@ static measurement_cal_set_t full_cal_set(uint32_t sequence, float marker)
                              sequence);
     for (hw_range_id_t range = HW_RANGE_ID_10R; range <= HW_RANGE_ID_1M; range++)
     {
-        for (hw_excitation_freq_t freq = HW_EXCITATION_FREQ_100HZ;
+        for (hw_excitation_freq_t freq = HW_EXCITATION_FREQ_10HZ;
              freq <= HW_EXCITATION_FREQ_10KHZ;
              freq++)
         {

@@ -29,8 +29,8 @@ class ScopeTests(unittest.TestCase):
         c=config or sw.ImportConfig(0,"s",(sw.Channel(1,"A","V",1,0,10,"tip","DC",100000),),header=False,metadata={"synthetic":True})
         return sw.import_csv(path,c)
 
-    def test_cosine_oracle_100_1k_10k(self):
-        for f in (100,1000,10000):
+    def test_cosine_oracle_10_1k_10k(self):
+        for f in (10,1000,10000):
             path,c= None,None
             p,c,preset,params=synthetic.generate(self.root/str(f),"excitation",f)
             wave=sw.import_csv(p,c); result=sw.analyze(wave,preset,params)

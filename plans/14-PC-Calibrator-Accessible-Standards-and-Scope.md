@@ -25,6 +25,12 @@ qualification. [Software evidence](../docs/review/a04/A04.3a-report.md) records
 headless tests, Windows packaging and zero firmware delta. P14-08's generic CSV
 subset is tested; native adapters, real scope measurements and broader plots remain open.
 
+B02.2 updates the active software contract to 10 Hz / 1 kHz / 10 kHz, schema-v2/
+model-v5 (same OSL equations). The [preflight](../docs/review/b02/B02.2-report.md)
+corrects VMID-referenced residual permission and supplies synthetic endpoint
+feasibility. Earlier 100 Hz/model-v4 descriptions below are historical. No physical
+qualification, energized-DUT permission or large-capacitor approval is granted.
+
 ## 1. Acquisition/procurement philosophy
 Design for small Brazilian electronic component stores. Ordinary E12/E24 values, through-hole 1/4W metal-film resistors, C0G/NP0 ceramic/film capacitors, and generic coils should complete first-pass validation. Printed tolerance is accepted as an interval and affects the eventual *best-possible confidence*: an uncertified 1% resistor alone cannot justify 0.1% overall accuracy. A scope measures waveform behavior, not automatically reference impedance or leakage current. Advanced precision/guarded standards can be optional upgrades.
 

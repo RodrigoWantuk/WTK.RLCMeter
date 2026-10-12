@@ -97,6 +97,13 @@ class InspectCalibrationRecordTests(unittest.TestCase):
         self.assertEqual(summary, inspect_cal.decode_full_rev1_frame(
             blob + bytes([0xFF]) * (inspect_cal.SLOT_BYTES - len(blob))))
 
+    def test_frequency_identity_is_model_bound(self):
+        record = bytearray(inspect_cal.RECORD_BYTES)
+        struct.pack_into("<IH", record, 0, inspect_cal.REV1_HARDWARE, 4)
+        self.assertEqual(inspect_cal.decode_record(record, 0)["frequency_hz"], 100)
+        struct.pack_into("<H", record, 4, inspect_cal.MODEL_CURRENT)
+        self.assertEqual(inspect_cal.decode_record(record, 0)["frequency_hz"], 10)
+
     def test_strict_frame_rejects_partial_tampered_and_invalid_model(self):
         with self.assertRaises(ValueError):
             inspect_cal.decode_full_rev1_frame(valid_frame())

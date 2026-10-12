@@ -15,10 +15,10 @@ enum
     EXC_DC_PILOT_CCR = 81u,
 #endif
     EXC_LUT_POINTS = 45u,
+    EXC_LUT_POINTS_10HZ = 180u,
 };
 
-static uint16_t g_ccr_table[EXC_LUT_POINTS];
-static bsp_excitation_mode_t g_mode = BSP_EXCITATION_MODE_OFF;
+static volatile bsp_excitation_mode_t g_mode = BSP_EXCITATION_MODE_OFF;
 static volatile bool g_dma_error = false;
 
 static void gpio_config_pin(GPIO_TypeDef *const port, uint32_t pin, uint32_t mode)
@@ -121,18 +121,13 @@ bsp_status_t bsp_excitation_dc_pilot(void)
 
 bsp_status_t bsp_excitation_sine(uint8_t rcr, const uint16_t *ccr, uint32_t count)
 {
-    if ((ccr == NULL) || (count != EXC_LUT_POINTS))
+    if ((ccr == NULL) || ((count != EXC_LUT_POINTS) && (count != EXC_LUT_POINTS_10HZ)))
     {
         return BSP_STATUS_INVALID_ARG;
     }
     if (g_mode != BSP_EXCITATION_MODE_NEUTRAL)
     {
         return BSP_STATUS_ERROR;
-    }
-
-    for (uint32_t i = 0u; i < EXC_LUT_POINTS; i++)
-    {
-        g_ccr_table[i] = ccr[i];
     }
 
     disable_excitation_dma();
@@ -142,13 +137,13 @@ bsp_status_t bsp_excitation_sine(uint8_t rcr, const uint16_t *ccr, uint32_t coun
     TIM1->ARR = EXC_PWM_ARR;
     TIM1->RCR = rcr;
     TIM1->CNT = 0u;
-    TIM1->CCR1 = g_ccr_table[0];
+    TIM1->CCR1 = ccr[0];
     TIM1->EGR = TIM_EGR_UG;
 
     DMA1_Channel5->CCR = 0u;
-    DMA1_Channel5->CNDTR = EXC_LUT_POINTS;
+    DMA1_Channel5->CNDTR = count;
     DMA1_Channel5->CPAR = (uint32_t)&TIM1->CCR1;
-    DMA1_Channel5->CMAR = (uint32_t)g_ccr_table;
+    DMA1_Channel5->CMAR = (uint32_t)ccr;
     DMA1_Channel5->CCR = DMA_CCR_DIR | DMA_CCR_MINC | DMA_CCR_PSIZE_0 | DMA_CCR_MSIZE_0 |
                          DMA_CCR_CIRC | DMA_CCR_PL_1 | DMA_CCR_TEIE | DMA_CCR_EN;
     TIM1->DIER |= TIM_DIER_UDE;

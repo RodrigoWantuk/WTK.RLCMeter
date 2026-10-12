@@ -609,7 +609,7 @@ def diagnostic_checks(command, value):
         if value["residual"] in ("UNSAFE", "SATURATED") or value["battery"] == "CRITICAL":
             status = "STOP"
         elif (not value["vmid_valid"] or not 1350 <= value["vmid_mv"] <= 1950 or not value["ntc_valid"] or not value["ntc_temperature_valid"] or
-              value["residual"] == "UNKNOWN" or value["battery"] == "UNKNOWN" or
+              value["residual"] == "UNKNOWN" or (value["residual"] == "SAFE" and value["safe_count"] != 8) or value["battery"] == "UNKNOWN" or
               value["residual_age_ms"] > 50 or value["battery_age_ms"] > 2000 or value["ntc_age_ms"] > 5000):
             status = "UNKNOWN"
         elif value["battery"] == "LOW":
@@ -648,7 +648,7 @@ def diagnostic_checks(command, value):
             status = "WARNING"
         return result(status, "Commanded SAFE/disabled snapshot only; display and calibration may be absent on first boot")
     if command == COMMANDS[8]:
-        compatible = (value["sch"], value["model"], value["hw"]) == (2, 4, 0x00010001)
+        compatible = (value["sch"], value["model"], value["hw"]) == (2, 5, 0x00010001)
         status = "UNKNOWN" if not compatible else ("PASS" if value["act"] else "WARNING")
         if value["svc"] in ("ERROR", "STORE_BUSY", "WORKFLOW_ACTIVE", "CANDIDATE_DIRTY"):
             status = "STOP"

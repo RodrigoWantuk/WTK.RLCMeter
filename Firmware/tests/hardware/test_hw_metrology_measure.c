@@ -55,11 +55,13 @@ typedef struct
     bool address_while_enabled;
     uint8_t address;
     bool freeze_sensors;
+    bool off_while_range_enabled;
     uint32_t now_ms;
     bool synthetic_resistor;
     bool clip_hg;
     bool clip_1x;
     bool capture_timeout;
+    uint32_t capture_complete_ms;
     hw_excitation_freq_t requested_frequency;
     hw_excitation_amp_t requested_amplitude;
 } fake_io_t;
@@ -235,7 +237,7 @@ static bsp_status_t fake_adc_start(uint32_t *raw_words,
     fake_io_t *fake = (fake_io_t *)user;
     if (fake->synthetic_resistor)
     {
-        if ((profile->sample_rate_hz != 6400u) || (word_count != HW_METROLOGY_RAW_WORD_COUNT))
+        if ((profile->sample_rate_hz != 640u) || (word_count != HW_METROLOGY_RAW_WORD_COUNT))
         {
             return BSP_STATUS_ERROR;
         }
@@ -254,7 +256,8 @@ static bsp_status_t fake_adc_start(uint32_t *raw_words,
         }
     }
     fake->capture_started = true;
-    if (!fake->dma_error && !fake->capture_timeout)
+    fake->capture_complete_ms = fake->now_ms + profile->capture_us / 1000u;
+    if (!fake->synthetic_resistor && !fake->dma_error && !fake->capture_timeout)
     {
         fake->dma_complete = true;
     }
@@ -284,7 +287,10 @@ static bsp_status_t fake_adc_restore(uint32_t now_ms, void *user)
 
 static bool fake_dma_complete(void *user)
 {
-    return ((fake_io_t *)user)->dma_complete;
+    const fake_io_t *fake = (const fake_io_t *)user;
+    return fake->dma_complete || (fake->synthetic_resistor && fake->capture_started &&
+                                  !fake->capture_timeout && !fake->dma_error &&
+                                  fake->now_ms >= fake->capture_complete_ms);
 }
 
 static bool fake_dma_error(void *user)
@@ -299,6 +305,7 @@ static bsp_status_t fake_exc_off(void *user)
     {
         return BSP_STATUS_ERROR;
     }
+    fake->off_while_range_enabled |= fake->range_enabled && fake->k1 != HW_K1_STATE_SAFE;
     fake->exc = HW_EXCITATION_MODE_OFF;
     return BSP_STATUS_OK;
 }
@@ -538,7 +545,7 @@ static hw_metrology_measure_request_t make_request(const bsp_clock_summary_t *cl
 typedef struct
 {
     bsp_adc_channel_t channel;
-    bool floating_terminals;
+    bool grounded_terminals;
     bool invalid_vmid;
     bool invalid_ntc;
     bool fail_adc;
@@ -568,10 +575,10 @@ static bsp_status_t preflight_adc_poll(uint16_t *raw, uint32_t now_ms, void *use
         break;
     case BSP_ADC_CHANNEL_OV_HI:
     case BSP_ADC_CHANNEL_OV_LO:
-        /* Conditional current software contract: absolute terminal = 0 V.
-         * Rev.1 floating-fixture bias is separately tested, never called SAFE. */
-        *raw = preflight_code(adc->floating_terminals ? 1.65f :
-                             1.65f - 1.65f / HW_RESIDUAL_TRANSFER_K);
+        /* Rev.1 floating passive terminals naturally bias to VMID.
+         * A separate grounded-terminal observation tests common-mode rejection. */
+        *raw = preflight_code(adc->grounded_terminals ?
+                             1.65f - 1.65f / HW_RESIDUAL_TRANSFER_K : 1.65f);
         break;
     case BSP_ADC_CHANNEL_BAT:
         /* 5 V -> 10k -> VBAT -> (33k || board 200k) -> GND. */
@@ -608,6 +615,7 @@ static bsp_status_t preflight_range_address(uint8_t address, void *user)
 
 static bsp_status_t preflight_k1_write(bool high, void *user)
 {
+    if (high && ((fake_io_t *)user)->k1_request_fail) { return BSP_STATUS_ERROR; }
     ((fake_io_t *)user)->k1 = high ? HW_K1_STATE_MEASURE : HW_K1_STATE_SAFE;
     return BSP_STATUS_OK;
 }
@@ -619,10 +627,10 @@ static int test_first_measurement_preflight(void)
      * invalid VMID, charger, conversion fault, DMA timeout, API cancellation,
      * invalid NTC (metadata only), unknown charger, stale residual evidence,
      * cancellation after K1 command but before auxiliary pause. */
-    for (uint32_t scenario = 0u; scenario < 13u; scenario++)
+    for (uint32_t scenario = 0u; scenario < 16u; scenario++)
     {
         preflight_adc_t adc = {0};
-        adc.floating_terminals = scenario == 3u;
+        adc.grounded_terminals = scenario == 3u;
         adc.invalid_vmid = scenario == 4u;
         adc.fail_adc = scenario == 6u;
         adc.invalid_ntc = scenario == 9u;
@@ -666,6 +674,8 @@ static int test_first_measurement_preflight(void)
         fake.clip_hg = scenario == 1u || scenario == 2u;
         fake.clip_1x = scenario == 2u;
         fake.capture_timeout = scenario == 7u;
+        fake.k1_request_fail = scenario == 13u;
+        fake.adc_fail = scenario == 14u;
         if (scenario == 11u)
         {
             /* Stop peripheral observations, age existing evidence without inventing a snapshot. */
@@ -681,13 +691,13 @@ static int test_first_measurement_preflight(void)
         const bsp_clock_summary_t clock = production_clock();
         hw_metrology_measure_request_t request = make_request(&clock, HW_RANGE_ID_1K,
                                                                HW_EXCITATION_AMP_100MVRMS);
-        request.frequency = HW_EXCITATION_FREQ_100HZ;
+        request.frequency = HW_EXCITATION_FREQ_10HZ;
         failures += expect_true(hw_metrology_measure_start(&measure, &request, now) == BSP_STATUS_BUSY,
-                                "100 Hz / 100 mVrms / 1k request accepted");
+                                "10 Hz / 100 mVrms / 1k request accepted");
         uint32_t canceled_at_ms = 0u;
-        if (scenario == 8u || scenario == 12u)
+        if (scenario == 8u || scenario == 12u || scenario == 15u)
         {
-            for (uint32_t step = 0u; step < 300u; step++)
+            for (uint32_t step = 0u; step < 1400u; step++)
             {
                 fake.now_ms = now;
                 for (uint8_t j = 0u; j < 8u; j++) { (void)hw_aux_sensors_step(&sensors, now); }
@@ -697,18 +707,24 @@ static int test_first_measurement_preflight(void)
             failures += expect_true(scenario == 12u ? !fake.aux_paused : fake.capture_started,
                                     "cancel during acquisition or before auxiliary pause");
             canceled_at_ms = now;
-            (void)hw_metrology_measure_abort(&measure);
+            if (scenario == 15u) { fake.fault_mask = 1u; }
+            else { (void)hw_metrology_measure_abort(&measure); }
         }
         failures += expect_true(run_until_idle(&measure, &fake, &now) == 0, "preflight terminates");
         failures += expect_true(fake.k1 == HW_K1_STATE_SAFE && fake.exc == HW_EXCITATION_MODE_OFF &&
                                 !fake.range_ready && !fake.quiet && !fake.aux_paused,
                                 "all paths return K1 SAFE / excitation OFF / range OFF / ADC restored");
+        failures += expect_true(!fake.off_while_range_enabled, "abort isolates RREF before ground-going OFF");
         failures += expect_true(!fake.address_while_enabled && fake.address == 2u,
                                 "1k address selected only while RANGE_EN disabled");
         if (scenario == 8u || scenario == 12u)
         {
             failures += expect_true(now >= canceled_at_ms + HW_METROLOGY_MEASURE_K1_RELEASE_GUARD_MS,
                                     "cancel respects release guard even before auxiliary pause");
+        }
+        if (scenario == 13u)
+        {
+            failures += expect_true(fake.k1_faults > 0u, "actual K1 callback failure latches fault");
         }
         if (scenario == 7u)
         {
@@ -719,7 +735,7 @@ static int test_first_measurement_preflight(void)
         if (!captured)
         {
             failures += expect_true(!hw_metrology_measure_dumpable(&measure), "failure cannot publish result");
-            if (scenario != 7u && scenario != 8u)
+            if (scenario != 7u && scenario != 8u && scenario != 15u)
             {
                 failures += expect_true(!fake.capture_started, "sensor/interlock block prevents acquisition");
             }
@@ -727,7 +743,7 @@ static int test_first_measurement_preflight(void)
             {
                 failures += expect_true(snapshot.residual_state == HW_RESIDUAL_UNSAFE &&
                                         fake.k1_request_calls == 0u,
-                                        "floating VMID-biased terminals remain BLOCKED, no bypass");
+                                        "grounded terminal common-mode departure remains BLOCKED, no bypass");
             }
             continue;
         }
@@ -740,9 +756,9 @@ static int test_first_measurement_preflight(void)
                                 "real sensor evidence survives authorization before aux pause");
         const hw_metrology_block_t *block = hw_metrology_measure_block(&measure);
         if (block == NULL || !block->valid) { continue; }
-        failures += expect_true(block->excitation_frequency_hz == 100u &&
+        failures += expect_true(block->excitation_frequency_hz == 10u &&
                                 block->requested_amplitude_mvrms == 100u && block->range_id == HW_RANGE_ID_1K &&
-                                block->sample_rate_hz == 6400u && fake.adc_stopped &&
+                                block->sample_rate_hz == 640u && fake.adc_stopped &&
                                 fake.requested_frequency == request.frequency &&
                                 fake.requested_amplitude == request.amplitude, "actual condition and cleanup provenance");
         const measurement_cal_key_t key = {MEASUREMENT_CAL_HARDWARE_REV1, MEASUREMENT_CAL_MODEL_VERSION_CURRENT,

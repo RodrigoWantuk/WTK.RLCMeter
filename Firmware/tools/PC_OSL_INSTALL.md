@@ -90,7 +90,7 @@ ownership. Captures and installations exclude each other. The single existing
 
 ## Validation, activation and recovery
 
-Before erase, both PC and device validate complete schema v2/model v4/Rev.1
+Before erase, both PC and device validate complete schema v2/model v5/Rev.1
 frames, 33 unique allowed keys, IDs, CRC, positive finite ADC scales, finite
 nondegenerate OSL/HG coefficients, flags and reserved metadata. Device validation
 is authoritative. The service uses sequence 1 on blank media and exactly the

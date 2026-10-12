@@ -1,6 +1,7 @@
 #include "hardware/hw_excitation.h"
 
 #include <stddef.h>
+#include <string.h>
 
 static const int16_t g_sine_q15[HW_EXCITATION_LUT_POINTS] = {
     0,     4560,  9032,  13328, 17364, 21062, 24351, 27165, 29451, 31163,
@@ -84,68 +85,35 @@ uint16_t hw_excitation_amplitude_mvrms(hw_excitation_amp_t amplitude)
 
 bsp_status_t hw_excitation_validate_amplitude(hw_range_id_t range_id, hw_excitation_amp_t amplitude)
 {
-    if ((range_id == HW_RANGE_ID_INVALID) || (amplitude == HW_EXCITATION_AMP_INVALID))
+    if (((unsigned)range_id > (unsigned)HW_RANGE_ID_1M) ||
+        ((unsigned)amplitude > (unsigned)HW_EXCITATION_AMP_500MVRMS))
     {
         return BSP_STATUS_INVALID_ARG;
     }
+    return ((range_id == HW_RANGE_ID_10R) && (amplitude == HW_EXCITATION_AMP_500MVRMS)) ?
+               BSP_STATUS_NOT_SUPPORTED : BSP_STATUS_OK;
+}
 
-    if ((amplitude == HW_EXCITATION_AMP_500MVRMS) && (range_id == HW_RANGE_ID_10R))
-    {
-        return BSP_STATUS_NOT_SUPPORTED;
-    }
-
-    if ((amplitude != HW_EXCITATION_AMP_100MVRMS) && (amplitude != HW_EXCITATION_AMP_500MVRMS))
-    {
-        return BSP_STATUS_INVALID_ARG;
-    }
-
-    switch (range_id)
-    {
-    case HW_RANGE_ID_10R:
-    case HW_RANGE_ID_100R:
-    case HW_RANGE_ID_1K:
-    case HW_RANGE_ID_10K:
-    case HW_RANGE_ID_100K:
-    case HW_RANGE_ID_1M:
-        return BSP_STATUS_OK;
-    case HW_RANGE_ID_INVALID:
-    default:
-        return BSP_STATUS_INVALID_ARG;
-    }
+uint32_t hw_excitation_frequency_hz(hw_excitation_freq_t frequency)
+{
+    static const uint16_t frequencies[] = {10u, 1000u, 10000u};
+    return ((unsigned)frequency < 3u) ? frequencies[(unsigned)frequency] : 0u;
 }
 
 bsp_status_t hw_excitation_freq_profile(hw_excitation_freq_t frequency,
                                         hw_excitation_freq_profile_t *profile)
 {
-    if (profile == NULL)
+    if ((profile == NULL) || ((unsigned)frequency >= 3u))
     {
         return BSP_STATUS_INVALID_ARG;
     }
-
-    switch (frequency)
-    {
-    case HW_EXCITATION_FREQ_100HZ:
-        profile->frequency_hz = 100u;
-        profile->rcr = 99u;
-        profile->ccr_update_hz = 4500u;
-        profile->sine_settle_ms = 80u;
-        return BSP_STATUS_OK;
-    case HW_EXCITATION_FREQ_1KHZ:
-        profile->frequency_hz = 1000u;
-        profile->rcr = 9u;
-        profile->ccr_update_hz = 45000u;
-        profile->sine_settle_ms = 8u;
-        return BSP_STATUS_OK;
-    case HW_EXCITATION_FREQ_10KHZ:
-        profile->frequency_hz = 10000u;
-        profile->rcr = 0u;
-        profile->ccr_update_hz = 450000u;
-        profile->sine_settle_ms = 5u;
-        return BSP_STATUS_OK;
-    case HW_EXCITATION_FREQ_INVALID:
-    default:
-        return BSP_STATUS_INVALID_ARG;
-    }
+    profile->frequency_hz = hw_excitation_frequency_hz(frequency);
+    profile->table_points = (frequency == HW_EXCITATION_FREQ_10HZ) ? 180u : 45u;
+    profile->ccr_update_hz = profile->frequency_hz * profile->table_points;
+    profile->rcr = (uint8_t)(HW_EXCITATION_CARRIER_HZ / profile->ccr_update_hz - 1u);
+    profile->sine_settle_ms = (frequency == HW_EXCITATION_FREQ_10KHZ) ?
+                                 5u : 8000u / profile->frequency_hz;
+    return BSP_STATUS_OK;
 }
 
 bsp_status_t hw_excitation_fill_ccr_table(uint16_t *ccr, uint32_t count, hw_excitation_amp_t amplitude)
@@ -153,14 +121,22 @@ bsp_status_t hw_excitation_fill_ccr_table(uint16_t *ccr, uint32_t count, hw_exci
     const uint16_t peak_q8 = hw_excitation_peak_q8(amplitude);
     const int32_t denominator = (int32_t)HW_EXCITATION_SINE_Q15_MAX * 256;
 
-    if ((ccr == NULL) || (count != HW_EXCITATION_LUT_POINTS) || (peak_q8 == 0u))
+    if ((ccr == NULL) || ((count != HW_EXCITATION_LUT_POINTS) && (count != HW_EXCITATION_LUT_POINTS_10HZ)) || (peak_q8 == 0u))
     {
         return BSP_STATUS_INVALID_ARG;
     }
 
-    for (uint32_t i = 0u; i < HW_EXCITATION_LUT_POINTS; i++)
+    for (uint32_t i = 0u; i < count; i++)
     {
-        const int32_t numerator = (int32_t)g_sine_q15[i] * (int32_t)peak_q8;
+        int32_t sine = g_sine_q15[(count == HW_EXCITATION_LUT_POINTS) ? i : (i / 4u)];
+        if (count == HW_EXCITATION_LUT_POINTS_10HZ)
+        {
+            /* Four equally spaced samples per existing 45-point segment. */
+            const uint32_t base = i / 4u;
+            const int32_t next = g_sine_q15[(base + 1u) % HW_EXCITATION_LUT_POINTS];
+            sine += ((next - sine) * (int32_t)(i % 4u)) / 4;
+        }
+        const int32_t numerator = sine * (int32_t)peak_q8;
         const int32_t delta = rounded_div(numerator, denominator);
         const int32_t value = (int32_t)HW_EXCITATION_PWM_CENTER + delta;
         if ((value < 0) || (value > (int32_t)HW_EXCITATION_PWM_ARR))
@@ -173,116 +149,54 @@ bsp_status_t hw_excitation_fill_ccr_table(uint16_t *ccr, uint32_t count, hw_exci
     return BSP_STATUS_OK;
 }
 
+static const char *const frequency_tokens[] = {"10", "1k", "10k"};
+static const char *const amplitude_tokens[] = {"100m", "500m"};
+static const char *const range_tokens[] = {"10r", "100r", "1k", "10k", "100k", "1m"};
+
+static uint8_t token_index(const char *token, const char *const *tokens, uint8_t count)
+{
+    if (token != NULL)
+    {
+        for (uint8_t i = 0u; i < count; i++)
+        {
+            if (strcmp(token, tokens[i]) == 0) { return i; }
+        }
+    }
+    return 255u;
+}
+
 bool hw_excitation_parse_freq_token(const char *token, hw_excitation_freq_t *frequency)
 {
-    if ((token == NULL) || (frequency == NULL))
-    {
-        return false;
-    }
-    if ((token[0] == '1') && (token[1] == '0') && (token[2] == '0') && (token[3] == '\0'))
-    {
-        *frequency = HW_EXCITATION_FREQ_100HZ;
-        return true;
-    }
-    if ((token[0] == '1') && (token[1] == 'k') && (token[2] == '\0'))
-    {
-        *frequency = HW_EXCITATION_FREQ_1KHZ;
-        return true;
-    }
-    if ((token[0] == '1') && (token[1] == '0') && (token[2] == 'k') && (token[3] == '\0'))
-    {
-        *frequency = HW_EXCITATION_FREQ_10KHZ;
-        return true;
-    }
-    return false;
+    const uint8_t index = token_index(token, frequency_tokens, 3u);
+    if (frequency == NULL || index == 255u) { return false; }
+    *frequency = (hw_excitation_freq_t)index;
+    return true;
 }
 
 bool hw_excitation_parse_amp_token(const char *token, hw_excitation_amp_t *amplitude)
 {
-    if ((token == NULL) || (amplitude == NULL))
-    {
-        return false;
-    }
-    if ((token[0] == '1') && (token[1] == '0') && (token[2] == '0') && (token[3] == 'm') && (token[4] == '\0'))
-    {
-        *amplitude = HW_EXCITATION_AMP_100MVRMS;
-        return true;
-    }
-    if ((token[0] == '5') && (token[1] == '0') && (token[2] == '0') && (token[3] == 'm') && (token[4] == '\0'))
-    {
-        *amplitude = HW_EXCITATION_AMP_500MVRMS;
-        return true;
-    }
-    return false;
+    const uint8_t index = token_index(token, amplitude_tokens, 2u);
+    if (amplitude == NULL || index == 255u) { return false; }
+    *amplitude = (hw_excitation_amp_t)index;
+    return true;
 }
 
 bool hw_excitation_parse_range_token(const char *token, hw_range_id_t *range_id)
 {
-    if ((token == NULL) || (range_id == NULL))
-    {
-        return false;
-    }
-    if ((token[0] == '1') && (token[1] == '0') && (token[2] == 'r') && (token[3] == '\0'))
-    {
-        *range_id = HW_RANGE_ID_10R;
-        return true;
-    }
-    if ((token[0] == '1') && (token[1] == '0') && (token[2] == '0') && (token[3] == 'r') && (token[4] == '\0'))
-    {
-        *range_id = HW_RANGE_ID_100R;
-        return true;
-    }
-    if ((token[0] == '1') && (token[1] == 'k') && (token[2] == '\0'))
-    {
-        *range_id = HW_RANGE_ID_1K;
-        return true;
-    }
-    if ((token[0] == '1') && (token[1] == '0') && (token[2] == 'k') && (token[3] == '\0'))
-    {
-        *range_id = HW_RANGE_ID_10K;
-        return true;
-    }
-    if ((token[0] == '1') && (token[1] == '0') && (token[2] == '0') && (token[3] == 'k') && (token[4] == '\0'))
-    {
-        *range_id = HW_RANGE_ID_100K;
-        return true;
-    }
-    if ((token[0] == '1') && (token[1] == 'm') && (token[2] == '\0'))
-    {
-        *range_id = HW_RANGE_ID_1M;
-        return true;
-    }
-    return false;
+    const uint8_t index = token_index(token, range_tokens, 6u);
+    if (range_id == NULL || index == 255u) { return false; }
+    *range_id = (hw_range_id_t)index;
+    return true;
 }
 
 const char *hw_excitation_freq_token(hw_excitation_freq_t frequency)
 {
-    switch (frequency)
-    {
-    case HW_EXCITATION_FREQ_100HZ:
-        return "100";
-    case HW_EXCITATION_FREQ_1KHZ:
-        return "1k";
-    case HW_EXCITATION_FREQ_10KHZ:
-        return "10k";
-    case HW_EXCITATION_FREQ_INVALID:
-    default:
-        return "INVALID";
-    }
+    return ((unsigned)frequency < 3u) ? frequency_tokens[(unsigned)frequency] : "INVALID";
 }
 
 const char *hw_excitation_amp_token(hw_excitation_amp_t amplitude)
 {
-    switch (amplitude)
-    {
-    case HW_EXCITATION_AMP_100MVRMS:
-        return "100m";
-    case HW_EXCITATION_AMP_500MVRMS:
-        return "500m";
-    case HW_EXCITATION_AMP_INVALID:
-    default:
-        return "INVALID";
-    }
+    return ((unsigned)amplitude < 2u) ? amplitude_tokens[(unsigned)amplitude] : "INVALID";
 }
 
 const char *hw_excitation_mode_string(hw_excitation_mode_t mode)

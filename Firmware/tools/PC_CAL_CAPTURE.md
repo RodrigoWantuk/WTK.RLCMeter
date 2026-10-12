@@ -60,12 +60,12 @@ last accepted request ID u32; only identification can negotiate automatically.
 | CANCEL | 0x54 | Capture ID u32 | Empty ACK after safe transfer is possible |
 
 Conditions use the existing enum order: RREF 10/100/1k/10k/100k/1M,
-frequency 100/1000/10000 Hz, amplitude 100/500 mVrms. Standards OPEN/SHORT/LOAD
+frequency 10/1000/10000 Hz, amplitude 100/500 mVrms. Standards OPEN/SHORT/LOAD
 are 0/1/2. 10 ohm/500 mVrms is forbidden; 33 keys remain. Non-LOAD impedance
 must be zero. LOAD must be finite, passive and nonzero. Reference ID/tolerance
 remain PC sidecar metadata; the device receives the requested complex center.
 
-Identity offsets: 0 hardware revision u32 (0x10001), 4 model u16 (4), 6 profile
+Identity offsets: 0 hardware revision u32 (0x10001), 4 model u16 (5), 6 profile
 u16 (1=BRINGUP_CAL), 8 capability bitmap u32 (bits 0 identity, 1 status, 2 capture,
 3 cancel), 12 condition count u16, 14 artifact size u16, 16 timeout ms u32,
 20 ADC provenance u16 (1), 22 synthetic u8, 23 zero, 24 UID[12], 36 git[8],

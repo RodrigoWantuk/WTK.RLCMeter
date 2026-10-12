@@ -34,7 +34,7 @@ static hw_metrology_measure_t measure;
 static app_calibration_service_t calibration;
 static app_cal_capture_service_t capture;
 static w25q_device_t flash;
-static uint16_t sine_table[HW_EXCITATION_LUT_POINTS];
+static uint16_t sine_table[HW_EXCITATION_LUT_MAX_POINTS];
 
 static void latch(bsp_status_t status, uint32_t mask)
 {
@@ -91,7 +91,7 @@ static void resume(uint32_t now, void *user)
 static bsp_status_t adc_acquire(uint32_t now, void *user)
 { (void)user; return bsp_metrology_adc_acquire(now); }
 static bsp_status_t adc_start(uint32_t *raw, uint32_t count, const hw_metrology_adc_profile_t *profile, void *user)
-{ (void)user; return bsp_metrology_adc_start_capture(raw, count, profile->tim2_arr, profile->tim2_ccr2); }
+{ (void)user; return bsp_metrology_adc_start_capture(raw, count, profile->tim2_psc, profile->tim2_arr, profile->tim2_ccr2); }
 static void adc_stop(void *user)
 { (void)user; bsp_metrology_adc_stop(); }
 static bsp_status_t adc_restore(uint32_t now, void *user)
@@ -108,10 +108,11 @@ static bsp_status_t exc_sine(hw_excitation_freq_t frequency, hw_excitation_amp_t
 {
     (void)user;
     hw_excitation_freq_profile_t profile;
-    if (hw_excitation_freq_profile(frequency, &profile) != BSP_STATUS_OK ||
-        hw_excitation_fill_ccr_table(sine_table, HW_EXCITATION_LUT_POINTS, amplitude) != BSP_STATUS_OK)
+    if ((bsp_excitation_mode() != BSP_EXCITATION_MODE_NEUTRAL) ||
+        hw_excitation_freq_profile(frequency, &profile) != BSP_STATUS_OK ||
+        hw_excitation_fill_ccr_table(sine_table, profile.table_points, amplitude) != BSP_STATUS_OK)
         return BSP_STATUS_INVALID_ARG;
-    return bsp_excitation_sine(profile.rcr, sine_table, HW_EXCITATION_LUT_POINTS);
+    return bsp_excitation_sine(profile.rcr, sine_table, profile.table_points);
 }
 static hw_excitation_mode_t exc_mode(void *user)
 {

@@ -153,7 +153,7 @@ one-sided maxima or nominal values with explicit nonzero tolerances; an
 unbounded typical value is never treated as exact. Same-condition ESR and D
 intervals must be jointly satisfiable. Loss data constrain only the supported
 matching frequency. A datasheet ESR at 100 kHz must not
-be extrapolated into a 100 Hz/1 kHz/10 kHz fit. Loss constraints additionally require
+be extrapolated into a 10 Hz/1 kHz/10 kHz fit. Loss constraints additionally require
 a calibrated board NTC within 10 C of the stated datasheet temperature; this gate is
 provisional and `REQUIRES_BENCH_VALIDATION`. The board NTC is not DUT temperature.
 The PC CLI now binds each standard to a completed BRINGUP RAW file by exact SHA-256,
@@ -202,7 +202,7 @@ the configured float tolerances. This justifies replacing the mathematical
 ## Optional supplementary runtime (A02.1)
 
 `WTK_ENABLE_SUPPLEMENTARY_CURVES` defaults to OFF. This does not disable ordinary
-OSL calibration, change schema v2/model v4, or relax qualification/boot prerequisites.
+OSL calibration, change schema v2/model v5, or relax qualification/boot prerequisites.
 `measurement_cal_supplementary_supported()` reports build capability, not data
 qualification. With capability OFF, `measurement_cal_apply_curve()` returns
 `MEASUREMENT_CAL_CURVE_NOT_SUPPORTED` without modifying the result. A fresh OSL

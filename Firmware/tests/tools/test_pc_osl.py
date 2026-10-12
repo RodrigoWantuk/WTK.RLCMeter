@@ -24,7 +24,7 @@ class CalibrationTests(unittest.TestCase):
 
     def test_golden(self):
         self.assertEqual(hashlib.sha256(self.frame).hexdigest(),
-                         'd7bb946c5c94c902c7e2cbbf9e3bcb821284e1be90b78142feca622e6b63845b')
+                         '37367cf0e50466bebadb66fdb11dc305ffb4ac1bb4bcbb34136fe76fba98244e')
         self.assertEqual(len(self.frame), 2760)
         self.assertEqual(len(osl.validate_frame(self.frame).conditions), 33)
         for s in self.solutions:
@@ -105,6 +105,21 @@ class CalibrationTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             osl.solve([replace(s, ret_1x_valid=False) if s.standard == 'OPEN' else s
                        for s in group])
+
+    def test_old_model4_cannot_alias_frequency_id_zero(self):
+        import zlib
+        old = bytearray(self.frame)
+        struct.pack_into("<H", old, 20, 4)
+        for index in range(33):
+            offset = 120 + index * 80
+            struct.pack_into("<H", old, offset + 4, 4)
+            rid, fid, aid = struct.unpack_from("<BBB", old, offset + 6)
+            condition = zlib.crc32(struct.pack("<IHBBB3x", 0x10001, 4, rid, fid, aid))
+            struct.pack_into("<I", old, offset + 14, condition)
+        struct.pack_into("<I", old, 56, osl.wire.crc_frame(old, len(old)-64))
+        with self.assertRaisesRegex(ValueError, "incompatible"):
+            osl.validate_frame(bytes(old))
+        self.assertEqual({s.key.frequency_hz for s in self.solutions}, {10, 1000, 10000})
 
     def test_sequence_crc_and_trailing(self):
         for seq in (0, -1, 0x100000000, True):

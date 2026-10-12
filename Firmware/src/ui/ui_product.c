@@ -48,8 +48,8 @@ static const char *freq_token(hw_excitation_freq_t frequency)
 {
     switch (frequency)
     {
-    case HW_EXCITATION_FREQ_100HZ:
-        return "100HZ";
+    case HW_EXCITATION_FREQ_10HZ:
+        return "10HZ";
     case HW_EXCITATION_FREQ_1KHZ:
         return "1KHZ";
     case HW_EXCITATION_FREQ_10KHZ:
