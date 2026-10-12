@@ -2,6 +2,19 @@
 
 STATUS: IMPLEMENTED_REQUIRES_BENCH_VALIDATION
 
+## B01.1 SWD deployment toolkit — 2026-10-11
+
+[Safe image preparation and SWD handoff](../Firmware/tools/PC_FIRMWARE_DEPLOY.md)
+builds/inspects the three exact deployment profiles, uses explicit physical
+debug/program authorization and a pinned OpenOCD backend, and verifies internal
+Flash bytes. Fake orchestration, the actual offline Tcl interpreter, real linked
+images and C-backed calibration transition tests pass. No physical SWD, boot or
+W25Q preservation is claimed. Probe/verify may reset/halt and freeze watchdogs;
+independent SAFE/power/assembly gates precede any target connection. No firmware
+or PCB changes; all 12 ARM variants retain their memory sizes, including BRINGUP's
+88-B margin. [Evidence](../docs/review/b01/B01.1-report.md). R02/R05/A05-Y04 and
+the existing physical acceptance criteria remain REQUIRES_BENCH_VALIDATION.
+
 ## B01.0 first-startup host toolkit — 2026-10-10
 
 [Executable read-only evidence collection](../Firmware/tools/PC_BRINGUP.md)

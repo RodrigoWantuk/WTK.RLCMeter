@@ -49,8 +49,9 @@ reset init` can reset/halt the CPU and change outputs. The upstream examine-end
 handler writes DBGMCU_CR to freeze watchdogs while halted; Flash programming uses
 SRAM and a driver loader. This is a reviewed programming/debug stage, never evidence
 that watchdogs/interlocks have been qualified. Do not attach during MEASURE or a
-Flash transaction. The tool never resumes/boots automatically: it leaves the core
-halted. Disconnect the debugger and arrange a separately authorized controlled boot
+Flash transaction. The tool never resumes/boots automatically: its last reported
+target state is halted; actual post-disconnection behavior needs bench observation.
+Disconnect the debugger and arrange a separately authorized controlled boot
 or power cycle with the UART listener ready. Recheck actual SAFE behavior afterward.
 If failure/timeout leaves the state ambiguous, keep fixtures unchanged and power
 down through the reviewed procedure; never assume a killed host process made GPIO safe.

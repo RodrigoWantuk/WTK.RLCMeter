@@ -117,6 +117,17 @@ actual board assembler and discrepancies resolved before measurement; delivery o
 the source audit alone does not satisfy that physical acceptance criterion.
 
 ### Sprint B — first physical board evidence
+**B01.1 STATUS: IMPLEMENTED_TESTED_HOST / COMPILES_TARGET / REQUIRES_BENCH_VALIDATION.**
+The [deployment CLI](../Firmware/tools/PC_FIRMWARE_DEPLOY.md) builds exact BRINGUP,
+BRINGUP_CAL and factory PRODUCT profiles; validates sealed ELF/BIN manifests;
+requires physical assembly/power/SAFE debug-stage evidence and explicit internal
+Flash approval; uses individually erased pages and full readback. No mass erase,
+protection unlock, W25Q command, automatic calibration or boot is introduced.
+Synthetic stage transitions and actual offline OpenOCD Tcl tests pass, with zero
+firmware size delta. [B01.1 results](../docs/review/b01/B01.1-report.md). Actual
+ST-Link wiring, part/power identity, programming/readback, independent boot/UI and
+calibration/resource preservation remain physical gates; R02/R05/A05-Y04 stay open.
+
 **B01.0 STATUS: IMPLEMENTED_TESTED_HOST / REQUIRES_BENCH_VALIDATION.**
 The [first-power toolkit](../Firmware/tools/PC_BRINGUP.md) prepares UNKNOWN/
 NOT_TESTED sessions, collects nine read-only BRINGUP diagnostics after physical

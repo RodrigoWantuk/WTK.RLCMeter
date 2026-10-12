@@ -1,5 +1,11 @@
 # B01.0 — first power-on diagnostic toolkit
 
+The subsequent [B01.1 SWD deployment toolkit](B01.1-report.md) prepares verified
+BRINGUP, BRINGUP_CAL and factory PRODUCT images, requires explicit programming
+authorization, and checks internal Flash readback. See its
+[Windows operator quickstart](../../../Firmware/tools/PC_FIRMWARE_DEPLOY.md).
+Neither toolkit closes the physical gates below.
+
 Status: **IMPLEMENTED_TESTED_HOST / REQUIRES_BENCH_VALIDATION**.
 No assembled PCB, physical UART test, electrical measurement or qualification is
 claimed. This toolkit records evidence; it does not approve power-on or MEASURE.
