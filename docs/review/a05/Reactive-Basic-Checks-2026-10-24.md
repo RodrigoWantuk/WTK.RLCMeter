@@ -96,3 +96,59 @@ No biased-AC implementation, external DUT bias injection, charged-DUT permission
 or hardware modification was performed. Existing plan12/16 feasibility/current
 gates remain applicable. Whether the selected polarized domain needs only firmware
 or hardware changes is unresolved; do not promise either outcome without evidence.
+
+## Subsequent phase deployment and inductor checks
+
+This section supersedes the earlier NOT DEPLOYED and polarized-fixture hold state.
+The owner replaced the electrolytic with an isolated blind inductor and authorized
+continuing. A clean managed checkout at12f03bb530f5 built the sealed BRINGUP bench
+image64604B, SHA2567fcf9b10388a3f442663fac0c2bd77163e4de46078bd742b62134bba53bd9355.
+The complete previous Flash matched its archived readback before programming;
+new bytes and full64KiB readback were verified, unaffected pages preserved and
+externalW25Q untouched. Controlled boot reported12f03bb530f5, SAFE_BOOT,
+HSEPLL72MHz/ADC12MHz, no faults. Evidence moved to
+`Firmware/build/physical-20261024-reactive-phase/` (sealed-build/image,
+previous-firmware-backup,deployment-001,first-boot-passive-001).
+
+The blind fixture traversed1M/100K/10K/1K at1kHz, then1K at10kHz. Their very small
+Z/RREF ratios were unsuitable for a credible value despite DSP OK. A bounded100R
+extension at10kHz/100mV was reviewed, excluding10R. Nominal steady peak-current
+bound1.414mA; observed source about72mVpeak suggests about0.72mA for a near-short.
+These are estimates, not current-sensor or distortion qualification. Unvalidated
+physical isolation could still permit a larger OFF transient; existing normal
+neutral/release and abort isolation ordering were retained. The Microchip
+[MCP6002 datasheet](https://ww1.microchip.com/downloads/aemDocuments/documents/MSLD/ProductDocuments/DataSheets/MCP6001-1R-1U-2-4-1-MHz-Low-Power-Op-Amp-DS20001733L.pdf)
+short-circuit specification is not a guaranteed linear-output current allowance.
+
+Three100R/10kHz blind indications were1.093164,1.101097,0.979683uH; mean1.057982uH,
+X0.066475Ohm andR0.746278Ohm. All ratios remained below0.008, outside the initial
+central0.2..5 band, and firmware classified these three as RESISTIVE. The owner
+then revealed2.2uH nominal, with tolerance/independently measured L unknown. The
+indication was51.91% below that nominal. This is LOW_CONFIDENCE, not small-L
+qualification or a successful precision identification. Uncalibrated HG phase,
+fixture/two-wire parasitics and noise need characterization; no cause is isolated
+and no calibration-only cure is promised. See `inductor-blind-summary.json`.
+
+The owner next confirmed470uH, microchoke. Three100R/10kHz/100mV captures selected
+HG, returned DSP OK/INDUCTIVE, and gave425.961,425.574,429.423uH using independent
+PC complex math. Mean426.986uH, in-place spread3.849uH p-p,9.15% below nominal.
+MeanR11.678Ohm/X26.828Ohm are AC series components, not DC winding resistance.
+All six raw columns were unclipped; |Z|/RREF0.292 meets the central ratio target.
+Each retained256rows/DMA768words complete/error0/remaining0 and ended commanded
+SAFE/range-off/excitation-off/fault0/source revoked/COM3 closed. Firmware phase
+agreed numerically with host atan2 within0.002rad, demonstrating the source fix's
+physical-data numerical regression, not calibrated hardware phase accuracy.
+This supports basic inductive response in this condition, not full-range accuracy.
+See `inductor-470uh-summary.json` and unchanged raw/transcripts/reports.
+
+The owner canceled a third-inductor test and requested display/buttons next,
+disconnecting UART because of physical connector interference. Owner reports
+backlight correct but screen white. No model/backlight-current evidence was
+provided; retain that observation as owner-reported. Deployed BRINGUP initializes
+ILI9341 but draws only the missing-Flash error, so with detectedW25Q there is no
+ordinary visible test pattern. White alone does not prove SPI/controller function.
+Owner now requests automatic colors, setup/firmware identity, pressed/released
+state of all three buttons and distinct buzzer tones. Prepare a separate opt-in
+BRINGUP peripheral diagnostic, with active measurement/calibration commands absent;
+no calibration or resource provisioning is part of this test. Last confirmed DUT
+is470uH; third swap was not confirmed. No final-assembly go-ahead issued.

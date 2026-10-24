@@ -34,6 +34,15 @@ CURVE_SOURCES = {"measurement_cal_curve.c", "measurement_cal_curve_frame.c",
 CURVE_SYMBOLS = re.compile(r"measurement_cal_curve_|product_(?:curve_|load_curve_|active_osl_crc32)|g_curve_store")
 
 
+def peripheral_composition_errors(symbols: str, enabled: bool) -> list[str]:
+    if not enabled:
+        return [line for line in symbols.splitlines() if re.search(r"ui_peripheral_test_|g_peripheral_ui", line)]
+    pattern = re.compile(r"app_bringup_console_|\brun_command|hw_metrology_measure_(?:start|step)|"
+                         r"app_calibration_service_(?:load|step|candidate_)|w25q_device_(?:program|erase)|"
+                         r"bsp_metrology_adc_start_capture")
+    return [line for line in symbols.splitlines() if pattern.search(line)]
+
+
 def factory_composition_errors(symbols: str, commands: list[dict], enabled: bool) -> list[str]:
     present = {Path(row["file"].replace("\\", "/")).name for row in commands}
     exclusive = {"app_calibration_wizard.c", "app_calibration_session.c", "measurement_calibration_solver.c"}
@@ -83,6 +92,7 @@ def main() -> int:
     parser.add_argument("--supplementary-curves", choices=("ON", "OFF"))
     parser.add_argument("--compile-commands", type=Path)
     parser.add_argument("--factory-provisioned", choices=("ON", "OFF"), default="OFF")
+    parser.add_argument("--peripheral-test", choices=("ON", "OFF"), default="OFF")
     args = parser.parse_args()
 
     if not args.elf.exists():
@@ -100,6 +110,9 @@ def main() -> int:
         return completed.returncode
 
     matches: list[str] = []
+    if args.peripheral_test == "ON" and args.profile != "BRINGUP":
+        parser.error("peripheral diagnostic requires BRINGUP")
+    matches.extend(peripheral_composition_errors(completed.stdout, args.peripheral_test == "ON"))
     if args.supplementary_curves is not None:
         if args.compile_commands is None:
             parser.error("--supplementary-curves requires --compile-commands")

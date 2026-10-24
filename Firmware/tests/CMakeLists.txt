@@ -34,6 +34,17 @@ endif()
 
 add_test(NAME wtk_buttons_test COMMAND wtk_buttons_test)
 
+add_executable(wtk_ui_peripheral_test ui/test_ui_peripheral_test.c)
+target_link_libraries(wtk_ui_peripheral_test PRIVATE wtk_firmware_common)
+target_include_directories(wtk_ui_peripheral_test PRIVATE "${PROJECT_SOURCE_DIR}/src")
+wtk_configure_c_target(wtk_ui_peripheral_test)
+wtk_apply_project_warnings(wtk_ui_peripheral_test)
+wtk_apply_common_compile_options(wtk_ui_peripheral_test)
+if(WTK_WARNINGS_AS_ERRORS_HOST)
+    wtk_treat_warnings_as_errors(wtk_ui_peripheral_test)
+endif()
+add_test(NAME wtk_ui_peripheral_test COMMAND wtk_ui_peripheral_test)
+
 add_executable(wtk_w25q_core_test
     drivers/test_w25q_core.c
 )

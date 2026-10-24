@@ -162,6 +162,7 @@ def manifest(build_dir,out,profile,state,preset):
     value=dict(schema="WTK_FIRMWARE_1",source=state,profile=profile,factory_provisioned=spec[2],supplementary_curves=False,
         bringup_k1_test=flags.get("WTK_ENABLE_K1_BENCH_TEST","0u")=="1u",
         bringup_bench_supply=flags.get("WTK_ENABLE_BENCH_SUPPLY","0u")=="1u",
+        bringup_peripheral_test=flags.get("WTK_ENABLE_PERIPHERAL_TEST","0u")=="1u",
         preset=preset,build_configuration=spec[3],hardware=HARDWARE,firmware_version=flags["WTK_PROJECT_VERSION"],expected_boot=identity,
         toolchain=dict(compiler_path=compiler,compiler_version=version,cmake=command(["cmake","--version"]).splitlines()[0],cache_sha256=sha(cache.encode())),
         memory=dict(flash_base=BASE,flash_bytes=FLASH,ram_base=RAM_BASE,ram_bytes=RAM,internal_page_bytes=1024),linked=metrics,
@@ -197,6 +198,10 @@ def inspect(path,profile=None):
     if (type(supply) is not bool or supply != (flags.get("WTK_ENABLE_BENCH_SUPPLY","0u")=="1u") or
         (supply and (value["profile"]!="BRINGUP" or bench or flags.get("WTK_ENABLE_DC_PILOT")!="0u"))):
         raise ValueError("invalid BRINGUP bench supply configuration")
+    peripheral=value.get("bringup_peripheral_test",False)
+    if (type(peripheral) is not bool or peripheral != (flags.get("WTK_ENABLE_PERIPHERAL_TEST","0u")=="1u") or
+        (peripheral and (value["profile"]!="BRINGUP" or bench or supply or flags.get("WTK_ENABLE_DC_PILOT")!="0u"))):
+        raise ValueError("invalid BRINGUP peripheral test configuration")
     if (flags["WTK_FIRMWARE_PROFILE"],flags["WTK_PRODUCT_FACTORY_PROVISIONED"],flags["WTK_GIT_COMMIT"],flags["WTK_ENABLE_SUPPLEMENTARY_CURVES"],flags["WTK_BUILD_TYPE"],flags["WTK_HARDWARE_COMPATIBILITY"])!=(spec[1],"1u" if spec[2] else "0u",value["source"]["git_sha"][:12],"0u",spec[3],HARDWARE): raise ValueError("generated configuration mismatch")
     if value.get("firmware_version")!=flags.get("WTK_PROJECT_VERSION") or value.get("expected_boot")!=boot_identity(value["profile"],value["source"]["git_sha"],flags["WTK_PROJECT_VERSION"]): raise ValueError("boot/version metadata mismatch")
     linker=read(root/"linker.ld").decode()
@@ -205,13 +210,16 @@ def inspect(path,profile=None):
     return value
 
 
-def build(profile,out,dry_run=False,k1_bench_test=False,bench_supply=False):
+def build(profile,out,dry_run=False,k1_bench_test=False,bench_supply=False,peripheral_test=False):
     if k1_bench_test and profile!="BRINGUP": raise ValueError("K1 bench test requires BRINGUP")
     if bench_supply and (profile!="BRINGUP" or k1_bench_test): raise ValueError("bench supply requires a separate BRINGUP image")
+    if peripheral_test and (profile!="BRINGUP" or k1_bench_test or bench_supply):
+        raise ValueError("peripheral test requires a separate BRINGUP image")
     spec=PROFILES[profile]; out=Path(out).resolve(); folder=out/"build"
     argv=["cmake","--preset",spec[0],"-B",str(folder),"-DWTK_ENABLE_SUPPLEMENTARY_CURVES=OFF",f'-DWTK_PRODUCT_FACTORY_PROVISIONED={"ON" if spec[2] else "OFF"}',
           f'-DWTK_BRINGUP_K1_TEST={"ON" if k1_bench_test else "OFF"}',
-          f'-DWTK_BRINGUP_BENCH_SUPPLY={"ON" if bench_supply else "OFF"}']
+          f'-DWTK_BRINGUP_BENCH_SUPPLY={"ON" if bench_supply else "OFF"}',
+          f'-DWTK_BRINGUP_PERIPHERAL_TEST={"ON" if peripheral_test else "OFF"}']
     commands=[argv,["cmake","--build",str(folder),"-j","6"]]
     if dry_run: return dict(dry_run=True,commands=commands,target_access=False)
     out.mkdir(parents=True,exist_ok=False); before=source_state()
@@ -540,6 +548,7 @@ def main(argv=None):
     p.add_argument("--dry-run",action="store_true"); p.add_argument("--backend",choices=("openocd","fake"),default="openocd")
     p.add_argument("--k1-bench-test",action="store_true",help="build the optional BRINGUP empty-fixture relay test variant")
     p.add_argument("--bench-supply",action="store_true",help="build the optional BRINGUP external-5V bench variant")
+    p.add_argument("--peripheral-test",action="store_true",help="build standalone BRINGUP display/buttons/buzzer diagnostic")
     p.add_argument("--openocd",type=Path); p.add_argument("--scripts",type=Path); p.add_argument("--adapter-serial")
     p.add_argument("--fake-device",type=Path); p.add_argument("--fake-scenario",choices=("normal","missing-adapter","unpowered","wrong-id","geometry","rdp","timeout","interrupted","readback-mismatch","missing-complete","unexpected-reset"),default="normal")
     p.add_argument("--session",type=Path); p.add_argument("--board"); p.add_argument("--operator"); p.add_argument("--supply")
@@ -552,10 +561,11 @@ def main(argv=None):
     try:
         if args.k1_bench_test and args.action!="build": raise ValueError("--k1-bench-test is a build option; inspect/program use manifest identity")
         if args.bench_supply and args.action!="build": raise ValueError("--bench-supply is a build option; inspect/program use manifest identity")
+        if args.peripheral_test and args.action!="build": raise ValueError("--peripheral-test is a build option; inspect/program use manifest identity")
         if args.action=="doctor": result=doctor(args.openocd,args.scripts) if not args.dry_run else dict(dry_run=True,target_access=False,commands=["git --version","cmake --version","ninja --version","arm-none-eabi-gcc --version","selected openocd --version"])
         elif args.action=="build":
             if not args.profile or not args.out: raise ValueError("build needs --profile and new --out")
-            result=build(args.profile,args.out,args.dry_run,args.k1_bench_test,args.bench_supply)
+            result=build(args.profile,args.out,args.dry_run,args.k1_bench_test,args.bench_supply,args.peripheral_test)
         elif args.action=="inspect":
             if not args.manifest: raise ValueError("inspect needs --manifest")
             result=inspect(args.manifest,args.profile)

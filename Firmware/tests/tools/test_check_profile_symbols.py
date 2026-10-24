@@ -10,6 +10,18 @@ SPEC.loader.exec_module(tool)
 
 
 class CurveCompositionTest(unittest.TestCase):
+    def test_peripheral_diagnostic_rejects_active_operations(self):
+        for name in ("app_bringup_console_step", "run_command.constprop.0", "hw_metrology_measure_start",
+                     "hw_metrology_measure_step", "bsp_metrology_adc_start_capture",
+                     "app_calibration_service_candidate_commit", "w25q_device_program", "w25q_device_erase"):
+            self.assertTrue(tool.peripheral_composition_errors("08001234 T " + name, True))
+        self.assertEqual(tool.peripheral_composition_errors("08001234 T ui_peripheral_test_step", True), [])
+
+    def test_normal_profiles_exclude_peripheral_panel(self):
+        for name in ("ui_peripheral_test_step", "g_peripheral_ui"):
+            self.assertTrue(tool.peripheral_composition_errors("08001234 T " + name, False))
+        self.assertEqual(tool.peripheral_composition_errors("08001234 T hw_safety_evaluate", False), [])
+
     def test_relay_bench_symbols_forbidden_outside_bringup(self):
         for profile in ("PRODUCT", "BRINGUP_CAL"):
             for name in ("hw_k1_bench_start", "hw_k1_bench_step", "lab_k1_test_input"):

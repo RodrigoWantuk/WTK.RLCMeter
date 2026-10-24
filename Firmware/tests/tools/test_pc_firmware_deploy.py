@@ -81,6 +81,32 @@ class DeployTests(unittest.TestCase):
         info=d.inspect(self.image)
         self.assertEqual(info["profile"],"BRINGUP"); self.assertEqual(info["binary_size"],1100)
 
+    def test_peripheral_variant_is_explicit_and_exclusive(self):
+        result=d.build("BRINGUP",self.root/"peripheral",dry_run=True,peripheral_test=True)
+        self.assertIn("-DWTK_BRINGUP_PERIPHERAL_TEST=ON",result["commands"][0])
+        self.assertIn("-DWTK_BRINGUP_BENCH_SUPPLY=OFF",result["commands"][0])
+        for profile,relay,supply in (("FACTORY_PRODUCT",False,False),("BRINGUP_CAL",False,False),
+                                      ("BRINGUP",True,False),("BRINGUP",False,True)):
+            with self.assertRaisesRegex(ValueError,"separate BRINGUP"):
+                d.build(profile,self.root/"bad-peripheral",dry_run=True,k1_bench_test=relay,
+                        bench_supply=supply,peripheral_test=True)
+
+    def test_peripheral_manifest_cannot_hide_feature_or_enable_dc(self):
+        value=d.load(self.image)
+        original=d.read(self.image.with_name("build_config.h"))
+        for declared,dc,valid in ((True,0,True),(False,0,False),(True,1,False)):
+            config=original+f"#define WTK_ENABLE_PERIPHERAL_TEST 1u\n#define WTK_ENABLE_DC_PILOT {dc}u\n".encode()
+            self.image.with_name("build_config.h").write_bytes(config)
+            value["files"]["build_config.h"]={"bytes":len(config),"sha256":d.sha(config)}
+            value["bringup_peripheral_test"]=declared
+            value["seal_sha256"]=d.seal(value)
+            d.save(self.image,value)
+            if valid:
+                self.assertTrue(d.inspect(self.image)["bringup_peripheral_test"])
+            else:
+                with self.assertRaisesRegex(ValueError,"peripheral test configuration"):
+                    d.inspect(self.image)
+
     def test_relay_variant_build_option_is_explicit_and_bringup_only(self):
         self.assertEqual(d.parse_config(b"#define WTK_ENABLE_K1_BENCH_TEST 1u\r\n")["WTK_ENABLE_K1_BENCH_TEST"],"1u")
         with patch.object(d.subprocess,"run",side_effect=AssertionError("dry run must not execute")):

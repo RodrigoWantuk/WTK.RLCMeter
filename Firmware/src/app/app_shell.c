@@ -43,6 +43,10 @@
 #include "ui/ui_fallback_renderer.h"
 #include "ui/ui_product.h"
 #include "wtk_build_config.h"
+#if WTK_ENABLE_PERIPHERAL_TEST
+#include "ui/ui_peripheral_test.h"
+static ui_peripheral_test_t g_peripheral_ui;
+#endif
 #if !WTK_ENABLE_BRINGUP_CONSOLE
 #include "storage/app_settings_w25q_adapter.h"
 #endif
@@ -95,7 +99,9 @@ static hw_safety_result_t g_safety_result;
 static app_calibration_service_t g_calibration_service;
 static app_io_workspace_t g_io_workspace;
 #if WTK_ENABLE_BRINGUP_CONSOLE
+#if !WTK_ENABLE_PERIPHERAL_TEST
 static app_bringup_console_t g_bringup_console;
+#endif
 static bool g_display_ready_reported = false;
 #else
 static app_settings_service_t g_settings_service;
@@ -1334,6 +1340,16 @@ static void app_step(void)
     while (buttons_pop_event(&g_buttons, &event))
     {
         app_log_button_event(&event);
+#if WTK_ENABLE_PERIPHERAL_TEST
+        ui_peripheral_test_button(&g_peripheral_ui, &event);
+        if (event.type == BUTTON_EVENT_PRESS && (unsigned)event.button < BUTTON_ID_COUNT &&
+            !hw_peripherals_quiet_requested() && app_safety_fault_mask(&g_safety_faults) == 0u)
+        {
+            static const uint16_t tones[] = {660u, 1000u, 1500u};
+            hw_buzzer_mute();
+            (void)hw_buzzer_play_tone(tones[(unsigned)event.button], 120u, now_ms);
+        }
+#endif
 #if !WTK_ENABLE_BRINGUP_CONSOLE
         app_product_handle_button_event(&g_product, &event);
 #endif
@@ -1352,7 +1368,7 @@ static void app_step(void)
         g_display_ready_reported = true;
     }
 #endif
-#if WTK_ENABLE_BRINGUP_CONSOLE
+#if WTK_ENABLE_BRINGUP_CONSOLE && !WTK_ENABLE_PERIPHERAL_TEST
     if (g_display.ready && !g_flash.detected && !g_flash_fallback_drawn
 #if WTK_ENABLE_K1_BENCH_TEST
         && !app_bringup_console_k1_test_owned(&g_bringup_console)
@@ -1368,6 +1384,10 @@ static void app_step(void)
 #endif
 
 #if WTK_ENABLE_BRINGUP_CONSOLE
+#if WTK_ENABLE_PERIPHERAL_TEST
+    (void)ui_peripheral_test_step(&g_peripheral_ui, &g_display,
+        "FW " WTK_PROJECT_VERSION, "GIT " WTK_GIT_COMMIT, hw_peripherals_quiet_requested());
+#else
     app_bringup_console_step(&g_bringup_console,
                          &g_flash,
                          &g_display,
@@ -1382,6 +1402,7 @@ static void app_step(void)
     {
         (void)w25q_device_poll(&g_flash, now_ms);
     }
+#endif
 #else
     hw_aux_sensors_snapshot_t product_sensor_snapshot;
     hw_aux_sensors_snapshot(&g_aux_sensors, now_ms, &product_sensor_snapshot);
@@ -1507,9 +1528,14 @@ void app_shell_run(void)
     g_reported_safety_state = APP_SAFETY_SAFE_CHECK;
     g_reported_primary_blocker = HW_SAFETY_BLOCKED_SENSOR_INVALID;
 #if WTK_ENABLE_BRINGUP_CONSOLE
+#if WTK_ENABLE_PERIPHERAL_TEST
+    ui_peripheral_test_init(&g_peripheral_ui);
+    APP_VERBOSE_DIAG_TEXT("peripheral_test", "DISPLAY_BUTTONS_BUZZER_NO_MEASUREMENT");
+#else
     app_bringup_console_init(&g_bringup_console);
     app_bringup_console_attach_calibration_service(&g_bringup_console, &g_calibration_service);
     app_bringup_console_attach_workspace(&g_bringup_console, &g_io_workspace);
+#endif
     g_display_ready_reported = false;
 #else
     app_settings_service_use_defaults(&g_settings_service);
@@ -1552,6 +1578,7 @@ void app_shell_run(void)
     APP_VERBOSE_DIAG_TEXT("w25q", w25q_status_string(flash_status));
     if (flash_status == W25Q_STATUS_OK)
     {
+#if !WTK_ENABLE_PERIPHERAL_TEST
         const measurement_cal_store_io_t cal_io = measurement_cal_w25q_store_io(&g_flash);
         const bsp_status_t cal_status =
             app_calibration_service_load(&g_calibration_service, &cal_io, g_flash.part.capacity_bytes);
@@ -1560,6 +1587,7 @@ void app_shell_run(void)
         APP_VERBOSE_DIAG_TEXT("calibration_state",
                               app_calibration_service_status_string(
                                   app_calibration_service_status(&g_calibration_service)));
+#endif
         const unsigned int jedec = ((unsigned int)g_flash.part.jedec.manufacturer_id << 16u) |
                                    ((unsigned int)g_flash.part.jedec.memory_type << 8u) |
                                    (unsigned int)g_flash.part.jedec.capacity_code;

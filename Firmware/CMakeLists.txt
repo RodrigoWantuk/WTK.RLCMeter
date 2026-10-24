@@ -29,6 +29,15 @@ option(WTK_PRODUCT_FACTORY_PROVISIONED
 option(WTK_ENABLE_SUPPLEMENTARY_CURVES "Enable optional post-OSL WCRV calibration runtime" OFF)
 option(WTK_BRINGUP_K1_TEST "BRINGUP-only empty-fixture K1 pulse; excludes experimental DC pilot for Flash space" OFF)
 option(WTK_BRINGUP_BENCH_SUPPLY "BRINGUP-only operator-confirmed external 5V supply, without battery" OFF)
+option(WTK_BRINGUP_PERIPHERAL_TEST "BRINGUP-only standalone display/buttons/buzzer diagnostic; no active lab console" OFF)
+string(TOUPPER "${WTK_FIRMWARE_PROFILE}" WTK_FIRMWARE_PROFILE)
+set(WTK_ENABLE_PERIPHERAL_TEST_VALUE 0)
+if(WTK_BRINGUP_PERIPHERAL_TEST)
+    if(NOT WTK_FIRMWARE_PROFILE STREQUAL "BRINGUP" OR WTK_BRINGUP_K1_TEST OR WTK_BRINGUP_BENCH_SUPPLY)
+        message(FATAL_ERROR "Peripheral test requires a separate BRINGUP image")
+    endif()
+    set(WTK_ENABLE_PERIPHERAL_TEST_VALUE 1)
+endif()
 string(TOUPPER "${WTK_FIRMWARE_PROFILE}" WTK_FIRMWARE_PROFILE)
 if(WTK_BRINGUP_K1_TEST AND NOT WTK_FIRMWARE_PROFILE STREQUAL "BRINGUP")
     message(FATAL_ERROR "WTK_BRINGUP_K1_TEST requires WTK_FIRMWARE_PROFILE=BRINGUP")
@@ -106,7 +115,7 @@ else()
 endif()
 
 if((WTK_TARGET_PLATFORM STREQUAL "host") OR
-   (WTK_FIRMWARE_PROFILE STREQUAL "BRINGUP" AND NOT WTK_BRINGUP_K1_TEST AND NOT WTK_BRINGUP_BENCH_SUPPLY))
+   (WTK_FIRMWARE_PROFILE STREQUAL "BRINGUP" AND NOT WTK_BRINGUP_K1_TEST AND NOT WTK_BRINGUP_BENCH_SUPPLY AND NOT WTK_BRINGUP_PERIPHERAL_TEST))
     set(WTK_ENABLE_DC_PILOT_VALUE 1)
 else()
     set(WTK_ENABLE_DC_PILOT_VALUE 0)
@@ -174,6 +183,7 @@ set(WTK_COMMON_SOURCES
     src/storage/storage_crc32.c
     src/storage/storage_layout.c
     src/ui/ui_fallback_font.c
+    src/ui/ui_peripheral_test.c
     src/ui/ui_font.c
     src/ui/ui_format.c
     src/ui/ui_image.c
@@ -401,6 +411,7 @@ elseif(WTK_TARGET_PLATFORM STREQUAL "stm32")
                     $<TARGET_FILE:wtk_rlcmeter>
                     --profile ${WTK_FIRMWARE_PROFILE}
                     --factory-provisioned $<IF:$<BOOL:${WTK_PRODUCT_FACTORY_PROVISIONED_VALUE}>,ON,OFF>
+                    --peripheral-test $<IF:$<BOOL:${WTK_ENABLE_PERIPHERAL_TEST_VALUE}>,ON,OFF>
                     --supplementary-curves $<IF:$<BOOL:${WTK_ENABLE_SUPPLEMENTARY_CURVES}>,ON,OFF>
                     --compile-commands "${CMAKE_CURRENT_BINARY_DIR}/compile_commands.json"
                     --nm-tool ${CMAKE_NM}
