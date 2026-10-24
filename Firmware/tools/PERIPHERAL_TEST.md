@@ -83,3 +83,9 @@ Protocol reference: ILITEK ILI9341 V1.05, section7.1.10 and register description
 [manufacturer datasheet hosted by Waveshare](https://files.waveshare.com/upload/e/e3/ILI9341_DS.pdf).
 Module-side VCC/reset/CS and any onboard regulator output are requested from the
 owner. Display communication/rendering remain REQUIRES_BENCH_VALIDATION.
+
+The e4c8633 image was subsequently programmed/read back and reset/run. SWD found
+all five responses zero, software statuses0/completed5, UI stage8/failed0. The
+shared-bus Flash probe returned EF4016/4MiB. The owner reports module VCC/CS/reset/
+DC=3.3V. End-to-end unpowered resistance checks are pending. See the durable
+[display investigation](../../docs/review/a05/Display-White-Screen-2026-10-24.md).

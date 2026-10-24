@@ -16,14 +16,17 @@ and do not silently waive a known electrical assembly blocker.
 | Buzzer and K1 actuation | Owner confirmed audible buzzer and relay actuation | Contact/safety behavior is separate from audible actuation |
 | ADC/DMA and cleanup | Repeated256-row/768-word captures, no DMA error; commanded SAFE/range-off/excitation-off cleanup | Do not equate UART state with contact or waveform feedback |
 | Resistance measurement |10K,33K,99.7K,329.5K,996K fixtures measured; RREF10K/100K/1M exercised | Remaining low ranges are untested; preserve observed channel/range disagreement |
-| Capacitive measurement | Actual103J100 fixture: three1kHz/10K/100mV captures, negative X, host C10.56..10.58nF, SAFE cleanup | Phase-helper source fix passes host/ARM checks but is not deployed; polarized method is a separate unresolved requested capability |
-| Inductive measurement | No actual inductor fixture/capture yet | Identify coil, review low-current condition and transient concerns, then check positive X and plausible equivalent L using independent PC analysis |
-| Final peripherals and power | Display disconnected; battery absent and sense input floating; owner plans display/buttons after C/L tests | Verify each affected interface before connecting it |
+| Capacitive measurement | Actual103J100 fixture: three1kHz/10K/100mV captures, negative X, host C10.56..10.58nF, SAFE cleanup | Phase-helper fix was deployed as12f03bb; polarized method is a separate unresolved requested capability |
+| Inductive measurement | Blind2.2uH indication near1uH was unreliable;470uH fixture gave three positive-X/INDUCTIVE captures at10kHz/100R, equivalent L425.574..429.423uH, SAFE cleanup | Basic inductive response observed; small-L resolution, absolute L/phase/ESR and transient behavior remain unqualified |
+| Final peripherals and power | Display attached, white screen; owner confirms distinct button tones. Peripheral-only image e4c8633 has no active measurement path. Battery absent and sense input floating | Diagnose TFT communication/rendering; verify power/battery separately |
 
 The10nF check is complete. The owner then fitted a blind electrolytic25V part,
-negative on TEST_HI; no polarized capture was performed. Removal is unconfirmed.
-The requested inductor inventory target remains near10mH; no inductor is confirmed.
-Board last reported SAFE/off/fault0, bench source revoked and COM3 closed. See
+negative on TEST_HI; no polarized capture was performed. It was superseded by
+owner-confirmed2.2uH and470uH inductor fixtures. The third inductor test was canceled.
+Before the peripheral image, the last active capture cleaned up SAFE/off/fault0,
+bench source revoked and COM3 closed. UART wires are now removed to fit the TFT.
+SWD on the peripheral image confirms K1/range/excitation off and rendering stage8
+without a software transfer failure. This does not demonstrate visible pixels. See
 [reactive evidence and pending polarized method](Reactive-Basic-Checks-2026-10-24.md).
 The owner explicitly expects polarized-capacitor capability; assess a bounded
 method/domain before an assembly recommendation, rather than silently dropping it
@@ -47,8 +50,8 @@ applicable; do not mark the historical checklist globally passed.
 No OSL record is created in this functional pass. Calibration and precision,
 repeatability, full range/frequency coverage, gate/reset/power/inductive transient
 qualification, and final product release remain REQUIRES_BENCH_VALIDATION. Use
-host complex math/atan2 for reactive interpretation while the deployed phase-field
-limitation remains; nominal component values are plausibility controls, not tight
+host complex math/atan2 as an independent reactive cross-check; the former deployed
+phase-field defect was fixed in12f03bb. Nominal values are plausibility controls, not tight
 ESR/Q or accuracy standards.
 
 Detailed resistor evidence and diagnostic limitations are in
