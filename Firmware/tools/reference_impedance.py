@@ -77,7 +77,13 @@ def parse_raw_dump(text: str) -> RawCapture:
         if not in_rows:
             if "=" in line:
                 key, value = line.split("=", 1)
-                metadata[COMPACT_METADATA_KEYS.get(key, key)] = value
+                name = COMPACT_METADATA_KEYS.get(key, key)
+                # Current firmware emits compact lowercase range tokens; older
+                # dumps use uppercase. Keep one canonical host representation.
+                if name == "range":
+                    value = {"10r": "10R", "100r": "100R", "1k": "1K", "10k": "10K",
+                             "100k": "100K", "1m": "1M"}.get(value, value)
+                metadata[name] = value
             continue
 
         fields = next(csv.reader([line]))

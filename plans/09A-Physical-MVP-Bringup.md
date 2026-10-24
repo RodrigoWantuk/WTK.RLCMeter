@@ -4,6 +4,39 @@ STATUS: IMPLEMENTED_REQUIRES_BENCH_VALIDATION
 
 ## External-supply diagnostic — 2026-10-24
 
+Physical acquisition progress on `4127c73adb73`: after enabling the internal TIM2
+compare channel, one 10 kOhm DUT attempt and one internal K1-SAFE AFE capture each
+completed all 768 DMA words / 256 instants with complete=1/error=0, CNDTR=0,
+GPIOA CRL=0 and TIM2 unremapped (MAPR=0x02000000). Both returned K1 SAFE/range
+disabled/faults0 after capture, and external-source confirmation was revoked.
+This resolves the observed transfer timeout for these attempts, not general
+timing/ADC/analog qualification. Current image is 64520 B Flash / 14868 B accounted
+RAM; strict PRODUCT (62076 B) and default BRINGUP (65288 B) builds pass hard gates.
+
+No valid resistance was published: DSP reports CLIPPED. DUT capture nominal ADC
+DC means: VEXC ~1.648 V, RET_1X ~2.740 V, RET_HG ~3.298 V; HG has 255/256 clipped
+samples and VMID_ADC2 has one clipped first-row sample. Internal capture also
+clips RET/HG. These observations require analog/sequence investigation; do not
+discard the first sample or force an ideal resistance result to pass. Evidence:
+`physical-20261024-tim2-compare/load-10k-001/`, `internal-afe-001/` and
+`capture-comparison.json`. The original PC collection reported unsupported range
+after preserving the full RAW frame: firmware emits `r=10k`, while the old host
+parser expected uppercase. The parser now canonicalizes the six compact lowercase
+tokens without changing saved RAW evidence or relaxing forbidden 10R/500mV.
+Offline validation of that existing frame succeeds structurally with CLIPPED
+quality retained. Collector/reference tests: 9+4 pass; related campaign tests
+30+8 pass; calibration-capture tool 2 pass/10 environment-dependent skips.
+
+For owner DMM localization, a separate explicit DC setup now leaves the 10K branch
+READY, K1 SAFE, no excitation started (previous capture cleanup commands OFF),
+battery-required source and no latched faults. This intentionally selected branch
+is not a measurement permission. Requested GND-referenced DC points are U4.7 VEXC,
+U5.3 RET, U5.1 RET_1X and STM32 PA2 ADC_RET_1X. With the branch conducting and
+excitation off, RET and its unity buffer/ADC should approximately follow near-zero
+VEXC. Actual DMM values are pending. Evidence: `dc-10k-setup-001/`. Do not reset or
+change this setup before associating the operator readings; disable the range
+after that check. No physical resistor accuracy or analog acceptance is claimed.
+
 Follow-up on `efa09bbe3ad3`: corrected ADC2 CR2=0x001E0001 was confirmed by the
 trace, but DMA still stopped at 765 remaining. Thus the slave setup correction
 alone did not fix the physical timeout. Evidence: local
