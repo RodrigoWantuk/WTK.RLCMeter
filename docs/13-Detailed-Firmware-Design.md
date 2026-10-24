@@ -15,6 +15,14 @@ unchanged CR2 with ADON=1 can launch an unintended regular conversion on STM32F1
 This avoids a pre-capture software conversion while waiting for TIM2; a separate
 physical raw regression is required, with every sample retained.
 
+Physical regression on image480aa310f557 (2026-10-24): two internal captures and
+three10K DUT captures at1kHz/nominal100mV completed with all256rows retained and
+normal first ADC2 VMID values. Internal processing selected unclipped RET_1X;
+the known-resistor DUT captures were unclipped on all channels and selected HG.
+This supports the redundant-stop-write diagnosis for the observed startup
+anomaly. Other conditions/MCUs and physical timing remain unqualified. See the
+post-rework evidence for actual indications and remaining scale/variation limits.
+
 TIM2_CC2 trigger enable correction: enable the internal compare channel with
 CC2E while leaving PA1 in analog mode (CRL MODE1/CNF1=0000) and TIM2 unremapped.
 The BSP checks both conditions before enabling DMA/capture and refuses an unsafe

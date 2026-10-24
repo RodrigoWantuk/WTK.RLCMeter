@@ -88,6 +88,53 @@ conversion when modifying CR2 on an enabled ADC. The stop now skips that write
 when DMA is already clear. Rates/layout/quality rules remain unchanged. A new
 physical regression is required; do not silently discard the first sequence.
 
+## Observed recovery after guarded CR2 stop, 2026-10-24
+
+Clean deployed firmware `480aa310f557bd88d2b98c08973c60729dc9ae51` retains disabled
+DUALMOD configuration and avoids the unchanged ADON write. The actual image was
+backed up/programmed/read back with pinned ST-Link/UID checks and a matching
+controlled boot. Image SHA256:
+`bfd64eef7a5dc188aee5fe51d9002e46c90ce9a23653c0bab9511705d57f7d13`.
+Full internal Flash SHA256:
+`d008a448db6c1cd9cb3b0d1f6f732c415e8c182059992796ede16c4ed9351fe6`.
+W25Q was not accessed by the deployment. Physical session:
+`Firmware/build/physical-20261024-adc-noop-stop/`.
+
+Two actual internal captures (first after boot, second after ADC restoration)
+completed256 rows/768words with DMA error0/remaining0 and DSP OK on RET_1X.
+Their first VMID1/VMID2 pairs were2048/2046 and2045/2045; all VMID samples stayed
+within the clip margins. Initial ADC2 rank displacement was absent in these
+captures, with all original rows retained. HG still clips in the OPEN-like
+internal100mV condition and is correctly not selected for this diagnostic.
+Any mathematical impedance printed in an internal RAW header is not a DUT result.
+
+The owner explicitly reconfirmed only the previously identified10k resistor on
+the terminals. Three guarded DUT transactions then completed at1kHz/nominal100mV,
+10K RREF, K1operate30ms/release8ms, fresh same-attempt permits, no clipping on
+any of the six raw columns, DSP OK, RET_HG selected and RESISTIVE interpretation.
+
+| In-place attempt | Firmware R, nominal/uncalibrated | Firmware X, nominal/uncalibrated |
+| --- | --- | --- |
+| 1 | 10306.862 Ohm | -504.752 Ohm |
+| 2 | 10267.430 Ohm | See unchanged RAW |
+| 3 | 10376.188 Ohm | See unchanged RAW |
+
+The three R indications average10316.827 Ohm, differ by108.758 Ohm peak-to-peak
+(about1.05% of their mean), and average3.168% above the owner's10000Ohm DMM
+indication. These are diagnostic observations, NOT an accuracy or repeatability
+qualification; no reattachment, thermal/frequency sweep or calibrated standard
+comparison was performed. Scale, phase, HG/1X agreement and observed variation
+still need characterization. Do not promise calibration alone eliminates all
+variation. No OSL/calibration record was created or installed.
+
+Each transaction ended K1SAFE, rangeDISABLED, excitationOFF, faults0 and external
+bench source revoked to BATTERY_REQUIRED. COM3 closed. Software checks remain
+41/41 host tests and strict Arm builds; final linked sizes: bench64536B Flash /
+14868B accountedRAM, PRODUCT62092B/15168B, defaultBRINGUP65300B/14788B. Host tests
+do not emulate the ADC peripheral; physical regressions above provide only the
+specified board/condition evidence. Other RREFs and dynamic gate/reset/power and
+inductive behavior remain REQUIRES_BENCH_VALIDATION.
+
 ## Intended change and rationale
 
 The [DC finding](RGS-DC-Bias-Bench-Finding.md) identifies selected-driver current
