@@ -1248,6 +1248,9 @@ static void app_update_safety_state(void)
         .battery = hw_aux_sensors_battery_state(&g_aux_sensors, now_ms),
         .range = hw_range_safety_state(&g_range),
         .application_fault = app_safety_fault_any(&g_safety_faults),
+#if WTK_ENABLE_BENCH_SUPPLY && WTK_ENABLE_BRINGUP_CONSOLE
+        .bench_supply_confirmed = g_bringup_console.bench_supply_confirmed,
+#endif
     };
 
     g_safety_result = hw_safety_evaluate(&safety_input);

@@ -553,7 +553,8 @@ static void write_sensors_status(const hw_aux_sensors_t *sensors, uint32_t now_m
     write_text("\r\n");
 }
 
-static void write_permit_status(const hw_range_t *range,
+static void write_permit_status(const app_bringup_console_t *console,
+                                const hw_range_t *range,
                                 hw_charger_t *charger,
                                 const hw_aux_sensors_t *sensors,
                                 const hw_k1_t *k1,
@@ -578,7 +579,13 @@ static void write_permit_status(const hw_range_t *range,
         .range_id = hw_range_get_current(range),
         .k1_state = hw_k1_commanded_state(k1),
         .safety_fault_mask = app_safety_fault_mask(faults),
+#if WTK_ENABLE_BENCH_SUPPLY
+        .bench_supply_confirmed = console->bench_supply_confirmed && snapshot.vmid_valid,
+#endif
     };
+#if !WTK_ENABLE_BENCH_SUPPLY
+    (void)console;
+#endif
     const hw_measure_permit_issue_result_t result = hw_measure_permit_check_issue(&input);
     write_text("lab permit: eligible=");
     write_text(result.issued ? "1" : "0");
@@ -1064,6 +1071,9 @@ static bsp_status_t lab_permit_issue_input(hw_measure_permit_issue_input_t *inpu
     input->range_id = hw_range_get_current(console->range_ref);
     input->k1_state = hw_k1_commanded_state(console->k1_ref);
     input->safety_fault_mask = lab_safety_fault_mask(user);
+#if WTK_ENABLE_BENCH_SUPPLY
+    input->bench_supply_confirmed = console->bench_supply_confirmed && snapshot.vmid_valid;
+#endif
     return BSP_STATUS_OK;
 }
 
@@ -1081,6 +1091,9 @@ static bsp_status_t lab_permit_validate_input(hw_measure_permit_validate_input_t
     input->range_id = hw_range_get_current(console->range_ref);
     input->k1_state = hw_k1_commanded_state(console->k1_ref);
     input->safety_fault_mask = lab_safety_fault_mask(user);
+#if WTK_ENABLE_BENCH_SUPPLY
+    input->bench_supply_confirmed = console->bench_supply_confirmed;
+#endif
     return BSP_STATUS_OK;
 }
 
@@ -3005,6 +3018,44 @@ static void run_command(app_bringup_console_t *console,
     }
 #endif
 
+#if WTK_ENABLE_BENCH_SUPPLY
+    if (text_equals(line, "lab bench status") ||
+        text_equals(line, "lab bench supply external") ||
+        text_equals(line, "lab bench supply battery"))
+    {
+        if (text_equals(line, "lab bench supply battery"))
+        {
+            /* Revocation is immediate; the measurement FSM performs safe teardown. */
+            console->bench_supply_confirmed = false;
+        }
+        else if (text_equals(line, "lab bench supply external"))
+        {
+            hw_aux_sensors_snapshot_t snapshot;
+            hw_aux_sensors_snapshot(sensors, bsp_time_now_ms(), &snapshot);
+            if ((console->workspace == NULL) || lab_metrology_busy(console) || app_bringup_console_flash_busy(console) ||
+                hw_peripherals_quiet_requested() ||
+                (app_io_workspace_owner(console->workspace) != APP_IO_WORKSPACE_OWNER_FREE) ||
+                (app_safety_fault_mask(faults) != 0u) ||
+                !hw_metrology_clock_ready(bsp_clock_get_summary(), BSP_STATUS_OK) ||
+                !snapshot.vmid_valid || (snapshot.residual_state != HW_RESIDUAL_SAFE) ||
+                (snapshot.residual_age_ms > HW_MEASURE_PERMIT_RESIDUAL_MAX_AGE_MS) ||
+                (hw_charger_get_state(charger) != HW_CHARGER_ABSENT) ||
+                (hw_k1_commanded_state(k1) != HW_K1_STATE_SAFE) ||
+                (hw_range_get_state(range) != HW_RANGE_FSM_DISABLED) ||
+                (bsp_excitation_mode() != BSP_EXCITATION_MODE_OFF))
+            {
+                write_text("BENCH_SUPPLY ERROR\r\n");
+                return;
+            }
+            console->bench_supply_confirmed = true;
+        }
+        write_text("BENCH_SUPPLY source=");
+        write_text(console->bench_supply_confirmed ? "EXTERNAL_5V_CONFIRMED" : "BATTERY_REQUIRED");
+        write_text(" max_amp_mvrms=100 qualification=UNQUALIFIED\r\n");
+        return;
+    }
+#endif
+
     if (text_equals(line, "lab quiet on"))
     {
         if (app_bringup_console_flash_busy(console))
@@ -3233,7 +3284,7 @@ static void run_command(app_bringup_console_t *console,
     }
     else if (text_equals(line, "lab permit status"))
     {
-        write_permit_status(range, charger, sensors, k1, faults, now_ms);
+        write_permit_status(console, range, charger, sensors, k1, faults, now_ms);
     }
     else if (text_equals(line, "lab measure auto"))
     {
@@ -3304,6 +3355,9 @@ void app_bringup_console_init(app_bringup_console_t *console)
 
 #if WTK_ENABLE_BRINGUP_CONSOLE
     console->line_length = 0u;
+#if WTK_ENABLE_BENCH_SUPPLY
+    console->bench_supply_confirmed = false;
+#endif
 #if WTK_ENABLE_K1_BENCH_TEST
     hw_k1_bench_init(&console->k1_test);
     console->k1_test_flash_ref = NULL;
@@ -3399,12 +3453,14 @@ void app_bringup_console_step(app_bringup_console_t *console,
     lab_cal_frame_step(console);
 #if WTK_ENABLE_K1_BENCH_TEST
     }
+#endif
+#if WTK_ENABLE_K1_BENCH_TEST || WTK_ENABLE_BENCH_SUPPLY
     uint32_t received = 0u;
 #endif
 
     uint8_t byte = 0u;
     while (
-#if WTK_ENABLE_K1_BENCH_TEST
+#if WTK_ENABLE_K1_BENCH_TEST || WTK_ENABLE_BENCH_SUPPLY
            (received++ < APP_BRINGUP_CONSOLE_LINE_CAPACITY) &&
 #endif
            (bsp_uart_try_read_byte(&byte) == BSP_STATUS_OK))

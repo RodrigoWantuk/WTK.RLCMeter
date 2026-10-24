@@ -791,9 +791,69 @@ static int test_first_measurement_preflight(void)
     return failures;
 }
 
+#if WTK_ENABLE_BENCH_SUPPLY
+static int test_external_bench_supply(void)
+{
+    int failures = 0;
+    for (uint32_t scenario = 0u; scenario < 6u; scenario++)
+    {
+        uint32_t raw[HW_METROLOGY_RAW_WORD_COUNT] = {0};
+        fake_io_t fake = {0};
+        fake.k1 = HW_K1_STATE_SAFE;
+        fake.exc = HW_EXCITATION_MODE_OFF;
+        fake.range_id = HW_RANGE_ID_10K;
+        fake.range_state = HW_RANGE_READY;
+        bind_default_permit_inputs(&fake, HW_RANGE_ID_10K);
+        fake.issue_input.battery = HW_BATTERY_UNKNOWN;
+        fake.issue_input.battery_age_ms = UINT32_MAX;
+        fake.issue_input.bench_supply_confirmed = scenario != 1u;
+        fake.validate_input.bench_supply_confirmed = scenario != 1u;
+        if (scenario == 5u) { fake.issue_input.residual = HW_RESIDUAL_UNSAFE; }
+        bsp_clock_summary_t clock = production_clock();
+        hw_metrology_measure_io_t io;
+        bind_io(&io, &fake);
+        hw_metrology_measure_t measure;
+        (void)hw_metrology_measure_init(&measure, &io, raw, HW_METROLOGY_RAW_WORD_COUNT);
+        hw_metrology_measure_request_t request = make_request(&clock, HW_RANGE_ID_10K,
+            scenario == 2u ? HW_EXCITATION_AMP_500MVRMS : HW_EXCITATION_AMP_100MVRMS);
+        uint32_t now = 0u;
+        (void)hw_metrology_measure_start(&measure, &request, now);
+        if (scenario == 3u || scenario == 4u)
+        {
+            for (; now < 2000u; now++)
+            {
+                (void)hw_metrology_measure_step(&measure, now);
+                if (hw_metrology_measure_state(&measure) == HW_METROLOGY_MEASURE_ADC_DMA_WAIT) { break; }
+            }
+            failures += expect_true(now < 2000u && fake.k1 == HW_K1_STATE_MEASURE, "bench reaches active capture before fault");
+            if (scenario == 3u) { fake.validate_input.bench_supply_confirmed = false; }
+            else { fake.charger = HW_CHARGER_PRESENT; }
+        }
+        failures += expect_true(run_until_idle(&measure, &fake, &now) == 0, "bench transaction finishes bounded cleanup");
+        failures += expect_true(fake.k1 == HW_K1_STATE_SAFE && fake.exc == HW_EXCITATION_MODE_OFF && !fake.quiet,
+                                "bench returns K1/excitation/quiet to safe state");
+        failures += expect_true(hw_metrology_measure_dumpable(&measure) == (scenario == 0u),
+                                "only confirmed safe 100mV bench capture publishes data");
+        if (scenario == 1u || scenario == 2u || scenario == 5u)
+        {
+            failures += expect_true(fake.k1_request_calls == 0u, "rejected bench capture never energizes K1");
+        }
+        if (scenario == 2u)
+        {
+            failures += expect_true(hw_metrology_measure_error(&measure) == HW_METROLOGY_MEASURE_ERR_FORBIDDEN_AMPLITUDE,
+                                    "bench rejects 500mV before relay operation");
+        }
+    }
+    return failures;
+}
+#endif
+
 int main(void)
 {
     int failures = test_first_measurement_preflight();
+#if WTK_ENABLE_BENCH_SUPPLY
+    failures += test_external_bench_supply();
+#endif
     uint32_t raw[HW_METROLOGY_RAW_WORD_COUNT];
     memset(raw, 0, sizeof(raw));
 

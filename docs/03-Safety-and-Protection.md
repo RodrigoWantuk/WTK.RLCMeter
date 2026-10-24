@@ -111,6 +111,16 @@ report fault through diagnostics when available
 
 ## Restricted empty-fixture BRINGUP relay diagnostic
 
+The owner also explicitly requested a separate external-supply measurement image.
+`WTK_BRINGUP_BENCH_SUPPLY=ON` permits a RAM-only `lab bench supply external`
+selection after idle/fresh residual/VMID/clock/charger/fault checks. It substitutes
+the operator-confirmed external supply policy for battery state/age only; ADC_BAT
+is unchanged. It binds permits to the source and aborts on revocation, limits DUT
+transactions to nominal 100 mVrms, and preserves all other safety gates and safe
+cleanup. Default BRINGUP, PRODUCT and BRINGUP_CAL retain their existing behavior.
+No automatic measurement or valid calibration is created. See
+[the bench supply contract](../Firmware/tools/BENCH_SUPPLY.md).
+
 The owner-requested `WTK_BRINGUP_K1_TEST=ON` variant permits one 250 ms K1 pulse
 per boot with no DUT, range disabled, excitation off, fresh real residual SAFE,
 valid VMID, charger absent and no fault or competing operation. It has a

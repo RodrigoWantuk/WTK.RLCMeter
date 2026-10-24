@@ -72,6 +72,9 @@ hw_safety_result_t hw_safety_evaluate(const hw_safety_input_t *input)
             break;
         }
 
+#if WTK_ENABLE_BENCH_SUPPLY
+        if (!input->bench_supply_confirmed)
+#endif
         switch (input->battery)
         {
         case HW_BATTERY_OK:

@@ -1,5 +1,12 @@
 # Detailed Firmware Design
 
+The Phase 09A [external-supply BRINGUP variant](../Firmware/tools/BENCH_SUPPLY.md)
+adds a compile-time-isolated, explicit RAM-only source confirmation. It propagates
+through safety evaluation and permit issue/validation to the existing DUT capture
+FSM, without replacing ADC_BAT or calibration records. Default profiles retain
+battery gates; diagnostic external-source DUT attempts are limited to 100 mVrms
+and source revocation invokes existing fail-safe cleanup.
+
 ## Optional BRINGUP K1 bench-test ownership
 
 `WTK_BRINGUP_K1_TEST=ON` builds an empty-fixture relay diagnostic with a distinct

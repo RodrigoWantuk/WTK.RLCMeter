@@ -180,6 +180,17 @@ static bool io_complete(const hw_metrology_measure_io_t *io)
 
 static bool measure_dynamic_abort(hw_metrology_measure_t *measure)
 {
+#if WTK_ENABLE_BENCH_SUPPLY
+    if (measure->permit.valid && measure->permit.bench_supply_confirmed)
+    {
+        hw_measure_permit_validate_input_t current = {0};
+        if ((measure->io.permit_validate_input(&current, measure->io.user) != BSP_STATUS_OK) ||
+            !current.bench_supply_confirmed)
+        {
+            return true;
+        }
+    }
+#endif
     if ((measure->io.k1_commanded_state == NULL) ||
         (measure->io.k1_commanded_state(measure->io.user) != HW_K1_STATE_MEASURE))
     {
@@ -226,6 +237,9 @@ static hw_safety_result_t build_measure_permission(const hw_measure_permit_issue
         .battery = issue_input->battery,
         .range = issue_input->range,
         .application_fault = issue_input->safety_fault_mask != 0u,
+#if WTK_ENABLE_BENCH_SUPPLY
+        .bench_supply_confirmed = issue_input->bench_supply_confirmed,
+#endif
     };
     return hw_safety_evaluate(&safety_input);
 }
@@ -569,11 +583,22 @@ static bsp_status_t step_success_path(hw_metrology_measure_t *measure, uint32_t 
     case HW_METROLOGY_MEASURE_PERMIT_ISSUE:
     {
         hw_measure_permit_issue_input_t issue_input;
+#if WTK_ENABLE_BENCH_SUPPLY
+        issue_input.bench_supply_confirmed = false;
+#endif
         if (measure->io.permit_issue_input(&issue_input, measure->io.user) != BSP_STATUS_OK)
         {
             enter_abort(measure, HW_METROLOGY_MEASURE_ERR_PERMIT);
             break;
         }
+#if WTK_ENABLE_BENCH_SUPPLY
+        if (issue_input.bench_supply_confirmed &&
+            (measure->request.amplitude != HW_EXCITATION_AMP_100MVRMS))
+        {
+            enter_abort(measure, HW_METROLOGY_MEASURE_ERR_FORBIDDEN_AMPLITUDE);
+            break;
+        }
+#endif
         const hw_measure_permit_issue_result_t issue_result =
             hw_measure_permit_issue(&measure->permit, &issue_input, now_ms);
         if (!issue_result.issued)
@@ -589,6 +614,9 @@ static bsp_status_t step_success_path(hw_metrology_measure_t *measure, uint32_t 
     case HW_METROLOGY_MEASURE_PERMIT_VALIDATE:
     {
         hw_measure_permit_validate_input_t validate_input;
+#if WTK_ENABLE_BENCH_SUPPLY
+        validate_input.bench_supply_confirmed = false;
+#endif
         if (measure->io.permit_validate_input(&validate_input, measure->io.user) != BSP_STATUS_OK)
         {
             enter_abort(measure, HW_METROLOGY_MEASURE_ERR_PERMIT);
@@ -621,6 +649,9 @@ static bsp_status_t step_success_path(hw_metrology_measure_t *measure, uint32_t 
             break;
         }
         hw_measure_permit_issue_input_t issue_input;
+#if WTK_ENABLE_BENCH_SUPPLY
+        issue_input.bench_supply_confirmed = false;
+#endif
         if (measure->io.permit_issue_input(&issue_input, measure->io.user) != BSP_STATUS_OK)
         {
             enter_abort(measure, HW_METROLOGY_MEASURE_ERR_PERMIT);

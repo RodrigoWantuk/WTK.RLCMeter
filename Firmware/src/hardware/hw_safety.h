@@ -3,6 +3,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include "wtk_build_config.h"
 
 typedef enum
 {
@@ -64,6 +65,10 @@ typedef struct
     hw_battery_state_t battery;
     hw_safety_range_state_t range;
     bool application_fault;
+#if WTK_ENABLE_BENCH_SUPPLY
+    /* Operator-confirmed external power, never inferred from ADC_BAT. */
+    bool bench_supply_confirmed;
+#endif
 } hw_safety_input_t;
 
 typedef struct

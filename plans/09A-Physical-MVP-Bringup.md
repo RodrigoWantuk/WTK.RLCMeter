@@ -2,6 +2,34 @@
 
 STATUS: IMPLEMENTED_REQUIRES_BENCH_VALIDATION
 
+## External-supply diagnostic — 2026-10-24
+
+The owner explicitly requested bench measurements without a battery or valid
+calibration before connecting isolated 1% resistors. The bounded sub-phase adds
+an opt-in BRINGUP-only source policy with explicit RAM-only operator confirmation,
+reset-to-battery defaults, real unchanged ADC evidence, bound/revocable permits,
+nominal 100 mVrms limit and the existing complete DUT acquisition/abort sequence.
+No later UI, calibration model or DC feature is included. Expected files are
+CMake/build configuration, safety/permit/measurement services, BRINGUP console and
+shell integration, deployment identity, host regressions and this contract:
+[BENCH_SUPPLY.md](../Firmware/tools/BENCH_SUPPLY.md).
+Prerequisites are the existing Phase 04/05 safety/acquisition path and Phase 09A
+ideal/unqualified measurement fallback. This explicit owner request extends the
+earlier battery-only assumption; default and PRODUCT battery gates are retained.
+Acceptance requires host guard/revocation/cleanup tests, ARM build/size gates,
+profile isolation and traceable deployment preparation. Physical OPEN/SHORT/LOAD,
+supply integrity, waveforms and reference accuracy remain REQUIRES_BENCH_VALIDATION.
+
+Initial software verification passed: 41/41 host CTests (MSVC Release, project
+warnings as errors), five relevant tests repeated after final initialization
+changes, 49 deployment-tool tests passed with three environment-dependent skips,
+and eight profile-tool tests passed. ARM project warnings-as-errors builds pass:
+bench image 63748 B Flash / 14780 B accounted RAM including 2048 B stack;
+PRODUCT 62040 B Flash with bench flag OFF. Default BRINGUP is byte-identical to
+the earlier image after normalizing only the embedded Git label. LTO serial-job
+and existing soft Flash-target advisories remain; hard memory/profile gates pass.
+Physical reference captures and source-revocation/interlock checks remain pending.
+
 ## Opt-in empty-fixture K1 pulse — 2026-10-24
 
 The owner requested a one-shot physical relay test after confirming that the

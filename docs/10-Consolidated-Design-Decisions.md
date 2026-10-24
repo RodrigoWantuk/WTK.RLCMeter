@@ -1,5 +1,19 @@
 # Consolidated Design Decisions
 
+## Owner-requested external bench supply — 2026-10-24
+
+Phase 09A now includes a separate opt-in BRINGUP bench-supply image. The operator
+can explicitly select verified external 5 V power without a battery. Boot/reset
+requires battery again; the RAM-only selection changes the battery-state/age gate
+without synthesizing ADC evidence. Permits bind the source, revocation aborts
+active transactions, and nominal excitation is restricted to 100 mVrms. Charger,
+fresh residual, VMID, clock, faults, range sequencing and ADC/DMA teardown remain
+mandatory. Existing BRINGUP ideal-calibration fallback remains UNQUALIFIED.
+PRODUCT/BRINGUP_CAL/default BRINGUP have no bench-source selection. This separate
+C8 image excludes DC pilot and the K1 pulse diagnostic for Flash space.
+See [the full contract](../Firmware/tools/BENCH_SUPPLY.md). Physical analog/supply/
+contact/timing/accuracy qualification remains REQUIRES_BENCH_VALIDATION.
+
 ## Owner-requested empty-fixture K1 bench pulse — 2026-10-24
 
 The first assembled board boots BRINGUP from an external 5 V bench supply while

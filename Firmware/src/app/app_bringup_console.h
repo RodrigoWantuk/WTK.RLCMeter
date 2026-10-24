@@ -98,6 +98,9 @@ typedef struct
     hw_aux_sensors_t *sensors_ref;
     hw_charger_t *charger_ref;
     app_safety_fault_latch_t *faults_ref;
+#if WTK_ENABLE_BENCH_SUPPLY
+    bool bench_supply_confirmed;
+#endif
 #if WTK_ENABLE_K1_BENCH_TEST
     hw_k1_bench_t k1_test;
     const w25q_device_t *k1_test_flash_ref;

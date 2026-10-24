@@ -112,6 +112,31 @@ class DeployTests(unittest.TestCase):
     def test_wrong_profile_rejected(self):
         with self.assertRaises(ValueError): d.inspect(self.image,"FACTORY_PRODUCT")
 
+    def test_bench_supply_build_is_explicit_and_isolated(self):
+        default=d.build("BRINGUP",self.root/"default-supply",dry_run=True)
+        bench=d.build("BRINGUP",self.root/"bench-supply",dry_run=True,bench_supply=True)
+        self.assertIn("-DWTK_BRINGUP_BENCH_SUPPLY=OFF",default["commands"][0])
+        self.assertIn("-DWTK_BRINGUP_BENCH_SUPPLY=ON",bench["commands"][0])
+        for profile,relay in (("FACTORY_PRODUCT",False),("BRINGUP_CAL",False),("BRINGUP",True)):
+            with self.subTest(profile=profile,relay=relay),self.assertRaises(ValueError):
+                d.build(profile,self.root/"invalid-supply",dry_run=True,k1_bench_test=relay,bench_supply=True)
+
+    def test_bench_supply_manifest_cannot_hide_feature(self):
+        value=d.load(self.image)
+        config_path=self.image.with_name("build_config.h")
+        original=d.read(config_path)
+        for declared,dc in ((True,0),(False,0),(True,1)):
+            config=original+f"#define WTK_ENABLE_BENCH_SUPPLY 1u\n#define WTK_ENABLE_DC_PILOT {dc}u\n".encode()
+            config_path.write_bytes(config)
+            value["bringup_bench_supply"]=declared
+            value["files"]["build_config.h"]=dict(bytes=len(config),sha256=d.sha(config))
+            value["seal_sha256"]=d.seal(value); d.save(self.image,value)
+            if declared and dc==0:
+                self.assertTrue(d.inspect(self.image)["bringup_bench_supply"])
+            else:
+                with self.assertRaisesRegex(ValueError,"bench supply"):
+                    d.inspect(self.image)
+
     def test_manifest_tamper(self):
         value=d.load(self.image); value["factory_provisioned"]=True; d.save(self.image,value)
         with self.assertRaisesRegex(ValueError,"seal"): d.inspect(self.image)

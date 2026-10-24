@@ -291,6 +291,25 @@ static int test_charger_and_power_helpers(void)
 int main(void)
 {
     int failures = 0;
+#if WTK_ENABLE_BENCH_SUPPLY
+    hw_safety_input_t bench = valid_input();
+    bench.battery = HW_BATTERY_UNKNOWN;
+    failures += expect_true(!hw_safety_evaluate(&bench).measure_allowed, "unconfirmed bench power is denied");
+    bench.bench_supply_confirmed = true;
+    failures += expect_true(hw_safety_evaluate(&bench).measure_allowed, "explicit external source permits unknown battery");
+    failures += expect_true(bench.battery == HW_BATTERY_UNKNOWN, "source choice never fabricates battery evidence");
+    bench.charger = HW_CHARGER_PRESENT;
+    failures += expect_true(!hw_safety_evaluate(&bench).measure_allowed, "bench retains charger gate");
+    bench.charger = HW_CHARGER_ABSENT;
+    bench.residual = HW_RESIDUAL_UNKNOWN;
+    failures += expect_true(!hw_safety_evaluate(&bench).measure_allowed, "bench retains residual validity gate");
+    bench.residual = HW_RESIDUAL_SAFE;
+    bench.range = HW_RANGE_TRANSITIONING;
+    failures += expect_true(!hw_safety_evaluate(&bench).measure_allowed, "bench retains range gate");
+    bench.range = HW_RANGE_READY;
+    bench.application_fault = true;
+    failures += expect_true(!hw_safety_evaluate(&bench).measure_allowed, "bench retains fault gate");
+#endif
     failures += test_safety_policy_matrix();
     failures += test_residual_policy();
     failures += test_charger_and_power_helpers();
