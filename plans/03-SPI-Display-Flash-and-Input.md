@@ -27,6 +27,13 @@ host tests and strict peripheral/default/PRODUCT Arm builds pass. Peripheral:
 14468B Flash/11788B accountedRAM; defaultBRINGUP65448B andPRODUCT62232B fit hard
 limits (existing soft-size/LTO advisories remain). Physical result still pending.
 
+Deployed62e7659 with exact internal readback and controlled boot. Owner still
+reports white. All seven raw register responses remain zero; FlashEF4016 still
+detected. Image-bound breakpoints show actual MCU CS/DC low for commands and
+CS low/DC high for data, followed by breakpoint removal/resume. This narrows the
+observation but does not identify controller/module fault. See the
+[physical report](../docs/review/a05/Display-White-Screen-2026-10-24.md).
+
 ## Goal
 
 Implement and validate the non-metrology user-interface peripherals while preserving shared-SPI correctness, future quiet-mode requirements, and the fixed button/resource architecture used by later product UI work.

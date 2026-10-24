@@ -73,3 +73,44 @@ power, controller identity, interface mode or initialization.
 Evidence is local under `Firmware/build/physical-20261024-display-readback/`, with
 the prior state under `physical-20261024-peripheral-test/`. Preserve sealed images,
 full backups, deployment/boot transcripts, raw state reads and tft-nets.json.
+
+## Slow common-DCS attempt
+
+Owner module label: "2.8 TFT SPI240x320 V1.2". A similar purchase listing names
+ST7789/ILI9341 ambiguously; this does not identify the fitted controller. The
+isolated peripheral image62e7659 adds only common DCS display controls, reset50ms
+with250ms after release, longer software-reset/sleep/display waits, and TFT clock
+PCLK1/64. Flash keeps PCLK1/8. No controller-specific power/VCOM/gamma/porch
+parameters are applied. Ordinary profiles retain the original command sequence;
+the diagnostic table is compiled only with the existing peripheral variant.
+
+Five relevant host tests pass, including wrap-safe reset timing, the common command
+list and unchanged ordinary list, raw read04/09 responses, clock switching with
+CS inactive, Flash clock preservation and quiet exclusion. Strict Arm builds and
+hard memory/composition checks pass: peripheral14468B/11788B accountedRAM,
+ordinaryBRINGUP65448B andPRODUCT62232B Flash. Existing soft-size/LTO advisories
+remain; ordinaryBRINGUP has very little remaining Flash headroom.
+
+Clean sealed image62e7659 SHA256:
+`dfc930cfc51ac54b938f2ec4393c8979976923cf46d47db54cba03487eacb999`.
+Full prior internal Flash was backed up/matched before programming. Exact
+readback passed; new full Flash SHA256:
+`ad3faa1ad08eae1497448f03e3a197996d4498faf18594199e632b3909e50c2f`.
+Separate controlled boot confirmed target access/power and reset/run. Subsequent
+SWD showed displayREADY/index8, UIstage8/failed0 and SPI2CR1=0x36C/SR2. All seven
+five-byte responses (04,D3,09,0A,0B,0C,0F) are zero, all software statuses0,
+completed7. Flash still reports EF4016/4MiB. Owner confirms screen still white.
+
+A second controlled boot with two image-bound hardware breakpoints observed
+actual GPIO inputs just before a command/data SPI transfer. Command phase:
+GPIOB IDR0x8419/ODR0x0418 (PB12CS=0,PB11DC=0,PB10RESET=1). Data phase:
+IDR/ODR0x0C18 (CS=0,DC=1,RESET=1). MOSI/backlight bits may differ with instantaneous
+state. K1/range/excitation remain off. Both breakpoints were removed and the
+firmware resumed. Thus CS/DC can reach their commanded low/high levels at the
+MCU; this is not an oscilloscope trace at the LCD or a panel identity result.
+
+Evidence: `Firmware/build/physical-20261024-display-slow-dcs/`, including
+`display-state-001` and `control-levels-001`. Next useful evidence is clear front/
+back module identification and inspection of regulator/interface configuration;
+do not equate lack of readback with a proven defective LCD. Generic read-only
+protocol basis also includes the [Sitronix ST7789V datasheet](https://dl.espressif.com/dl/schematics/ST7789V_SPEC_V1.0.pdf).
