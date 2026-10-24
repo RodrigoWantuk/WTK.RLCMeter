@@ -35,6 +35,8 @@ owner confirmation of which isolated passive resistor is attached.
 | 10000 Ohm indication | 10K | 1kHz | 3 | 10316.827 Ohm | See recovery report/RAW |
 | 99700 Ohm reported | 100K | 1kHz | 3 | 91865.549 Ohm | -31490.926 Ohm |
 | Same99700 Ohm | 100K | 10Hz | 3 | 103605.677 Ohm | -155.422 Ohm |
+| 996000 Ohm reported | 1M | 10Hz | 3 | 1030542.016 Ohm | -45073.260 Ohm |
+| Same996000 Ohm | 1M | 1kHz | 3 | 97252.072 Ohm | -270486.816 Ohm |
 
 The 100K-branch captures all completed256rows/768words, normal first ADC2 sequence,
 DMA error0/remaining0, no raw samples at/beyond clip margins16/4079, DSP OK with
@@ -53,11 +55,40 @@ qualification. See `99k7-frequency-comparison.json` for every unmodified record.
 After the last capture, K1SAFE/rangeDISABLED/excitationOFF/faults0 and source
 BATTERY_REQUIRED were verified; COM3 closed. No new image or calibration installed.
 
+The owner then confirmed the996K fixture swap. All six1M-branch captures also
+completed256rows, normal first ADC2 sequence, DMAerror0/remaining0, DSP OK, HG
+selected and no raw channel at/beyond clip margins. The10Hz runs were RESISTIVE;
+the1kHz runs were CAPACITIVE. The10Hz R spread is11568.192Ohm peak-to-peak and
+meanR is about3.47% above the owner996000Ohm indication. At1kHz the real component
+must not be presented as a DC resistance: the large negative X is material.
+See `996k-frequency-comparison.json` and unchanged captures for full evidence.
+The large frequency dependence is a characterization issue; no single scale
+correction or general high-Z/1kHz accuracy claim is justified by these tests.
+
+## Diagnostic software limitations found during reactive comparisons
+
+In this deployed nonfactory BRINGUP image, do not trust the printed phase angle
+for |X|>R. The range-reduced atan2 implementation is gated by
+WTK_PRODUCT_FACTORY_PROVISIONED in measurement_dsp.c; the active legacy branch
+evaluates its approximation outside its intended domain. For example the first
+996K/1M/1kHz result printed phase_mrad=-116 while its R=98819.832Ohm and
+X=-270995.776Ohm imply about-1.22rad using host atan2. The raw complex calculation
+agrees with the independent PC reference; this does not qualify its physical
+phase accuracy. Phase-field repair/testing is a separate outstanding software
+item, not a soldering diagnosis. No phase correction was hidden in these records.
+
+The existing console milli_from_float() also converts scaled float to int32_t
+without a representability guard. A2.2MOhm indication exceeds the positive
+signed32-bit milliohm domain (~2147483.647Ohm). Do not report those formatted
+resistance fields as a valid2.2M observation. Any later2.2M diagnostic requires
+independent calculation from preserved RAW and explicit quality/channel checks,
+or a separately reviewed protocol/format fix. No such capture is marked done.
+
 ## Next checks and limits
 
-The next intended fixture is the owner996k resistor, RREF1M, nominal100mV,10Hz.
+The next intended fixture is the owner329.5k resistor, RREF1M, nominal100mV,10Hz.
 Its runner requires the current physical swap confirmation before any command.
-1kHz comparison may follow only after reviewing the first capture; high-Z
+The996K comparison is complete; high-Z
 frequency response must not be extrapolated from the10K resistor result.
 
 329.5k and2.2M are useful potential loads for1M, and33.0k for10K/100K overlap,
