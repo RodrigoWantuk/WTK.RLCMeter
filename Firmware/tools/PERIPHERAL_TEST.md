@@ -115,3 +115,9 @@ a defective module. For the owner's requested mounting, diagnostic MADCTL change
 from48 to88 and its logical rotation becomes2 (portrait180, still240x320). Ordinary
 profiles keep MADCTL48. Colors, button rows/tones, clock and safety are unchanged.
 Final rotated appearance remains an owner observation after deployment.
+
+Deployed3d276b1 with exact readback and controlled boot. Owner confirms rotated
+appearance and buttons. Post-repair LCD readback: MADCTL88 matches the requested
+rotation, power-mode9C and diagnosticC0 are nonzero, UIstage8/failed0. ID04/D3 remain
+zero, so controller identity is not established. Image14476B/11788B accountedRAM.
+This closes the white-screen/rotation subtask; broader Phase03 criteria remain.

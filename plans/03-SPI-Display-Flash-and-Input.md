@@ -40,6 +40,11 @@ diagnostic MADCTL88/rotation2, ordinaryMADCTL48. Expected files: ILI9341 source,
 existing driver regression and peripheral/physical documentation. No hardware
 qualification beyond that owner observation is inferred.
 
+Deployed3d276b1, exact readback/controlled boot passed. Owner confirms portrait180
+and button operation. LCD now returns MADCTL88, power-mode9C and diagnosticC0;
+ID04/D3 still zero, actual controller identity unresolved. White-screen/rotation
+subtask is functionally confirmed; Phase03's remaining bench criteria stay open.
+
 ## Goal
 
 Implement and validate the non-metrology user-interface peripherals while preserving shared-SPI correctness, future quiet-mode requirements, and the fixed button/resource architecture used by later product UI work.

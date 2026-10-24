@@ -1,6 +1,8 @@
 # Display white-screen investigation
 
-Status: IN_PROGRESS; REQUIRES_BENCH_VALIDATION. No final-assembly go-ahead.
+Status: WHITE_SCREEN_RESOLVED_BY_OWNER_FLAT_SOLDER_REPAIR;
+PERIPHERAL_RENDERING_ORIENTATION_AND_BUTTONS_CONFIRMED_BY_OWNER.
+This is a bounded functional observation, not full instrument qualification.
 
 The owner confirms that the dedicated peripheral firmware responds to UP/OK/DOWN
 with tones, but the lit TFT remains white after reset. UART wiring is physically
@@ -114,3 +116,44 @@ Evidence: `Firmware/build/physical-20261024-display-slow-dcs/`, including
 back module identification and inspection of regulator/interface configuration;
 do not equate lack of readback with a proven defective LCD. Generic read-only
 protocol basis also includes the [Sitronix ST7789V datasheet](https://dl.espressif.com/dl/schematics/ST7789V_SPEC_V1.0.pdf).
+
+## Resolution and portrait180 confirmation
+
+The owner repaired a bad solder joint on the display flat and reported visible
+rendering, then requested180degree reversal for the actual mounting. Image3d276b1
+changes only the peripheral diagnostic orientation to MADCTL88/logical rotation2;
+the ordinary initialization retains48. Two relevant host regressions and the
+strict Arm peripheral build passed (14476B Flash,11788B accountedRAM).
+
+Sealed clean image SHA256:
+`1e5e819c89535bd492949da4090496be76eb6f8342a142985b10313a3206bc03`.
+Prior image backed up/matched, exact programming readback passed; new full Flash
+SHA256 `38764dce0350dd650d2535f025b7121891fe4ade6876fb6d527619165101cc7c`.
+Separate controlled boot and short SWD halt/read/resume confirmed UIstage8/failed0,
+displayREADY/rotation2 and safe output states. No metrology operation was run.
+
+Raw five-byte responses after repair, in the recorded command order:
+
+| Register | Raw bytes |
+| --- | --- |
+|04 ID |00 00 00 00 00 |
+|D3 ID |00 00 00 00 00 |
+|09 status |E2 29 82 00 00 |
+|0A power mode |9C 00 00 00 00 |
+|0B MADCTL |88 00 00 00 00 |
+|0C pixel format |05 FF FF FF FF |
+|0F self diagnostic |C0 00 00 00 00 |
+
+All software statuses0/completed7. Matching MADCTL88 plus nonzero status responses
+demonstrates LCD return communication after repair, rather than merely Flash MISO
+activity. Zero identification commands do not identify the exact controller.
+The owner then confirmed the rotated appearance and button operation ("perfeito.
+botões ok tb.") in response to the orientation/UP/OK/DOWN state/tone check.
+No module replacement or panel-specific analog settings were needed.
+
+Evidence: `Firmware/build/physical-20261024-display-portrait180/`. Keep the owner
+mounting preference for subsequent product UI integration; this diagnostic change
+does not silently alter the final product screen configuration. Calibration,
+full range/phase/transient qualification and battery/charger validation remain
+separate work. Do not mark Phase03's external-resource/Flash-write/quiet bench
+criteria complete based on this limited peripheral pass.

@@ -18,7 +18,7 @@ and do not silently waive a known electrical assembly blocker.
 | Resistance measurement |10K,33K,99.7K,329.5K,996K fixtures measured; RREF10K/100K/1M exercised | Remaining low ranges are untested; preserve observed channel/range disagreement |
 | Capacitive measurement | Actual103J100 fixture: three1kHz/10K/100mV captures, negative X, host C10.56..10.58nF, SAFE cleanup | Phase-helper fix was deployed as12f03bb; polarized method is a separate unresolved requested capability |
 | Inductive measurement | Blind2.2uH indication near1uH was unreliable;470uH fixture gave three positive-X/INDUCTIVE captures at10kHz/100R, equivalent L425.574..429.423uH, SAFE cleanup | Basic inductive response observed; small-L resolution, absolute L/phase/ESR and transient behavior remain unqualified |
-| Final peripherals and power | Display attached, white screen; owner confirms distinct button tones. Peripheral-only image e4c8633 has no active measurement path. Battery absent and sense input floating | Diagnose TFT communication/rendering; verify power/battery separately |
+| Final peripherals and power | Owner repaired display-flat solder; rendering works. Image3d276b1 rotates portrait180; owner confirms orientation/buttons. LCD MADCTL88/status readback now responds. Peripheral-only image has no active measurement path. Battery absent and sense input floating | Full storage/resource/quiet qualification and battery/charger checks remain separate |
 
 The10nF check is complete. The owner then fitted a blind electrolytic25V part,
 negative on TEST_HI; no polarized capture was performed. It was superseded by
@@ -27,6 +27,9 @@ Before the peripheral image, the last active capture cleaned up SAFE/off/fault0,
 bench source revoked and COM3 closed. UART wires are now removed to fit the TFT.
 SWD on the peripheral image confirms K1/range/excitation off and rendering stage8
 without a software transfer failure. This does not demonstrate visible pixels. See
+the subsequent [display repair and owner-confirmed peripheral pass](Display-White-Screen-2026-10-24.md)
+for actual visible rendering/button evidence; the earlier READY observation alone
+was insufficient. See also
 [reactive evidence and pending polarized method](Reactive-Basic-Checks-2026-10-24.md).
 The owner explicitly expects polarized-capacitor capability; assess a bounded
 method/domain before an assembly recommendation, rather than silently dropping it
