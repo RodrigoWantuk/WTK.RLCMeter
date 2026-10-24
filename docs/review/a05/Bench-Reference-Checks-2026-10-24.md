@@ -37,6 +37,8 @@ owner confirmation of which isolated passive resistor is attached.
 | Same99700 Ohm | 100K | 10Hz | 3 | 103605.677 Ohm | -155.422 Ohm |
 | 996000 Ohm reported | 1M | 10Hz | 3 | 1030542.016 Ohm | -45073.260 Ohm |
 | Same996000 Ohm | 1M | 1kHz | 3 | 97252.072 Ohm | -270486.816 Ohm |
+| 329500 Ohm reported | 1M | 10Hz | 3 | 332881.120 Ohm | -3736.308 Ohm |
+| Same329500 Ohm | 100K | 10Hz | 3 | 317737.312 Ohm | -732.598 Ohm |
 
 The 100K-branch captures all completed256rows/768words, normal first ADC2 sequence,
 DMA error0/remaining0, no raw samples at/beyond clip margins16/4079, DSP OK with
@@ -65,6 +67,24 @@ See `996k-frequency-comparison.json` and unchanged captures for full evidence.
 The large frequency dependence is a characterization issue; no single scale
 correction or general high-Z/1kHz accuracy claim is justified by these tests.
 
+The owner confirmed the329.5K fixture swap. Three1M/10Hz/100mV captures completed
+with HG selected and all channels inside clip margins; R spread1629.920Ohm p-p.
+The same fixture was then measured three times on100K/10Hz/100mV without recabling.
+HG hit the low clip margin in20/23/26 samples respectively and was rejected by
+the firmware, which selected unclipped RET_1X and returned DSP OK/RESISTIVE.
+Common VEXC/VMID columns and selected1X had no clip-margin hits. All256 rows,
+including clipped HG, are preserved; independent nominal HG calculations in the
+original runner reports are diagnostic-only and unusable for those clipped
+captures. `329k5-range-comparison.json` explicitly marks that invalid HG path.
+
+The100K/1X R spread is2951.776Ohm p-p. The two selected-channel means differ by
+15143.808Ohm (~4.65% of their average); versus owner329500Ohm, they differ by
+about+1.03% and-3.57%. This demonstrates acquisition, range response and channel
+fallback, not calibrated agreement. Channel/range equalization, nonlinear or
+fixture effects and observed variation still need characterization. No records
+were corrected to match the reference. Every attempt ended SAFE/off/no faults,
+source revoked and COM3 closed.
+
 ## Diagnostic software limitations found during reactive comparisons
 
 In this deployed nonfactory BRINGUP image, do not trust the printed phase angle
@@ -86,7 +106,8 @@ or a separately reviewed protocol/format fix. No such capture is marked done.
 
 ## Next checks and limits
 
-The next intended fixture is the owner329.5k resistor, RREF1M, nominal100mV,10Hz.
+The next intended fixture is the owner33.0k resistor, RREF100K then10K,
+nominal100mV,10Hz, to compare the next overlap with the same physical resistor.
 Its runner requires the current physical swap confirmation before any command.
 The996K comparison is complete; high-Z
 frequency response must not be extrapolated from the10K resistor result.
