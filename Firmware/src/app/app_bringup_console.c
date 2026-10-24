@@ -919,11 +919,13 @@ static bsp_status_t lab_excitation_neutral(void *user)
     return bsp_excitation_neutral();
 }
 
+#if WTK_ENABLE_DC_PILOT
 static bsp_status_t lab_excitation_dc_pilot(void *user)
 {
     (void)user;
     return bsp_excitation_dc_pilot();
 }
+#endif
 
 static bsp_status_t lab_excitation_sine(hw_excitation_freq_t frequency,
                                         hw_excitation_amp_t amplitude,
@@ -1179,7 +1181,9 @@ static bsp_status_t lab_init_metrology_measure(app_bringup_console_t *console)
         .excitation_off = lab_excitation_off,
         .excitation_neutral = lab_excitation_neutral,
         .excitation_sine = lab_excitation_sine,
+#if WTK_ENABLE_DC_PILOT
         .excitation_dc_pilot = lab_excitation_dc_pilot,
+#endif
         .excitation_mode = lab_excitation_mode,
         .excitation_dma_error = lab_excitation_dma_error,
         .charger_state = lab_charger_state,
@@ -2845,6 +2849,83 @@ static void lab_step_metrology(app_bringup_console_t *console, uint32_t now_ms)
     lab_step_metrology_measure(console, now_ms);
 }
 
+#if WTK_ENABLE_K1_BENCH_TEST
+static hw_k1_bench_input_t lab_k1_test_input(app_bringup_console_t *console, uint32_t now_ms)
+{
+    hw_aux_sensors_snapshot_t snapshot = {0};
+    hw_aux_sensors_snapshot(console->sensors_ref, now_ms, &snapshot);
+    const bsp_clock_summary_t *clock = bsp_clock_get_summary();
+    return (hw_k1_bench_input_t){
+        .charger = hw_charger_get_state(console->charger_ref),
+        .residual = snapshot.residual_state,
+        .residual_age_ms = snapshot.residual_age_ms,
+        .vmid_valid = snapshot.vmid_valid,
+        .range_disabled = hw_range_safety_state(console->range_ref) == HW_RANGE_DISABLED,
+        .excitation_off = bsp_excitation_mode() == BSP_EXCITATION_MODE_OFF,
+        .idle = !lab_metrology_busy(console) && !console->cal_frame_active &&
+                !app_bringup_console_flash_busy(console) &&
+                !app_calibration_service_busy(console->cal_service) &&
+                (console->k1_test_flash_ref != NULL) &&
+                (console->k1_test_flash_ref->operation == W25Q_OPERATION_NONE) &&
+                (console->workspace != NULL) &&
+                (app_io_workspace_owner(console->workspace) == APP_IO_WORKSPACE_OWNER_FREE),
+        .clock_ready = (clock != NULL) && (clock->source == BSP_CLOCK_SOURCE_HSE_PLL),
+        .fixture_empty_confirmed = true, /* Only the explicit "pulse empty" command starts a test. */
+        .faulted = (console->faults_ref == NULL) || app_safety_fault_any(console->faults_ref),
+    };
+}
+
+bool app_bringup_console_k1_test_owned(const app_bringup_console_t *console)
+{
+    return (console != NULL) && hw_k1_bench_owns_k1(&console->k1_test);
+}
+
+static void lab_k1_test_status(const app_bringup_console_t *console)
+{
+    write_text("K1_TEST state=");
+    write_text(hw_k1_bench_state_string(console->k1_test.state));
+    write_text(" used=");
+    write_text(console->k1_test.used ? "1" : "0");
+    write_text(" k1=");
+    write_text(hw_k1_state_string(hw_k1_commanded_state(console->k1_ref)));
+    write_text("\r\n");
+}
+
+void app_bringup_console_k1_test_step(app_bringup_console_t *console, uint32_t now_ms)
+{
+    if (!app_bringup_console_k1_test_owned(console))
+    {
+        return;
+    }
+    const hw_k1_bench_input_t input = lab_k1_test_input(console, now_ms);
+    if (hw_k1_bench_step(&console->k1_test, console->k1_ref, &input, now_ms) != BSP_STATUS_OK)
+    {
+        app_safety_fault_latch(console->faults_ref, APP_SAFETY_FAULT_K1_IO);
+    }
+    if ((console->k1_test.state == HW_K1_BENCH_RELEASE) ||
+        !app_bringup_console_k1_test_owned(console))
+    {
+        const bsp_status_t excitation_status = bsp_excitation_off();
+        const bsp_status_t range_status = hw_range_force_disabled(console->range_ref);
+        if (excitation_status != BSP_STATUS_OK)
+        {
+            app_safety_fault_latch(console->faults_ref, APP_SAFETY_FAULT_METROLOGY_RUNTIME);
+        }
+        if (range_status != BSP_STATUS_OK)
+        {
+            app_safety_fault_latch(console->faults_ref, APP_SAFETY_FAULT_RANGE_IO);
+        }
+    }
+    if (!app_bringup_console_k1_test_owned(console))
+    {
+        hw_aux_sensors_pause(console->sensors_ref);
+        hw_aux_sensors_resume(console->sensors_ref, now_ms);
+        hw_peripherals_request_quiet(false);
+        lab_k1_test_status(console);
+    }
+}
+#endif
+
 static void run_command(app_bringup_console_t *console,
                         w25q_device_t *flash,
                         ili9341_t *display,
@@ -2875,6 +2956,54 @@ static void run_command(app_bringup_console_t *console,
         write_text("lab: BUSY\r\n");
         return;
     }
+
+#if WTK_ENABLE_K1_BENCH_TEST
+    console->k1_test_flash_ref = flash;
+    if (text_equals(line, "lab k1 status"))
+    {
+        lab_k1_test_status(console);
+        return;
+    }
+    if (text_equals(line, "lab k1 cancel"))
+    {
+        if (hw_k1_bench_cancel(&console->k1_test, k1, bsp_time_now_ms()) != BSP_STATUS_OK)
+        {
+            app_safety_fault_latch(faults, APP_SAFETY_FAULT_K1_IO);
+        }
+        lab_k1_test_status(console);
+        return;
+    }
+    if (app_bringup_console_k1_test_owned(console) && (line[0] != '\0'))
+    {
+        write_text("K1_TEST BUSY\r\n");
+        return;
+    }
+    if (text_equals(line, "lab k1 pulse empty"))
+    {
+        if (hw_peripherals_quiet_requested())
+        {
+            write_text("K1_TEST BUSY\r\n");
+            return;
+        }
+        const uint32_t test_now_ms = bsp_time_now_ms();
+        const hw_k1_bench_input_t input = lab_k1_test_input(console, test_now_ms);
+        hw_peripherals_request_quiet(true);
+        const bsp_status_t status = hw_k1_bench_start(&console->k1_test, k1, &input, test_now_ms);
+        if (!app_bringup_console_k1_test_owned(console))
+        {
+            hw_peripherals_request_quiet(false);
+        }
+        if (console->k1_test.completion == HW_K1_BENCH_IO_ERROR)
+        {
+            app_safety_fault_latch(faults, APP_SAFETY_FAULT_K1_IO);
+        }
+        write_text("K1_TEST start=");
+        write_text(bsp_status_string(status));
+        write_text(" pulse_ms=250\r\n");
+        lab_k1_test_status(console);
+        return;
+    }
+#endif
 
     if (text_equals(line, "lab quiet on"))
     {
@@ -3175,6 +3304,10 @@ void app_bringup_console_init(app_bringup_console_t *console)
 
 #if WTK_ENABLE_BRINGUP_CONSOLE
     console->line_length = 0u;
+#if WTK_ENABLE_K1_BENCH_TEST
+    hw_k1_bench_init(&console->k1_test);
+    console->k1_test_flash_ref = NULL;
+#endif
     console->flash_test_state = APP_BRINGUP_FLASH_TEST_IDLE;
     console->test_sector_address = 0u;
     console->busy_observed = false;
@@ -3255,13 +3388,26 @@ void app_bringup_console_step(app_bringup_console_t *console,
     }
 
     lab_bind_refs(console, range, charger, sensors, k1, faults);
+#if WTK_ENABLE_K1_BENCH_TEST
+    console->k1_test_flash_ref = flash;
+    if (!app_bringup_console_k1_test_owned(console))
+    {
+#endif
     (void)app_calibration_service_step(console->cal_service, now_ms);
     lab_step_metrology(console, now_ms);
     step_flash_selftest(console, flash, now_ms);
     lab_cal_frame_step(console);
+#if WTK_ENABLE_K1_BENCH_TEST
+    }
+    uint32_t received = 0u;
+#endif
 
     uint8_t byte = 0u;
-    while (bsp_uart_try_read_byte(&byte) == BSP_STATUS_OK)
+    while (
+#if WTK_ENABLE_K1_BENCH_TEST
+           (received++ < APP_BRINGUP_CONSOLE_LINE_CAPACITY) &&
+#endif
+           (bsp_uart_try_read_byte(&byte) == BSP_STATUS_OK))
     {
         if ((byte == '\r') || (byte == '\n'))
         {
@@ -3319,7 +3465,11 @@ bool app_bringup_console_capture_busy(const app_bringup_console_t *console)
         return false;
     }
 
-    return lab_metrology_busy(console);
+    return lab_metrology_busy(console)
+#if WTK_ENABLE_K1_BENCH_TEST
+           || app_bringup_console_k1_test_owned(console)
+#endif
+           ;
 #else
     (void)console;
     return false;

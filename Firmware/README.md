@@ -135,6 +135,12 @@ Warnings for project-owned C code are centralized in `cmake/modules/CompilerWarn
 
 ## Phase 02 platform BSP
 
+An optional first-board BRINGUP image exposes one empty-fixture 250 ms K1 pulse
+per boot via `lab k1 pulse empty`. Build with `-DWTK_BRINGUP_K1_TEST=ON`; this
+explicit variant excludes the experimental DC pilot for Flash space. The default
+is OFF, and PRODUCT/BRINGUP_CAL do not contain the diagnostic. See the
+[safety contract, build commands and bench procedure](tools/K1_BENCH_TEST.md).
+
 The STM32 build now boots through a minimal BSP/application shell. The first application action is safe GPIO initialization before clocks, UART diagnostics, or watchdog start.
 
 Safe output intent established by `bsp_gpio_init_safe()`:

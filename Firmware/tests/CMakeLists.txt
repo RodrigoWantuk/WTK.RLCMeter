@@ -160,6 +160,17 @@ endif()
 
 add_test(NAME wtk_hw_relays_test COMMAND wtk_hw_relays_test)
 
+add_executable(wtk_hw_k1_bench_test hardware/test_hw_k1_bench.c)
+target_link_libraries(wtk_hw_k1_bench_test PRIVATE wtk_firmware_common)
+target_include_directories(wtk_hw_k1_bench_test PRIVATE "${PROJECT_SOURCE_DIR}/src" "${PROJECT_BINARY_DIR}/generated")
+wtk_configure_c_target(wtk_hw_k1_bench_test)
+wtk_apply_project_warnings(wtk_hw_k1_bench_test)
+wtk_apply_common_compile_options(wtk_hw_k1_bench_test)
+if(WTK_WARNINGS_AS_ERRORS_HOST)
+    wtk_treat_warnings_as_errors(wtk_hw_k1_bench_test)
+endif()
+add_test(NAME wtk_hw_k1_bench_test COMMAND wtk_hw_k1_bench_test)
+
 add_executable(wtk_hw_range_test
     hardware/test_hw_range.c
 )

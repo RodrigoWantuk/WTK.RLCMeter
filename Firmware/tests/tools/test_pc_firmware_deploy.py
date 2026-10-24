@@ -81,6 +81,34 @@ class DeployTests(unittest.TestCase):
         info=d.inspect(self.image)
         self.assertEqual(info["profile"],"BRINGUP"); self.assertEqual(info["binary_size"],1100)
 
+    def test_relay_variant_build_option_is_explicit_and_bringup_only(self):
+        self.assertEqual(d.parse_config(b"#define WTK_ENABLE_K1_BENCH_TEST 1u\r\n")["WTK_ENABLE_K1_BENCH_TEST"],"1u")
+        with patch.object(d.subprocess,"run",side_effect=AssertionError("dry run must not execute")):
+            default=d.build("BRINGUP",self.root/"default-build",dry_run=True)
+            variant=d.build("BRINGUP",self.root/"relay-build",dry_run=True,k1_bench_test=True)
+        self.assertIn("-DWTK_BRINGUP_K1_TEST=OFF",default["commands"][0])
+        self.assertIn("-DWTK_BRINGUP_K1_TEST=ON",variant["commands"][0])
+        self.assertFalse((self.root/"relay-build").exists())
+        with self.assertRaisesRegex(ValueError,"requires BRINGUP"):
+            d.build("FACTORY_PRODUCT",self.root/"product-relay",dry_run=True,k1_bench_test=True)
+
+    def test_relay_variant_manifest_cannot_hide_feature_or_enable_dc(self):
+        value=d.load(self.image)
+        config_path=self.image.with_name("build_config.h")
+        original=d.read(config_path)
+        def update(bench,dc):
+            config=original+f"#define WTK_ENABLE_K1_BENCH_TEST 1u\n#define WTK_ENABLE_DC_PILOT {dc}u\n".encode()
+            config_path.write_bytes(config)
+            value["bringup_k1_test"]=bench
+            value["files"]["build_config.h"]=dict(bytes=len(config),sha256=d.sha(config))
+            value["seal_sha256"]=d.seal(value); d.save(self.image,value)
+        update(True,0)
+        self.assertTrue(d.inspect(self.image)["bringup_k1_test"])
+        for bench,dc in ((False,0),(True,1)):
+            update(bench,dc)
+            with self.subTest(bench=bench,dc=dc),self.assertRaisesRegex(ValueError,"K1 test"):
+                d.inspect(self.image)
+
     def test_wrong_profile_rejected(self):
         with self.assertRaises(ValueError): d.inspect(self.image,"FACTORY_PRODUCT")
 
@@ -214,6 +242,34 @@ class DeployTests(unittest.TestCase):
             d.deployment("probe",None,backend,self.root/"out")
         self.assertFalse((self.root/"out").exists())
 
+    def test_legacy_stlink_alternate_serial_preserves_zero_bytes_as_hex(self):
+        # Pinned OpenOCD's legacy callback formats descriptor low bytes as %02X.
+        descriptor=bytes.fromhex("1a0353000000490000000c000000000051003700510059004e00")
+        serial=descriptor[2::2].hex().upper()
+        self.assertEqual(serial,"530049000C0000513751594E")
+        backend=d.OpenOCD(self.root/"programmer.exe",self.root/"scripts",serial)
+        with patch.object(backend,"execute",side_effect=AssertionError("no target access")):
+            result=d.deployment("program",self.image,backend,self.root/"out",dry_run=True)
+        self.assertFalse(result["target_access"])
+        self.assertEqual(result["commands"]["environment"]["WTK_SERIAL"],serial)
+        with self.assertRaisesRegex(ValueError,"serial"):
+            d.OpenOCD(self.root/"programmer.exe",self.root/"scripts",descriptor[2::2].decode("ascii"))
+
+    @unittest.skipUnless(OPENOCD,"set WTK_TEST_OPENOCD for actual offline interface/transport configuration")
+    def test_pinned_interface_and_transport_configure_without_init(self):
+        scripts=Path(OPENOCD).resolve().parent.parent/"openocd/scripts"
+        backend=d.OpenOCD(OPENOCD,scripts,"530049000C0000513751594E")
+        backend.provenance()
+        plan=backend.plan("probe",self.root)
+        # Replace the sole command containing init/operation with immediate shutdown.
+        # Adapter/transport/target configuration runs, but no USB or target init does.
+        argv=plan["argv"][:-1]+["echo WTK_OFFLINE_CONFIG_OK; shutdown"]
+        run=subprocess.run(argv,env=dict(os.environ,**plan["environment"]),
+            capture_output=True,text=True,timeout=10)
+        output=run.stdout+run.stderr
+        self.assertEqual(run.returncode,0,output)
+        self.assertIn("WTK_OFFLINE_CONFIG_OK",output)
+
     def test_real_debug_gate_requires_physical_evidence_and_acknowledgement(self):
         with self.assertRaisesRegex(ValueError,"synthetic"): d.debug_authorization(self.session,"TEST_BOARD","owner","stable",ACKS)
         session(self.session,False)
@@ -263,6 +319,15 @@ class DeployTests(unittest.TestCase):
         approval=self.approval()
         self.assertEqual(approval["resource_pack"]["status"],"UNKNOWN")
         self.assertIsNone(approval["resource_pack"]["reference"])
+
+    def test_windows_crlf_target_marker_and_duplicate_rejection(self):
+        marker="WTK_B011_TARGET|20036410|411fc231|64|03fffffc|ffffffff|"+UID+"|134217728|65536|stm32f1x|halted"
+        transcript="Info : Target voltage: 3.290788\r\n"+marker+"\r\nWTK_B011_COMPLETE\r\n"
+        target=d.parse_target(transcript)
+        self.assertEqual(target["uid"],UID)
+        self.assertEqual(target["target_voltage_v"],3.290788)
+        with self.assertRaisesRegex(ValueError,"ambiguous"):
+            d.parse_target(transcript+marker+"\r\n")
 
     def test_generic_resource_json_pass_not_readiness(self):
         resource=self.root/"resources.json"; resource.write_text('{"status":"PASS"}')

@@ -1,8 +1,9 @@
 # B01.1 — safe SWD deployment / first-board handoff
 
 `pc_firmware_deploy.py` is a Windows 10/11 / Python 3.9+ standard-library CLI.
-No firmware/PCB, safety threshold, acquisition timing, OSL or W25Q change.
-The PCB is unassembled: **REQUIRES_BENCH_VALIDATION**. Fake SWD results are SIMULATED.
+SWD deployment writes only the selected internal application image. Option bytes,
+OSL, external W25Q and hardware qualification remain outside its write scope.
+Physical qualification remains **REQUIRES_BENCH_VALIDATION**. Fake SWD results are SIMULATED.
 
 ## Supported programmer
 
@@ -19,8 +20,25 @@ tool; retain its supplied licensing/notices when redistributing that package.
 The pinned `interface/stlink.cfg` supports ST-Link V1/V2/V2-1/V3 variants listed
 in that package. Exact script hashes/version are checked. Select an adapter serial
 explicitly; supported serial spelling is ASCII letters/digits/dot/underscore/hyphen.
-Unusual serial encodings, other OpenOCD releases/configs, clones/unrecognized IDs,
-128 KiB reports, protection or ambiguous geometry STOP; no automatic alternatives.
+This script selects the native `st-link` driver and requires `dapdirect_swd`;
+`hla_swd` belongs to the separate HLA driver and fails before initialization with
+this pinned script. ST-Link/V1 and V2 firmware older than V2J24 do not support
+the native driver. No automatic HLA fallback or adapter firmware update is performed.
+Programmer logs retain their original bytes; target-marker parsing accepts both
+Windows CRLF and LF line endings while still rejecting duplicate identity markers.
+The pinned OpenOCD also supports the legacy ST-Link/V2 26-byte USB string
+descriptor through its existing `stlink_usb_get_alternate_serial` callback. It
+represents the 12 low bytes of that descriptor as 24 uppercase hexadecimal digits,
+including zero bytes. Use that exact alternate serial for `--adapter-serial`;
+Windows may display only a truncated prefix. This is the upstream selection
+mechanism, not stripping bytes, accepting the prefix, or selecting the first probe.
+Verify the actual descriptor and the
+[pinned implementation](https://github.com/openocd-org/openocd/blob/eb6f2745b/src/jtag/drivers/stlink_usb.c#L3107)
+before using this representation. A legacy descriptor establishes neither genuine
+ST hardware nor target compatibility. Other unusual serial encodings, other
+OpenOCD releases/configs, clones/unrecognized IDs, 128 KiB reports, protection or ambiguous
+geometry STOP; no automatic alternatives. No serial validation, target geometry,
+physical evidence, or programming authorization gate is waived.
 Standard ST-Link driver/USB installation and actual adapter/VTref wiring still need
 the owner's verified adapter model. A cheap connector marked 3.3V may be a **power
 output**, not VTref; never assume it is a target-voltage sense input.
@@ -73,6 +91,12 @@ Each build uses a NEW output directory, CMake/Ninja and the actual preset:
 stm32-bringup, stm32-bringup-cal or **stm32-factory-release**. Curves are explicitly
 OFF; factory mode is ON only for factory PRODUCT. Defaults/legacy presets are not
 changed. Legacy fallback remains independently buildable with stm32-release/debug.
+For the owner-requested empty-fixture relay diagnostic, `build --profile BRINGUP
+--k1-bench-test` explicitly selects `WTK_BRINGUP_K1_TEST=ON` and excludes the
+experimental DC pilot for Flash space. All ordinary builds explicitly set it OFF.
+The manifest's `bringup_k1_test` field must match the generated feature flag;
+legacy manifests mean OFF. This option never authorizes a physical relay pulse.
+Follow [the dedicated operator procedure](K1_BENCH_TEST.md) after controlled boot.
 Build outputs must be ignored (Firmware/build) or outside the repository; don't
 introduce generated source changes during compilation. Source/dirty fingerprint is
 checked before/after build. Dirty artifacts are inspectable but refused for physical

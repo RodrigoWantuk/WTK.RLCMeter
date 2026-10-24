@@ -10,6 +10,12 @@ SPEC.loader.exec_module(tool)
 
 
 class CurveCompositionTest(unittest.TestCase):
+    def test_relay_bench_symbols_forbidden_outside_bringup(self):
+        for profile in ("PRODUCT", "BRINGUP_CAL"):
+            for name in ("hw_k1_bench_start", "hw_k1_bench_step", "lab_k1_test_input"):
+                self.assertTrue(any(pattern.search(name) for pattern in tool.FORBIDDEN[profile]))
+        self.assertFalse(any(pattern.search("hw_k1_bench_start") for pattern in tool.FORBIDDEN["BRINGUP"]))
+
     def test_factory_requires_runtime_safety_resources_and_excludes_fit(self):
         retained = [{"file": name} for name in ("app_product.c", "app_calibration_runtime.c",
                     "measurement_calibration.c", "measurement_calibration_store.c",

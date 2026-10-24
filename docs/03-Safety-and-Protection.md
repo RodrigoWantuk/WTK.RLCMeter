@@ -108,3 +108,16 @@ buzzer -> off
 record fault
 report fault through diagnostics when available
 ```
+
+## Restricted empty-fixture BRINGUP relay diagnostic
+
+The owner-requested `WTK_BRINGUP_K1_TEST=ON` variant permits one 250 ms K1 pulse
+per boot with no DUT, range disabled, excitation off, fresh real residual SAFE,
+valid VMID, charger absent and no fault or competing operation. It has a
+separate hardware-service state machine; it never grants measurement permission
+or substitutes a battery reading. An independently verified bench supply is the
+operator precondition for this diagnostic when VBAT_PROT is unconnected.
+Ordinary measurement/calibration still requires the existing battery checks.
+It is absent from PRODUCT and BRINGUP_CAL and never runs automatically.
+See [the full contract and physical procedure](../Firmware/tools/K1_BENCH_TEST.md).
+Physical relay, timeout, fault and interlock behavior remain REQUIRES_BENCH_VALIDATION.

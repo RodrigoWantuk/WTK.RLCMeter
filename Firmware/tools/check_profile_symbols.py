@@ -13,6 +13,7 @@ from pathlib import Path
 
 FORBIDDEN = {
     "PRODUCT": (
+        re.compile(r"hw_k1_bench_|lab_k1_test"),
         re.compile(r"app_bringup_console"),
         re.compile(r"app_calibration_campaign"),
         re.compile(r"g_bringup_console"),
@@ -23,6 +24,7 @@ FORBIDDEN = {
         re.compile(r"ui_product_"),
     ),
     "BRINGUP_CAL": (
+        re.compile(r"hw_k1_bench_|lab_k1_test"),
         re.compile(r"app_product_|ui_product_|app_bringup_console|app_calibration_campaign|\blab_"),
     ),
 }

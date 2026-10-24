@@ -129,7 +129,7 @@ def elf_info(data):
 
 
 def parse_config(raw):
-    fields=dict(re.findall(r'^#define\s+(WTK_[A-Z_]+)\s+([^\r\n]+)',raw.decode(),re.M))
+    fields=dict(re.findall(r'^#define\s+(WTK_[A-Z0-9_]+)\s+([^\r\n]+)',raw.decode(),re.M))
     return {k:v.strip().strip('"') for k,v in fields.items()}
 
 
@@ -160,6 +160,7 @@ def manifest(build_dir,out,profile,state,preset):
         (out/name).write_bytes(raw); files[name]=dict(bytes=len(raw),sha256=sha(raw))
     identity=boot_identity(profile,state["git_sha"],flags["WTK_PROJECT_VERSION"])
     value=dict(schema="WTK_FIRMWARE_1",source=state,profile=profile,factory_provisioned=spec[2],supplementary_curves=False,
+        bringup_k1_test=flags.get("WTK_ENABLE_K1_BENCH_TEST","0u")=="1u",
         preset=preset,build_configuration=spec[3],hardware=HARDWARE,firmware_version=flags["WTK_PROJECT_VERSION"],expected_boot=identity,
         toolchain=dict(compiler_path=compiler,compiler_version=version,cmake=command(["cmake","--version"]).splitlines()[0],cache_sha256=sha(cache.encode())),
         memory=dict(flash_base=BASE,flash_bytes=FLASH,ram_base=RAM_BASE,ram_bytes=RAM,internal_page_bytes=1024),linked=metrics,
@@ -187,6 +188,10 @@ def inspect(path,profile=None):
     ram_budget=17408 if spec[2] else 18432
     if len(binary)>budget or metrics["ram_accounted_bytes"]>ram_budget or metrics["reserved_stack_bytes"]<2048: raise ValueError("project memory gate violated")
     flags=parse_config(read(root/"build_config.h"))
+    bench=value.get("bringup_k1_test",False)
+    if (type(bench) is not bool or bench != (flags.get("WTK_ENABLE_K1_BENCH_TEST","0u")=="1u") or
+        (bench and (value["profile"]!="BRINGUP" or flags.get("WTK_ENABLE_DC_PILOT")!="0u"))):
+        raise ValueError("invalid BRINGUP K1 test configuration")
     if (flags["WTK_FIRMWARE_PROFILE"],flags["WTK_PRODUCT_FACTORY_PROVISIONED"],flags["WTK_GIT_COMMIT"],flags["WTK_ENABLE_SUPPLEMENTARY_CURVES"],flags["WTK_BUILD_TYPE"],flags["WTK_HARDWARE_COMPATIBILITY"])!=(spec[1],"1u" if spec[2] else "0u",value["source"]["git_sha"][:12],"0u",spec[3],HARDWARE): raise ValueError("generated configuration mismatch")
     if value.get("firmware_version")!=flags.get("WTK_PROJECT_VERSION") or value.get("expected_boot")!=boot_identity(value["profile"],value["source"]["git_sha"],flags["WTK_PROJECT_VERSION"]): raise ValueError("boot/version metadata mismatch")
     linker=read(root/"linker.ld").decode()
@@ -195,9 +200,11 @@ def inspect(path,profile=None):
     return value
 
 
-def build(profile,out,dry_run=False):
+def build(profile,out,dry_run=False,k1_bench_test=False):
+    if k1_bench_test and profile!="BRINGUP": raise ValueError("K1 bench test requires BRINGUP")
     spec=PROFILES[profile]; out=Path(out).resolve(); folder=out/"build"
-    argv=["cmake","--preset",spec[0],"-B",str(folder),"-DWTK_ENABLE_SUPPLEMENTARY_CURVES=OFF",f'-DWTK_PRODUCT_FACTORY_PROVISIONED={"ON" if spec[2] else "OFF"}']
+    argv=["cmake","--preset",spec[0],"-B",str(folder),"-DWTK_ENABLE_SUPPLEMENTARY_CURVES=OFF",f'-DWTK_PRODUCT_FACTORY_PROVISIONED={"ON" if spec[2] else "OFF"}',
+          f'-DWTK_BRINGUP_K1_TEST={"ON" if k1_bench_test else "OFF"}']
     commands=[argv,["cmake","--build",str(folder),"-j","6"]]
     if dry_run: return dict(dry_run=True,commands=commands,target_access=False)
     out.mkdir(parents=True,exist_ok=False); before=source_state()
@@ -210,6 +217,7 @@ def build(profile,out,dry_run=False):
 
 def parse_target(transcript):
     if len(transcript)>1024*1024: raise ValueError("programmer transcript bound")
+    transcript=transcript.replace("\r\n","\n")
     matches=re.findall(r'^WTK_B011_TARGET\|([^\r\n]+)$',transcript,re.M)
     if len(matches)!=1: raise ValueError("missing/ambiguous toolkit preflight marker; native log is not identity proof")
     fields=matches[0].split("|")
@@ -253,7 +261,7 @@ class OpenOCD:
             toolkit_script_sha256=sha(read(TOOLS/"swd_deploy.tcl")),deployment_tool_sha256=sha(read(__file__)),adapter_serial_selection=self.serial)
 
     def plan(self,action,folder,image=None,uid=""):
-        argv=[str(self.executable),"-s",str(self.scripts),"-c","source $::env(WTK_INTERFACE)","-c","transport select hla_swd",
+        argv=[str(self.executable),"-s",str(self.scripts),"-c","source $::env(WTK_INTERFACE)","-c","transport select dapdirect_swd",
             "-c","adapter serial $::env(WTK_SERIAL)","-c","source $::env(WTK_TARGET)",
             "-c","gdb_port disabled; tcl_port disabled; telnet_port disabled","-c","source $::env(WTK_LIBRARY)",
             "-c",'if {[catch {init; reset init; wtk_operation} reason]} {echo "WTK_B011_FAILURE"; echo $reason; shutdown error} else {shutdown}']
@@ -523,6 +531,7 @@ def main(argv=None):
     p.add_argument("action",choices=("doctor","build","inspect","probe","program","verify","report"))
     p.add_argument("--profile",choices=tuple(PROFILES)); p.add_argument("--manifest",type=Path); p.add_argument("--out",type=Path)
     p.add_argument("--dry-run",action="store_true"); p.add_argument("--backend",choices=("openocd","fake"),default="openocd")
+    p.add_argument("--k1-bench-test",action="store_true",help="build the optional BRINGUP empty-fixture relay test variant")
     p.add_argument("--openocd",type=Path); p.add_argument("--scripts",type=Path); p.add_argument("--adapter-serial")
     p.add_argument("--fake-device",type=Path); p.add_argument("--fake-scenario",choices=("normal","missing-adapter","unpowered","wrong-id","geometry","rdp","timeout","interrupted","readback-mismatch","missing-complete","unexpected-reset"),default="normal")
     p.add_argument("--session",type=Path); p.add_argument("--board"); p.add_argument("--operator"); p.add_argument("--supply")
@@ -533,10 +542,11 @@ def main(argv=None):
     p.add_argument("--deployment",type=Path); p.add_argument("--observed",type=Path); p.add_argument("--programmer-transcript",type=Path)
     args=p.parse_args(argv)
     try:
+        if args.k1_bench_test and args.action!="build": raise ValueError("--k1-bench-test is a build option; inspect/program use manifest identity")
         if args.action=="doctor": result=doctor(args.openocd,args.scripts) if not args.dry_run else dict(dry_run=True,target_access=False,commands=["git --version","cmake --version","ninja --version","arm-none-eabi-gcc --version","selected openocd --version"])
         elif args.action=="build":
             if not args.profile or not args.out: raise ValueError("build needs --profile and new --out")
-            result=build(args.profile,args.out,args.dry_run)
+            result=build(args.profile,args.out,args.dry_run,args.k1_bench_test)
         elif args.action=="inspect":
             if not args.manifest: raise ValueError("inspect needs --manifest")
             result=inspect(args.manifest,args.profile)

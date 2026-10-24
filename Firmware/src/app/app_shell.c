@@ -1260,7 +1260,11 @@ static void app_update_safety_state(void)
         g_safety_state = APP_SAFETY_WAIT_SAFE;
     }
 
-    if (!hw_metrology_measure_k1_owned())
+    if (!hw_metrology_measure_k1_owned()
+#if WTK_ENABLE_K1_BENCH_TEST && WTK_ENABLE_BRINGUP_CONSOLE
+        && !app_bringup_console_k1_test_owned(&g_bringup_console)
+#endif
+       )
     {
         const bsp_status_t k1_safe_status = hw_k1_force_safe(&g_k1);
         app_record_status_fault(k1_safe_status, APP_SAFETY_FAULT_K1_IO);
@@ -1316,6 +1320,9 @@ static void app_step(void)
     }
 #endif
 #endif
+#if WTK_ENABLE_K1_BENCH_TEST && WTK_ENABLE_BRINGUP_CONSOLE
+    app_bringup_console_k1_test_step(&g_bringup_console, now_ms);
+#endif
     app_update_safety_state();
 
     buttons_update(&g_buttons, app_read_button_mask(), now_ms);
@@ -1329,7 +1336,12 @@ static void app_step(void)
 #endif
     }
 
-    (void)ili9341_init_step(&g_display, now_ms);
+#if WTK_ENABLE_K1_BENCH_TEST && WTK_ENABLE_BRINGUP_CONSOLE
+    if (!app_bringup_console_k1_test_owned(&g_bringup_console))
+#endif
+    {
+        (void)ili9341_init_step(&g_display, now_ms);
+    }
 #if WTK_ENABLE_BRINGUP_CONSOLE
     if (g_display.ready && !g_display_ready_reported)
     {
@@ -1338,7 +1350,11 @@ static void app_step(void)
     }
 #endif
 #if WTK_ENABLE_BRINGUP_CONSOLE
-    if (g_display.ready && !g_flash.detected && !g_flash_fallback_drawn)
+    if (g_display.ready && !g_flash.detected && !g_flash_fallback_drawn
+#if WTK_ENABLE_K1_BENCH_TEST
+        && !app_bringup_console_k1_test_owned(&g_bringup_console)
+#endif
+       )
     {
         if (ui_fallback_draw_text(&g_display, 8u, 8u, "FLASH ERROR", 0xFFFFu, 0x0000u) == BSP_STATUS_OK)
         {

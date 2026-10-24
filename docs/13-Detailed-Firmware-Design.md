@@ -1,5 +1,26 @@
 # Detailed Firmware Design
 
+## Optional BRINGUP K1 bench-test ownership
+
+`WTK_BRINGUP_K1_TEST=ON` builds an empty-fixture relay diagnostic with a distinct
+`hw_k1_bench_*` API, defined in the K1 hardware service only for this variant and
+host tests. It never constructs normal measurement permission. Its state machine
+owns K1 through PULSE and RELEASE, including repeated LOW attempts after an I/O
+error. The application schedules it after current auxiliary sampling and before
+its ordinary safety arbiter. That arbiter yields K1 ownership only to an active
+metrology transaction or this restricted diagnostic; all ordinary safety state
+and fault/range handling remain evaluated.
+
+The console admits an exact `lab k1 pulse empty` command, status and cancellation.
+No other console work is dispatched while the test owns K1. RX is bounded per
+loop, quiet mode mutes the buzzer, and TFT/background Flash work is deferred.
+The first scheduled step at/after 250 ms commands LOW, retains the 8 ms release
+guard, then invalidates residual evidence and resumes fresh qualification.
+Deadline arithmetic is wrap-safe. Tests cover every admission/interlock guard,
+duplicates, cancellation, late scheduling, wrap, failed HIGH/LOW and cleanup.
+See [K1_BENCH_TEST.md](../Firmware/tools/K1_BENCH_TEST.md) for operator obligations,
+the explicit battery-sense distinction and cooperative timing limitations.
+
 This document defines the planned firmware decomposition, module contracts, data flow, persistence model, and implementation order.
 
 ## Architectural objective

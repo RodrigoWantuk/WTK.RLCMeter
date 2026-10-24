@@ -1,5 +1,26 @@
 # Consolidated Design Decisions
 
+## Owner-requested empty-fixture K1 bench pulse — 2026-10-24
+
+The first assembled board boots BRINGUP from an external 5 V bench supply while
+VBAT_PROT is intentionally floating. The owner requested a single relay cycle
+for physical validation. A separate, opt-in BRINGUP diagnostic may command K1 for
+250 ms with an explicit empty-fixture confirmation, disabled range/excitation,
+fresh real residual SAFE/VMID, absent charger, no fault and no competing work.
+It is one-shot per boot, cancellable and cooperative, with the existing 8 ms
+release guard and IWDG/reset fallback. It does not issue or forge measurement
+permission, change ADC evidence or weaken normal battery/calibration gates.
+
+Hardware impact: none; use the reviewed external current-limited supply and
+existing K1 driver/interlock. Firmware impact: a restricted hardware-service
+state machine and BRINGUP console ownership, excluded from PRODUCT/BRINGUP_CAL.
+The build option defaults OFF and trades the experimental DC pilot for this
+diagnostic to fit C8 Flash. Calibration/model/storage identity is unchanged;
+this performs no acquisition, persistence or calibration migration. Physical
+relay/contact/current/timing/interlock evidence remains pending. Details and
+affected procedures are in [K1_BENCH_TEST.md](../Firmware/tools/K1_BENCH_TEST.md),
+Phase 09A and the detailed firmware/safety documents.
+
 This document records decisions that have already been discussed so they are not reopened without new technical evidence.
 
 ## MCU
