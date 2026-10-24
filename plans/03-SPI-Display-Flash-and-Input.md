@@ -15,6 +15,18 @@ Four relevant host tests and the strict Arm peripheral build pass (14308 B Flash
 11772 B accounted RAM). Physical readback and module-side voltage checks remain
 pending; compilation/READY is not display qualification.
 
+Follow-up: owner continuity is33Ohm on SCK/MOSI and0Ohm on MISO/CS/reset/DC,
+with no reported shorts toGND. Module label is only "2.8 TFT SPI240x320 V1.2";
+a similar listing ambiguously names ST7789/ILI9341. Extend the isolated peripheral
+diagnostic with common DCS commands, longer bounded reset/waits, read04/09 and
+PCLK1/64 TFT clock (Flash remains /8). No controller-specific analog settings.
+Additional expected files are spi_bus.c/.h, CMake and its mock clock test.
+`WTK_ILI9341_DIAGNOSTIC_SUPPORT` is derived internally from the existing peripheral
+variant flag; ordinary images retain the baseline command list. Five relevant
+host tests and strict peripheral/default/PRODUCT Arm builds pass. Peripheral:
+14468B Flash/11788B accountedRAM; defaultBRINGUP65448B andPRODUCT62232B fit hard
+limits (existing soft-size/LTO advisories remain). Physical result still pending.
+
 ## Goal
 
 Implement and validate the non-metrology user-interface peripherals while preserving shared-SPI correctness, future quiet-mode requirements, and the fixed button/resource architecture used by later product UI work.

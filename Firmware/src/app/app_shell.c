@@ -50,8 +50,8 @@ static ui_peripheral_test_t g_peripheral_ui;
  * Raw bytes deliberately retain dummy/padding bits; no presence claim is made. */
 static volatile struct
 {
-    uint8_t raw[5][4];
-    uint8_t status[5];
+    uint8_t raw[7][5];
+    uint8_t status[7];
     uint8_t completed;
 } g_display_readback;
 #endif
@@ -1393,11 +1393,11 @@ static void app_step(void)
 
 #if WTK_ENABLE_BRINGUP_CONSOLE
 #if WTK_ENABLE_PERIPHERAL_TEST
-    if (g_display.ready && !hw_peripherals_quiet_requested() && g_display_readback.completed < 5u)
+    if (g_display.ready && !hw_peripherals_quiet_requested() && g_display_readback.completed < 7u)
     {
-        static const uint8_t commands[] = {0xD3u, 0x0Au, 0x0Bu, 0x0Cu, 0x0Fu};
+        static const uint8_t commands[] = {0x04u, 0xD3u, 0x09u, 0x0Au, 0x0Bu, 0x0Cu, 0x0Fu};
         const uint8_t index = g_display_readback.completed;
-        uint8_t raw[4] = {0u};
+        uint8_t raw[5] = {0u};
         const bsp_status_t status = ili9341_read_diagnostic_raw(commands[index], raw, sizeof(raw));
         if (status != BSP_STATUS_BUSY)
         {
@@ -1408,7 +1408,7 @@ static void app_step(void)
         }
     }
     /* Complete register commands before RAMWR streaming begins. */
-    if (g_display_readback.completed >= 5u)
+    if (g_display_readback.completed >= 7u)
         (void)ui_peripheral_test_step(&g_peripheral_ui, &g_display,
             "FW " WTK_PROJECT_VERSION, "GIT " WTK_GIT_COMMIT, hw_peripherals_quiet_requested());
 #else
@@ -1652,7 +1652,12 @@ void app_shell_run(void)
                                   app_calibration_service_status(&g_calibration_service)));
     }
 
+#if WTK_ENABLE_PERIPHERAL_TEST
+    (void)spi_bus_set_display_slow(true);
+    ili9341_init_diagnostic_start(&g_display, bsp_time_now_ms());
+#else
     ili9341_init_start(&g_display, bsp_time_now_ms());
+#endif
 #if !WTK_ENABLE_BRINGUP_CONSOLE
     product_apply_outputs();
 #endif

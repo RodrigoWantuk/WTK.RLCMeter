@@ -89,3 +89,22 @@ all five responses zero, software statuses0/completed5, UI stage8/failed0. The
 shared-bus Flash probe returned EF4016/4MiB. The owner reports module VCC/CS/reset/
 DC=3.3V. End-to-end unpowered resistance checks are pending. See the durable
 [display investigation](../../docs/review/a05/Display-White-Screen-2026-10-24.md).
+
+The next peripheral-only diagnostic uses PCLK1/64 for the TFT (562.5kHz with36MHz
+PCLK1), keeping Flash at/8. Hardware reset holds50ms, then waits250ms. Common DCS
+sequence: SWRESET(wait150),DISPOFF(20),SLPOUT(150),RGB565(10),MADCTL48(10),INVOFF(20),
+NORON(20),DISPON(150), waits in milliseconds. No panel-specific voltage, VCOM,
+gamma or porch configuration is guessed. This is a diagnostic common subset,
+not a qualified ST7789 product driver. Internal CMake definition
+WTK_ILI9341_DIAGNOSTIC_SUPPORT is1 only for this variant and its host driver test;
+ordinary builds retain the original initialization command sequence.
+
+Readback order becomes04,D3,09,0A,0B,0C,0F with five raw bytes/status each, completed7;
+retained context43B. All reads finish before RAMWR drawing. Baseline init and
+wrap-safe diagnostic timing, raw response preservation, CS release, slow-TFT/
+unchanged-Flash clocks and quiet exclusion pass five relevant host tests. Arm
+build/memory/composition checks pass for peripheral, ordinaryBRINGUP andPRODUCT.
+The diagnostic image is14468B Flash/11788B accountedRAM. Physical outcome pending.
+
+Common-command references: ILITEK datasheet above and
+[Sitronix ST7789V datasheet hosted by Espressif](https://dl.espressif.com/dl/schematics/ST7789V_SPEC_V1.0.pdf).

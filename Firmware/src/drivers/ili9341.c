@@ -7,6 +7,10 @@
 #include "drivers/ili9341_color.h"
 #include "drivers/spi_bus.h"
 
+#ifndef WTK_ILI9341_DIAGNOSTIC_SUPPORT
+#define WTK_ILI9341_DIAGNOSTIC_SUPPORT 0
+#endif
+
 enum
 {
     ILI9341_CMD_SWRESET = 0x01u,
@@ -36,6 +40,20 @@ static const ili9341_init_command_t g_init_commands[] = {
     {ILI9341_CMD_MADCTL, {0x48u, 0u, 0u, 0u}, 1u, 10u},
     {ILI9341_CMD_DISPON, {0u, 0u, 0u, 0u}, 0u, 20u},
 };
+
+/* ILI9341/ST7789 common DCS subset; no controller-specific analog settings. */
+#if WTK_ILI9341_DIAGNOSTIC_SUPPORT
+static const ili9341_init_command_t g_diagnostic_commands[] = {
+    {ILI9341_CMD_SWRESET, {0u}, 0u, 150u},
+    {0x28u, {0u}, 0u, 20u}, /* Display off while configuring. */
+    {ILI9341_CMD_SLPOUT, {0u}, 0u, 150u},
+    {ILI9341_CMD_PIXFMT, {ILI9341_PIXFMT_RGB565}, 1u, 10u},
+    {ILI9341_CMD_MADCTL, {0x48u}, 1u, 10u},
+    {0x20u, {0u}, 0u, 20u}, /* Inversion off. */
+    {0x13u, {0u}, 0u, 20u}, /* Normal/full display mode. */
+    {ILI9341_CMD_DISPON, {0u}, 0u, 150u},
+};
+#endif
 
 static bsp_status_t ili9341_write_command(uint8_t command)
 {
@@ -85,8 +103,8 @@ static bsp_status_t ili9341_write_command_data(uint8_t command, const uint8_t *d
 
 bsp_status_t ili9341_read_diagnostic_raw(uint8_t command, uint8_t *response, size_t size)
 {
-    if (response == NULL || size == 0u || size > 4u ||
-        !((command >= 0x0Au && command <= 0x0Fu) || command == 0xD3u))
+    if (response == NULL || size == 0u || size > 5u ||
+        !(command == 0x04u || (command >= 0x09u && command <= 0x0Fu) || command == 0xD3u))
     {
         return BSP_STATUS_INVALID_ARG;
     }
@@ -118,6 +136,7 @@ void ili9341_init_context(ili9341_t *display)
     display->wait_until_ms = 0u;
     display->rotation = 0u;
     display->ready = false;
+    display->conservative_diagnostic = false;
 }
 
 void ili9341_init_start(ili9341_t *display, uint32_t now_ms)
@@ -131,7 +150,20 @@ void ili9341_init_start(ili9341_t *display, uint32_t now_ms)
     display->init_index = 0u;
     display->wait_until_ms = now_ms + 10u;
     display->ready = false;
+    display->conservative_diagnostic = false;
     (void)bsp_gpio_write_output(BSP_GPIO_OUTPUT_TFT_RST, false);
+}
+
+void ili9341_init_diagnostic_start(ili9341_t *display, uint32_t now_ms)
+{
+    ili9341_init_start(display, now_ms);
+#if WTK_ILI9341_DIAGNOSTIC_SUPPORT
+    if (display != NULL)
+    {
+        display->conservative_diagnostic = true;
+        display->wait_until_ms = now_ms + 50u;
+    }
+#endif
 }
 
 bsp_status_t ili9341_init_step(ili9341_t *display, uint32_t now_ms)
@@ -155,14 +187,23 @@ bsp_status_t ili9341_init_step(ili9341_t *display, uint32_t now_ms)
     {
     case ILI9341_INIT_RESET_ASSERTED:
         (void)bsp_gpio_write_output(BSP_GPIO_OUTPUT_TFT_RST, true);
+#if WTK_ILI9341_DIAGNOSTIC_SUPPORT
+        display->wait_until_ms = now_ms + (display->conservative_diagnostic ? 250u : 120u);
+#else
         display->wait_until_ms = now_ms + 120u;
+#endif
         display->init_state = ILI9341_INIT_RESET_RELEASED;
         return BSP_STATUS_OK;
     case ILI9341_INIT_RESET_RELEASED:
         display->init_state = ILI9341_INIT_COMMANDS;
         return BSP_STATUS_OK;
     case ILI9341_INIT_COMMANDS:
-        if (display->init_index >= (sizeof(g_init_commands) / sizeof(g_init_commands[0])))
+        if (display->init_index >= (
+#if WTK_ILI9341_DIAGNOSTIC_SUPPORT
+            display->conservative_diagnostic ?
+            sizeof(g_diagnostic_commands) / sizeof(g_diagnostic_commands[0]) :
+#endif
+            sizeof(g_init_commands) / sizeof(g_init_commands[0])))
         {
             display->ready = true;
             display->init_state = ILI9341_INIT_READY;
@@ -170,7 +211,11 @@ bsp_status_t ili9341_init_step(ili9341_t *display, uint32_t now_ms)
         }
 
         {
-            const ili9341_init_command_t *const command = &g_init_commands[display->init_index];
+            const ili9341_init_command_t *const command =
+#if WTK_ILI9341_DIAGNOSTIC_SUPPORT
+                display->conservative_diagnostic ? &g_diagnostic_commands[display->init_index] :
+#endif
+                &g_init_commands[display->init_index];
             const bsp_status_t status =
                 ili9341_write_command_data(command->command, command->data, command->data_len);
             if (status != BSP_STATUS_OK)

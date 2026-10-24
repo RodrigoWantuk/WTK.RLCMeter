@@ -5,10 +5,17 @@
 #include "bsp/bsp_spi.h"
 
 static bool g_acquired = false;
+static bool g_display_slow = false;
 static spi_bus_device_t g_owner = SPI_BUS_DEVICE_W25Q;
 
 static const bsp_spi_config_t g_mode0_conservative = {
     .prescaler = BSP_SPI_PRESCALER_DIV8,
+    .cpol = false,
+    .cpha = false,
+};
+
+static const bsp_spi_config_t g_mode0_display_slow = {
+    .prescaler = BSP_SPI_PRESCALER_DIV64,
     .cpol = false,
     .cpha = false,
 };
@@ -21,8 +28,17 @@ static void deselect_all(void)
 
 bsp_status_t spi_bus_init(void)
 {
+    g_display_slow = false;
     deselect_all();
     return bsp_spi2_init(&g_mode0_conservative);
+}
+
+bsp_status_t spi_bus_set_display_slow(bool enabled)
+{
+    if (g_acquired)
+        return BSP_STATUS_BUSY;
+    g_display_slow = enabled;
+    return BSP_STATUS_OK;
 }
 
 bool spi_bus_quiet_requested(void)
@@ -38,7 +54,8 @@ bsp_status_t spi_bus_acquire(spi_bus_device_t device)
     }
 
     deselect_all();
-    (void)bsp_spi2_configure(&g_mode0_conservative);
+    (void)bsp_spi2_configure(device == SPI_BUS_DEVICE_ILI9341 && g_display_slow ?
+        &g_mode0_display_slow : &g_mode0_conservative);
 
     switch (device)
     {

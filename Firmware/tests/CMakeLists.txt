@@ -100,6 +100,7 @@ endif()
 add_test(NAME wtk_ili9341_geometry_test COMMAND wtk_ili9341_geometry_test)
 
 add_executable(wtk_ili9341_readback_test drivers/test_ili9341_readback.c ../src/drivers/ili9341.c)
+target_compile_definitions(wtk_ili9341_readback_test PRIVATE WTK_ILI9341_DIAGNOSTIC_SUPPORT=1)
 target_link_libraries(wtk_ili9341_readback_test PRIVATE wtk_firmware_common)
 target_include_directories(wtk_ili9341_readback_test PRIVATE "${PROJECT_SOURCE_DIR}/src")
 wtk_configure_c_target(wtk_ili9341_readback_test)
@@ -109,6 +110,16 @@ if(WTK_WARNINGS_AS_ERRORS_HOST)
     wtk_treat_warnings_as_errors(wtk_ili9341_readback_test)
 endif()
 add_test(NAME wtk_ili9341_readback_test COMMAND wtk_ili9341_readback_test)
+
+add_executable(wtk_spi_bus_clock_test drivers/test_spi_bus_clock.c ../src/drivers/spi_bus.c)
+target_include_directories(wtk_spi_bus_clock_test PRIVATE "${PROJECT_SOURCE_DIR}/src")
+wtk_configure_c_target(wtk_spi_bus_clock_test)
+wtk_apply_project_warnings(wtk_spi_bus_clock_test)
+wtk_apply_common_compile_options(wtk_spi_bus_clock_test)
+if(WTK_WARNINGS_AS_ERRORS_HOST)
+    wtk_treat_warnings_as_errors(wtk_spi_bus_clock_test)
+endif()
+add_test(NAME wtk_spi_bus_clock_test COMMAND wtk_spi_bus_clock_test)
 
 add_executable(wtk_resource_store_test
     storage/test_resource_store.c

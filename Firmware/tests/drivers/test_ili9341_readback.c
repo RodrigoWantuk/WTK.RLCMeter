@@ -8,6 +8,11 @@ static unsigned acquired, released, transfers;
 static bool selected, dc;
 static bsp_status_t acquire_result, transfer_result, release_result;
 static int failures;
+static uint8_t expected_command = 0xD3u;
+static size_t expected_size = 4u;
+static bool init_test, reset_high;
+static uint8_t commands[16];
+static unsigned command_count;
 
 static void check(bool condition, const char *message)
 {
@@ -27,6 +32,11 @@ bsp_status_t spi_bus_release(spi_bus_device_t device)
 }
 bsp_status_t bsp_gpio_write_output(bsp_gpio_output_t output, bool high)
 {
+    if (init_test && output == BSP_GPIO_OUTPUT_TFT_RST)
+    {
+        reset_high = high;
+        return BSP_STATUS_OK;
+    }
     check(selected && output == BSP_GPIO_OUTPUT_TFT_DC, "only DC changes inside transaction");
     dc = high; return BSP_STATUS_OK;
 }
@@ -34,19 +44,25 @@ bsp_status_t spi_bus_transfer(const uint8_t *tx, uint8_t *rx, size_t length, uin
 {
     transfers++;
     check(selected && timeout_ms == 5u, "bounded transfer with CS held");
+    if (init_test)
+    {
+        check(rx == NULL && tx != NULL && length == 1u, "bounded init command/data");
+        if (!dc && command_count < sizeof(commands)) commands[command_count++] = *tx;
+        return BSP_STATUS_OK;
+    }
     if (tx != NULL)
-        check(!dc && rx == NULL && length == 1u && *tx == 0xD3u, "command phase");
+        check(!dc && rx == NULL && length == 1u && *tx == expected_command, "command phase");
     else
     {
-        check(dc && rx != NULL && length == 4u, "response phase");
-        const uint8_t response[] = {0xA5u, 0u, 0x93u, 0x41u};
-        memcpy(rx, response, sizeof(response));
+        check(dc && rx != NULL && length == expected_size, "response phase");
+        const uint8_t response[] = {0xA5u, 0u, 0x93u, 0x41u, 0x5Au};
+        memcpy(rx, response, length);
     }
     return transfer_result;
 }
 int main(void)
 {
-    uint8_t response[4] = {0u};
+    uint8_t response[5] = {0u};
     check(ili9341_read_diagnostic_raw(0xD3u, response, 4u) == BSP_STATUS_OK, "successful read");
     check(acquired == 1u && released == 1u && transfers == 2u && !selected, "single CS interval");
     check(response[0] == 0xA5u && response[2] == 0x93u && response[3] == 0x41u,
@@ -55,7 +71,7 @@ int main(void)
     check(ili9341_read_diagnostic_raw(0x29u, response, 4u) == BSP_STATUS_INVALID_ARG, "reject write command");
     check(ili9341_read_diagnostic_raw(0xD3u, NULL, 4u) == BSP_STATUS_INVALID_ARG, "reject null");
     check(ili9341_read_diagnostic_raw(0xD3u, response, 0u) == BSP_STATUS_INVALID_ARG, "reject empty");
-    check(ili9341_read_diagnostic_raw(0xD3u, response, 5u) == BSP_STATUS_INVALID_ARG, "reject oversized");
+    check(ili9341_read_diagnostic_raw(0xD3u, response, 6u) == BSP_STATUS_INVALID_ARG, "reject oversized");
     check(acquired == before, "invalid arguments perform no IO");
     acquire_result = BSP_STATUS_BUSY;
     check(ili9341_read_diagnostic_raw(0xD3u, response, 4u) == BSP_STATUS_BUSY && released == 1u,
@@ -69,5 +85,38 @@ int main(void)
     release_result = BSP_STATUS_ERROR;
     check(ili9341_read_diagnostic_raw(0xD3u, response, 4u) == BSP_STATUS_ERROR && !selected,
           "release failure propagated");
+    release_result = BSP_STATUS_OK;
+    expected_size = 5u;
+    expected_command = 0x04u;
+    check(ili9341_read_diagnostic_raw(0x04u, response, 5u) == BSP_STATUS_OK && response[4] == 0x5Au,
+          "common display identification preserves all raw bytes");
+    expected_command = 0x09u;
+    check(ili9341_read_diagnostic_raw(0x09u, response, 5u) == BSP_STATUS_OK,
+          "full display status read supported");
+
+    init_test = true;
+    ili9341_t display;
+    ili9341_init_context(&display);
+    const uint32_t start = UINT32_MAX - 30u;
+    ili9341_init_diagnostic_start(&display, start);
+    check(!reset_high && !display.ready, "diagnostic asserts reset");
+    (void)ili9341_init_step(&display, start + 49u);
+    check(!reset_high && command_count == 0u, "reset held across time wrap");
+    (void)ili9341_init_step(&display, start + 50u);
+    check(reset_high && !display.ready, "release at50ms");
+    (void)ili9341_init_step(&display, start + 299u);
+    check(command_count == 0u, "wait250ms after reset release");
+    for (uint32_t elapsed = 300u; elapsed < 1200u; elapsed++)
+        (void)ili9341_init_step(&display, start + elapsed);
+    const uint8_t expected[] = {0x01u,0x28u,0x11u,0x3Au,0x36u,0x20u,0x13u,0x29u};
+    check(display.ready && command_count == sizeof(expected) && memcmp(commands,expected,sizeof(expected)) == 0,
+          "only common DCS commands reach ready, no analog voltage commands");
+    command_count = 0u;
+    ili9341_init_start(&display, 0u);
+    check(!display.conservative_diagnostic, "ordinary start restores baseline");
+    for (uint32_t now = 0u; now < 700u; now++) (void)ili9341_init_step(&display, now);
+    const uint8_t baseline[] = {0x01u,0x11u,0x3Au,0x36u,0x29u};
+    check(display.ready && command_count == sizeof(baseline) && memcmp(commands,baseline,sizeof(baseline)) == 0,
+          "ordinary initialization command sequence unchanged");
     return failures == 0 ? 0 : 1;
 }

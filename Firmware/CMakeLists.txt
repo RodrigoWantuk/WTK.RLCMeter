@@ -315,6 +315,8 @@ elseif(WTK_TARGET_PLATFORM STREQUAL "stm32")
         src/bsp/system_stm32f1xx.c
     )
     if(NOT WTK_FIRMWARE_PROFILE STREQUAL "BRINGUP_CAL")
+        target_compile_definitions(wtk_rlcmeter PRIVATE
+            WTK_ILI9341_DIAGNOSTIC_SUPPORT=${WTK_ENABLE_PERIPHERAL_TEST_VALUE})
         target_sources(wtk_rlcmeter PRIVATE src/bsp/bsp_diagnostics.c
             src/drivers/ili9341.c src/ui/ui_fallback_renderer.c)
     endif()
