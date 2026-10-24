@@ -108,3 +108,10 @@ The diagnostic image is14468B Flash/11788B accountedRAM. Physical outcome pendin
 
 Common-command references: ILITEK datasheet above and
 [Sitronix ST7789V datasheet hosted by Espressif](https://dl.espressif.com/dl/schematics/ST7789V_SPEC_V1.0.pdf).
+
+Owner subsequently repaired a bad solder joint on the display flat and confirmed
+visible rendering. The previous all-zero response/white screen did not establish
+a defective module. For the owner's requested mounting, diagnostic MADCTL changes
+from48 to88 and its logical rotation becomes2 (portrait180, still240x320). Ordinary
+profiles keep MADCTL48. Colors, button rows/tones, clock and safety are unchanged.
+Final rotated appearance remains an owner observation after deployment.

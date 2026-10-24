@@ -13,6 +13,7 @@ static size_t expected_size = 4u;
 static bool init_test, reset_high;
 static uint8_t commands[16];
 static unsigned command_count;
+static uint8_t madctl;
 
 static void check(bool condition, const char *message)
 {
@@ -48,6 +49,7 @@ bsp_status_t spi_bus_transfer(const uint8_t *tx, uint8_t *rx, size_t length, uin
     {
         check(rx == NULL && tx != NULL && length == 1u, "bounded init command/data");
         if (!dc && command_count < sizeof(commands)) commands[command_count++] = *tx;
+        else if (dc && command_count > 0u && commands[command_count - 1u] == 0x36u) madctl = *tx;
         return BSP_STATUS_OK;
     }
     if (tx != NULL)
@@ -111,12 +113,14 @@ int main(void)
     const uint8_t expected[] = {0x01u,0x28u,0x11u,0x3Au,0x36u,0x20u,0x13u,0x29u};
     check(display.ready && command_count == sizeof(expected) && memcmp(commands,expected,sizeof(expected)) == 0,
           "only common DCS commands reach ready, no analog voltage commands");
+    check(display.rotation == 2u && madctl == 0x88u, "diagnostic portrait rotated180 matches owner mounting");
     command_count = 0u;
     ili9341_init_start(&display, 0u);
-    check(!display.conservative_diagnostic, "ordinary start restores baseline");
+    check(!display.conservative_diagnostic && display.rotation == 0u, "ordinary start restores baseline");
     for (uint32_t now = 0u; now < 700u; now++) (void)ili9341_init_step(&display, now);
     const uint8_t baseline[] = {0x01u,0x11u,0x3Au,0x36u,0x29u};
     check(display.ready && command_count == sizeof(baseline) && memcmp(commands,baseline,sizeof(baseline)) == 0,
           "ordinary initialization command sequence unchanged");
+    check(madctl == 0x48u, "ordinary MADCTL unchanged");
     return failures == 0 ? 0 : 1;
 }

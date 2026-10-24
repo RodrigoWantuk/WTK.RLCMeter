@@ -34,6 +34,12 @@ CS low/DC high for data, followed by breakpoint removal/resume. This narrows the
 observation but does not identify controller/module fault. See the
 [physical report](../docs/review/a05/Display-White-Screen-2026-10-24.md).
 
+Owner resolved white screen by repairing a bad solder joint on the module flat
+and confirmed rendering. Follow-up request is only a180degree orientation change:
+diagnostic MADCTL88/rotation2, ordinaryMADCTL48. Expected files: ILI9341 source,
+existing driver regression and peripheral/physical documentation. No hardware
+qualification beyond that owner observation is inferred.
+
 ## Goal
 
 Implement and validate the non-metrology user-interface peripherals while preserving shared-SPI correctness, future quiet-mode requirements, and the fixed button/resource architecture used by later product UI work.

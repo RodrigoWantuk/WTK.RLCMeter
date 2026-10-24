@@ -48,7 +48,7 @@ static const ili9341_init_command_t g_diagnostic_commands[] = {
     {0x28u, {0u}, 0u, 20u}, /* Display off while configuring. */
     {ILI9341_CMD_SLPOUT, {0u}, 0u, 150u},
     {ILI9341_CMD_PIXFMT, {ILI9341_PIXFMT_RGB565}, 1u, 10u},
-    {ILI9341_CMD_MADCTL, {0x48u}, 1u, 10u},
+    {ILI9341_CMD_MADCTL, {0x88u}, 1u, 10u}, /* Owner mounting: portrait180. */
     {0x20u, {0u}, 0u, 20u}, /* Inversion off. */
     {0x13u, {0u}, 0u, 20u}, /* Normal/full display mode. */
     {ILI9341_CMD_DISPON, {0u}, 0u, 150u},
@@ -152,6 +152,7 @@ void ili9341_init_start(ili9341_t *display, uint32_t now_ms)
     display->ready = false;
     display->conservative_diagnostic = false;
     (void)bsp_gpio_write_output(BSP_GPIO_OUTPUT_TFT_RST, false);
+    display->rotation = 0u;
 }
 
 void ili9341_init_diagnostic_start(ili9341_t *display, uint32_t now_ms)
@@ -205,6 +206,10 @@ bsp_status_t ili9341_init_step(ili9341_t *display, uint32_t now_ms)
 #endif
             sizeof(g_init_commands) / sizeof(g_init_commands[0])))
         {
+#if WTK_ILI9341_DIAGNOSTIC_SUPPORT
+            if (display->conservative_diagnostic)
+                display->rotation = 2u;
+#endif
             display->ready = true;
             display->init_state = ILI9341_INIT_READY;
             return BSP_STATUS_OK;
