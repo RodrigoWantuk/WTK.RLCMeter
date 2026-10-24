@@ -96,7 +96,7 @@ static void stop_tim2(void)
 {
     TIM2->CR1 &= ~TIM_CR1_CEN;
     TIM2->DIER = 0u;
-    TIM2->CCER &= ~TIM_CCER_CC2E; /* never drive PA1 */
+    TIM2->CCER &= ~TIM_CCER_CC2E; /* disable internal compare channel */
 }
 
 static void disable_adc_dma(void)
@@ -119,6 +119,7 @@ void bsp_metrology_adc_stop(void)
             .dma_remaining = DMA1_Channel1->CNDTR,
             .tim2_cr1 = TIM2->CR1, .tim2_sr = TIM2->SR, .tim2_cnt = TIM2->CNT,
             .tim2_arr = TIM2->ARR, .tim2_ccr2 = TIM2->CCR2, .primask = __get_PRIMASK(),
+            .tim2_ccer = TIM2->CCER, .gpioa_crl = GPIOA->CRL, .afio_mapr = AFIO->MAPR,
             .dma_complete = g_dma_complete, .dma_error = g_dma_error,
         };
         g_capture_active = false;
@@ -219,6 +220,13 @@ bsp_status_t bsp_metrology_adc_start_capture(uint32_t *raw_words,
     {
         return BSP_STATUS_INVALID_ARG;
     }
+    /* Channel enable is internal only: reject any GPIO mode/remap that could
+     * connect TIM2_CH2 to an output pad. PA1 must stay analog ADC_VMID. */
+    if (((GPIOA->CRL & (GPIO_CRL_MODE1 | GPIO_CRL_CNF1)) != 0u) ||
+        ((AFIO->MAPR & AFIO_MAPR_TIM2_REMAP) != 0u))
+    {
+        return BSP_STATUS_ERROR;
+    }
 
     g_dma_complete = false;
     g_dma_error = false;
@@ -237,7 +245,8 @@ bsp_status_t bsp_metrology_adc_start_capture(uint32_t *raw_words,
 
     /*
      * TIM2_CH2 default pin is PA1 (ADC_VMID). CC2 is used only as an internal
-     * compare event. CC2E stays 0 and TIM2 is not remapped.
+     * compare channel, enabled like HAL_TIM_OC_Start. The GPIO remains analog,
+     * so the timer does not drive the PA1 pad; TIM2 is not remapped.
      */
     TIM2->CR1 = 0u;
     TIM2->DIER = 0u;
@@ -245,7 +254,7 @@ bsp_status_t bsp_metrology_adc_start_capture(uint32_t *raw_words,
     TIM2->ARR = tim2_arr;
     TIM2->CCR2 = tim2_ccr2;
     TIM2->CCMR1 = TIM_CCMR1_OC2M_1 | TIM_CCMR1_OC2M_2 | TIM_CCMR1_OC2PE;
-    TIM2->CCER = 0u;
+    TIM2->CCER = TIM_CCER_CC2E;
     TIM2->CNT = 0u;
     TIM2->EGR = TIM_EGR_UG;
     TIM2->CR1 = TIM_CR1_ARPE | TIM_CR1_CEN;

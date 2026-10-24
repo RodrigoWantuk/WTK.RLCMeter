@@ -1,5 +1,14 @@
 # Detailed Firmware Design
 
+TIM2_CC2 trigger enable correction: enable the internal compare channel with
+CC2E while leaving PA1 in analog mode (CRL MODE1/CNF1=0000) and TIM2 unremapped.
+The BSP checks both conditions before enabling DMA/capture and refuses an unsafe
+GPIO/remap configuration. It never configures PA1 as a timer output. Stop clears
+CC2E. This replaces the earlier assumption that a running timer with CC2E=0 was
+sufficient for recurring ADC compare triggers. The ST HAL OC start sequence also
+enables its selected compare channel. Physical trigger regression and analog-pad
+evidence remain required; UART compare flags alone were insufficient.
+
 First-board Phase 05 correction (2026-10-24): in regular simultaneous dual ADC
 mode, ADC1 selects TIM2_CC2 and both ADCs enable EXTTRIG. ADC2 selects the software
 trigger source (EXTSEL=111) but is triggered by ADC1; software does not write its

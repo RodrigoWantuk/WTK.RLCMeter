@@ -3191,6 +3191,9 @@ static void run_command(app_bringup_console_t *console,
         write_text(" cnt="); write_u32(trace.tim2_cnt);
         write_text(" arr="); write_u32(trace.tim2_arr);
         write_text(" ccr2="); write_u32(trace.tim2_ccr2);
+        write_text(" ccer="); write_hex8(trace.tim2_ccer);
+        write_text(" crl="); write_hex8(trace.gpioa_crl);
+        write_text(" mapr="); write_hex8(trace.afio_mapr);
         write_text("\r\nADC_TRACE_END\r\n");
     }
 #endif

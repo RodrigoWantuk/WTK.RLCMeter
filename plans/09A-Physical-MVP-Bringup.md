@@ -4,6 +4,22 @@ STATUS: IMPLEMENTED_REQUIRES_BENCH_VALIDATION
 
 ## External-supply diagnostic — 2026-10-24
 
+Follow-up on `efa09bbe3ad3`: corrected ADC2 CR2=0x001E0001 was confirmed by the
+trace, but DMA still stopped at 765 remaining. Thus the slave setup correction
+alone did not fix the physical timeout. Evidence: local
+`physical-20261024-adc-slave-trigger/load-10k-001/`. Boot was performed as a separate
+controlled reset/run under the owner's continuing-test instruction, with pinned
+UID/geometry/voltage preflight and UART already open; no debugger halt occurred
+during a DUT transaction.
+
+The next bounded trigger correction enables TIM2's internal compare channel
+(matching pinned `HAL_TIM_OC_Start`) while PA1 remains analog and TIM2 unremapped.
+Capture refuses non-analog PA1 or a remapped timer before enabling DMA; stop clears
+the channel. Trace now includes CCER/CRL/MAPR to retain this condition. This does
+not change pin allocation, sample timing, channel schedule or safety permits.
+It replaces the initial CC2E=0 assumption; hardware before/after capture and VMID
+evidence are still required. Do not infer analog qualification from compilation.
+
 The instrumented 30 ms attempt on `3ce13efa97dc` also timed out. Actual pre-stop
 trace: DMA CNDTR=765/768, no complete/error, TIM2 enabled with compare flags set,
 ADC1 CR2=0x00160101, ADC2 CR2=0x00000001. Evidence:

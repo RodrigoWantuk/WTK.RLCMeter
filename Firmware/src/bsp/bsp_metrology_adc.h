@@ -26,6 +26,9 @@ typedef struct
     uint32_t tim2_cnt;
     uint32_t tim2_arr;
     uint32_t tim2_ccr2;
+    uint32_t tim2_ccer;
+    uint32_t gpioa_crl;
+    uint32_t afio_mapr;
     uint32_t primask;
     bool dma_complete;
     bool dma_error;
