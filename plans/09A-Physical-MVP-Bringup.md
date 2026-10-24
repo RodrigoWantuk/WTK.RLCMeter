@@ -4,6 +4,25 @@ STATUS: IMPLEMENTED_REQUIRES_BENCH_VALIDATION
 
 ## External-supply diagnostic — 2026-10-24
 
+The instrumented 30 ms attempt on `3ce13efa97dc` also timed out. Actual pre-stop
+trace: DMA CNDTR=765/768, no complete/error, TIM2 enabled with compare flags set,
+ADC1 CR2=0x00160101, ADC2 CR2=0x00000001. Evidence:
+`physical-20261024-relay-30ms/load-10k-001/`. This proves only three transferred
+words, not a valid block or resistor result. Cleanup was SAFE/disabled/faults0.
+Inspection against RM0008 section 11.9 and the pinned ST HAL
+`HAL_ADCEx_MultiModeStart_DMA` found the slave trigger setup violated the documented
+contract: both ADCs must enable EXTTRIG and the slave must select software trigger.
+ADC2 now uses ADON | EXTTRIG | EXTSEL (111), with no SWSTART write. Timer mapping,
+PA1 analog/CC2E=0, ADC schedule, sample rate, DMA width/count and safety sequencing
+are unchanged. This is a Phase 05 BSP configuration correction; the physical
+before/after capture is its required hardware regression, still pending here.
+
+Primary references: [ST RM0008 section 11.9](https://community.st.com/ysqtg83639/attachments/ysqtg83639/stm32-mcu-products-forum/80598/1/13902_STM32_ReferenceManual_11.pdf)
+and the pinned `Firmware/third_party/st/stm32f1xx_hal_driver/Src/stm32f1xx_hal_adc_ex.c`
+multimode start validation. ARM strict bench build/size/profile checks pass at
+64372 B Flash / 14852 B accounted RAM. The host FSM/RAW guard tests remain the
+previous 41 CTests + 8 collector tests; they do not emulate this hardware defect.
+
 First reference attempt: the owner attached an isolated nominal 10 kOhm 1%
 resistor, reporting a 10000 Ohm DMM indication (instrument uncertainty not
 provided). Actual boot `8c13549485fa` and source confirmation passed. The first

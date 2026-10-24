@@ -196,7 +196,10 @@ bsp_status_t bsp_metrology_adc_acquire(uint32_t now_ms)
 
     /* TIM2_CC2 external trigger, 12-bit right aligned, dual DMA from ADC1->DR */
     ADC1->CR2 = ADC_CR2_ADON | ADC_CR2_EXTTRIG | ADC_CR2_EXTSEL_0 | ADC_CR2_EXTSEL_1;
-    ADC2->CR2 = ADC_CR2_ADON;
+    /* RM0008 dual mode: enable EXTTRIG on both ADCs; the slave selects
+     * SWSTART (111) but is started by the master, never by a SWSTART write.
+     * The ST HAL MultiModeStart_DMA contract requires this slave setup. */
+    ADC2->CR2 = ADC_CR2_ADON | ADC_CR2_EXTTRIG | ADC_CR2_EXTSEL;
     delay_adc_stabilization();
 
     NVIC_SetPriority(DMA1_Channel1_IRQn, 1u);

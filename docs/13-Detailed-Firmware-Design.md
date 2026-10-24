@@ -1,5 +1,13 @@
 # Detailed Firmware Design
 
+First-board Phase 05 correction (2026-10-24): in regular simultaneous dual ADC
+mode, ADC1 selects TIM2_CC2 and both ADCs enable EXTTRIG. ADC2 selects the software
+trigger source (EXTSEL=111) but is triggered by ADC1; software does not write its
+SWSTART bit. This follows RM0008 section 11.9 and the pinned ST HAL
+`HAL_ADCEx_MultiModeStart_DMA` slave-configuration contract. A real failing trace
+had ADC2 EXTTRIG disabled and only 3/768 DMA words transferred; a full physical
+block is required before treating this correction as a hardware regression pass.
+
 The Phase 09A [external-supply BRINGUP variant](../Firmware/tools/BENCH_SUPPLY.md)
 adds a compile-time-isolated, explicit RAM-only source confirmation. It propagates
 through safety evaluation and permit issue/validation to the existing DUT capture
