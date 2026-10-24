@@ -1,6 +1,6 @@
 # First-board consolidation — 2026-10-24
 
-Status: INTEGRATION_VERIFIED; PUBLICATION_PENDING. Owner-authorized current
+Status: INTEGRATION_VERIFIED; SOURCES_PUBLISHED. Owner-authorized current
 firmware/documentation/PCB consolidation. Historical A05 observations retain
 their original scope and are not retroactive bench certificates.
 
@@ -75,7 +75,9 @@ flash production over the confirmed peripheral image on the board.
 passed. Embedded PRODUCT Release/Debug, factory Release/Debug, BRINGUP,
 BRINGUP_CAL, bench-supply, K1 and peripheral builds pass hard memory/composition
 checks. Existing soft-size/LTO advisories remain. Build hashes/sizes are recorded
-in the accompanying build report.
+in [the source-bound manifest](../../../Firmware/releases/2026-10-24/firmware-builds.json).
+The [nine-image bundle](../../../Firmware/releases/2026-10-24/README.md) is built
+from clean source0dd1f3f and included in Git with the owner PCB replacements.
 
 Buildable integrated sources are ready for subsequent calibrated product work.
 Physical release still needs battery/charger wiring/sequencing, CHG software and

@@ -1,12 +1,14 @@
 # 17 — Consolidate first-board findings and publish current sources
 
-Status: IN_PROGRESS. Explicit owner assignment, 2026-10-24, extending plans03/08/09A/12.
+Status: COMPLETE_FOR_SOURCE_BUILD_AND_GIT_DELIVERY; PHYSICAL_RELEASE_PENDING.
+Explicit owner assignment, 2026-10-24, extending plans03/08/09A/12.
 
 Integration verified: shared mounted TFT init/clock, current hardware0x00010002
 in C/PC tools and old-topology rejection, October24 source/fabrication audit and
 review matrices.44/44 CTests,486 Python tests with99 environment skips,18 PCB tests
-and nine embedded profiles/variants passed. Final clean-source build identity and
-Git publication are the remaining delivery actions. See
+and nine embedded profiles/variants passed. Clean source0dd1f3f and owner exports
+are published on codex/bringup-k1-bench-test; the nine-image bundle and manifest
+are included under Firmware/releases/2026-10-24. See
 [the consolidation report](../docs/review/bringup-2026-10-24/README.md).
 
 Consolidate the bench-proven acquisition/DSP/relay changes across firmware profiles,
