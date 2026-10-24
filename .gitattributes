@@ -1,0 +1,4 @@
+# Preserve CAD/manufacturing artifacts byte-for-byte across Windows checkouts.
+*.pdf binary
+*.epro2 binary
+*.zip binary
