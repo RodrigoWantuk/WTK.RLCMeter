@@ -135,6 +135,11 @@ do not emulate the ADC peripheral; physical regressions above provide only the
 specified board/condition evidence. Other RREFs and dynamic gate/reset/power and
 inductive behavior remain REQUIRES_BENCH_VALIDATION.
 
+Subsequent identified-reference checks, including the100K branch and observed
+frequency dependence, are recorded in
+[the bench reference log](Bench-Reference-Checks-2026-10-24.md). Those observations
+do not extend the10K recovery result into a full calibrated range qualification.
+
 ## Intended change and rationale
 
 The [DC finding](RGS-DC-Bias-Bench-Finding.md) identifies selected-driver current
