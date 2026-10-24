@@ -134,6 +134,14 @@ pull-up turns it off when not selected. This double inversion agrees with firmwa
 U3.9 COM is unused because these outputs drive bases, not relay coils; unused U3
 input/output and U2 Y6/Y7 are not additional active ranges.
 
+**2026-10-24 bench finding:** the selected driver also supplies DC through RGS
+into the common-source analog node. Equal nominal RGS4/RREF4 values predict the
+owner-reported 2.5 V offset with VEXC at zero. This is an unresolved metrology
+blocker, not evidence of a solder bridge. See
+[RGS DC bias finding](RGS-DC-Bias-Bench-Finding.md) for readings, assumptions and
+the matching 1K comparison. Earlier logical-polarity checks do not qualify this
+analog loading path; no circuit correction is defined here.
+
 `hw_range_request()` disables enable before writing address, then waits the existing
 dead/settling times before READY. Logical correctness does not prove physical
 break-before-make: capacitive gate decay, decoder/ULN thresholds, supply collapse

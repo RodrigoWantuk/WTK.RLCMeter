@@ -1,5 +1,14 @@
 # Detailed Firmware Design
 
+Post-rework ADC startup investigation (2026-10-24): calibration leaves ADON set.
+The BSP now disables both ADCs before changing the regular sequences and DUALMOD,
+matching the pinned ST HAL multimode configuration requirement. Restore/acquire
+also clear both CR2 registers before changing CR1. Rates, ranks, sample time,
+trigger source, buffer size and raw rows are unchanged. A first-sequence ADC2
+anomaly was observed physically; this configuration-order correction requires a
+new physical capture and does not by itself establish that the anomaly is fixed.
+See [the post-rework evidence](review/a05/RGS-Ground-Pulldown-Rework-Candidate.md).
+
 TIM2_CC2 trigger enable correction: enable the internal compare channel with
 CC2E while leaving PA1 in analog mode (CRL MODE1/CNF1=0000) and TIM2 unremapped.
 The BSP checks both conditions before enabling DMA/capture and refuses an unsafe

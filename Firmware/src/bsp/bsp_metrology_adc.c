@@ -157,10 +157,10 @@ bsp_status_t bsp_metrology_adc_acquire(uint32_t now_ms)
     gpio_config_analog(GPIOA, 2u);
     gpio_config_analog(GPIOA, 3u);
 
-    ADC1->CR1 = 0u;
     ADC1->CR2 = 0u;
-    ADC2->CR1 = 0u;
     ADC2->CR2 = 0u;
+    ADC1->CR1 = 0u;
+    ADC2->CR1 = 0u;
 
     bsp_status_t status = calibrate_adc(ADC1, now_ms);
     if (status != BSP_STATUS_OK)
@@ -173,6 +173,12 @@ bsp_status_t bsp_metrology_adc_acquire(uint32_t now_ms)
         ADC1->CR2 = 0u;
         return status;
     }
+
+    /* Calibration leaves ADON set. The STM32F1 multimode configuration
+     * contract requires BOTH ADCs disabled before changing DUALMOD/sequence.
+     * Do not configure the pair in the powered calibration state. */
+    ADC1->CR2 = 0u;
+    ADC2->CR2 = 0u;
 
     const uint32_t smp_7p5 = (METROLOGY_SAMPLE_SMP_7P5 << ADC_SMPR2_SMP0_Pos) |
                              (METROLOGY_SAMPLE_SMP_7P5 << ADC_SMPR2_SMP1_Pos) |
@@ -268,10 +274,10 @@ bsp_status_t bsp_metrology_adc_start_capture(uint32_t *raw_words,
 bsp_status_t bsp_metrology_adc_restore(uint32_t now_ms)
 {
     bsp_metrology_adc_stop();
-    ADC1->CR1 = 0u;
     ADC1->CR2 = 0u;
-    ADC2->CR1 = 0u;
     ADC2->CR2 = 0u;
+    ADC1->CR1 = 0u;
+    ADC2->CR1 = 0u;
     g_acquired = false;
 
     gpio_config_analog(GPIOA, 1u);
