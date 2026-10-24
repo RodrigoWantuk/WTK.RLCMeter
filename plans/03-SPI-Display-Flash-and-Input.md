@@ -2,6 +2,10 @@
 
 STATUS: IMPLEMENTED_REQUIRES_BENCH_VALIDATION
 
+Current owner-authorized [plan17](17-Bringup-Consolidation-and-Publish.md) promotes
+the successful mounted TFT initialization/orientation/clock to all TFT profiles.
+Earlier diagnostic-only/ordinary-MADCTL48 descriptions below are historical.
+
 ### Active bounded diagnostic, 2026-10-24
 
 Owner reports working button tones with a white display in the standalone

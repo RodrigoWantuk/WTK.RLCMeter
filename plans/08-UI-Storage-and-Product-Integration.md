@@ -2,6 +2,11 @@
 
 STATUS: IN_PROGRESS
 
+October24 [plan17](17-Bringup-Consolidation-and-Publish.md) integrates the verified
+portrait180/common DCS reset timing and conservative TFT clock into PRODUCT.
+Calibration hardware0x00010002 rejects pre-RGS-toGND records. Existing safety/
+calibration/quiet gates remain; this does not close physical product-release work.
+
 ## Stage 1 — Product controller, calibration gate, click measurement, and minimal TFT UI
 
 STATUS: IMPLEMENTED_REQUIRES_BENCH_VALIDATION

@@ -35,7 +35,7 @@ def valid_frame(full=False):
     put_u16(frame, 8, inspect_cal.HEADER_BYTES)
     put_u16(frame, 10, payload_len)
     put_u32(frame, 12, 7)
-    put_u32(frame, 16, 0x00010001)
+    put_u32(frame, 16, inspect_cal.REV1_HARDWARE)
     put_u16(frame, 20, inspect_cal.MODEL_CURRENT)
     put_u32(frame, inspect_cal.COMMIT_OFFSET, 0xFFFFFFFF)
     payload = inspect_cal.HEADER_BYTES
@@ -45,9 +45,9 @@ def valid_frame(full=False):
     for index, (range_id, frequency, amplitude) in enumerate(keys):
         rec = payload + inspect_cal.SET_PAYLOAD_HEADER_BYTES + index * inspect_cal.RECORD_BYTES
         rref = inspect_cal.RANGES[range_id]
-        key_bytes = struct.pack("<IHBBB3x", 0x00010001, inspect_cal.MODEL_CURRENT,
+        key_bytes = struct.pack("<IHBBB3x", inspect_cal.REV1_HARDWARE, inspect_cal.MODEL_CURRENT,
                                 range_id, frequency, amplitude)
-        struct.pack_into("<IHBBBBiII", frame, rec, 0x00010001, inspect_cal.MODEL_CURRENT,
+        struct.pack_into("<IHBBBBiII", frame, rec, inspect_cal.REV1_HARDWARE, inspect_cal.MODEL_CURRENT,
                          range_id, frequency, amplitude, 2, 0,
                          binascii.crc32(key_bytes),
                          inspect_cal.FLAG_OSL_MODEL | inspect_cal.FLAG_LOAD_REFERENCE)

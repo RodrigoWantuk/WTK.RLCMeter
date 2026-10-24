@@ -1,5 +1,11 @@
 # Safety and Protection
 
+## October24 integration baseline
+
+CHG_VBUS/J_PWR.4 is dimensioned for positive0..5.5V detection with commonGND and normal3.3V board power. The10k/12k divider gives nominal3.0V atPA15 for5.5V. This is not a5.5V system-supply or unpowered/backfeed rating; independent inhibition still needs bench verification.
+
+See [current evidence, input limits and release status](review/bringup-2026-10-24/README.md).
+
 ## Scope
 
 WTK.RLCMeter Rev.1 is intended for **de-energized passive components**. The SAFE network is designed to detect and tolerate residual voltage within its intended envelope before connecting the DUT to the measurement AFE, but this does not make the instrument CAT-rated or suitable for direct connection to mains.

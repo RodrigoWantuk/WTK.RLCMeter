@@ -7,7 +7,7 @@ fetched/fast-forwarded, submodules initialized; branch
 `codex/b020-manual-bench-readiness`. Only these three bench documents change.
 [Bench card](bench-card.md) → [measurement/calibration baseline](measurement-baseline.md).
 
-Evidence: decoded [EasyEDA project](../../../PCB/source/ProPrj_WTK%20RLC%20Meter_2026-08-19.epro2),
+Evidence: decoded [EasyEDA project](https://github.com/RodrigoWantuk/WTK.RLCMeter/blob/16633dc/PCB/source/ProPrj_WTK%20RLC%20Meter_2026-08-19.epro2),
 five-sheet schematic, August 23 BOM/Gerber/FlyingProbe under
 [Rev 1 fabrication](../../../PCB/fabrication/Rev1), and the
 [A05 per-part matrix](../a05/assembly-population.csv)/[pad matrix](../a05/pin-net-matrix.csv).

@@ -135,7 +135,7 @@ class Client:
         if len(data) != 60:
             raise CaptureError("invalid identity length")
         hw, model, profile, capabilities, conditions, size, timeout, adc = struct.unpack_from("<IHHIHHIH", data)
-        if (hw, model, conditions, size, adc) != (0x00010001, wire.MODEL_CURRENT, 33, 188, 1):
+        if (hw, model, conditions, size, adc) != (wire.REV1_HARDWARE, wire.MODEL_CURRENT, 33, 188, 1):
             raise CaptureError("unsupported hardware/model/capture format")
         self.identity = dict(hardware_revision=hw, model=model, profile=profile,
                              capabilities=capabilities, protocol_version=1, timeout_ms=timeout,
@@ -218,7 +218,7 @@ def observation(data, identity, capture_id, key, standard, reference=None):
     if len(data) != 188 or zlib.crc32(data[:184]) != struct.unpack_from("<I", data, 184)[0]:
         raise CaptureError("observation length/CRC mismatch")
     magic, api, size, request, hw, model = struct.unpack_from("<IHHIIH", data)
-    if (magic, api, size, request, hw, model) != (0x314f4343, 1, 188, capture_id, 0x00010001, wire.MODEL_CURRENT):
+    if (magic, api, size, request, hw, model) != (0x314f4343, 1, 188, capture_id, wire.REV1_HARDWARE, wire.MODEL_CURRENT):
         raise CaptureError("observation identity mismatch")
     if tuple(data[18:22]) != (*key.ids(), STANDARDS.index(standard)):
         raise CaptureError("observation condition mismatch")

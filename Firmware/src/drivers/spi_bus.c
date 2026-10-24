@@ -5,7 +5,7 @@
 #include "bsp/bsp_spi.h"
 
 static bool g_acquired = false;
-static bool g_display_slow = false;
+static bool g_display_slow = true;
 static spi_bus_device_t g_owner = SPI_BUS_DEVICE_W25Q;
 
 static const bsp_spi_config_t g_mode0_conservative = {
@@ -28,7 +28,7 @@ static void deselect_all(void)
 
 bsp_status_t spi_bus_init(void)
 {
-    g_display_slow = false;
+    g_display_slow = true;
     deselect_all();
     return bsp_spi2_init(&g_mode0_conservative);
 }

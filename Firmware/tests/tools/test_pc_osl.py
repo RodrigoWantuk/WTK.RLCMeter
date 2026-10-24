@@ -24,8 +24,21 @@ class CalibrationTests(unittest.TestCase):
 
     def test_golden(self):
         self.assertEqual(hashlib.sha256(self.frame).hexdigest(),
-                         '37367cf0e50466bebadb66fdb11dc305ffb4ac1bb4bcbb34136fe76fba98244e')
+                         '1dc8123ac5a49daa8b2df1cb5b253ae947e7535da9711026719b29f1abc7405d')
         self.assertEqual(len(self.frame), 2760)
+
+    def test_rgs_hardware_identity_matches_firmware_and_rejects_legacy(self):
+        import re
+        header = pathlib.Path(__file__).resolve().parents[2] / 'src/measurement/measurement_calibration.h'
+        value = re.search(r'MEASUREMENT_CAL_HARDWARE_REV1\s*=\s*(0x[0-9a-fA-F]+)', header.read_text())
+        self.assertIsNotNone(value)
+        self.assertEqual(int(value[1], 16), osl.wire.REV1_HARDWARE)
+        self.assertEqual(osl.wire.REV1_HARDWARE, 0x00010002)
+        old = bytearray(self.frame)
+        struct.pack_into('<I', old, 16, 0x00010001)
+        struct.pack_into('<I', old, 56, osl.wire.crc_frame(old, len(old)-64))
+        with self.assertRaisesRegex(ValueError, 'incompatible'):
+            osl.validate_frame(bytes(old))
         self.assertEqual(len(osl.validate_frame(self.frame).conditions), 33)
         for s in self.solutions:
             self.assertAlmostEqual(s.k.real, -s.key.rref_ohms, delta=s.key.rref_ohms*1e-6)
@@ -114,7 +127,7 @@ class CalibrationTests(unittest.TestCase):
             offset = 120 + index * 80
             struct.pack_into("<H", old, offset + 4, 4)
             rid, fid, aid = struct.unpack_from("<BBB", old, offset + 6)
-            condition = zlib.crc32(struct.pack("<IHBBB3x", 0x10001, 4, rid, fid, aid))
+            condition = zlib.crc32(struct.pack("<IHBBB3x", osl.wire.REV1_HARDWARE, 4, rid, fid, aid))
             struct.pack_into("<I", old, offset + 14, condition)
         struct.pack_into("<I", old, 56, osl.wire.crc_frame(old, len(old)-64))
         with self.assertRaisesRegex(ValueError, "incompatible"):

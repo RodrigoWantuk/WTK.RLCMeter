@@ -4,7 +4,7 @@ WTK.RLCMeter is a portable two-wire RLC meter based on the **STM32F103C8T6**, de
 
 The project combines a custom mixed-signal PCB, an **STM32 Blue Pill** module, an **ILI9341** TFT display, external **W25Q** SPI Flash, a 1-cell Li-ion power subsystem, and dedicated firmware for measurement, safety, user interface, storage, and diagnostics.
 
-> **Current status — August 2026:** the first hardware revision is entering fabrication, bring-up, and characterization. The electrical architecture is mature enough for the first prototype, but accuracy, practical range limits, parasitics, leakage, gain/phase response, and 10 kHz performance still require bench qualification. Firmware must not present unqualified targets as guaranteed specifications.
+> **Current status — October24,2026:** basic R/C/L and display/buttons/buzzer observations are recorded. Current CAD includes six RGS gate-toGND pull-downs; shared firmware includes acquisition/phase/relay fixes and mounted display orientation. Calibration and battery/charger/metrology qualification remain pending. See [bring-up consolidation](docs/review/bringup-2026-10-24/README.md).
 
 ## Project goals
 

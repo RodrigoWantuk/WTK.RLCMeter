@@ -100,7 +100,6 @@ endif()
 add_test(NAME wtk_ili9341_geometry_test COMMAND wtk_ili9341_geometry_test)
 
 add_executable(wtk_ili9341_readback_test drivers/test_ili9341_readback.c ../src/drivers/ili9341.c)
-target_compile_definitions(wtk_ili9341_readback_test PRIVATE WTK_ILI9341_DIAGNOSTIC_SUPPORT=1)
 target_link_libraries(wtk_ili9341_readback_test PRIVATE wtk_firmware_common)
 target_include_directories(wtk_ili9341_readback_test PRIVATE "${PROJECT_SOURCE_DIR}/src")
 wtk_configure_c_target(wtk_ili9341_readback_test)

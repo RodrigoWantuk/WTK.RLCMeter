@@ -13,6 +13,7 @@ enum
     ILI9341_WIDTH = ILI9341_NATIVE_WIDTH,
     ILI9341_HEIGHT = ILI9341_NATIVE_HEIGHT,
     ILI9341_FILL_CHUNK_PIXELS = 64u,
+    ILI9341_DEFAULT_ROTATION = 2u,
 };
 
 typedef enum
@@ -32,7 +33,6 @@ typedef struct
     uint32_t wait_until_ms;
     uint8_t rotation;
     bool ready;
-    bool conservative_diagnostic;
 } ili9341_t;
 
 typedef struct
@@ -49,8 +49,6 @@ typedef struct
 
 void ili9341_init_context(ili9341_t *display);
 void ili9341_init_start(ili9341_t *display, uint32_t now_ms);
-/* Basic common DCS commands, longer reset/waits, no panel voltage registers. */
-void ili9341_init_diagnostic_start(ili9341_t *display, uint32_t now_ms);
 bsp_status_t ili9341_init_step(ili9341_t *display, uint32_t now_ms);
 /* Raw read-only diagnostic response, including any dummy clocks/bytes.
  * Supported commands: 0x04, 0x09..0x0F and 0xD3; 1..5 bytes, one CS interval.

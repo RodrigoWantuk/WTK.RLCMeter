@@ -1,5 +1,7 @@
 # Existing-component candidate: move RGS pull-downs to GND
 
+October24 owner CAD/BOM/Gerber now adopts all six RGS gate-toGND; this supersedes the earlier candidate-only schematic status below. Static recovery and bounded reference captures exist; switching/power/off-state qualification remains pending. See [current integration](../bringup-2026-10-24/README.md).
+
 Status: OWNER_REPORTED_REWORK_ALL_SIX; REQUIRES_BENCH_VALIDATION. The owner reports
 performing the change on all RGS; exact method and continuity remain unverified.
 This is a bounded recovery candidate for the existing assembled board,

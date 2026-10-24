@@ -122,3 +122,7 @@ Rev.1 firmware is not considered complete until:
 - UI remains responsive without corrupting acquisition;
 - a documented measurement qualification matrix exists;
 - unsupported/future capabilities remain clearly outside Rev.1.
+
+## First-board consolidation
+
+[Plan17](17-Bringup-Consolidation-and-Publish.md) integrates October24 bring-up findings, current owner exports, CHG input analysis, all firmware profiles and Git publication.

@@ -1,5 +1,7 @@
 # Technical Documentation
 
+Current October24 CAD/firmware, CHG_VBUS5.5V analysis, calibration identity and bench status: [consolidation report](review/bringup-2026-10-24/README.md).
+
 This directory contains the living technical specification for WTK.RLCMeter.
 
 The documentation deliberately separates **existing Rev.1 hardware**, **planned firmware architecture**, **unqualified engineering targets**, **experimental/DNP options**, and **future-revision concepts**. Measured prototype behavior takes precedence over theoretical expectations.

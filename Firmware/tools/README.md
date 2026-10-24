@@ -17,7 +17,7 @@ Host-side tools that support firmware, assets, calibration, and diagnostics.
   replay/reference helper for Phase 06 tests.
 - `calibration_campaign.py`: host-only, standard-library interval-fit prototype for
   supplementary R/C/L standards. Input is a JSON object with `schema_version=1`,
-  `hardware_revision=65537`, all 33 `osl_conditions`, and per-condition groups with
+  `hardware_revision=65538`, all 33 `osl_conditions`, and per-condition groups with
   optional `prior_curve` (12 matrix coefficients at 0.1/1/10 times RREF) and
   `standards`. For a real BRINGUP capture, each standard provides `id`,
   `capture_file`, the SHA-256 `capture_id` printed by `pc_capture.py`, `type`

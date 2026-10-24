@@ -1,5 +1,11 @@
 # Consolidated Design Decisions
 
+## October24 integration baseline
+
+October24 supersedes gate-to-source RGS: all six10k are gate-toGND, hardware calibration identity0x00010002. Common ADC/DMA/phase corrections and K1 operate30ms apply to every metrology profile. All TFT profiles use portrait180/MADCTL88,50ms reset/250ms release and TFT PCLK1/64, Flash/8. Bench-only source exceptions remain excluded from PRODUCT.
+
+See [current evidence, input limits and release status](review/bringup-2026-10-24/README.md).
+
 ## Owner-requested external bench supply — 2026-10-24
 
 Phase 09A now includes a separate opt-in BRINGUP bench-supply image. The operator

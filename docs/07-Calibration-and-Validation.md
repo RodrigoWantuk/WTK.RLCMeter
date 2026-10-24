@@ -1,5 +1,11 @@
 # Calibration and Validation
 
+## October24 integration baseline
+
+RGS-toGND boards now use hardware_revision0x00010002 (65538). Schema2/model5 and equations remain unchanged. Old0x00010001 topology records are incompatible; do not relabel them. Firmware and PC tools agree; stored bytes are not erased. New calibration must be captured on the reworked board.
+
+See [current evidence, input limits and release status](review/bringup-2026-10-24/README.md).
+
 ## Purpose
 
 The first PCB is not considered a qualified measurement instrument simply because it powers up. Rev.1 exists to measure and model:

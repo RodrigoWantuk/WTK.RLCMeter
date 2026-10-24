@@ -65,7 +65,7 @@ are 0/1/2. 10 ohm/500 mVrms is forbidden; 33 keys remain. Non-LOAD impedance
 must be zero. LOAD must be finite, passive and nonzero. Reference ID/tolerance
 remain PC sidecar metadata; the device receives the requested complex center.
 
-Identity offsets: 0 hardware revision u32 (0x10001), 4 model u16 (5), 6 profile
+Identity offsets: 0 hardware revision u32 (0x10002, RGS-to-GND topology), 4 model u16 (5), 6 profile
 u16 (1=BRINGUP_CAL), 8 capability bitmap u32 (bits 0 identity, 1 status, 2 capture,
 3 cancel), 12 condition count u16, 14 artifact size u16, 16 timeout ms u32,
 20 ADC provenance u16 (1), 22 synthetic u8, 23 zero, 24 UID[12], 36 git[8],

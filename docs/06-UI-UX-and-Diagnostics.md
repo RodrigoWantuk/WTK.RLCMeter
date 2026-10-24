@@ -1,5 +1,11 @@
 # UI, UX, and Diagnostics
 
+## October24 integration baseline
+
+The owner-confirmed mounting is portrait180 (240x320,MADCTL88,rotation2). All TFT-bearing profiles now share50ms reset/250ms release wait and PCLK1/64 TFT clock; Flash stays/8. White screen was a module flat solder fault, repaired by the owner. Rendering/buttons/tones are functionally confirmed; exact controller ID and full resource/storage/quiet bench qualification remain open.
+
+See [current evidence, input limits and release status](review/bringup-2026-10-24/README.md).
+
 ## Display
 
 Controller: ILI9341, 240×320, SPI.

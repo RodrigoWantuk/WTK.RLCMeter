@@ -17,12 +17,13 @@ from pathlib import Path
 from typing import Any
 
 from calibration_campaign import all_osl_conditions, condition_key
+from inspect_calibration_record import REV1_HARDWARE
 
 
 MAGIC = 0x56524357  # WCRV
 COMMIT = 0x54494D43
 SCHEMA_VERSION = 1
-HARDWARE_REVISION = 0x00010001
+HARDWARE_REVISION = REV1_HARDWARE
 OSL_MODEL_VERSION = 5
 HEADER = struct.Struct("<IHHIHHIII")
 RECORD = struct.Struct("<BBBB12fI")

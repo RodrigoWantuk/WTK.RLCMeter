@@ -1,5 +1,11 @@
 # Detailed Firmware Design
 
+## October24 integration baseline
+
+The shared startup/stop ADC fixes, bounded atan2 and30ms K1 guard are retained across metrology profiles. Default TFT rotation is2/MADCTL88 and all TFT profiles use the confirmed common DCS timing/clock. Calibration hardware0x00010002 separates the RGS-toGND topology; old calibration remains incompatible. No PRODUCT safety/calibration bypass is introduced.
+
+See [current evidence, input limits and release status](review/bringup-2026-10-24/README.md).
+
 Post-rework ADC startup investigation (2026-10-24): calibration leaves ADON set.
 The BSP now disables both ADCs before changing the regular sequences and DUALMOD,
 matching the pinned ST HAL multimode configuration requirement. Restore/acquire

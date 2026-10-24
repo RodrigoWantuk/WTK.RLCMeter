@@ -1,5 +1,11 @@
 # Pinout and Interfaces — Rev.1
 
+## October24 integration baseline
+
+J_PWR.4 CHG_VBUS accepts positive0..5.5V detection under normal3.3V-powered/commonGND conditions;10k/12k gives3.0V atPA15 for5.5V. J_PWR.2 stays nominal regulated5V. Power-off/backfeed is unqualified. Actual TFT header labels match pins1..9; flat solder repair restored operation. Owner reports backlight arrangement correct and uses a passive5V buzzer; exact load/current/substitute part evidence remains separate from functional success.
+
+See [current evidence, input limits and release status](review/bringup-2026-10-24/README.md).
+
 ## STM32F103C8T6 pin allocation
 
 | MCU pin | Net / function | Notes |

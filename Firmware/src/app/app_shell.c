@@ -1652,12 +1652,7 @@ void app_shell_run(void)
                                   app_calibration_service_status(&g_calibration_service)));
     }
 
-#if WTK_ENABLE_PERIPHERAL_TEST
-    (void)spi_bus_set_display_slow(true);
-    ili9341_init_diagnostic_start(&g_display, bsp_time_now_ms());
-#else
     ili9341_init_start(&g_display, bsp_time_now_ms());
-#endif
 #if !WTK_ENABLE_BRINGUP_CONSOLE
     product_apply_outputs();
 #endif

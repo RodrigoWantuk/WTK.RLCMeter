@@ -14,7 +14,7 @@ typedef enum
 } spi_bus_device_t;
 
 bsp_status_t spi_bus_init(void);
-/* Diagnostic TFT clock=PCLK1/64; Flash stays PCLK1/8. Init restores false. */
+/* TFT defaults PCLK1/64 after init; Flash stays PCLK1/8. Faster TFT is unqualified. */
 bsp_status_t spi_bus_set_display_slow(bool enabled);
 bool spi_bus_quiet_requested(void);
 bsp_status_t spi_bus_acquire(spi_bus_device_t device);

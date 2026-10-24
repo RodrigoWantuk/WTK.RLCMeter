@@ -1,5 +1,11 @@
 # Rev.1 BOM and Assembly Notes
 
+## October24 integration baseline
+
+Use October24 source/BOM/Gerber/PDF exports. All six10k RGS are gate-toGND, with no SRC-toGND short. The first board uses lifted former-source resistor ends tied toGND. Owner fits a passive5V buzzer, differing from the BOM indicator; exact production substitute and backlight load documentation remain unresolved. Historical assembly warnings below retain their original scope.
+
+See [current evidence, input limits and release status](review/bringup-2026-10-24/README.md).
+
 This document records the component choices that define Rev.1 and the assembly conventions for the first prototype. The BOM exported from the EDA project remains the source of truth for quantities and designators.
 
 Before soldering, use the [A05 population matrix and blockers](review/a05/README.md).

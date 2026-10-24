@@ -1,5 +1,11 @@
 # Firmware Architecture
 
+## October24 integration baseline
+
+The shared acquisition/DSP/30ms relay fixes apply to all metrology profiles. All TFT profiles use the working common DCS initialization, portrait180 and slower TFT clock. BRINGUP_CAL stays headless; PRODUCT retains real safety and valid-calibration gates.
+
+See [current evidence, input limits and release status](review/bringup-2026-10-24/README.md).
+
 ## Principles
 
 The firmware is organized as instrument firmware, not as a microcontroller demo:

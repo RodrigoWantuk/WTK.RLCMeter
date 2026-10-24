@@ -100,7 +100,7 @@ int main(void)
     ili9341_t display;
     ili9341_init_context(&display);
     const uint32_t start = UINT32_MAX - 30u;
-    ili9341_init_diagnostic_start(&display, start);
+    ili9341_init_start(&display, start);
     check(!reset_high && !display.ready, "diagnostic asserts reset");
     (void)ili9341_init_step(&display, start + 49u);
     check(!reset_high && command_count == 0u, "reset held across time wrap");
@@ -116,11 +116,10 @@ int main(void)
     check(display.rotation == 2u && madctl == 0x88u, "diagnostic portrait rotated180 matches owner mounting");
     command_count = 0u;
     ili9341_init_start(&display, 0u);
-    check(!display.conservative_diagnostic && display.rotation == 0u, "ordinary start restores baseline");
-    for (uint32_t now = 0u; now < 700u; now++) (void)ili9341_init_step(&display, now);
-    const uint8_t baseline[] = {0x01u,0x11u,0x3Au,0x36u,0x29u};
-    check(display.ready && command_count == sizeof(baseline) && memcmp(commands,baseline,sizeof(baseline)) == 0,
-          "ordinary initialization command sequence unchanged");
-    check(madctl == 0x48u, "ordinary MADCTL unchanged");
+    check(display.rotation == ILI9341_DEFAULT_ROTATION, "all profiles restore mounted orientation");
+    for (uint32_t now = 0u; now < 1200u; now++) (void)ili9341_init_step(&display, now);
+    check(display.ready && command_count == sizeof(expected) && memcmp(commands,expected,sizeof(expected)) == 0,
+          "restart uses shared bench-confirmed initialization");
+    check(madctl == 0x88u, "shared portrait180 MADCTL");
     return failures == 0 ? 0 : 1;
 }
