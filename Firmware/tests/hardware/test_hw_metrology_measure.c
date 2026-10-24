@@ -848,9 +848,50 @@ static int test_external_bench_supply(void)
 }
 #endif
 
+static int test_30ms_relay_guard(void)
+{
+    int failures = 0;
+    uint32_t raw[HW_METROLOGY_RAW_WORD_COUNT] = {0};
+    fake_io_t fake = {0};
+    fake.k1 = HW_K1_STATE_SAFE;
+    fake.exc = HW_EXCITATION_MODE_OFF;
+    fake.range_id = HW_RANGE_ID_10K;
+    fake.range_state = HW_RANGE_READY;
+    bind_default_permit_inputs(&fake, HW_RANGE_ID_10K);
+    bsp_clock_summary_t clock = production_clock();
+    hw_metrology_measure_io_t io;
+    bind_io(&io, &fake);
+    hw_metrology_measure_t measure;
+    (void)hw_metrology_measure_init(&measure, &io, raw, HW_METROLOGY_RAW_WORD_COUNT);
+    const hw_metrology_measure_request_t request = make_request(&clock, HW_RANGE_ID_10K, HW_EXCITATION_AMP_100MVRMS);
+    uint32_t now = UINT32_MAX - 20u;
+    (void)hw_metrology_measure_start(&measure, &request, now);
+    for (uint32_t step = 0u; step < 100u; step++, now++)
+    {
+        (void)hw_metrology_measure_step(&measure, now);
+        if (hw_metrology_measure_state(&measure) == HW_METROLOGY_MEASURE_K1_OPERATE_GUARD) { break; }
+    }
+    failures += expect_true(measure.state == HW_METROLOGY_MEASURE_K1_OPERATE_GUARD &&
+        fake.k1 == HW_K1_STATE_MEASURE, "reach relay guard before acquiring ADC");
+    failures += expect_true(HW_METROLOGY_MEASURE_K1_OPERATE_GUARD_MS == 30u &&
+        measure.block.k1_operate_guard_ms == 30u, "30ms guard is frozen into capture metadata");
+    (void)hw_metrology_measure_step(&measure, measure.wait_deadline_ms - 1u);
+    failures += expect_true(measure.state == HW_METROLOGY_MEASURE_K1_OPERATE_GUARD &&
+        !fake.capture_started, "no ADC capture before complete relay guard including wrap");
+    now = measure.wait_deadline_ms;
+    (void)hw_metrology_measure_step(&measure, now);
+    failures += expect_true(measure.state == HW_METROLOGY_MEASURE_ADC_ACQUIRE && !fake.capture_started,
+        "at 30ms proceed to ADC acquisition; excitation settling still follows");
+    (void)hw_metrology_measure_abort(&measure);
+    failures += expect_true(run_until_idle(&measure, &fake, &now) == 0 && fake.k1 == HW_K1_STATE_SAFE,
+        "aborting after guard returns safe");
+    return failures;
+}
+
 int main(void)
 {
     int failures = test_first_measurement_preflight();
+    failures += test_30ms_relay_guard();
 #if WTK_ENABLE_BENCH_SUPPLY
     failures += test_external_bench_supply();
 #endif

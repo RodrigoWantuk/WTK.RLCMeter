@@ -1,5 +1,19 @@
 # BRINGUP with an external bench supply
 
+After a completed/failed acquisition, `lab adc capture status` reports a bounded
+`ADC_TRACE ... ADC_TRACE_END` snapshot taken before stop/restore. It records ADC
+control/status, DMA remaining words and TIM2 state without reading ADC data
+registers or halting the core. It is a bench-only diagnostic; `valid=0` means no
+capture snapshot exists. Use `ms` and the capture transcript to associate evidence
+with an attempt. No retry, reset or capture is triggered by this command.
+
+The owner requested a conservative 30 ms K1 operate guard on 2026-10-24.
+Excitation settling remains a separate step; the 8 ms release guard is unchanged.
+This policy delay is not proof of mechanical/electrical settling. The first real
+10 kOhm attempt reached ADC/DMA TIMEOUT and safely returned to SAFE; no resistance
+result exists from that attempt. This is an acquisition-completion fault, not
+evidence that a longer contact delay alone fixes the problem.
+
 Owner-requested first-board diagnostic, Phase 09A. This image allows uncalibrated
 AC diagnosis of de-energized passive fixtures without a battery. It is not PRODUCT
 operation, battery emulation, calibration, or electrical qualification.
@@ -66,16 +80,17 @@ the existing abort cleanup. Do not disconnect the physical supply to test this.
 Existing fixed-condition diagnostic commands are preferred for first references:
 
 ```text
-lab metrology measure 1khz 100mv 1k
-lab metrology measure 1khz 100mv 10k
-lab metrology measure 1khz 100mv 100k
+lab metrology measure 1k 100m 1k
+lab metrology measure 1k 100m 10k
+lab metrology measure 1k 100m 100k
 ```
 
 Select a nominal RREF near the known reference resistance. For the first test use
 1 kOhm or 10 kOhm. The existing raw `lab metrology capture ...` command keeps K1
 SAFE and observes the internal AFE, so it must not be mistaken for a DUT-contact
 OPEN/SHORT test. `lab metrology measure ...` uses the full DUT relay transaction.
-See `PC_CAPTURE.md` for the existing RAW protocol.
+Use `pc_capture.py` for validation of the existing RAW protocol. The console's
+frequency tokens are `10`, `1k`, `10k`; amplitude tokens are `100m`, `500m`.
 
 `lab measure auto` also retains its existing ideal-fallback diagnostic behavior,
 but attempts requesting 500 mVrms are refused in external-supply mode. Prefer

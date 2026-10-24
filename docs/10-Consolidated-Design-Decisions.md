@@ -737,7 +737,7 @@ The current goal is to detect/tolerate residual voltage in the approximate ±100
 ### Rev.1 Stage 2 K1 guards and permit (Phase 05)
 
 ```text
-K1_OPERATE_GUARD_MS = 10   (REQUIRES_BENCH_VALIDATION)
+K1_OPERATE_GUARD_MS = 30   (owner-requested conservative margin, REQUIRES_BENCH_VALIDATION)
 K1_RELEASE_GUARD_MS = 8    (REQUIRES_BENCH_VALIDATION)
 HW_MEASURE_PERMIT_TTL_MS = 5
 ```

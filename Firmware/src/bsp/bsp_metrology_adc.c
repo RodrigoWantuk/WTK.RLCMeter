@@ -14,6 +14,15 @@ enum
 static volatile bool g_dma_complete = false;
 static volatile bool g_dma_error = false;
 static bool g_acquired = false;
+#if WTK_ENABLE_BENCH_SUPPLY
+static bool g_capture_active = false;
+static bsp_metrology_adc_trace_t g_trace;
+
+void bsp_metrology_adc_trace(bsp_metrology_adc_trace_t *out)
+{
+    if (out != NULL) { *out = g_trace; }
+}
+#endif
 
 static bool deadline_reached(uint32_t now_ms, uint32_t deadline_ms)
 {
@@ -99,6 +108,22 @@ static void disable_adc_dma(void)
 
 void bsp_metrology_adc_stop(void)
 {
+#if WTK_ENABLE_BENCH_SUPPLY
+    if (g_capture_active)
+    {
+        g_trace = (bsp_metrology_adc_trace_t){
+            .valid = true, .captured_ms = bsp_time_now_ms(),
+            .adc1_sr = ADC1->SR, .adc1_cr1 = ADC1->CR1, .adc1_cr2 = ADC1->CR2,
+            .adc2_sr = ADC2->SR, .adc2_cr2 = ADC2->CR2,
+            .dma_isr = DMA1->ISR, .dma_ccr = DMA1_Channel1->CCR,
+            .dma_remaining = DMA1_Channel1->CNDTR,
+            .tim2_cr1 = TIM2->CR1, .tim2_sr = TIM2->SR, .tim2_cnt = TIM2->CNT,
+            .tim2_arr = TIM2->ARR, .tim2_ccr2 = TIM2->CCR2, .primask = __get_PRIMASK(),
+            .dma_complete = g_dma_complete, .dma_error = g_dma_error,
+        };
+        g_capture_active = false;
+    }
+#endif
     stop_tim2();
     disable_adc_dma();
 }
@@ -221,6 +246,10 @@ bsp_status_t bsp_metrology_adc_start_capture(uint32_t *raw_words,
     TIM2->CNT = 0u;
     TIM2->EGR = TIM_EGR_UG;
     TIM2->CR1 = TIM_CR1_ARPE | TIM_CR1_CEN;
+#if WTK_ENABLE_BENCH_SUPPLY
+    g_trace.valid = false;
+    g_capture_active = true;
+#endif
     return BSP_STATUS_OK;
 }
 

@@ -4,6 +4,31 @@ STATUS: IMPLEMENTED_REQUIRES_BENCH_VALIDATION
 
 ## External-supply diagnostic — 2026-10-24
 
+First reference attempt: the owner attached an isolated nominal 10 kOhm 1%
+resistor, reporting a 10000 Ohm DMM indication (instrument uncertainty not
+provided). Actual boot `8c13549485fa` and source confirmation passed. The first
+documented command spelling was refused before capture; examples now use the
+actual compact `1k 100m 10k` tokens. A corrected single DUT attempt started,
+reached ADC/DMA TIMEOUT and returned K1 SAFE/range DISABLED with zero latched
+faults. No RAW frame/resistance result exists. Evidence is under the local
+`physical-20261024-bench-supply/load-10k-001/` and `load-10k-002/` directories.
+
+The owner subsequently requested 25–30 ms relay settling; the DUT operate guard
+is now 30 ms with excitation settling still separate and release guard unchanged.
+Host regression checks the deadline before/at expiry across uint32 wrap, and PC
+RAW validation accepts legacy 10 ms and current 30 ms metadata. An isolated bench
+ADC trace now captures status/control, DMA remaining count and TIM2 state before
+stop/restore on completion/timeout, then exposes it with `lab adc capture status`
+after cleanup. It reads no ADC data registers, performs no UART in ISRs, and is
+excluded from default/PRODUCT images. The timeout cause is unresolved; neither
+the timer change nor traces constitute physical timing/accuracy qualification.
+
+Software checks for this follow-up: six relevant host CTests and all eight RAW
+collector tests pass, including 30 ms/legacy 10 ms metadata validation. ARM bench
+warnings-as-errors build passes at 64368 B Flash / 14852 B accounted RAM including
+2048 B reserved stack. The trace adds 72 B static RAM, excluded from ordinary
+profiles. Physical timeout diagnosis remains pending the instrumented attempt.
+
 The owner explicitly requested bench measurements without a battery or valid
 calibration before connecting isolated 1% resistors. The bounded sub-phase adds
 an opt-in BRINGUP-only source policy with explicit RAM-only operator confirmation,

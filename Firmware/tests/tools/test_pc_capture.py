@@ -69,6 +69,12 @@ class CaptureTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             validate_dut_capture(dump().replace("DSP_END\n", ""))
 
+    def test_owner_requested_30ms_guard_and_legacy_10ms(self):
+        self.assertEqual(validate_dut_capture(dump()).metadata['k1op'], '10')
+        self.assertEqual(validate_dut_capture(dump().replace('k1op=10','k1op=30')).metadata['k1op'], '30')
+        with self.assertRaises(ValueError):
+            validate_dut_capture(dump().replace('k1op=10','k1op=29'))
+
     def test_incomplete_dump_times_out(self):
         with self.assertRaises(TimeoutError):
             receive_one(FakeLink("RAW_BEGIN v=1\n"), 0.001)

@@ -3168,6 +3168,32 @@ static void run_command(app_bringup_console_t *console,
     {
         write_sensors_status(sensors, now_ms);
     }
+#if WTK_ENABLE_BENCH_SUPPLY
+    else if (text_equals(line, "lab adc capture status"))
+    {
+        bsp_metrology_adc_trace_t trace;
+        bsp_metrology_adc_trace(&trace);
+        write_text("ADC_TRACE valid="); write_u32(trace.valid ? 1u : 0u);
+        write_text(" ms="); write_u32(trace.captured_ms);
+        write_text(" complete="); write_u32(trace.dma_complete ? 1u : 0u);
+        write_text(" error="); write_u32(trace.dma_error ? 1u : 0u);
+        write_text("\r\nADC_TRACE a1sr="); write_hex8(trace.adc1_sr);
+        write_text(" a1cr1="); write_hex8(trace.adc1_cr1);
+        write_text(" a1cr2="); write_hex8(trace.adc1_cr2);
+        write_text(" a2sr="); write_hex8(trace.adc2_sr);
+        write_text(" a2cr2="); write_hex8(trace.adc2_cr2);
+        write_text("\r\nADC_TRACE disr="); write_hex8(trace.dma_isr);
+        write_text(" dccr="); write_hex8(trace.dma_ccr);
+        write_text(" remaining="); write_u32(trace.dma_remaining);
+        write_text(" primask="); write_u32(trace.primask);
+        write_text("\r\nADC_TRACE tcr1="); write_hex8(trace.tim2_cr1);
+        write_text(" tsr="); write_hex8(trace.tim2_sr);
+        write_text(" cnt="); write_u32(trace.tim2_cnt);
+        write_text(" arr="); write_u32(trace.tim2_arr);
+        write_text(" ccr2="); write_u32(trace.tim2_ccr2);
+        write_text("\r\nADC_TRACE_END\r\n");
+    }
+#endif
     else if (text_equals(line, "lab adc status"))
     {
         write_adc_status(sensors);
