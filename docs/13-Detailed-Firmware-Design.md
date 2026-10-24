@@ -9,6 +9,12 @@ anomaly was observed physically; this configuration-order correction requires a
 new physical capture and does not by itself establish that the anomaly is fixed.
 See [the post-rework evidence](review/a05/RGS-Ground-Pulldown-Rework-Candidate.md).
 
+The disabled-state change alone did not remove the physical first-sequence ADC2
+anomaly. The stop path also now skips clearing ADC1 DMA if already clear: writing
+unchanged CR2 with ADON=1 can launch an unintended regular conversion on STM32F1.
+This avoids a pre-capture software conversion while waiting for TIM2; a separate
+physical raw regression is required, with every sample retained.
+
 TIM2_CC2 trigger enable correction: enable the internal compare channel with
 CC2E while leaving PA1 in analog mode (CRL MODE1/CNF1=0000) and TIM2 unremapped.
 The BSP checks both conditions before enabling DMA/capture and refuses an unsafe

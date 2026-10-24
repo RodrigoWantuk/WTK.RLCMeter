@@ -102,7 +102,13 @@ static void stop_tim2(void)
 static void disable_adc_dma(void)
 {
     DMA1_Channel1->CCR &= ~DMA_CCR_EN;
-    ADC1->CR2 &= ~ADC_CR2_DMA;
+    /* On STM32F1 an unchanged CR2 write with ADON=1 can start a regular
+     * conversion. A pre-capture stop must not rewrite an already-clear DMA
+     * bit while the calibrated pair is enabled and waiting for TIM2. */
+    if ((ADC1->CR2 & ADC_CR2_DMA) != 0u)
+    {
+        ADC1->CR2 &= ~ADC_CR2_DMA;
+    }
     DMA1->IFCR = DMA_IFCR_CGIF1 | DMA_IFCR_CTCIF1 | DMA_IFCR_CTEIF1 | DMA_IFCR_CHTIF1;
 }
 

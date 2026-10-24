@@ -75,6 +75,19 @@ stack; default BRINGUP65292B Flash; PRODUCT62084B Flash. Existing soft Flash/LTO
 advisories remain; hard budget/profile gates pass. Hardware startup regression
 is still pending at this record, and no host test emulates the STM32 ADC timing.
 
+The first startup correction was deployed as clean commit f1061da4a41d, with
+full Flash backup/readback and matching boot banner. Its internal capture still
+had an anomalous first ADC2 sequence (RET1X=0, HG=1917, VMID2=12 versus VMID1=2058).
+It is therefore NOT evidence that disabling before DUALMOD fixes the initial row.
+Evidence: `Firmware/build/physical-20261024-adc-disabled-config/`.
+
+A second cause was identified in the pre-capture stop: clearing an already-clear
+ADC1 DMA bit rewrites unchanged CR2 with ADON set. STM32F1 permits ADON writes to
+start a regular conversion; the pinned HAL explicitly warns about unintended
+conversion when modifying CR2 on an enabled ADC. The stop now skips that write
+when DMA is already clear. Rates/layout/quality rules remain unchanged. A new
+physical regression is required; do not silently discard the first sequence.
+
 ## Intended change and rationale
 
 The [DC finding](RGS-DC-Bias-Bench-Finding.md) identifies selected-driver current
