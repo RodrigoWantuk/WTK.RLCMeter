@@ -39,6 +39,8 @@ owner confirmation of which isolated passive resistor is attached.
 | Same996000 Ohm | 1M | 1kHz | 3 | 97252.072 Ohm | -270486.816 Ohm |
 | 329500 Ohm reported | 1M | 10Hz | 3 | 332881.120 Ohm | -3736.308 Ohm |
 | Same329500 Ohm | 100K | 10Hz | 3 | 317737.312 Ohm | -732.598 Ohm |
+| 33000 Ohm reported | 100K | 10Hz | 3 | 33164.980 Ohm | -11.907 Ohm |
+| Same33000 Ohm | 10K | 10Hz | 3 | 31752.811 Ohm | -74.897 Ohm |
 
 The 100K-branch captures all completed256rows/768words, normal first ADC2 sequence,
 DMA error0/remaining0, no raw samples at/beyond clip margins16/4079, DSP OK with
@@ -85,6 +87,19 @@ fixture effects and observed variation still need characterization. No records
 were corrected to match the reference. Every attempt ended SAFE/off/no faults,
 source revoked and COM3 closed.
 
+The owner confirmed the33K swap ("feito o res de 33k"). Three100K/10Hz/100mV
+captures selected HG, all columns inside clip margins, meanR33164.980Ohm and
+R spread75.160Ohm p-p. Three10K overlap captures on the same fixture selected
+RET_1X, with unused HG low-margin hits27/23/25 and no common/selected-channel
+clip-margin hits. MeanR31752.811Ohm, R spread221.874Ohm p-p. The selected-channel
+means differ1412.169Ohm, about4.35% of their average; their differences from the
+owner33000Ohm indication are about+0.50% and-3.78%. This reproduces the direction
+of the earlier overlap discrepancy, but does not isolate its cause to either
+channel or RREF: both change in this comparison. No scale correction was fitted.
+Every capture preserved256 rows, completed768 DMA words with error0/remaining0,
+returned DSP OK/RESISTIVE and ended SAFE/off/fault0/source revoked/COM3 closed.
+See `33k-range-comparison.json`; clipped HG reference calculations remain unusable.
+
 ## Diagnostic software limitations found during reactive comparisons
 
 In this deployed nonfactory BRINGUP image, do not trust the printed phase angle
@@ -106,15 +121,24 @@ or a separately reviewed protocol/format fix. No such capture is marked done.
 
 ## Next checks and limits
 
-The next intended fixture is the owner33.0k resistor, RREF100K then10K,
-nominal100mV,10Hz, to compare the next overlap with the same physical resistor.
-Its runner requires the current physical swap confirmation before any command.
-The996K comparison is complete; high-Z
-frequency response must not be extrapolated from the10K resistor result.
+The33.0k overlap comparison is complete. The owner offered assorted capacitors
+and inductors. A pending fixture request asks for an isolated, discharged,
+nonpolar capacitor near22nF (10..47nF accepted after exact value/type confirmation),
+then requests the available inductor nearest10mH without connecting it yet.
+No capacitor or inductor capture is recorded. The last confirmed fixture remains
+33K until the owner explicitly confirms replacement. Tentative capacitor condition
+is1kHz/100mV/RREF10K; an ideal22nF has X about-7234Ohm at1kHz, within the central
+impedance-ratio band. This is a test-selection calculation, not measured data.
+Check actual value, selected-channel clipping and raw complex response before
+interpreting equivalent capacitance. Use independent host atan2 for phase because
+of the deployed diagnostic limitation above. No tight ESR/Q acceptance constraint
+is justified by an unspecified capacitor or coil. Inductor condition/permission
+needs review after the actual part is identified; dynamic transient qualification
+remains open. Do not silently reuse resistor fixture metadata for reactive DUTs.
 
-329.5k and2.2M are useful potential loads for1M, and33.0k for10K/100K overlap,
-within the initial central0.2..5 ratio goals. Each needs a separate identified
-fixture, fixed condition and actual result; none is marked tested here.
+The996K and329.5K comparisons are complete; high-Z frequency response must not be
+extrapolated from the10K resistor result. The2.2M reference remains untested and
+requires the raw-analysis/formatter precautions above.
 The1.5Ohm reference on10R has ratio0.15 outside that initial central band and
 requires source-current/headroom and two-wire contact/SHORT characterization;
 do not silently treat it as a precision low-ohm acceptance standard.
