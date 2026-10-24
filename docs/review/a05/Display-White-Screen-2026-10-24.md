@@ -57,7 +57,11 @@ full routed-copper DRC nor continuity evidence from the assembled board.
 The owner is asked to remove5V and unplug ST-Link USB before resistance checks:
 B15→SDI and B13→SCK should include the33Ohm series resistors; B14→SDO,
 B12→CS, B10→RESET and B11→DC should be close to lead/contact resistance.
-Module code/marking is requested if accessible. Results are pending. Do not
+The owner subsequently reports B15→SDI=33Ohm, B13→SCK=33Ohm, and each of the other
+four paths=0Ohm, with no short from these signals to GND. These observations
+support end-to-end connectivity through the fitted connector; they do not prove
+waveform integrity or controller function. Module code/marking and size remain
+requested, along with confirmation that power/ST-Link were restored. Do not
 increase module supply or apply panel-specific power-control values by guessing.
 
 Protocol reference: [ILITEK ILI9341 V1.05, section7.1.10 and diagnostic register
