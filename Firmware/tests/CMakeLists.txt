@@ -99,6 +99,17 @@ endif()
 
 add_test(NAME wtk_ili9341_geometry_test COMMAND wtk_ili9341_geometry_test)
 
+add_executable(wtk_ili9341_readback_test drivers/test_ili9341_readback.c ../src/drivers/ili9341.c)
+target_link_libraries(wtk_ili9341_readback_test PRIVATE wtk_firmware_common)
+target_include_directories(wtk_ili9341_readback_test PRIVATE "${PROJECT_SOURCE_DIR}/src")
+wtk_configure_c_target(wtk_ili9341_readback_test)
+wtk_apply_project_warnings(wtk_ili9341_readback_test)
+wtk_apply_common_compile_options(wtk_ili9341_readback_test)
+if(WTK_WARNINGS_AS_ERRORS_HOST)
+    wtk_treat_warnings_as_errors(wtk_ili9341_readback_test)
+endif()
+add_test(NAME wtk_ili9341_readback_test COMMAND wtk_ili9341_readback_test)
+
 add_executable(wtk_resource_store_test
     storage/test_resource_store.c
 )

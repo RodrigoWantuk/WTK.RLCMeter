@@ -46,6 +46,14 @@
 #if WTK_ENABLE_PERIPHERAL_TEST
 #include "ui/ui_peripheral_test.h"
 static ui_peripheral_test_t g_peripheral_ui;
+/* Retained for SWD inspection when the display connector prevents UART use.
+ * Raw bytes deliberately retain dummy/padding bits; no presence claim is made. */
+static volatile struct
+{
+    uint8_t raw[5][4];
+    uint8_t status[5];
+    uint8_t completed;
+} g_display_readback;
 #endif
 #if !WTK_ENABLE_BRINGUP_CONSOLE
 #include "storage/app_settings_w25q_adapter.h"
@@ -1385,8 +1393,24 @@ static void app_step(void)
 
 #if WTK_ENABLE_BRINGUP_CONSOLE
 #if WTK_ENABLE_PERIPHERAL_TEST
-    (void)ui_peripheral_test_step(&g_peripheral_ui, &g_display,
-        "FW " WTK_PROJECT_VERSION, "GIT " WTK_GIT_COMMIT, hw_peripherals_quiet_requested());
+    if (g_display.ready && !hw_peripherals_quiet_requested() && g_display_readback.completed < 5u)
+    {
+        static const uint8_t commands[] = {0xD3u, 0x0Au, 0x0Bu, 0x0Cu, 0x0Fu};
+        const uint8_t index = g_display_readback.completed;
+        uint8_t raw[4] = {0u};
+        const bsp_status_t status = ili9341_read_diagnostic_raw(commands[index], raw, sizeof(raw));
+        if (status != BSP_STATUS_BUSY)
+        {
+            for (unsigned byte = 0u; byte < sizeof(raw); byte++)
+                g_display_readback.raw[index][byte] = raw[byte];
+            g_display_readback.status[index] = (uint8_t)status;
+            g_display_readback.completed = (uint8_t)(index + 1u);
+        }
+    }
+    /* Complete register commands before RAMWR streaming begins. */
+    if (g_display_readback.completed >= 5u)
+        (void)ui_peripheral_test_step(&g_peripheral_ui, &g_display,
+            "FW " WTK_PROJECT_VERSION, "GIT " WTK_GIT_COMMIT, hw_peripherals_quiet_requested());
 #else
     app_bringup_console_step(&g_bringup_console,
                          &g_flash,

@@ -49,6 +49,10 @@ typedef struct
 void ili9341_init_context(ili9341_t *display);
 void ili9341_init_start(ili9341_t *display, uint32_t now_ms);
 bsp_status_t ili9341_init_step(ili9341_t *display, uint32_t now_ms);
+/* Raw read-only diagnostic response, including any dummy clocks/bytes.
+ * Supported commands: 0x0A..0x0F and 0xD3; 1..4 response bytes, one CS interval.
+ * A successful SPI transfer does not prove controller presence or identity. */
+bsp_status_t ili9341_read_diagnostic_raw(uint8_t command, uint8_t *response, size_t size);
 bsp_status_t ili9341_set_rotation(ili9341_t *display, uint8_t rotation);
 bsp_status_t ili9341_set_window(const ili9341_t *display,
                                 uint16_t x,

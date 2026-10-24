@@ -83,6 +83,29 @@ static bsp_status_t ili9341_write_command_data(uint8_t command, const uint8_t *d
     return ili9341_write_data(data, size);
 }
 
+bsp_status_t ili9341_read_diagnostic_raw(uint8_t command, uint8_t *response, size_t size)
+{
+    if (response == NULL || size == 0u || size > 4u ||
+        !((command >= 0x0Au && command <= 0x0Fu) || command == 0xD3u))
+    {
+        return BSP_STATUS_INVALID_ARG;
+    }
+    bsp_status_t status = spi_bus_acquire(SPI_BUS_DEVICE_ILI9341);
+    if (status != BSP_STATUS_OK)
+    {
+        return status;
+    }
+    status = bsp_gpio_write_output(BSP_GPIO_OUTPUT_TFT_DC, false);
+    if (status == BSP_STATUS_OK)
+        status = spi_bus_transfer(&command, NULL, 1u, ILI9341_SPI_TIMEOUT_MS);
+    if (status == BSP_STATUS_OK)
+        status = bsp_gpio_write_output(BSP_GPIO_OUTPUT_TFT_DC, true);
+    if (status == BSP_STATUS_OK)
+        status = spi_bus_transfer(NULL, response, size, ILI9341_SPI_TIMEOUT_MS);
+    const bsp_status_t release_status = spi_bus_release(SPI_BUS_DEVICE_ILI9341);
+    return status == BSP_STATUS_OK ? release_status : status;
+}
+
 void ili9341_init_context(ili9341_t *display)
 {
     if (display == NULL)

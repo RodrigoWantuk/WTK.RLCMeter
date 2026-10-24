@@ -59,3 +59,27 @@ existing bench/defaultBRINGUP/PRODUCT profiles. The initial peripheral image is
 14092B Flash/11740B accountedRAM including2048B reserved stack; panel context68B
 and fill buffer128B are bounded, with no framebuffer. Physical panel/colors/keys/
 tones and compatibility remain REQUIRES_BENCH_VALIDATION until owner observations.
+
+## White-screen investigation, 2026-10-24
+
+The owner confirms button tones but no visible pixels after reset. Module header
+labels match J_TFT: VCC/GND/CS/RESET/DC/SDI/SCK/LED/SDO. A brief SWD halt/read/resume
+without reset on image e1e49c2 found display READY, UI stage8/failed0, SPI2 SR=2,
+GPIOB CRH=0x94922222 and ODR/IDR=0x1C18. Reset and CS are high; K1/range and
+excitation are off. This proves MCU-side progress, not receipt by the LCD.
+
+The peripheral variant now reads five read-only registers once before rendering:
+D3,0A,0B,0C,0F, retaining four raw response bytes and each transfer status in
+`g_display_readback` for SWD (26 bytes, no ISR ownership). No response is discarded
+or automatically interpreted as identity: dummy/padding bits are retained.
+`completed=5` only means all attempts finished. An all-zero/all-one response is
+not presence evidence. BUSY defers, errors are recorded, and UI/safety continue.
+Reads finish before any RAMWR stream starts and never recur during rendering.
+Ordinary profiles do not call this diagnostic. Each operation holds TFT CS from
+command through response, keeps Flash deselected, uses the existing mode0/PCLK1/8
+clock, and releases ownership on error. No initialization voltages are changed.
+
+Protocol reference: ILITEK ILI9341 V1.05, section7.1.10 and register descriptions
+[manufacturer datasheet hosted by Waveshare](https://files.waveshare.com/upload/e/e3/ILI9341_DS.pdf).
+Module-side VCC/reset/CS and any onboard regulator output are requested from the
+owner. Display communication/rendering remain REQUIRES_BENCH_VALIDATION.

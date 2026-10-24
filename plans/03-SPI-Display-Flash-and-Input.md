@@ -2,6 +2,19 @@
 
 STATUS: IMPLEMENTED_REQUIRES_BENCH_VALIDATION
 
+### Active bounded diagnostic, 2026-10-24
+
+Owner reports working button tones with a white display in the standalone
+peripheral image. Under tasks5/12, add bounded read-only controller responses
+before rendering and retain them for SWD because UART and TFT cannot be connected
+together on this fixture. Prerequisites: existing safe peripheral image, SPI bus
+ownership and the owner-confirmed J_TFT label order. Expected files: ILI9341
+driver/header, app shell diagnostic integration, host transaction test/CMake and
+PERIPHERAL_TEST.md. No panel supply/init-voltage changes or metrology actions.
+Four relevant host tests and the strict Arm peripheral build pass (14308 B Flash,
+11772 B accounted RAM). Physical readback and module-side voltage checks remain
+pending; compilation/READY is not display qualification.
+
 ## Goal
 
 Implement and validate the non-metrology user-interface peripherals while preserving shared-SPI correctness, future quiet-mode requirements, and the fixed button/resource architecture used by later product UI work.
