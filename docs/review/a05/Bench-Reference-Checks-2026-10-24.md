@@ -121,6 +121,19 @@ or a separately reviewed protocol/format fix. No such capture is marked done.
 
 ## Next checks and limits
 
+Subsequent actual10nF capacitive captures, the nonfactory phase-helper source fix,
+and the unmeasured blind polarized fixture are recorded in
+[Reactive basic checks](Reactive-Basic-Checks-2026-10-24.md). That record supersedes
+the pending capacitor request below. Actual deployed image remains480aa310f557;
+the phase fix is software-tested but not deployed. Current fixture is the owner's
+blind25V electrolytic, negative on TEST_HI, active measurement on hold.
+
+The owner narrowed the immediate objective to basic functional R/C/L checks,
+followed by an explicit recommendation on completing assembly before calibration.
+Track that bounded decision in
+[Basic functions before final assembly](Basic-Functions-Before-Final-Assembly.md).
+No assembly go-ahead has been issued; remaining fitted items are being identified.
+
 The33.0k overlap comparison is complete. The owner offered assorted capacitors
 and inductors. A pending fixture request asks for an isolated, discharged,
 nonpolar capacitor near22nF (10..47nF accepted after exact value/type confirmation),

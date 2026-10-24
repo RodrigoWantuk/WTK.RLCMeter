@@ -3,7 +3,6 @@
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
-#include "wtk_build_config.h"
 
 #define TEST_PI_F (3.14159265358979323846f)
 #define TEST_TWO_PI_F (6.28318530717958647692f)
@@ -492,6 +491,52 @@ static int test_required_rlc_domain(void)
     return failures;
 }
 
+static int test_phase_all_profiles(void)
+{
+    int failures = 0;
+    const float components[] = {-1000.0f, -10.0f, -1.0f, 0.0f, 1.0f, 10.0f, 1000.0f};
+    for (size_t i = 0u; i < sizeof(components) / sizeof(components[0]); i++)
+    {
+        for (size_t j = 0u; j < sizeof(components) / sizeof(components[0]); j++)
+        {
+            const float phase = measurement_complex_phase_rad(
+                measurement_complex(components[i], components[j]));
+            failures += expect_true(isfinite(phase) && abs_f(phase) <= TEST_PI_F,
+                                    "finite phase within atan2 domain in every profile");
+            failures += expect_near(phase, atan2f(components[j], components[i]),
+                                    0.002f, "phase quadrants and dominant reactance vs host atan2");
+        }
+    }
+
+    /* Physical uncalibrated R/X observations, used only as mathematical vectors.
+       These reproduce the nonfactory diagnostic overflow without claiming accuracy. */
+    const measurement_complex_t observed[] = {
+        {64.887f, -15073.290f}, {175.464f, -15046.389f},
+        {51.830f, -15048.989f}, {98819.832f, -270995.776f},
+        {64.887f, 15073.290f},
+    };
+    const measurement_dsp_config_t config = measurement_dsp_config_ideal(HW_RANGE_ID_10K);
+    for (size_t i = 0u; i < sizeof(observed) / sizeof(observed[0]); i++)
+    {
+        const measurement_derived_result_t derived = measurement_derive_quantities(
+            observed[i], 1000u, &config, MEASUREMENT_STATUS_OK);
+        failures += expect_true(derived.valid && isfinite(derived.phase_rad) &&
+                                abs_f(derived.phase_rad) <= TEST_PI_F,
+                                "reactive derived phase remains representable");
+        failures += expect_near(derived.phase_rad, atan2f(observed[i].im, observed[i].re),
+                                0.002f, "captured reactive vector phase vs independent host atan2");
+    }
+    const measurement_complex_t invalid[] = {
+        {NAN, 1.0f}, {1.0f, NAN}, {INFINITY, 1.0f}, {1.0f, -INFINITY},
+    };
+    for (size_t i = 0u; i < sizeof(invalid) / sizeof(invalid[0]); i++)
+    {
+        failures += expect_true(isnan(measurement_complex_phase_rad(invalid[i])),
+                                "nonfinite phase input is unavailable");
+    }
+    return failures;
+}
+
 int main(void)
 {
     int failures = 0;
@@ -502,12 +547,6 @@ int main(void)
     failures += test_quality_and_errors();
     failures += test_derived_values();
     failures += test_required_rlc_domain();
-#if WTK_PRODUCT_FACTORY_PROVISIONED
-    const float components[] = {-1000.0f,-10.0f,-1.0f,0.0f,1.0f,10.0f,1000.0f};
-    for(size_t i=0u;i<sizeof(components)/sizeof(components[0]);i++)
-        for(size_t j=0u;j<sizeof(components)/sizeof(components[0]);j++)
-            failures += expect_near(measurement_complex_phase_rad(measurement_complex(components[i],components[j])),
-                atan2f(components[j],components[i]),0.002f,"phase range reduction vs host atan2");
-#endif
+    failures += test_phase_all_profiles();
     return (failures == 0) ? 0 : 1;
 }
