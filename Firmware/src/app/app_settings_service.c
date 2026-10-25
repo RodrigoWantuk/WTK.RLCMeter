@@ -77,7 +77,7 @@ static bool settings_equal(const app_settings_t *a, const app_settings_t *b)
 app_settings_t app_settings_defaults(void)
 {
     return (app_settings_t){
-        .brightness_percent = 25u,
+        .brightness_percent = 75u,
         .backlight_timeout = APP_BACKLIGHT_TIMEOUT_60S,
         .language_id = (uint8_t)UI_LANGUAGE_EN,
         .calibration_load_preset = (uint8_t)APP_SETTINGS_CAL_LOAD_PRESET_NOMINAL,

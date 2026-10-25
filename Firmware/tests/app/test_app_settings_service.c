@@ -203,7 +203,7 @@ static int test_defaults_validation_and_roundtrip(void)
     failures += expect_true(app_settings_service_load(&service, NULL) == BSP_STATUS_OK,
                             "empty load nonfatal");
     const app_settings_t *settings = app_settings_service_current(&service);
-    failures += expect_u32(settings->brightness_percent, 25u, "default brightness");
+    failures += expect_u32(settings->brightness_percent, 75u, "readable default brightness");
     failures += expect_u32((uint32_t)settings->backlight_timeout, 60u, "default timeout");
     failures += expect_u32(settings->language_id, UI_LANGUAGE_EN, "default language");
     failures += expect_u32(settings->calibration_load_preset,

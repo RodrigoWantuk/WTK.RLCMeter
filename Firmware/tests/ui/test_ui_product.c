@@ -394,16 +394,53 @@ static int test_partial_region_and_latest_generation_wins(void)
     failures += expect_true(g_full_clears == 1u, "initial render uses full clear");
 
     ui_product_view_t slow = ready_view(2u);
+    slow.menu.language_id = (uint8_t)UI_LANGUAGE_PT_BR;
     ui_product_request(&ui, &slow);
     failures += expect_true(ui_product_step(&ui, &display, false) == BSP_STATUS_BUSY,
                             "partial update begins");
     ui_product_view_t newest = ready_view(3u);
+    newest.menu.language_id = (uint8_t)UI_LANGUAGE_PT_BR;
     ui_product_request(&ui, &newest);
     failures += expect_true(drain_render(&ui, &display) == 0, "coalesced render completes");
     failures += expect_true(g_partial_clears >= 1u, "same-screen update uses partial clear");
     failures += expect_true(g_full_clears == 1u, "same-screen update does not full clear");
     failures += expect_true(ui_product_step(&ui, &display, false) == BSP_STATUS_OK,
                             "latest generation rendered and queue is bounded");
+    return failures;
+}
+
+static int test_startup_to_ready_paints_once_and_coalesces_metadata(void)
+{
+    int failures = 0;
+    reset_render_counters();
+    ui_product_t ui;
+    ili9341_t display = {.ready=true};
+    ui_product_init(&ui);
+    attach_external_font(&ui);
+    ui_product_view_t view = ready_view(1u);
+    view.state = UI_PRODUCT_STATE_SELF_TEST;
+    ui_product_request(&ui,&view);
+    (void)ui_product_step(&ui,&display,false);
+    view.state = UI_PRODUCT_STATE_READY;
+    view.generation++;
+    ui_product_request(&ui,&view);
+    (void)ui_product_step(&ui,&display,false);
+    view.generation++;
+    view.calibration_active_valid=true;
+    view.calibration_sequence=1u;
+    ui_product_request(&ui,&view);
+    failures += expect_true(drain_render(&ui,&display)==0,"startup changes converge to one READY draw");
+    failures += expect_true(ui.rendered_generation==view.generation &&
+        g_pixels_written < (uint32_t)ILI9341_WIDTH * ILI9341_HEIGHT + 4096u,
+        "obsolete startup clear and generation cannot cause a second full READY paint");
+    const uint32_t pixels = g_pixels_written;
+    const uint32_t starts = g_font_start_count;
+    view.generation++;
+    view.calibration_sequence=2u;
+    ui_product_request(&ui,&view);
+    failures += expect_true(drain_render(&ui,&display)==0 && g_pixels_written==pixels &&
+        g_font_start_count==starts && ui.rendered_generation==view.generation,
+        "READY metadata that changes no visible label does not repaint the background");
     return failures;
 }
 
@@ -767,6 +804,7 @@ int main(void)
 #endif
     failures += test_quiet_pause_retains_render_state();
     failures += test_partial_region_and_latest_generation_wins();
+    failures += test_startup_to_ready_paints_once_and_coalesces_metadata();
     failures += test_update_during_active_text_restarts_with_newest_generation();
     failures += test_details_phase_label_uses_catalog();
     failures += test_capacitor_esr_and_invalid_details();

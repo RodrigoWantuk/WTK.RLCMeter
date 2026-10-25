@@ -843,8 +843,8 @@ static int test_display_menu_brightness_preview_no_step_persist(void)
     app_product_make_outputs(&product, &outputs);
     app_product_make_view(&product, &view);
     failures += expect_true(view.state == UI_PRODUCT_STATE_BRIGHTNESS_EDIT, "brightness editor active");
-    failures += expect_u32(view.menu.brightness_percent, 30u, "brightness increments in 5 percent step");
-    failures += expect_u32(outputs.backlight_percent, 30u, "brightness preview updates output");
+    failures += expect_u32(view.menu.brightness_percent, 80u, "brightness increments in 5 percent step");
+    failures += expect_u32(outputs.backlight_percent, 80u, "brightness preview updates output");
     failures += expect_true(app_settings_service_dirty(&g_settings), "preview marks settings dirty");
     failures += expect_true(!app_settings_service_busy(&g_settings), "preview does not persist immediately");
     send_button(&product, BUTTON_ID_OK, BUTTON_EVENT_PRESS);
@@ -852,7 +852,7 @@ static int test_display_menu_brightness_preview_no_step_persist(void)
     send_button(&product, BUTTON_ID_OK, BUTTON_EVENT_RELEASE);
     app_product_step(&product, &inputs, &clock, BSP_STATUS_OK, 8u);
     app_product_make_outputs(&product, &outputs);
-    failures += expect_u32(outputs.backlight_percent, 25u, "long OK restores entry brightness");
+    failures += expect_u32(outputs.backlight_percent, 75u, "long OK restores entry brightness");
     return failures;
 }
 
@@ -879,7 +879,7 @@ static int test_backlight_timeout_wake_consumes_ok_gesture(void)
     ui_product_view_t view;
     app_product_make_view(&product, &view);
     app_product_make_outputs(&product, &outputs);
-    failures += expect_u32(outputs.backlight_percent, 25u, "wake restores configured brightness");
+    failures += expect_u32(outputs.backlight_percent, 75u, "wake restores configured brightness");
     failures += expect_true(view.state == UI_PRODUCT_STATE_READY, "wake gesture does not open menu");
     failures += expect_u32(fake.start_count, 0u, "wake gesture starts no measurement");
     return failures;

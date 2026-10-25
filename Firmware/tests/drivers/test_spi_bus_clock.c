@@ -48,8 +48,8 @@ int main(void)
           "quiet blocks transfer/configuration");
     quiet = false;
     check(spi_bus_init() == BSP_STATUS_OK,"reinit restores default clock");
-    check(spi_bus_acquire(SPI_BUS_DEVICE_ILI9341) == BSP_STATUS_OK && prescaler == BSP_SPI_PRESCALER_DIV64,
-          "all profiles default to bench-confirmed divider64");
+    check(spi_bus_acquire(SPI_BUS_DEVICE_ILI9341) == BSP_STATUS_OK && prescaler == BSP_SPI_PRESCALER_DIV8,
+          "normal TFT restores divider8; slow diagnostic remains explicit");
     check(spi_bus_release(SPI_BUS_DEVICE_ILI9341) == BSP_STATUS_OK,"release default TFT");
     return failures == 0 ? 0 : 1;
 }

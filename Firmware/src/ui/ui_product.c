@@ -1894,10 +1894,28 @@ void ui_product_request(ui_product_t *ui, const ui_product_view_t *view)
     {
         return;
     }
+    const bool different_screen = ui->pending.state != view->state ||
+        ui->pending.page != view->page ||
+        ui->pending.menu.language_id != view->menu.language_id;
+    /* READY contains only its fixed background and two localized labels.
+       Calibration/status metadata changes must not repaint that same screen. */
+    const bool same_ready = !different_screen && view->state == UI_PRODUCT_STATE_READY &&
+        ui->pending.resource_status == view->resource_status;
     ui->pending = *view;
-    if (!ui->active)
+    if (same_ready && ui->have_rendered && !ui->active)
+    {
+        ui->rendered_generation = view->generation;
+        return;
+    }
+    if (!ui->active || different_screen)
     {
         start_render(ui);
+    }
+    else if (same_ready || ui->render_state == UI_PRODUCT_RENDER_CLEAR ||
+             ui->render_state == UI_PRODUCT_RENDER_IMAGE)
+    {
+        /* Nothing from the previous generation's text has been painted yet. */
+        ui->rendering_generation = view->generation;
     }
 }
 
