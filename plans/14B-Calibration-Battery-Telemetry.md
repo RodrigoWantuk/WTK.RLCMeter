@@ -1,6 +1,6 @@
 # 14B — Read-only battery telemetry during PC calibration
 
-STATUS: IN_PROGRESS — OWNER_REQUESTED_SERIAL_READING
+STATUS: SOFTWARE_VERIFIED — DEPLOYMENT_PENDING_STLINK_CONNECTION
 
 The owner requests battery voltage over TTL, including while charging, without
 SWD reads. Current BRINGUP_CAL STATUS lacks voltage; actual COM4 requests confirmed
@@ -37,3 +37,20 @@ percentage or accuracy beyond nominal ADC scaling is inferred.
 
 The three high-Z/10-kHz RLC fits remain unresolved. This isolated request fixes
 power observability before the separate longer-integration investigation.
+
+## Software checkpoint
+
+Source f86b7f4e946c4a9fafe605c88a5d476252e9e027 passes 46/46 host CTests and
+all nine strict embedded builds, with the current unit NTC profile explicitly
+selected. BRINGUP_CAL uses 36,040 bytes Flash and 13,668 bytes accounted RAM;
+the service context remains 1000 bytes. Existing memory gates pass unchanged.
+The guarded schema2 image and logs are preserved under
+`Firmware/releases/2026-10-25/battery-serial-telemetry/`.
+
+Physical deployment and fresh COM4 voltage remain REQUIRES_BENCH_VALIDATION.
+The owner disconnected ST-Link to attach the charger; TTL remains available.
+Read-only serial STATUS from running source 0da88bfd confirms SAFE/idle and
+charger absent after disconnection, but cannot provide voltage. Do not substitute
+the earlier 3.54740-V reading or infer a fresh value from the charger state.
+The owner was asked to reconnect ST-Link once for programming; subsequent
+voltage reads will use TTL only. No firmware has been programmed in this phase.

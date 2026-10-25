@@ -1,0 +1,22 @@
+{
+  "source": "f86b7f4e946c4a9fafe605c88a5d476252e9e027",
+  "deployment_status": "NOT_DEPLOYED_STLINK_DISCONNECTED",
+  "uart_battery_validation": "REQUIRES_BENCH_VALIDATION_AFTER_PROGRAMMING",
+  "previous_running_source": "0da88bfd",
+  "intended_uid": "54ff70068370525760380567",
+  "firmware_sha256": "4e1b88537cb1884b54c27efba1f1d3b5adcea0363f615f257e138a89ce96d863",
+  "binary_size": 36040,
+  "linked": {
+    "flash_bytes": 36040,
+    "bss": 11576,
+    "ram_static_bytes": 11620,
+    "noinit_bytes": 0,
+    "reserved_stack_bytes": 2048,
+    "ram_accounted_bytes": 13668
+  },
+  "host_tests": "46/46 PASS",
+  "embedded_profiles": "9/9 PASS_STRICT_WARNINGS_AND_MEMORY",
+  "package_sha256": "950689667f72fdc5ae263ccd4ea239e72508c048fd74bb32955f0c1a475d6058",
+  "external_flash_written": false,
+  "osl_installed": false
+}
