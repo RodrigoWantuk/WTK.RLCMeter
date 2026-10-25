@@ -1,0 +1,122 @@
+{
+  "source": "a52dba35c74e0643a8b15d916eb29c427d917f77",
+  "deployment_status": "INTERNAL_FLASH_VERIFIED_AND_IDENTIFIED",
+  "uart_battery_validation": "PHYSICAL_SERIAL_READ_PASS_CHARGER_ABSENT",
+  "previous_running_source": "f86b7f4e",
+  "intended_uid": "54ff70068370525760380567",
+  "firmware_sha256": "ed9c8dcd6f351e10d248bfe48d3b6b73c5c7e26190e9fb5a8542115e28d12765",
+  "binary_size": 37424,
+  "linked": {
+    "flash_bytes": 37424,
+    "bss": 11648,
+    "ram_static_bytes": 11692,
+    "noinit_bytes": 0,
+    "reserved_stack_bytes": 2048,
+    "ram_accounted_bytes": 13740
+  },
+  "host_tests": "46/46 PASS",
+  "embedded_profiles": "9/9 PASS_STRICT_WARNINGS_AND_MEMORY",
+  "package_sha256": "326fb21589d71c4a4a2d9db5b55c2d13823ea722d8eb2a25edbd429f80680304",
+  "external_flash_written": false,
+  "osl_installed": false,
+  "coherent_open_pilot_status": "THREE_REAL_OVERLAPPING_OPEN_ARTIFACTS_PASS_ORIGINAL_GATES",
+  "full_flash_readback_sha256": "d90c04efbbd13be1c0b4fe017f6e05a33b105b4e53c128e2a95c24732ce37408",
+  "identity": {
+    "hardware_revision": 65538,
+    "model": 5,
+    "profile": 1,
+    "capabilities": 127,
+    "protocol_version": 1,
+    "timeout_ms": 90000,
+    "adc_provenance": "NOMINAL_3V3_NOT_CALIBRATED",
+    "synthetic": false,
+    "uid": "54ff70068370525760380567",
+    "git": "a52dba35",
+    "firmware_version": "0.1.0"
+  },
+  "pilot_conditions": [
+    {
+      "condition": {
+        "rref_ohms": 100000,
+        "frequency_hz": 10000,
+        "amplitude_mvrms": 100
+      },
+      "sha256": "eb0f9ca7378319f75501b7a590c94109a674fbe0c11a1283e8e2224d3342aed0",
+      "quality": {
+        "source_peak_v": 0.07354616295197047,
+        "return_1x_peak_v": 0.017594186405791808,
+        "return_hg_peak_v": 0.2643230278341074,
+        "usable_paths": [
+          "1X",
+          "HG"
+        ],
+        "clipping_mask": 0,
+        "hg_observed": true,
+        "temperature_mC": 23563,
+        "repeats": 6,
+        "adc_provenance": "NOMINAL_3V3_NOT_CALIBRATED"
+      }
+    },
+    {
+      "condition": {
+        "rref_ohms": 1000000,
+        "frequency_hz": 10000,
+        "amplitude_mvrms": 100
+      },
+      "sha256": "c18867f4b52f50c4746a034b98587a012d2d805176902ce4dac9185e6a4b0027",
+      "quality": {
+        "source_peak_v": 0.07420621602796018,
+        "return_1x_peak_v": 0.004754874193208775,
+        "return_hg_peak_v": 0.05209758643850398,
+        "usable_paths": [
+          "1X",
+          "HG"
+        ],
+        "clipping_mask": 0,
+        "hg_observed": true,
+        "temperature_mC": 23561,
+        "repeats": 6,
+        "adc_provenance": "NOMINAL_3V3_NOT_CALIBRATED"
+      }
+    },
+    {
+      "condition": {
+        "rref_ohms": 1000000,
+        "frequency_hz": 10000,
+        "amplitude_mvrms": 500
+      },
+      "sha256": "bcdb276772a4ff2080597b8ad9aa7d89c8b723affdac529bbeb47f1a74c6e24f",
+      "quality": {
+        "source_peak_v": 0.35924778576008976,
+        "return_1x_peak_v": 0.01678751335948538,
+        "return_hg_peak_v": 0.2541109119036838,
+        "usable_paths": [
+          "1X",
+          "HG"
+        ],
+        "clipping_mask": 0,
+        "hg_observed": true,
+        "temperature_mC": 23601,
+        "repeats": 6,
+        "adc_provenance": "NOMINAL_3V3_NOT_CALIBRATED"
+      }
+    }
+  ],
+  "final_serial_status": {
+    "capture_id": 981716760,
+    "calibration_sequence": 0,
+    "safety_faults": 0,
+    "safety_blocks": 8,
+    "protocol_errors": 0,
+    "temperature_mC": 23046,
+    "capture_status": 0,
+    "busy": false,
+    "result_valid": true,
+    "calibrated": false,
+    "transfer_safe": true,
+    "battery_voltage_v": 3.931
+  },
+  "evidence_sha256": "e890118dd8148ff40d61012282af2f18b5d7fe9aa2960f8ea0a246abfcf4284a",
+  "full_open_status": "IN_PROGRESS_SAME_SOURCE_WITH_THREE_EXACT_PILOT_SEEDS",
+  "physically_qualified": false
+}

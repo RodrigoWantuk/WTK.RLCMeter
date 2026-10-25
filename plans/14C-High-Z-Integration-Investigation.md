@@ -1,6 +1,6 @@
 # 14C — High-impedance integration investigation
 
-STATUS: IN_PROGRESS — MATCHED_PILOTS_SAVED_INTEGRATION_IMPLEMENTATION
+STATUS: IN_PROGRESS — THREE_OPEN_OVERLAP_PILOTS_PASS_NEW_COHORT_OPEN_RUNNING
 
 ## Scope and prerequisites
 
@@ -130,5 +130,40 @@ cancellation, fault/timeout teardown, exact physical counts, legacy parsing and
 old-cohort compatibility. Run all host checks and strict nine unit builds with
 the existing UID-bound NTC profile. Program only a verified image, then pilot the
 three OPEN conditions before choosing any reacquisition or installation step.
+
+## Verified software and deployment
+
+Source a52dba35c74e0643a8b15d916eb29c427d917f77 passes all46 host CTest entries,
+including the real-C coherent protocol tests, phase/ratio-of-means/clipping math,
+partial-group cancellation, charger abort, deadline drain and legacy cohort
+compatibility. All nine UID-bound NTC builds pass strict warnings and unchanged
+memory gates. BRINGUP stays65,512 bytes Flash; CAL is37,424 bytes Flash and13,740
+bytes accounted RAM. The service context is1072 bytes (+72); the single3072-byte
+raw workspace and2048-byte reserved stack are unchanged.
+
+The owner-confirmed OPEN fixture remains unchanged. The verified CAL image was
+programmed and read back: BIN SHA256
+ed9c8dcd6f351e10d248bfe48d3b6b73c5c7e26190e9fb5a8542115e28d12765;
+full64-KiB readback SHA256
+d90c04efbbd13be1c0b4fe017f6e05a33b105b4e53c128e2a95c24732ce37408.
+COM4 identifies a52dba35, capabilities127, maximum90000-ms capture deadline;
+SAFE/idle, fault/protocol counters zero, battery3.926 V nominal, active OSL absent.
+External W25Q was not programmed. Three explicit CCO2 OPEN pilot keys are being
+acquired; physical overlap and corrected OSL feasibility remain to be demonstrated.
+
+## Physical coherent OPEN pilot
+
+All three previously blocked keys now have actual stable 1X and HG evidence and
+observed effective HG overlap on source a52dba35. Each has six accepted groups,
+zero rejected groups, no clipping, original 2% gates, SAFE teardown and zero
+safety/protocol errors. Physical blocks are96,576,96 for the100-kohm/100-mV,
+1-Mohm/100-mV and1-Mohm/500-mV keys respectively. This proves OPEN observability
+for these observations, not complete OSL fits or physical accuracy.
+
+The final pilot battery was3.931 V over COM4; OSL remains blank. The three exact
+CCO2 artifacts seed a new same-image OPEN cohort. With the owner's OPEN fixture
+unchanged, the remaining30 keys are being acquired without repeating those three
+or mixing any older source. Complete new-source SHORT/LOAD and strict solver
+checks are still required before candidate generation or installation.
 
 See [preserved pilot evidence](../Firmware/releases/2026-10-25/osl-integration-pilot/README.md).

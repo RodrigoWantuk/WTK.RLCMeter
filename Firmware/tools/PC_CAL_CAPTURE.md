@@ -150,7 +150,9 @@ denominator observability still required. OPEN/LOAD retain their nonzero return
 thresholds. The minimum signal needed to observe HG gain remains unchanged for
 every standard; a zero SHORT cannot manufacture HG overlap.
 RX is 144 bytes, two bounded TX replies total 288 bytes, artifact 188 bytes, and
-six complex means 48 bytes; complete current service context is 1000 bytes on ARM.
+six complex means 48 bytes; the legacy service context was 1000 bytes on ARM.
+The CCO2 CAL service is 1072 bytes, including bounded integration state and
+the eight additional artifact bytes; the raw DMA workspace remains 3072 bytes.
 
 RX fragments expire at 250 ms. A capture expires after 20 seconds independently
 of PC connectivity and drains the existing hardware abort FSM. CANCEL also drains

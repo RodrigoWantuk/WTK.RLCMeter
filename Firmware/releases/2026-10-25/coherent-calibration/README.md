@@ -1,0 +1,33 @@
+# Coherent calibration pilot — first unit
+
+Source a52dba35c74e0643a8b15d916eb29c427d917f77 adds bounded coherent groups only
+to the CAL profile and host tests. PRODUCT and ordinary BRINGUP compile out the
+integration state. All46 host tests and nine strict UID-bound NTC builds pass.
+CAL is37,424 bytes Flash /13,740 bytes accounted RAM; the service context is1072
+bytes. The original3072-byte DMA workspace and hardware safety transactions remain.
+
+`bringup-cal.zip` contains the guarded schema2 deployment package, NTC metadata,
+map/HEX and build/test logs. It is bound to UID54ff70068370525760380567. The BIN
+was programmed and byte-for-byte verified, then COM4 identified a52dba35 with
+capabilities127. Boot battery was3.926 V by serial, SAFE/idle and fault/protocol
+counters zero; active OSL remains blank. No W25Q write was requested.
+
+New CCO2 artifacts identify physical blocks/group and actual physical attempts;
+old CCO1 clients reject the negotiated format. Integrated keys use a bounded
+90-second global capture deadline while ordinary captures retain20 seconds.
+Every constituent physical transaction retains its original permit, hardware
+deadline, relay guards, residual/charger/battery checks and SAFE teardown.
+
+The three OPEN pilot keys pass the original gates with actual1X/HG validity
+and observed HG overlap. They contain96,576,96 accepted physical blocks,
+respectively, with zero rejected groups or clipping. Final pilot battery is
+3.931 V over COM4, SAFE/idle, zero safety faults and protocol errors.
+`physical-evidence.zip` preserves programming/readback, boot, all three raw CCO2
+artifacts, UART evidence and the bounded pilot script. Their exact bytes seed
+the new source-a52dba35 OPEN cohort; the remaining30 OPEN keys are in progress.
+
+Do not claim completed calibration,
+installed OSL or qualified accuracy from these builds. The original99-observation
+source-7017e5e0 cohort and all f86b7f4e diagnostics remain unchanged and separate.
+See [protocol](../../../tools/PC_CAL_CAPTURE.md) and
+[execution plan](../../../../plans/14C-High-Z-Integration-Investigation.md).

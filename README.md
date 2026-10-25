@@ -13,6 +13,11 @@ is deployed on the first UID and included in nine unit builds. It is unqualified
 generic builds retain nominal NTC conversion. OSL installation and independent
 metrology/power qualification remain unfinished.
 
+A subsequent [coherent calibration pilot](docs/review/bringup-2026-10-25/Coherent-Calibration.md)
+recovers actual1X/HG overlap for all three problematic OPEN keys without relaxing
+the stability criterion. A new source-bound calibration cohort is in progress;
+complete OSL fitting, installation and independent validation remain pending.
+
 ## Project goals
 
 - Measure **resistance, capacitance, inductance, and complex impedance**.
