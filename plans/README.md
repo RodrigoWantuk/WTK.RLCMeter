@@ -32,6 +32,7 @@ The following complementary execution plans were written against commit `8abc1b3
 - [14 — PC calibrator and accessible reference kit](14-PC-Calibrator-Accessible-Standards-and-Scope.md) — Brazilian-store friendly components, safe scope probing, GUI UX, campaign evidence and transactional protocol prerequisites.
 - [14A — Experimental unit NTC factory profile](14A-Unit-NTC-Factory-Profile.md) — owner-authorized, UID-bound two-point lookup-table delivery; independent thermal qualification remains pending.
 - [14B — Calibration serial battery telemetry](14B-Calibration-Battery-Telemetry.md) — fresh nominal VBAT over read-only TTL STATUS; first-unit charger-absent reading verified.
+- [14C — High-Z integration investigation](14C-High-Z-Integration-Investigation.md) — bounded OPEN/LOAD repeatability diagnostics before changing integration or calibration provenance.
 - [15 — Agent workstreams and release gates](15-Execution-Workstreams-and-Release-Gates.md) — ordered, parallelizable tickets, acceptance tests and product definition of done.
 - [16 — Optional DC and transient physics](16-Optional-DC-and-Transient-Physics.md) — DC winding resistance, capacitor self-discharge versus known-load RC decay, dielectric absorption, inductor RL field decay, physical feasibility and go/no-go before assembly.
 

@@ -43,7 +43,9 @@ See [structured delivery/readback evidence](NTC-Factory-Profile.json),
 
 The owner later disconnected ST-Link to attach the charger while keeping TTL.
 Read-only COM4 status confirmed charger present, SAFE/idle, zero faults and
-blockers 0x09. No capture was started. Exact battery voltage is unavailable
-through this serial status until SWD is restored. Primary BRINGUP, BRINGUP_CAL
+blockers 0x09. No capture was started. At that checkpoint exact battery voltage
+was unavailable through serial. [The subsequent telemetry update](../../../Firmware/releases/2026-10-25/battery-serial-telemetry/README.md)
+now reports fresh nominal voltage over COM4 without SWD; the post-charge reading
+is 3.949 V. Primary BRINGUP, BRINGUP_CAL
 and FACTORY_PRODUCT schema2 deployment packages are included under deployable/.
 Factory-product OSL provisioning prerequisites remain unchanged.

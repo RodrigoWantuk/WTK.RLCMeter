@@ -218,16 +218,23 @@ read back and re-identified. The adjusted conversion is active, explicitly
 experimental/unqualified; no independent third temperature is claimed.
 See [NTC delivery](../docs/review/bringup-2026-10-25/NTC-Factory-Profile.md).
 
-The owner disconnected ST-Link to connect the charger, retaining TTL. Read-only
-COM4 status confirmed charger present, blockers 0x09, SAFE/idle and zero faults.
-Last SWD battery was 3.54740 V before charging; serial STATUS cannot report
-the exact voltage in this current profile. Do not infer state of charge.
-Keep charging and acquisition separate. Before later hardware tests, disconnect
-the charger, reconnect ST-Link and confirm fresh supply/SAFE state. The next
+At the pre-telemetry checkpoint the owner disconnected ST-Link to connect the
+charger, retaining TTL; COM4 confirmed charger present, SAFE/idle and zero faults,
+but the old STATUS had no voltage. [Phase 14B](14B-Calibration-Battery-Telemetry.md)
+subsequently deployed f86b7f4e and read 3.949 V over COM4 after charging, versus
+3.54740 V before charging. Fresh voltage now uses serial only; ST-Link is no
+longer required for battery checks. These are nominal ADC readings, not state
+of charge. Keep charging and DUT acquisition separate and confirm fresh
+supply/SAFE state. The next
 RLC work is a bounded investigation of longer coherent integration with explicit
 sample provenance, unchanged real permits and stability criteria. Do not simply
 flip invalid 1X/HG flags. Any acquisition change needs its own plan, host/target
 tests and a pilot before deciding how to reacquire calibration evidence.
+[Phase 14C](14C-High-Z-Integration-Investigation.md) preserves six separate OPEN
+diagnostic artifacts at 1 Mohm/10 kHz/100 mVrms: dispersion of effective HG
+transfer across exported means is 6.83089%, without promoting any validity flag.
+The final battery is 3.942 V, SAFE/idle, zero faults/protocol errors. A fresh
+owner-measured 1-Mohm LOAD fixture is requested for the matching diagnostic.
 
 A04.1 delivers the [guided OSL campaign](../Firmware/tools/PC_OSL_CAMPAIGN.md):
 six-reference inventory, explicit passive-fixture confirmations, atomic resumable

@@ -1,0 +1,44 @@
+{
+  "source": "f86b7f4e",
+  "status": "SIX_DIAGNOSTIC_ARTIFACTS_SAVED_NO_VALIDITY_PROMOTION",
+  "condition": {
+    "rref_ohms": 1000000,
+    "frequency_hz": 10000,
+    "amplitude_mvrms": 100
+  },
+  "statistics": {
+    "normalized_1x_transfer": {
+      "mean": [
+        0.0492545211706286,
+        0.038210724509296266
+      ],
+      "complex_std": 0.004309823416734336,
+      "relative_std_pct": 6.913601073652454
+    },
+    "effective_hg_transfer": {
+      "mean": [
+        11.338654168532074,
+        0.4926907058299353
+      ],
+      "complex_std": 0.7752617729171958,
+      "relative_std_pct": 6.830889354956432
+    }
+  },
+  "last_serial_status": {
+    "capture_id": 728472545,
+    "calibration_sequence": 0,
+    "safety_faults": 0,
+    "safety_blocks": 8,
+    "protocol_errors": 0,
+    "temperature_mC": 23046,
+    "capture_status": 0,
+    "busy": false,
+    "result_valid": true,
+    "calibrated": false,
+    "transfer_safe": true,
+    "battery_voltage_v": 3.942
+  },
+  "physically_qualified": false,
+  "installed": false,
+  "sha256": "22cf455a5e4fbb94301561cb66a1b46b1e2ce97abbf01ac44d336e0a0d11935d"
+}

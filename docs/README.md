@@ -4,6 +4,11 @@ Current October24 CAD/firmware, CHG_VBUS5.5V analysis, calibration identity and 
 
 This directory contains the living technical specification for WTK.RLCMeter.
 
+October 25 continuation: [serial battery telemetry](../Firmware/releases/2026-10-25/battery-serial-telemetry/README.md)
+is deployed and reports 3.949 V after charging, using COM4 only. The separate
+[high-Z OPEN pilot](../Firmware/releases/2026-10-25/osl-integration-pilot/README.md)
+records repeatability evidence; the three high-Z/10-kHz OSL fits remain pending.
+
 The documentation deliberately separates **existing Rev.1 hardware**, **planned firmware architecture**, **unqualified engineering targets**, **experimental/DNP options**, and **future-revision concepts**. Measured prototype behavior takes precedence over theoretical expectations.
 
 ## Index
