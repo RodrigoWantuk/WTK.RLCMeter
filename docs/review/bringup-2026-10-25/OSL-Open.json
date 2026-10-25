@@ -1,0 +1,107 @@
+{
+  "recorded_utc": "2026-10-25T12:54:17.414218+00:00",
+  "SIMULATED": false,
+  "status": "OPEN_COMPLETE_SHORT_LOAD_PENDING",
+  "firmware_source": "063c7378319f293640d6d19d5fadcb3fa3ad686f",
+  "identity": {
+    "hardware_revision": 65538,
+    "model": 5,
+    "profile": 1,
+    "capabilities": 31,
+    "protocol_version": 1,
+    "timeout_ms": 20000,
+    "adc_provenance": "NOMINAL_3V3_NOT_CALIBRATED",
+    "synthetic": false,
+    "uid": "54ff70068370525760380567",
+    "git": "063c7378",
+    "firmware_version": "0.1.0"
+  },
+  "open_conditions": 33,
+  "required_full_osl_observations": 99,
+  "captures_installed": false,
+  "physically_qualified": false,
+  "accuracy_qualified": false,
+  "battery": {
+    "recorded_utc": "2026-10-25T12:34:39.589992+00:00",
+    "operation": "NO_RESET_BATTERY_RAM_HALT_RESUME",
+    "source": "Current physical BRINGUP_CAL 7df98c92",
+    "scale": "Nominal ADC 3.3V; not independently calibrated",
+    "values": {
+      "battery_v": 3.7746520042419434,
+      "battery_raw": 2342,
+      "battery_state": 0,
+      "battery_timestamp_ms": 94707,
+      "battery_published": 1,
+      "aux_paused": 0,
+      "vmid_v": 1.6552380323410034,
+      "age_ms": 33,
+      "fault_mask": 0
+    },
+    "ram_sha256": "ff3809e2b6b004c4850e20efd539adda46b24e1f85d39752345714a35bbd9f62"
+  },
+  "final_status": {
+    "capture_id": 947872987,
+    "calibration_sequence": 0,
+    "safety_faults": 0,
+    "safety_blocks": 8,
+    "protocol_errors": 1,
+    "temperature_mC": 24913,
+    "capture_status": 0,
+    "busy": false,
+    "result_valid": true,
+    "calibrated": false,
+    "transfer_safe": true
+  },
+  "installation_status": {
+    "transaction": 0,
+    "sequence": 0,
+    "received": 0,
+    "size": 2760,
+    "active_sequence": 0,
+    "crc": 0,
+    "state": 0,
+    "error": 0,
+    "store_state": 0,
+    "storage_available": true,
+    "next_sequence": 1,
+    "slot": 0,
+    "active_valid": false
+  },
+  "protocol_errors_baseline": 1,
+  "no_new_protocol_errors": true,
+  "temperature_mC_min": 22641,
+  "temperature_mC_max": 24854,
+  "host_tests": "44/44 CTest; 44/44 GUI/model; 16/16 latest capture client tests",
+  "embedded_builds": "9/9 PASS",
+  "scope_checks": "NOT_TESTED; owner-directed engineering scope",
+  "fixture": "Empty direct DUT terminals; final enclosure/test leads not fitted",
+  "captures_sha256": "0476ea3e2d58e62662b74851be364b0aaa428b773efc31c72d5ca9a5d7d84690",
+  "artifacts": {
+    "firmware.zip": {
+      "bytes": 2460611,
+      "sha256": "27db3fb7469e9ba8fe71392fadccf25db3363d9538dfbde663e359d78e6f7c64"
+    },
+    "physical-evidence.zip": {
+      "bytes": 450722,
+      "sha256": "f0dd455c08242f76394fe9c6d70e425e42249daa9f09803b9e1880507f2968ed"
+    }
+  },
+  "battery_after_open": {
+    "recorded_utc": "2026-10-25T12:57:12.803183+00:00",
+    "operation": "NO_RESET_BATTERY_RAM_HALT_RESUME",
+    "source": "Physical BRINGUP_CAL 063c7378 after 33 accepted OPEN keys",
+    "scale": "Nominal ADC 3.3V; not independently calibrated",
+    "values": {
+      "battery_v": 3.753699541091919,
+      "battery_raw": 2329,
+      "battery_state": 0,
+      "battery_timestamp_ms": 1306638,
+      "battery_published": 1,
+      "aux_paused": 0,
+      "vmid_v": 1.6560440063476562,
+      "age_ms": 299,
+      "fault_mask": 0
+    },
+    "ram_sha256": "d7f3ff5fcfa1cfe5298baa0e7f03f7ce8732a698c0758b17a8adb9d12918a3d2"
+  }
+}

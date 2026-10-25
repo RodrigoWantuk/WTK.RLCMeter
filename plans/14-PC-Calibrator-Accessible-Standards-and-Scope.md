@@ -55,6 +55,13 @@ quiet margin before polling, with a cancellation checkpoint and pre-START timeou
 validation. Synthetic fixtures skip wall-clock waiting. The first accepted frame
 is preserved byte-for-byte; resumption uses the unchanged owner-confirmed fixture.
 
+OPEN is now complete at all 33 conditions, with six accepted repeats per key,
+SAFE teardown and no new protocol errors in the quiet-window resumption.
+See [physical checkpoint and current nine-image bundle](../docs/review/bringup-2026-10-25/OSL-Open.md).
+SHORT/LOAD, reference confirmation at attachment, candidate generation,
+installation and independent holdouts remain pending. This does not complete P14
+or any electrical/accuracy qualification gate.
+
 A04.1 delivers the [guided OSL campaign](../Firmware/tools/PC_OSL_CAMPAIGN.md):
 six-reference inventory, explicit passive-fixture confirmations, atomic resumable
 CCO1 evidence, real C-backed 99-observation workflow, existing 33-key solver and

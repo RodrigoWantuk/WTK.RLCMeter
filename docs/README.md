@@ -85,3 +85,7 @@ When hardware changes affect analog response or safety:
 [Personalized boot splash delivery, October 25](review/bringup-2026-10-25/Boot-Splash.md)
 records all nine builds, physical pack readback, preserved mutable data and final
 SAFE BRINGUP. The owner will inspect visible TFT appearance later.
+
+[First physical OSL OPEN checkpoint, October 25](review/bringup-2026-10-25/OSL-Open.md)
+records 33 accepted OPEN conditions, corrected capture/client behavior and the
+current nine-image bundle. SHORT/LOAD and calibration installation remain pending.
