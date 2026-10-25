@@ -419,6 +419,15 @@ static void install_step(app_cal_capture_service_t *s, uint32_t now)
     if (!installing(s)) return;
     app_calibration_service_t *cal = s->session.service;
     const app_cal_capture_snapshot_t safe = snapshot(s);
+    /* Synchronous validation may outlast the residual sample age. Keep SAFE
+       and leave the writer untouched until the auxiliary service publishes
+       actual fresh evidence; hard blockers and the original deadline still win. */
+    const uint32_t refresh_flags = HW_SAFETY_BLOCK_SENSOR_INVALID | HW_SAFETY_BLOCK_RANGE;
+    if (!expired(now,s->install_deadline) && !safe.factory_allowed &&
+        safe.aux_refresh_pending && safe.transfer_safe && safe.safety_faults == 0u &&
+        (safe.safety_blocks & HW_SAFETY_BLOCK_SENSOR_INVALID) != 0u &&
+        (safe.safety_blocks & ~refresh_flags) == 0u)
+        return;
     if (expired(now,s->install_deadline) || !safe.factory_allowed || !safe.transfer_safe)
     {
         if (s->install_error == APP_CAL_CAPTURE_OK)

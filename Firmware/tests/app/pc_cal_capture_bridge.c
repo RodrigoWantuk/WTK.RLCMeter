@@ -17,6 +17,7 @@ static uint8_t output[4096];
 static size_t output_size;
 static uint32_t now, injection, refresh_until;
 static uint32_t refresh_delay_ms=20u;
+static uint32_t install_refresh_arm_ms, install_refresh_until;
 static bool active, done, aborted;
 static unsigned ticks;
 static uint16_t battery_mv;
@@ -226,10 +227,17 @@ static void product_boot(uint8_t resources, uint8_t safety, bool click,
 static void snapshot(app_cal_capture_snapshot_t *state,void *u)
 {
     (void)u;
+    if (install_refresh_arm_ms != 0u && capture.install_state == APP_CAL_INSTALL_WRITING)
+    {
+        install_refresh_until = now + install_refresh_arm_ms;
+        install_refresh_arm_ms = 0u;
+    }
+    const bool install_refresh_pending = now < install_refresh_until;
     const bool fresh=now>=refresh_until;
-    *state=(app_cal_capture_snapshot_t){.factory_allowed=(injection&3u)==0u && fresh,
-        .transfer_safe=!active,.safety_blocks=(injection&3u)|(!fresh?HW_SAFETY_BLOCK_SENSOR_INVALID:0u)|(!active?HW_SAFETY_BLOCK_RANGE:0u),
-        .temperature_valid=true,.temperature_mC=25000,.battery_mv=fresh ? battery_mv : (uint16_t)0u};
+    *state=(app_cal_capture_snapshot_t){.factory_allowed=(injection&3u)==0u && fresh && !install_refresh_pending,
+        .transfer_safe=!active,.safety_blocks=(injection&3u)|(!fresh||install_refresh_pending?HW_SAFETY_BLOCK_SENSOR_INVALID:0u)|(!active?HW_SAFETY_BLOCK_RANGE:0u),
+        .temperature_valid=true,.temperature_mC=25000,.battery_mv=fresh ? battery_mv : (uint16_t)0u,
+        .aux_refresh_pending=install_refresh_pending};
 }
 static bsp_status_t write_byte(uint8_t value,void *u)
 {
@@ -272,6 +280,7 @@ int main(void)
         {
             apply_pending((size_t)data[0]+((size_t)data[1]<<8u));
             injection=0u;active=false;done=false;now=0u;refresh_until=0u;
+            install_refresh_arm_ms=0u;install_refresh_until=0u;
             app_io_workspace_init(&workspace);app_calibration_service_init(&calibration);
             app_calibration_service_attach_workspace(&calibration,&workspace);
             (void)app_calibration_service_load(&calibration,&flash_io,CAPACITY);
@@ -327,6 +336,9 @@ int main(void)
                 calibration.workflow.evidence.accepted,calibration.workflow.evidence.attempts};
             memcpy(output,values,sizeof(values));output_size=sizeof(values);
         }
+        /* Host-only simulation of a commit validation delay beyond residual age. */
+        else if(header[0]==14u && count==2u)
+            install_refresh_arm_ms=(uint32_t)data[0]+((uint32_t)data[1]<<8u);
         else return 4;
         uint8_t size[2]={(uint8_t)output_size,(uint8_t)(output_size>>8u)};
         (void)fwrite(size,1u,2u,stdout);(void)fwrite(output,1u,output_size,stdout);(void)fflush(stdout);

@@ -248,6 +248,7 @@ static void service_snapshot(app_cal_capture_snapshot_t *result, void *user)
         .temperature_valid = state.ntc_temperature_valid,
         .temperature_mC = state.ntc_temperature_valid ? (int32_t)(state.ntc_temperature_c*1000.0f) : 0,
         .battery_mv = hw_battery_telemetry_mv(state.battery_v, state.battery_state),
+        .aux_refresh_pending = state.residual_age_ms > HW_AUX_RESIDUAL_MAX_AGE_MS,
         /* Disabled range is expected before preflight; the FSM selects it before issuing a permit. */
         .factory_allowed = (permission.blocker_flags & ~(uint32_t)HW_SAFETY_BLOCK_RANGE) == 0u,
         .transfer_safe = k1_state(NULL) == HW_K1_STATE_SAFE && exc_mode(NULL) == HW_EXCITATION_MODE_OFF &&

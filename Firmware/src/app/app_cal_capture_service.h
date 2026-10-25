@@ -68,6 +68,7 @@ typedef struct
     bool factory_allowed; /* Preflight only: hardware still issues/validates its permit. */
     bool transfer_safe;   /* SAFE, excitation OFF, range disabled, quiet released. */
     uint16_t battery_mv; /* 1..4350 nominal ADC mV; zero when unknown/stale. */
+    bool aux_refresh_pending; /* Residual evidence expired; never authorizes a write. */
 } app_cal_capture_snapshot_t;
 
 typedef struct
