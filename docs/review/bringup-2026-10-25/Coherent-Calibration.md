@@ -1,6 +1,6 @@
 # Coherent calibration recovery — October 25, 2026
 
-Status: ALL_33_NEW_SOURCE_OPEN_PASS; SHORT_LOAD_PENDING; OSL_NOT_INSTALLED.
+Status: ALL_66_NEW_SOURCE_ENDPOINTS_PASS; LOAD_PENDING; OSL_NOT_INSTALLED.
 
 The owner remeasured the approximately1-Mohm resistor as996 kohm and confirmed
 direct attachment alone. Six independent LOAD observations at100 mVrms and six
@@ -39,8 +39,17 @@ SHA, unique keys, exact artifact metadata, UID/source/model and nominal ADC
 provenance were verified. The final serial battery is3.920 V, SAFE/idle,
 fault/protocol counters0, charger absent and active OSL sequence0. The owner was
 asked for a direct short copper jumper without RESET before33 same-source SHORTs.
-Historical
-source7017 and f86 observations remain separate. New-source SHORT/LOAD,
+The owner confirmed "jumper posicionado" and all 33 same-source SHORTs completed:
+198 accepted groups, 948 accepted physical blocks/attempts, zero rejected groups
+and clipping, both return paths valid. No SHORT claims observed HG gain from its
+zero-return endpoint. All 33 OPEN/SHORT pairs retain a usable path in common;
+the exact OPEN seeds and the full 66-observation document were revalidated.
+Completion battery was 3.915 V. A later fresh read requested by the owner reports
+3.889 V over COM4, SAFE/idle, zero safety faults/protocol errors, charger absent
+and active OSL sequence zero. No W25Q writes occurred. The owner was asked for
+a fresh Minipa reading and direct attachment of the 10-ohm LOAD, without RESET.
+
+Historical source7017 and f86 observations remain separate. New-source LOADs,
 float32/C solver checks, candidate installation, independent holdouts and scope
 qualification remain pending. No complete calibration or accuracy is claimed.
 

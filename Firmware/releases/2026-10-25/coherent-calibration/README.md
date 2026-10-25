@@ -32,8 +32,21 @@ blocks/attempts. `open-complete.zip` preserves the exact three pilot seeds and
 capture document. `open-checkpoint.json` records hashes, counts and final serial
 status: battery3.920 V, SAFE/idle, fault/protocol0, charger absent, active OSL0.
 Clipped HG streams remain excluded when 1X supplies the valid OPEN evidence.
-Same-image SHORT and freshly measured LOADs remain pending. The owner was asked
-for a short copper jumper; no SHORT is started without that fixture confirmation.
+The owner confirmed the short copper jumper and all 33 same-image SHORT keys
+also completed: 198 accepted groups, 948 accepted physical blocks/attempts,
+no rejected groups or clipping. Both SHORT return paths are valid; no SHORT
+artifact claims observed HG gain from its zero-return endpoint. Every OPEN/SHORT
+pair has an actual usable path in common. There are now 66 source-a52dba35
+endpoint observations; the original 33 OPEN artifacts remain unchanged.
+
+`short-complete.zip` contains all SHORT artifacts, the complete 66-observation
+document, UART evidence, owner confirmation and the bounded script.
+`short-checkpoint.json` adds the per-key endpoint-path audit. Battery was 3.915 V
+at completion. A later fresh COM4 read, preserved in `power-before-load-10.json`,
+reports 3.889 V, SAFE/idle, fault/protocol counters zero and charger absent.
+The owner was asked to freshly measure and attach only the approximately 10-ohm
+reference after removing the jumper. Same-image LOADs, strict fitting and
+installation remain pending; no W25Q calibration record has been written.
 
 Do not claim completed calibration,
 installed OSL or qualified accuracy from these builds. The original99-observation

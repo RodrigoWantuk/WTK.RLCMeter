@@ -1,0 +1,484 @@
+{
+  "status": "ALL_33_SAME_SOURCE_CCO2_SHORT_ACCEPTED",
+  "identity": {
+    "hardware_revision": 65538,
+    "model": 5,
+    "profile": 1,
+    "capabilities": 127,
+    "protocol_version": 1,
+    "timeout_ms": 90000,
+    "adc_provenance": "NOMINAL_3V3_NOT_CALIBRATED",
+    "synthetic": false,
+    "uid": "54ff70068370525760380567",
+    "git": "a52dba35",
+    "firmware_version": "0.1.0"
+  },
+  "short_groups": 198,
+  "short_physical_attempts": 948,
+  "short_accepted_physical_blocks": 948,
+  "captures": 66,
+  "short_captures": 33,
+  "final_serial_status": {
+    "capture_id": 981717272,
+    "calibration_sequence": 0,
+    "safety_faults": 0,
+    "safety_blocks": 8,
+    "protocol_errors": 0,
+    "temperature_mC": 23435,
+    "capture_status": 0,
+    "busy": false,
+    "result_valid": true,
+    "calibrated": false,
+    "transfer_safe": true,
+    "battery_voltage_v": 3.915
+  },
+  "endpoint_path_audit": [
+    {
+      "condition": {
+        "rref_ohms": 10,
+        "frequency_hz": 10,
+        "amplitude_mvrms": 100
+      },
+      "common_endpoint_paths": [
+        "1X"
+      ],
+      "open_hg_observed": false,
+      "short_hg_observed": false
+    },
+    {
+      "condition": {
+        "rref_ohms": 10,
+        "frequency_hz": 1000,
+        "amplitude_mvrms": 100
+      },
+      "common_endpoint_paths": [
+        "1X"
+      ],
+      "open_hg_observed": false,
+      "short_hg_observed": false
+    },
+    {
+      "condition": {
+        "rref_ohms": 10,
+        "frequency_hz": 10000,
+        "amplitude_mvrms": 100
+      },
+      "common_endpoint_paths": [
+        "1X",
+        "HG"
+      ],
+      "open_hg_observed": true,
+      "short_hg_observed": false,
+      "open_observed_hg": [
+        15.967853300382814,
+        -1.2714652637423047
+      ]
+    },
+    {
+      "condition": {
+        "rref_ohms": 100,
+        "frequency_hz": 10,
+        "amplitude_mvrms": 100
+      },
+      "common_endpoint_paths": [
+        "1X"
+      ],
+      "open_hg_observed": false,
+      "short_hg_observed": false
+    },
+    {
+      "condition": {
+        "rref_ohms": 100,
+        "frequency_hz": 10,
+        "amplitude_mvrms": 500
+      },
+      "common_endpoint_paths": [
+        "1X"
+      ],
+      "open_hg_observed": false,
+      "short_hg_observed": false
+    },
+    {
+      "condition": {
+        "rref_ohms": 100,
+        "frequency_hz": 1000,
+        "amplitude_mvrms": 100
+      },
+      "common_endpoint_paths": [
+        "1X"
+      ],
+      "open_hg_observed": false,
+      "short_hg_observed": false
+    },
+    {
+      "condition": {
+        "rref_ohms": 100,
+        "frequency_hz": 1000,
+        "amplitude_mvrms": 500
+      },
+      "common_endpoint_paths": [
+        "1X"
+      ],
+      "open_hg_observed": false,
+      "short_hg_observed": false
+    },
+    {
+      "condition": {
+        "rref_ohms": 100,
+        "frequency_hz": 10000,
+        "amplitude_mvrms": 100
+      },
+      "common_endpoint_paths": [
+        "1X",
+        "HG"
+      ],
+      "open_hg_observed": true,
+      "short_hg_observed": false,
+      "open_observed_hg": [
+        15.985570870952891,
+        -1.2652476444218053
+      ]
+    },
+    {
+      "condition": {
+        "rref_ohms": 100,
+        "frequency_hz": 10000,
+        "amplitude_mvrms": 500
+      },
+      "common_endpoint_paths": [
+        "1X"
+      ],
+      "open_hg_observed": false,
+      "short_hg_observed": false
+    },
+    {
+      "condition": {
+        "rref_ohms": 1000,
+        "frequency_hz": 10,
+        "amplitude_mvrms": 100
+      },
+      "common_endpoint_paths": [
+        "1X"
+      ],
+      "open_hg_observed": false,
+      "short_hg_observed": false
+    },
+    {
+      "condition": {
+        "rref_ohms": 1000,
+        "frequency_hz": 10,
+        "amplitude_mvrms": 500
+      },
+      "common_endpoint_paths": [
+        "1X"
+      ],
+      "open_hg_observed": false,
+      "short_hg_observed": false
+    },
+    {
+      "condition": {
+        "rref_ohms": 1000,
+        "frequency_hz": 1000,
+        "amplitude_mvrms": 100
+      },
+      "common_endpoint_paths": [
+        "1X"
+      ],
+      "open_hg_observed": false,
+      "short_hg_observed": false
+    },
+    {
+      "condition": {
+        "rref_ohms": 1000,
+        "frequency_hz": 1000,
+        "amplitude_mvrms": 500
+      },
+      "common_endpoint_paths": [
+        "1X"
+      ],
+      "open_hg_observed": false,
+      "short_hg_observed": false
+    },
+    {
+      "condition": {
+        "rref_ohms": 1000,
+        "frequency_hz": 10000,
+        "amplitude_mvrms": 100
+      },
+      "common_endpoint_paths": [
+        "1X",
+        "HG"
+      ],
+      "open_hg_observed": true,
+      "short_hg_observed": false,
+      "open_observed_hg": [
+        15.90555106413262,
+        -1.4068187935142469
+      ]
+    },
+    {
+      "condition": {
+        "rref_ohms": 1000,
+        "frequency_hz": 10000,
+        "amplitude_mvrms": 500
+      },
+      "common_endpoint_paths": [
+        "1X"
+      ],
+      "open_hg_observed": false,
+      "short_hg_observed": false
+    },
+    {
+      "condition": {
+        "rref_ohms": 10000,
+        "frequency_hz": 10,
+        "amplitude_mvrms": 100
+      },
+      "common_endpoint_paths": [
+        "1X"
+      ],
+      "open_hg_observed": false,
+      "short_hg_observed": false
+    },
+    {
+      "condition": {
+        "rref_ohms": 10000,
+        "frequency_hz": 10,
+        "amplitude_mvrms": 500
+      },
+      "common_endpoint_paths": [
+        "1X"
+      ],
+      "open_hg_observed": false,
+      "short_hg_observed": false
+    },
+    {
+      "condition": {
+        "rref_ohms": 10000,
+        "frequency_hz": 1000,
+        "amplitude_mvrms": 100
+      },
+      "common_endpoint_paths": [
+        "1X"
+      ],
+      "open_hg_observed": false,
+      "short_hg_observed": false
+    },
+    {
+      "condition": {
+        "rref_ohms": 10000,
+        "frequency_hz": 1000,
+        "amplitude_mvrms": 500
+      },
+      "common_endpoint_paths": [
+        "1X"
+      ],
+      "open_hg_observed": false,
+      "short_hg_observed": false
+    },
+    {
+      "condition": {
+        "rref_ohms": 10000,
+        "frequency_hz": 10000,
+        "amplitude_mvrms": 100
+      },
+      "common_endpoint_paths": [
+        "1X",
+        "HG"
+      ],
+      "open_hg_observed": true,
+      "short_hg_observed": false,
+      "open_observed_hg": [
+        16.012734971005397,
+        -1.3190680761087257
+      ]
+    },
+    {
+      "condition": {
+        "rref_ohms": 10000,
+        "frequency_hz": 10000,
+        "amplitude_mvrms": 500
+      },
+      "common_endpoint_paths": [
+        "1X"
+      ],
+      "open_hg_observed": false,
+      "short_hg_observed": false
+    },
+    {
+      "condition": {
+        "rref_ohms": 100000,
+        "frequency_hz": 10,
+        "amplitude_mvrms": 100
+      },
+      "common_endpoint_paths": [
+        "1X"
+      ],
+      "open_hg_observed": false,
+      "short_hg_observed": false
+    },
+    {
+      "condition": {
+        "rref_ohms": 100000,
+        "frequency_hz": 10,
+        "amplitude_mvrms": 500
+      },
+      "common_endpoint_paths": [
+        "1X"
+      ],
+      "open_hg_observed": false,
+      "short_hg_observed": false
+    },
+    {
+      "condition": {
+        "rref_ohms": 100000,
+        "frequency_hz": 1000,
+        "amplitude_mvrms": 100
+      },
+      "common_endpoint_paths": [
+        "1X"
+      ],
+      "open_hg_observed": false,
+      "short_hg_observed": false
+    },
+    {
+      "condition": {
+        "rref_ohms": 100000,
+        "frequency_hz": 1000,
+        "amplitude_mvrms": 500
+      },
+      "common_endpoint_paths": [
+        "1X"
+      ],
+      "open_hg_observed": false,
+      "short_hg_observed": false
+    },
+    {
+      "condition": {
+        "rref_ohms": 100000,
+        "frequency_hz": 10000,
+        "amplitude_mvrms": 100
+      },
+      "common_endpoint_paths": [
+        "1X",
+        "HG"
+      ],
+      "open_hg_observed": true,
+      "short_hg_observed": false,
+      "open_observed_hg": [
+        15.138634089828276,
+        -1.7429489741877768
+      ]
+    },
+    {
+      "condition": {
+        "rref_ohms": 100000,
+        "frequency_hz": 10000,
+        "amplitude_mvrms": 500
+      },
+      "common_endpoint_paths": [
+        "1X",
+        "HG"
+      ],
+      "open_hg_observed": true,
+      "short_hg_observed": false,
+      "open_observed_hg": [
+        16.03132549267791,
+        -1.195792031146262
+      ]
+    },
+    {
+      "condition": {
+        "rref_ohms": 1000000,
+        "frequency_hz": 10,
+        "amplitude_mvrms": 100
+      },
+      "common_endpoint_paths": [
+        "1X"
+      ],
+      "open_hg_observed": false,
+      "short_hg_observed": false
+    },
+    {
+      "condition": {
+        "rref_ohms": 1000000,
+        "frequency_hz": 10,
+        "amplitude_mvrms": 500
+      },
+      "common_endpoint_paths": [
+        "1X"
+      ],
+      "open_hg_observed": false,
+      "short_hg_observed": false
+    },
+    {
+      "condition": {
+        "rref_ohms": 1000000,
+        "frequency_hz": 1000,
+        "amplitude_mvrms": 100
+      },
+      "common_endpoint_paths": [
+        "1X",
+        "HG"
+      ],
+      "open_hg_observed": true,
+      "short_hg_observed": false,
+      "open_observed_hg": [
+        15.797227247091827,
+        -0.37214903688611817
+      ]
+    },
+    {
+      "condition": {
+        "rref_ohms": 1000000,
+        "frequency_hz": 1000,
+        "amplitude_mvrms": 500
+      },
+      "common_endpoint_paths": [
+        "1X"
+      ],
+      "open_hg_observed": false,
+      "short_hg_observed": false
+    },
+    {
+      "condition": {
+        "rref_ohms": 1000000,
+        "frequency_hz": 10000,
+        "amplitude_mvrms": 100
+      },
+      "common_endpoint_paths": [
+        "1X",
+        "HG"
+      ],
+      "open_hg_observed": true,
+      "short_hg_observed": false,
+      "open_observed_hg": [
+        11.088396404530668,
+        0.3663274353344841
+      ]
+    },
+    {
+      "condition": {
+        "rref_ohms": 1000000,
+        "frequency_hz": 10000,
+        "amplitude_mvrms": 500
+      },
+      "common_endpoint_paths": [
+        "1X",
+        "HG"
+      ],
+      "open_hg_observed": true,
+      "short_hg_observed": false,
+      "open_observed_hg": [
+        15.071796451234833,
+        -1.430195650376803
+      ]
+    }
+  ],
+  "all_endpoint_keys_have_common_path": true,
+  "original_cohorts_modified": false,
+  "osl_installed": false,
+  "physically_qualified": false,
+  "sha256": "d699443af0d3c6ed1507fcf1b5b004c699a5f8ed7610ee10b1161f2f580249bb",
+  "capture_file_sha256": "b386085a84e018cc42474dca837d72ba3d694808328085e5007d97780852a503"
+}

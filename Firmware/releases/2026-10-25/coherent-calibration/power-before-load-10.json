@@ -1,0 +1,55 @@
+{
+  "recorded_utc": "2026-10-25T20:19:30.454542+00:00",
+  "operation": "SERIAL_ONLY_POWER_PREFLIGHT",
+  "identity": {
+    "hardware_revision": 65538,
+    "model": 5,
+    "profile": 1,
+    "capabilities": 127,
+    "protocol_version": 1,
+    "timeout_ms": 90000,
+    "adc_provenance": "NOMINAL_3V3_NOT_CALIBRATED",
+    "synthetic": false,
+    "uid": "54ff70068370525760380567",
+    "git": "a52dba35",
+    "firmware_version": "0.1.0"
+  },
+  "status": {
+    "capture_id": 981717272,
+    "calibration_sequence": 0,
+    "safety_faults": 0,
+    "safety_blocks": 8,
+    "protocol_errors": 0,
+    "temperature_mC": 23111,
+    "capture_status": 0,
+    "busy": false,
+    "result_valid": true,
+    "calibrated": false,
+    "transfer_safe": true,
+    "battery_voltage_v": 3.889
+  },
+  "STLink_used": false,
+  "capture_started": false,
+  "events": [
+    {
+      "utc": "2026-10-25T20:19:30.284245+00:00",
+      "direction": "TX",
+      "hex": "504c43310150000071b408004471def30150000071b41b3e"
+    },
+    {
+      "utc": "2026-10-25T20:19:30.370915+00:00",
+      "direction": "RX",
+      "hex": "504c433101d0000071b44800b49990050150000071b41b3e0000000002000100050001007f0000002100c400905f01000100000054ff700683705257603805676135326462613335302e312e300000000000000000000000"
+    },
+    {
+      "utc": "2026-10-25T20:19:30.370915+00:00",
+      "direction": "TX",
+      "hex": "504c43310151000072b408001ed51c470151000072b41b3e"
+    },
+    {
+      "utc": "2026-10-25T20:19:30.454542+00:00",
+      "direction": "RX",
+      "hex": "504c433101d1000072b42c00381babf00151000072b41b3e0000000018d1833a00000000000000000800000000000000475a0000000001000101310f"
+    }
+  ]
+}

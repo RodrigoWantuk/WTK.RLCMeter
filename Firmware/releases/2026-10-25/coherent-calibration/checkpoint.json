@@ -103,22 +103,25 @@
     }
   ],
   "final_serial_status": {
-    "capture_id": 981717004,
+    "capture_id": 981717272,
     "calibration_sequence": 0,
     "safety_faults": 0,
     "safety_blocks": 8,
     "protocol_errors": 0,
-    "temperature_mC": 24072,
+    "temperature_mC": 23435,
     "capture_status": 0,
     "busy": false,
     "result_valid": true,
     "calibrated": false,
     "transfer_safe": true,
-    "battery_voltage_v": 3.92
+    "battery_voltage_v": 3.915
   },
   "evidence_sha256": "e890118dd8148ff40d61012282af2f18b5d7fe9aa2960f8ea0a246abfcf4284a",
   "full_open_status": "ALL_33_SAME_SOURCE_CCO2_OPEN_ACCEPTED",
   "physically_qualified": false,
   "full_open_captures": 33,
-  "open_evidence_sha256": "ee12d0a2ca3675f972a11c9432a265b8a5146a2af7ed580564afcdc19c4ea987"
+  "open_evidence_sha256": "ee12d0a2ca3675f972a11c9432a265b8a5146a2af7ed580564afcdc19c4ea987",
+  "full_short_status": "ALL_33_SAME_SOURCE_CCO2_SHORT_ACCEPTED",
+  "same_source_endpoint_captures": 66,
+  "short_evidence_sha256": "d699443af0d3c6ed1507fcf1b5b004c699a5f8ed7610ee10b1161f2f580249bb"
 }

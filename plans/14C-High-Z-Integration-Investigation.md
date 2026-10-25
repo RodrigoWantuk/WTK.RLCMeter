@@ -1,6 +1,6 @@
 # 14C — High-impedance integration investigation
 
-STATUS: IN_PROGRESS — NEW_SOURCE_33_OPEN_COMPLETE_SHORT_FIXTURE_PENDING
+STATUS: IN_PROGRESS — ALL_66_ENDPOINTS_COMPLETE_LOAD_10_FIXTURE_PENDING
 
 ## Scope and prerequisites
 
@@ -184,5 +184,31 @@ The owner was asked to connect a short, firm copper jumper directly between the
 terminals without RESET. SHORT capture must wait for that explicit reply.
 Current next stage is33 same-image SHORT keys, then freshly measured LOADs.
 No complete OSL candidate or installed calibration exists yet.
+
+## Complete same-source SHORT checkpoint
+
+The owner confirmed "jumper posicionado". A fresh COM4 reading of 3.923 V and
+SAFE/idle state preceded the sweep. All 33 same-image SHORT conditions completed
+successfully: 198 accepted groups, 948 accepted physical blocks/attempts, no
+rejected groups, both return paths valid and no clipping. No SHORT artifact
+claims observed HG gain from its zero-return endpoint. All 33 OPEN/SHORT pairs
+have an actual usable path in common. The 33 OPEN artifacts remain byte-exact
+seeds in the 66-observation document; CRC, SHA, metadata and identity were checked.
+
+At sweep completion battery was 3.915 V, SAFE/idle, fault/protocol counters zero,
+charger absent and active OSL sequence zero. On the owner's later request to
+verify completion, a new serial-only read reported 3.889 V with the same SAFE
+state and zero counters. Keep the fresh reading distinct from completion data.
+The owner was asked to remove the jumper, freshly measure the approximately
+10-ohm reference on the Minipa's 200-ohm range, attach it alone and report the
+reading/connection without RESET. Battery checks before every new resistor
+remain mandatory; request charging if LOW. No LOAD is started before that reply.
+
+`short-complete.zip` preserves the 33 SHORT artifacts, full 66-observation
+document, raw UART evidence, owner confirmation and capture script.
+`short-checkpoint.json` records counts and the per-key endpoint-path audit;
+`power-before-load-10.json` is the later fresh COM4 power reading.
+No W25Q writes, calibration candidate, installation or accuracy qualification
+occurred. Fresh same-image LOADs and strict float32/C solver checks remain.
 
 See [preserved pilot evidence](../Firmware/releases/2026-10-25/osl-integration-pilot/README.md).
