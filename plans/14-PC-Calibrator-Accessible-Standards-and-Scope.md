@@ -48,6 +48,13 @@ and defer publication under the original capture deadline, with fresh safety
 required and explicit cancellation/timeout coverage. No pending result is valid
 or installable before that gate passes.
 
+After that correction, the first physical OPEN artifact was accepted with six
+stable repeats. A following request still collided with synchronous DSP, so the
+real PC client now observes the advertised capture deadline plus a one-second
+quiet margin before polling, with a cancellation checkpoint and pre-START timeout
+validation. Synthetic fixtures skip wall-clock waiting. The first accepted frame
+is preserved byte-for-byte; resumption uses the unchanged owner-confirmed fixture.
+
 A04.1 delivers the [guided OSL campaign](../Firmware/tools/PC_OSL_CAMPAIGN.md):
 six-reference inventory, explicit passive-fixture confirmations, atomic resumable
 CCO1 evidence, real C-backed 99-observation workflow, existing 33-key solver and

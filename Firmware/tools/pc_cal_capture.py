@@ -80,6 +80,25 @@ class Client:
         self.buffer = bytearray()
         self.identity = None
 
+    def checkpoint(self):
+        """Optional UI cancellation hook; never performs transport I/O."""
+
+    def capture_quiet_seconds(self):
+        if isinstance(self.transport, FakeSerial):
+            return 0.0
+        milliseconds = pc_osl.integer(self.identity['timeout_ms'], 1, 20000)
+        return milliseconds / 1000.0 + 1.0
+
+    def wait_capture_quiet(self, seconds):
+        """Polling USART cannot receive host frames during synchronous DSP."""
+        deadline = time.monotonic() + seconds
+        while True:
+            self.checkpoint()
+            remaining = deadline - time.monotonic()
+            if remaining <= 0.0:
+                return
+            time.sleep(min(0.05, remaining))
+
     def frame(self, deadline):
         while time.monotonic() < deadline:
             while len(self.buffer) >= 4 and self.buffer[:4] != b"PLC1":
@@ -175,9 +194,13 @@ class Client:
             tolerance = pc_osl.finite(reference["tolerance_pct"])
             if not 0 < tolerance < 100 or not isinstance(reference["id"],str) or not reference["id"].strip():
                 raise CaptureError("LOAD needs explicit tolerance and reference identity")
+        quiet_seconds = self.capture_quiet_seconds()
+        if quiet_seconds > 0.0 and self.timeout < quiet_seconds + 1.0:
+            raise CaptureError('capture timeout must include the device quiet window and response margin')
         capture_id = self.begin(key, standard, load)
         try:
             deadline = time.monotonic()+self.timeout
+            self.wait_capture_quiet(quiet_seconds)
             while True:
                 status = self.status()
                 if status["capture_id"] != capture_id:

@@ -33,6 +33,18 @@ Capture evidence is never physically qualified. Nominal ADC scales are explicitl
 NOT calibrated; no previous OSL is needed or fabricated. LOAD tolerance describes
 an interval around the supplied value, not proof of an exact reference.
 
+Physical acquisition uses a conservative host quiet window: after START ACK the
+client sends no STATUS requests for the advertised device capture deadline plus
+one second (currently 21 seconds). Polling USART reception can lose a host frame
+while synchronous DSP runs, including immediately after the ACK. Read-only
+IDENTIFY/STATUS outside acquisition do not incur this wait. The GUI worker checks
+its cancellation flag during the wait; the embedded deadline still guarantees
+bounded teardown independently of the PC. Synthetic C fixtures advance their
+own clock and incur no wall-clock quiet delay. A custom real-client response
+timeout must cover this window plus a response margin; short timeouts are rejected
+before START. This favors robust first-board collection over acquisition speed;
+it is not a firmware timeout increase or a replacement for safe-state checks.
+
 ## Wire contract
 
 PLC1 remains version 1: 16-byte little-endian `<IBBHHHI>` header, magic PLC1,

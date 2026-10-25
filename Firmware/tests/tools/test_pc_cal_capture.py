@@ -8,6 +8,7 @@ import struct
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 import zlib
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[2]/"tools"))
@@ -155,6 +156,39 @@ class SerialIntegration(unittest.TestCase):
 
 
 class ClientTransportTests(unittest.TestCase):
+    def test_real_capture_quiet_window_and_cancellation_checkpoint(self):
+        clock = [0.0]
+        sleeps = []
+        class QuietClient(capture.Client):
+            checkpoints = 0
+            def checkpoint(self):
+                self.checkpoints += 1
+        client = QuietClient(object())
+        client.identity = dict(timeout_ms=20000)
+        self.assertEqual(client.capture_quiet_seconds(), 21.0)
+        def sleep(seconds):
+            sleeps.append(seconds)
+            clock[0] += seconds
+        with patch.object(capture.time, 'monotonic', side_effect=lambda: clock[0]), \
+                patch.object(capture.time, 'sleep', side_effect=sleep):
+            client.wait_capture_quiet(client.capture_quiet_seconds())
+        self.assertAlmostEqual(sum(sleeps), 21.0)
+        self.assertLessEqual(max(sleeps), 0.05)
+        self.assertGreater(client.checkpoints, 1)
+        def cancel():
+            raise KeyboardInterrupt()
+        client.checkpoint = cancel
+        with self.assertRaises(KeyboardInterrupt):
+            client.wait_capture_quiet(21.0)
+
+    def test_short_timeout_rejects_before_start_and_fixture_has_no_wall_wait(self):
+        client = capture.Client(object(), timeout=5)
+        client.identity = dict(timeout_ms=20000, capabilities=4)
+        with self.assertRaisesRegex(capture.CaptureError, 'quiet window'):
+            client.capture(pc_osl.Key(1000, 1000, 100), 'OPEN')
+        fixture = object.__new__(capture.FakeSerial)
+        self.assertEqual(capture.Client(fixture).capture_quiet_seconds(), 0.0)
+
     def test_interrupted_write(self):
         class Transport:
             def write(self,data):return len(data)-1
