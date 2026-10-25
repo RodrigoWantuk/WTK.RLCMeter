@@ -79,6 +79,27 @@ class SerialIntegration(unittest.TestCase):
             self.client.capture(self.key,"OPEN")
         self.assertFalse(self.client.status()["result_valid"])
 
+    def test_post_capture_refresh_timeout_stays_safe_and_invalid(self):
+        self.serial.control(10, struct.pack('<H', 25000))
+        with self.assertRaisesRegex(capture.CaptureError, 'TIMEOUT'):
+            self.client.capture(self.key, 'OPEN')
+        state = self.client.status()
+        self.assertFalse(state['busy'])
+        self.assertFalse(state['result_valid'])
+        self.assertTrue(state['transfer_safe'])
+        self.assertFalse(state['calibrated'])
+
+    def test_cancel_during_post_capture_refresh(self):
+        self.serial.control(10, struct.pack('<H', 5000))
+        identity = self.client.begin(self.key, 'OPEN')
+        self.serial.advance(100)
+        self.client.cancel(identity)
+        state = self.client.status()
+        self.assertFalse(state['busy'])
+        self.assertFalse(state['result_valid'])
+        self.assertTrue(state['transfer_safe'])
+        self.assertEqual(state['capture_status'], 9)
+
     def test_interlock_during_acquisition_and_unsupported_clock(self):
         self.serial.inject(8)
         self.client.begin(self.key,"OPEN")

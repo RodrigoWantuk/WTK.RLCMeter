@@ -115,7 +115,7 @@ issues/validates its real permit for every attempt; this is not a range bypass.
 The service uses six stable accepted repeats, existing headroom/path checks and
 ten-attempt limit. It owns one 3,072-byte workspace; no second ADC buffer exists.
 RX is 144 bytes, two bounded TX replies total 288 bytes, artifact 188 bytes, and
-six complex means 48 bytes; complete service context is 976 bytes on ARM.
+six complex means 48 bytes; complete current service context is 1000 bytes on ARM.
 
 RX fragments expire at 250 ms. A capture expires after 20 seconds independently
 of PC connectivity and drains the existing hardware abort FSM. CANCEL also drains
@@ -125,6 +125,12 @@ held until the entire repeat workflow drains, preventing a reply between blocks
 from inviting another request during synchronous DSP. The initial START ACK
 still leaves before any hardware attempt. Main-loop byte reads/writes are bounded; TXE
 polling is nonblocking. Queue overflow aborts capture and invalidates its result.
+After stable acquisition, the service stays BUSY while real auxiliary safety
+readings refresh after ADC restoration. Publication requires fresh allowed safety
+and transfer-safe state, within the original 20-second capture deadline. CANCEL,
+fault, charger/supply inhibition and timeout invalidate the pending result; START
+and installation BEGIN remain blocked. No nominal or old sample substitutes for
+the fresh post-capture safety snapshot.
 Only one volatile result exists; another START invalidates it. Capture commands
 do not install anything; use the separate A06.2b installer afterwards. An installation
 already programming can complete after disconnect. Resend IDENTIFY/STATUS to recover

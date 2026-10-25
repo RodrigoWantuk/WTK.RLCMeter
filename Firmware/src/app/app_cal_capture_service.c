@@ -61,10 +61,11 @@ static app_cal_capture_snapshot_t snapshot(const app_cal_capture_service_t *serv
 
 static void abort_capture(app_cal_capture_service_t *service, app_cal_capture_error_t reason)
 {
-    if (app_calibration_session_active(&service->session))
+    if (app_calibration_session_active(&service->session) || service->completion_pending)
     {
         service->cancel_requested = true;
         service->capture_status = reason;
+        service->completion_pending = false;
         (void)app_calibration_session_cancel(&service->session);
     }
     service->result_valid = false;
@@ -131,7 +132,7 @@ static void status_reply(app_cal_capture_service_t *service, uint32_t id)
     put32(body+16, service->protocol_errors);
     put32(body+20, (uint32_t)state.temperature_mC);
     body[24] = (uint8_t)service->capture_status;
-    body[25] = app_calibration_session_active(&service->session) ? 1u : 0u;
+    body[25] = (app_calibration_session_active(&service->session) || service->completion_pending) ? 1u : 0u;
     body[26] = service->result_valid ? 1u : 0u;
     body[27] = app_calibration_service_active_valid(service->session.service) ? 1u : 0u;
     body[28] = state.transfer_safe ? 1u : 0u;
@@ -155,7 +156,7 @@ static void start(app_cal_capture_service_t *service, uint32_t id,
     request.standard = (app_cal_standard_t){.type = (app_cal_standard_type_t)body[3],
         .z_ohms = {get_float(body+4), get_float(body+8)}, .z_valid = body[3] == APP_CAL_STANDARD_LOAD};
     const app_cal_capture_snapshot_t state = snapshot(service);
-    if (app_calibration_session_active(&service->session) || app_calibration_service_busy(service->session.service) ||
+    if (app_calibration_session_active(&service->session) || service->completion_pending || app_calibration_service_busy(service->session.service) ||
         service->session.service->store_workspace_held)
         error = APP_CAL_CAPTURE_BUSY;
     else if (!measurement_condition_supported(request.key.range_id, request.key.frequency, request.key.amplitude))
@@ -182,6 +183,7 @@ static void start(app_cal_capture_service_t *service, uint32_t id,
             service->capture_deadline = now_ms+APP_CAL_CAPTURE_TIMEOUT_MS;
             service->result_valid = false;
             service->cancel_requested = false;
+            service->completion_pending = false;
             service->mean_count = 0u;
             service->clip_mask = 0u;
             (void)memset(service->mean, 0, sizeof(service->mean));
@@ -308,7 +310,7 @@ static void install_dispatch(app_cal_capture_service_t *s, uint8_t cmd, uint32_t
     }
     else if (cmd == APP_CAL_INSTALL_BEGIN && length == 12u)
     {
-        if (installing(s) || app_calibration_service_busy(cal) ||
+        if (installing(s) || s->completion_pending || app_calibration_service_busy(cal) ||
             app_io_workspace_owner(cal->workspace) != APP_IO_WORKSPACE_OWNER_FREE) error = APP_CAL_CAPTURE_BUSY;
         else if (!safe.factory_allowed || !safe.transfer_safe) error = APP_CAL_CAPTURE_SAFETY_BLOCKED;
         else if (!cal->storage_available) error = APP_CAL_CAPTURE_STORAGE_ERROR;
@@ -329,7 +331,7 @@ static void install_dispatch(app_cal_capture_service_t *s, uint8_t cmd, uint32_t
     else if (cmd == APP_CAL_INSTALL_READBACK && length == 8u)
     {
         const uint16_t offset = get16(body+4); const uint8_t amount = body[6];
-        if (installing(s) || app_calibration_service_busy(cal)) error = APP_CAL_CAPTURE_BUSY;
+        if (installing(s) || s->completion_pending || app_calibration_service_busy(cal)) error = APP_CAL_CAPTURE_BUSY;
         else if (!safe.transfer_safe || !safe.factory_allowed) error = APP_CAL_CAPTURE_SAFETY_BLOCKED;
         else if (!cal->runtime.active_valid || get32(body) != app_calibration_service_active_sequence(cal))
             error = APP_CAL_CAPTURE_SEQUENCE_ERROR;
@@ -649,11 +651,8 @@ void app_cal_capture_step(app_cal_capture_service_t *service, uint32_t now_ms)
             if (event == APP_CAL_SESSION_EVENT_CAPTURE_ACCEPTED) accumulate(service);
             if (event == APP_CAL_SESSION_EVENT_COMPLETE)
             {
-                service->capture_status = APP_CAL_CAPTURE_OK;
-                if (snapshot(service).transfer_safe && snapshot(service).factory_allowed &&
-                    service->mean_count >= APP_CAL_WORKFLOW_REQUIRED_ACCEPTED)
-                    serialize_observation(service);
-                else service->capture_status = APP_CAL_CAPTURE_SAFETY_BLOCKED;
+                service->completion_pending = service->mean_count >= APP_CAL_WORKFLOW_REQUIRED_ACCEPTED;
+                if (!service->completion_pending) service->capture_status = APP_CAL_CAPTURE_ACQUISITION_ERROR;
             }
             else if (event == APP_CAL_SESSION_EVENT_FAILED || event == APP_CAL_SESSION_EVENT_ERROR)
                 service->capture_status = APP_CAL_CAPTURE_ACQUISITION_ERROR;
@@ -661,10 +660,25 @@ void app_cal_capture_step(app_cal_capture_service_t *service, uint32_t now_ms)
                 service->capture_status = APP_CAL_CAPTURE_CANCELED;
         }
     }
+    if (service->completion_pending)
+    {
+        const app_cal_capture_snapshot_t safe = snapshot(service);
+        if (expired(now_ms, service->capture_deadline)) abort_capture(service, APP_CAL_CAPTURE_TIMEOUT);
+        else if (safe.safety_faults != 0u ||
+                 (safe.safety_blocks & (HW_SAFETY_BLOCK_CHARGER | HW_SAFETY_BLOCK_SUPPLY | HW_SAFETY_BLOCK_FAULT)) != 0u)
+            abort_capture(service, APP_CAL_CAPTURE_SAFETY_BLOCKED);
+        else if (safe.transfer_safe && safe.factory_allowed)
+        {
+            serialize_observation(service);
+            service->completion_pending = false;
+            service->capture_status = APP_CAL_CAPTURE_OK;
+        }
+    }
     if (!snapshot(service).transfer_safe) return;
     /* Hold replies until the whole repeat workflow drains. Replying between
        blocks invites another host request during synchronous DSP processing. */
-    if (app_calibration_session_active(&service->session) && service->session.started_capture) return;
+    if (service->completion_pending ||
+        (app_calibration_session_active(&service->session) && service->session.started_capture)) return;
     for (uint8_t n = 0u; n < 16u && service->tx_count != 0u; n++)
     {
         if (service->io.try_write_byte(service->tx[service->tx_head][service->tx_offset], service->io.user) != BSP_STATUS_OK)

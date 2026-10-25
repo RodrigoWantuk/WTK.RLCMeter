@@ -15,7 +15,8 @@ static app_io_workspace_t workspace;
 static hw_metrology_block_t block;
 static uint8_t output[4096];
 static size_t output_size;
-static uint32_t now, injection;
+static uint32_t now, injection, refresh_until;
+static uint32_t refresh_delay_ms=20u;
 static bool active, done, aborted;
 static unsigned ticks;
 static uint32_t product_attempts;
@@ -159,7 +160,13 @@ static bool dumpable(void *u){(void)u;return done&&!aborted&&!(injection&4u);}
 static const hw_metrology_block_t *get_block(void *u){(void)u;return &block;}
 static hw_metrology_measure_error_t error(void *u)
 {(void)u;return injection&4u ? HW_METROLOGY_MEASURE_ERR_DMA : HW_METROLOGY_MEASURE_OK;}
-static void ack(void *u){(void)u;done=false;active=false;}
+static void ack(void *u)
+{
+    (void)u;
+    if (done && !aborted && calibration.workflow.evidence.accepted >= APP_CAL_WORKFLOW_REQUIRED_ACCEPTED)
+        refresh_until=now+refresh_delay_ms;
+    done=false;active=false;
+}
 static bsp_status_t abort_capture(void *u){(void)u;aborted=true;return BSP_STATUS_BUSY;}
 static bsp_status_t product_process(const hw_metrology_block_t *raw_block,
                                      const measurement_attempt_config_t *attempt,
@@ -218,8 +225,9 @@ static void product_boot(uint8_t resources, uint8_t safety, bool click,
 static void snapshot(app_cal_capture_snapshot_t *state,void *u)
 {
     (void)u;
-    *state=(app_cal_capture_snapshot_t){.factory_allowed=(injection&3u)==0u,
-        .transfer_safe=!active,.safety_blocks=(injection&3u)|(!active?HW_SAFETY_BLOCK_RANGE:0u),
+    const bool fresh=now>=refresh_until;
+    *state=(app_cal_capture_snapshot_t){.factory_allowed=(injection&3u)==0u && fresh,
+        .transfer_safe=!active,.safety_blocks=(injection&3u)|(!fresh?HW_SAFETY_BLOCK_SENSOR_INVALID:0u)|(!active?HW_SAFETY_BLOCK_RANGE:0u),
         .temperature_valid=true,.temperature_mC=25000};
 }
 static bsp_status_t write_byte(uint8_t value,void *u)
@@ -262,7 +270,7 @@ int main(void)
         else if(header[0]==4u && count==2u)
         {
             apply_pending((size_t)data[0]+((size_t)data[1]<<8u));
-            injection=0u;active=false;done=false;now=0u;
+            injection=0u;active=false;done=false;now=0u;refresh_until=0u;
             app_io_workspace_init(&workspace);app_calibration_service_init(&calibration);
             app_calibration_service_attach_workspace(&calibration,&workspace);
             (void)app_calibration_service_load(&calibration,&flash_io,CAPACITY);
@@ -300,6 +308,9 @@ int main(void)
             memcpy(output+16,&result.result.impedance.z_ohms,sizeof(measurement_complex_t));output_size=24u;
         }
         else if(header[0]==9u && count==3u) product_boot(data[0],data[1],data[2]!=0u,&session);
+        /* Host-fixture control only: no such command exists on target UART. */
+        else if(header[0]==10u && count==2u)
+            refresh_delay_ms=(uint32_t)data[0]+((uint32_t)data[1]<<8u);
         else return 4;
         uint8_t size[2]={(uint8_t)output_size,(uint8_t)(output_size>>8u)};
         (void)fwrite(size,1u,2u,stdout);(void)fwrite(output,1u,output_size,stdout);(void)fflush(stdout);

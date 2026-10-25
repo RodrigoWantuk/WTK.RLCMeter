@@ -35,6 +35,10 @@ recognizes fully drained aborts, and holds UART replies after the first hardware
 attempt until the entire repeat workflow drains. Initial START acknowledgement
 still precedes hardware activity. Capture deadline, permits, excitation levels,
 OSL equations and persistent schema/model remain unchanged.
+Successful acquisition also waits in BUSY for fresh post-capture auxiliary
+readings before publication. This wait shares the original capture deadline;
+timeout/cancellation/interlock never publishes a pending result. The C-backed
+fixture exercises a real post-capture refresh delay, cancellation and timeout.
 
 ## October24 integration baseline
 

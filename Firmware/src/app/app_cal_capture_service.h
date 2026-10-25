@@ -110,6 +110,7 @@ typedef struct
     uint32_t install_crc;
     uint32_t install_deadline;
     uint16_t install_received;
+    bool completion_pending; /* Await fresh post-capture safety before publishing. */
 } app_cal_capture_service_t;
 
 bsp_status_t app_cal_capture_init(app_cal_capture_service_t *service,

@@ -41,6 +41,13 @@ and independent-block phase rotation to the real C-backed capture fixture.
 Validate all affected images and preserve each rejected physical attempt. Do not
 reinterpret software acceptance as metrology qualification or mark scope checks PASS.
 
+The next physical OPEN attempt reached six accepted blocks / workflow COMPLETE
+with zero hardware errors, but immediate publication was blocked because the
+auxiliary sensors had not finished refreshing. The service must retain BUSY
+and defer publication under the original capture deadline, with fresh safety
+required and explicit cancellation/timeout coverage. No pending result is valid
+or installable before that gate passes.
+
 A04.1 delivers the [guided OSL campaign](../Firmware/tools/PC_OSL_CAMPAIGN.md):
 six-reference inventory, explicit passive-fixture confirmations, atomic resumable
 CCO1 evidence, real C-backed 99-observation workflow, existing 33-key solver and
