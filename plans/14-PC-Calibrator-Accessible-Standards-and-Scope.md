@@ -79,6 +79,16 @@ This cohort still requires OPEN and LOAD under the same image; the earlier
 source-063c7378 observations remain historical only. No candidate is generated
 or installed, and physical qualification remains incomplete.
 
+The subsequent same-image OPEN sweep is complete: 33/33 accepted conditions,
+six stable repeats per key, SAFE teardown and unchanged zero protocol errors.
+The [66-capture endpoint checkpoint](../docs/review/bringup-2026-10-25/OSL-Same-Image-Endpoints.md)
+verifies matching identity, canonical CCO1 metadata/CRC/SHA and a common return
+path at all 33 OPEN/SHORT pairs. This is necessary acquisition compatibility,
+not a completed OSL fit: HG-only triplets still need actual same-key overlap.
+LOAD captures and serialized solver checks remain pending, followed by separate
+installation and independent holdouts. The owner has been asked for the fresh
+10-ohm DMM reading before the first LOAD attachment. No qualification gate changed.
+
 A04.1 delivers the [guided OSL campaign](../Firmware/tools/PC_OSL_CAMPAIGN.md):
 six-reference inventory, explicit passive-fixture confirmations, atomic resumable
 CCO1 evidence, real C-backed 99-observation workflow, existing 33-key solver and

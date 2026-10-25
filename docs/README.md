@@ -99,3 +99,8 @@ calibration is installed or physically qualified.
 records 33/33 accepted conditions with both return paths on source `7017e5e0`.
 The source-bound nine-image bundle and deployment readback are preserved.
 Same-image OPEN/LOAD, installation and independent qualification remain pending.
+
+[Same-image OPEN/SHORT completion](review/bringup-2026-10-25/OSL-Same-Image-Endpoints.md)
+records 66 accepted captures on source `7017e5e0`, with common return paths at all
+33 keys. LOAD, solver validation, installation and independent qualification
+remain pending; earlier endpoint checkpoints retain their historical status.
