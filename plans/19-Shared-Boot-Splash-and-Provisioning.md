@@ -1,6 +1,8 @@
 # 19 — Shared three-second boot splash and resource provisioning
 
-Status: IN_PROGRESS. Owner assignment, 2026-10-24.
+Status: IMPLEMENTED_AND_PROGRAMMED. REQUIRES_BENCH_VALIDATION for actual visible
+TFT appearance/timing; the owner explicitly deferred that check. Assigned2026-10-24,
+physical delivery completed2026-10-25.
 
 Merge the owner's new PNG from origin/main without discarding bring-up work.
 Keep the existing READY art and add the personalized240x320 splash as a distinct
@@ -92,3 +94,25 @@ that contract. The revised timing/clear host test passes. The updated BRINGUP li
 uses65536bytes; unused DC-only status branches are excluded when DC is disabled.
 No safety/AC/calibration commands were removed. Rebuild the full source-bound
 matrix again before final programming. The resource pack itself needs no change.
+
+Final acceptance: clean firmware source adfce3c59aac085a95b7fa487fed5f836dca21ec
+passes all nine embedded builds and project/silicon gates. Standard BRINGUP uses
+65536 Flash bytes and15380 accounted RAM; no Flash headroom remains in this
+engineering image. Final host checks:44/44 CTest passed; Python490 run,391 passed,
+99 skipped. Transport/resource/deployment tooling checks also pass.
+
+The complete104499-byte seven-entry pack matches physical W25Q readback exactly;
+sector padding is erased and the mutable32KiB tail is byte-identical. All873
+frames were acknowledged, including END/COMPLETE. PRODUCT admitted the pack after
+reset with invalid OSL still blocked. Final updated BRINGUP was programmed and
+read back over the entire64KiB, then independently booted after external reads:
+K1 SAFE, range DISABLED, charger ABSENT, zero faults and invalid calibration.
+Running-core sampling observed complete-image HOLD then full cooperative CLEAR,
+with first observed clear3012ms after the visible timestamp and no commanded
+measurement outputs. No DUT capture, relay pulse or calibration/settings mutation
+was requested. The initial clear-contract issue was corrected and regression-tested.
+
+[Delivery report](../docs/review/bringup-2026-10-25/Boot-Splash.md) and
+[bundles](../Firmware/releases/2026-10-25/boot-splash) preserve source/binary IDs,
+physical transfer/readback and timing evidence. Visual TFT validation remains
+pending by the owner's choice; software/SPI state is not substituted for pixels.

@@ -67,7 +67,8 @@ port. It is for provisioning/recovery; ordinary menus, measurement, and calibrat
 do not require UART. Never put a resource pack inside the internal MCU Flash image.
 
 The supported uploader opens with DTR/RTS inactive, flushes each byte, defaults to
-10 ms byte pacing for BEGIN, 2 ms for subsequent frames and 250 ms post-BEGIN settling, and validates every ACK including
+10 ms byte pacing for BEGIN, 2 ms for subsequent frames and 250 ms post-BEGIN
+settling, and validates every ACK including
 END/COMPLETE. It stops on any rejection, malformed response or timeout without
 replaying frames. A saved report records partial failures; inspect the target
 before restarting a transfer. An ACK is not an independent physical readback.
@@ -88,7 +89,9 @@ progress/clear time) before initiating any serial session; do not send during bo
 The older receiver used for the [first-board installation](../../docs/review/bringup-2026-10-24/Resource-Install.md)
 required `--inter-byte-delay-ms 10 --settle-after-begin-ms 10000`. Its 193 ACKs and
 22891-byte readback qualify that older pack only. The new pack is 104499 bytes,
-uses 26 sectors (`[0,0x1A000)`), and must receive its own physical acceptance.
+uses 26 sectors (`[0,0x1A000)`), and received independent complete readback
+acceptance in the [splash delivery report](../../docs/review/bringup-2026-10-25/Boot-Splash.md).
+The mutable 32 KiB tail was preserved; actual TFT appearance is still pending.
 
 ## Preview and validation
 

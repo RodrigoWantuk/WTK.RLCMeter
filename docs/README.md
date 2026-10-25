@@ -81,3 +81,7 @@ When hardware changes affect analog response or safety:
 4. update the `hardware_revision` identity used by calibration;
 5. review bring-up and qualification procedures;
 6. update affected agent execution plans if implementation assumptions changed.
+
+[Personalized boot splash delivery, October 25](review/bringup-2026-10-25/Boot-Splash.md)
+records all nine builds, physical pack readback, preserved mutable data and final
+SAFE BRINGUP. The owner will inspect visible TFT appearance later.

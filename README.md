@@ -194,3 +194,15 @@ Personal use, study, research, evaluation, hobby use, and other noncommercial pu
 **Required Notice:** Copyright 2026 Rodrigo Wantuk.
 
 See [`LICENSE.md`](LICENSE.md) for the complete terms.
+
+## Boot splash and resource provisioning — October 25, 2026
+
+Every embedded firmware profile now streams the owner-supplied personalized image
+from W25Q and holds the completed image for three seconds. The updated seven-entry
+pack was installed and read back completely on the first board; calibration/settings
+storage is unchanged. All nine embedded builds and44 host tests pass;490 Python
+tests ran with391 passing and99 skipped. The board runs updated standard BRINGUP
+in SAFE. Visible TFT confirmation is deferred by the owner; metrology calibration
+and remaining electrical qualification are still separate release prerequisites.
+See [delivery evidence](docs/review/bringup-2026-10-25/Boot-Splash.md) and
+[the supported upload procedure](Firmware/assets/README.md).
