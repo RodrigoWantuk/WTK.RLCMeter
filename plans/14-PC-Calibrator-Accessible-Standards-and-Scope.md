@@ -157,6 +157,42 @@ the 1-Mohm reference, both OK. Protocol counter stayed at 1; safety faults zero,
 SAFE/idle confirmed. Six 1-Mohm LOADs, blocked-key resolution, independent
 validation, candidate generation and installation remain pending.
 
+The owner freshly measured the 1-Mohm reference as 996 kohm and confirmed direct
+attachment. All six raw captures passed acquisition; four fits passed and both
+10-kHz fits remain blocked by absent observed HG overlap. The same-image campaign
+now has all 99 observations, 33 triplets, 30 solvable fits and three blocked keys:
+100 kohm/10 kHz/100 mVrms and 1 Mohm/10 kHz at both amplitudes. The full candidate
+builder rejects this coverage; no candidate or installation is produced.
+
+After explicit owner confirmation of empty terminals, exactly those three OPEN
+keys were captured again once, with the same HG-only/no-overlap result. Keep the
+original 99 artifacts unchanged and the diagnostic frames separate. A SAFE/idle
+no-reset snapshot of the final 1-Mohm/10-kHz/500-mVrms LOAD measured relative
+complex standard deviations: 1X Z 8.3275%, HG Z 0.9996%, HG transfer 7.5451%,
+against the unchanged 2% workflow criterion. The source amplitudes vary only
+0.1929%/0.1544%. These observations explain rejection but do not identify a
+component fault or qualify accuracy. See [complete capture/diagnostic checkpoint](../docs/review/bringup-2026-10-25/OSL-All-99.md).
+Battery was 3.70535 V before the 1-Mohm group and 3.70374 V afterward, OK. Safety
+faults remain zero and protocol counter unchanged at 1. Investigate raw DMA,
+timing/noise and path observability before selecting a corrective implementation;
+do not invent gain, silently mix paths or relax the full-set installation contract.
+
+The owner additionally requested an NTC comparison using a contact culinary
+thermometer, with its model intentionally not requested or recorded. The owner
+will hold it at the same thermal point as the NTC and report a stable reading.
+One-point comparison/trim does not determine Beta or certify the full curve.
+Reference temperature, paired raw NTC evidence and persistent correction are
+pending. The current lookup table has no existing runtime NTC trim interface;
+design any required versioned storage explicitly before changing firmware.
+
+The first external reading was 23.8 degC at the owner-described PCB thermal point.
+A paired SAFE/idle no-reset snapshot reported NTC raw 1958, 1.577875 V,
+91623.76 ohm and 27.13364 degC (sample age 664 ms). This is a 3.33364-degC
+comparison difference, not yet a justified correction: thermal contact may differ
+between the probe, PCB and bead. The owner was asked for direct isolated-bead
+contact, approximately 60 seconds of stabilization, and another reference reading.
+No NTC correction has been applied and no thermometer model is recorded.
+
 A04.1 delivers the [guided OSL campaign](../Firmware/tools/PC_OSL_CAMPAIGN.md):
 six-reference inventory, explicit passive-fixture confirmations, atomic resumable
 CCO1 evidence, real C-backed 99-observation workflow, existing 33-key solver and

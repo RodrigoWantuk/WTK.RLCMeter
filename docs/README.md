@@ -127,3 +127,10 @@ records 93/99 observations, 26 accepted fits and one blocked fit at 100 kohm /
 10 kHz / 100 mVrms because actual HG overlap is absent. All six raw 100-kohm
 captures are preserved. The 1-Mohm LOAD group and resolution of that fit remain
 pending; no full candidate or calibration installation exists.
+
+[Complete 99-capture campaign and diagnostic](review/bringup-2026-10-25/OSL-All-99.md)
+records 30 valid fits and three blocked high-Z 10-kHz conditions. Three separate
+OPEN repeats reproduce the missing HG-overlap evidence; compiler-derived RAM
+statistics explain the final LOAD rejection. The candidate builder remains
+blocked. A one-point NTC comparison using an owner-provided contact thermometer
+is next; no calibration has been installed or physically qualified.
