@@ -247,6 +247,7 @@ static void service_snapshot(app_cal_capture_snapshot_t *result, void *user)
         .safety_blocks = permission.blocker_flags,
         .temperature_valid = state.ntc_temperature_valid,
         .temperature_mC = state.ntc_temperature_valid ? (int32_t)(state.ntc_temperature_c*1000.0f) : 0,
+        .battery_mv = hw_battery_telemetry_mv(state.battery_v, state.battery_state),
         /* Disabled range is expected before preflight; the FSM selects it before issuing a permit. */
         .factory_allowed = (permission.blocker_flags & ~(uint32_t)HW_SAFETY_BLOCK_RANGE) == 0u,
         .transfer_safe = k1_state(NULL) == HW_K1_STATE_SAFE && exc_mode(NULL) == HW_EXCITATION_MODE_OFF &&
@@ -295,7 +296,8 @@ void app_shell_run(void)
     latch(hw_metrology_measure_init(&measure, &hardware_io,
         app_io_workspace_metrology_raw_words(&workspace), HW_METROLOGY_RAW_WORD_COUNT), APP_SAFETY_FAULT_METROLOGY_RUNTIME);
     app_cal_capture_io_t io = {.snapshot = service_snapshot, .try_write_byte = try_write,
-        .installation_supported = WTK_ENABLE_CAL_INSTALL_SERVICE != 0u};
+        .installation_supported = WTK_ENABLE_CAL_INSTALL_SERVICE != 0u,
+        .battery_telemetry_supported = true};
     bsp_reset_read_device_uid(io.device_uid);
     latch(app_cal_capture_init(&capture, &calibration, &capture_io, &io,
         bsp_clock_get_summary(), clock_status), APP_SAFETY_FAULT_METROLOGY_RUNTIME);

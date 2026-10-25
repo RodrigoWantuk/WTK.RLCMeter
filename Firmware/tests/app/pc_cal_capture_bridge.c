@@ -19,6 +19,7 @@ static uint32_t now, injection, refresh_until;
 static uint32_t refresh_delay_ms=20u;
 static bool active, done, aborted;
 static unsigned ticks;
+static uint16_t battery_mv;
 static uint32_t product_attempts;
 static measurement_calibrated_result_t product_result;
 static const bsp_clock_summary_t clock_info = {.source=BSP_CLOCK_SOURCE_HSE_PLL,
@@ -228,7 +229,7 @@ static void snapshot(app_cal_capture_snapshot_t *state,void *u)
     const bool fresh=now>=refresh_until;
     *state=(app_cal_capture_snapshot_t){.factory_allowed=(injection&3u)==0u && fresh,
         .transfer_safe=!active,.safety_blocks=(injection&3u)|(!fresh?HW_SAFETY_BLOCK_SENSOR_INVALID:0u)|(!active?HW_SAFETY_BLOCK_RANGE:0u),
-        .temperature_valid=true,.temperature_mC=25000};
+        .temperature_valid=true,.temperature_mC=25000,.battery_mv=fresh ? battery_mv : (uint16_t)0u};
 }
 static bsp_status_t write_byte(uint8_t value,void *u)
 {
@@ -311,6 +312,12 @@ int main(void)
         /* Host-fixture control only: no such command exists on target UART. */
         else if(header[0]==10u && count==2u)
             refresh_delay_ms=(uint32_t)data[0]+((uint32_t)data[1]<<8u);
+        /* Host-fixture telemetry injection; never a target-UART command. */
+        else if(header[0]==11u && count==3u)
+        {
+            capture.io.battery_telemetry_supported=data[0]!=0u;
+            battery_mv=(uint16_t)((uint16_t)data[1] | ((uint16_t)data[2]<<8u));
+        }
         else return 4;
         uint8_t size[2]={(uint8_t)output_size,(uint8_t)(output_size>>8u)};
         (void)fwrite(size,1u,2u,stdout);(void)fwrite(output,1u,output_size,stdout);(void)fflush(stdout);

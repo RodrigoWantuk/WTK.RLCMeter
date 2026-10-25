@@ -7,7 +7,8 @@ Build `cmake --preset stm32-bringup-cal` and `cmake --build --preset stm32-bring
 from Firmware. This development image runs an actual USART1 service at 115200 8N1.
 It has no product UI, ordinary measurement command or resource receiver. A06.2b
 adds the [installation service](PC_OSL_INSTALL.md) in the same development profile. PRODUCT and BRINGUP keep their existing wizard, boot gate and resource behavior.
-The PCB is unassembled: the binary is built, but physical operation requires bench validation.
+The first assembled unit has bench evidence under `docs/review/`; this does not
+qualify other units or establish measurement accuracy.
 
 Install `pyserial` on the PC for COM access. The backend and C-backed simulation do
 not require pyserial. Run from Firmware:
@@ -85,7 +86,19 @@ u16 (1=BRINGUP_CAL), 8 capability bitmap u32 (bits 0 identity, 1 status, 2 captu
 Status offsets: 0 capture ID, 4 active OSL sequence, 8 faults, 12 safety blockers,
 16 protocol errors (all u32), 20 temperature mC i32; bytes 24 capture error,
 25 session busy, 26 result available, 27 active calibration valid, 28 transfer safe,
-29 temperature valid, 30..31 zero. An active valid record is not physical qualification.
+29 temperature valid. Capability bit 5 advertises battery telemetry: bytes 30..31
+then contain little-endian nominal-ADC VBAT millivolts (1..4350), with zero meaning
+unavailable, never a measured 0 V. Without capability bit 5 these bytes remain zero.
+An active valid record is not physical qualification.
+
+After IDENTIFY advertises this capability, the host adds `battery_voltage_v` to
+STATUS (`null` when unavailable). The existing auxiliary sensor supplies the
+sample; an unknown or more than 2000-ms-old battery sample is unavailable. This
+read starts no DUT acquisition and remains available while the charger interlock
+blocks measurement. It reports nominal ADC scaling, not calibrated voltage or
+state of charge. For example, `python tools/pc_cal_capture.py status --port COM4`
+identifies the device and reads battery telemetry using TTL only. Older firmware
+omits the voltage field and needs one firmware update before supporting this read.
 
 ## CCO1 observation artifact (188 bytes)
 

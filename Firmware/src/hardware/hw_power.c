@@ -64,6 +64,17 @@ hw_battery_state_t hw_battery_state_from_voltage(float vbat_v, bool valid)
     return HW_BATTERY_OK;
 }
 
+uint16_t hw_battery_telemetry_mv(float vbat_v, hw_battery_state_t state)
+{
+    const bool known = state == HW_BATTERY_OK || state == HW_BATTERY_LOW ||
+                       state == HW_BATTERY_CRITICAL;
+    if (!known || !(vbat_v > 0.0f) || vbat_v > HW_BATTERY_MAX_PLAUSIBLE_V)
+    {
+        return 0u;
+    }
+    return (uint16_t)(vbat_v * 1000.0f + 0.5f);
+}
+
 float hw_ntc_resistance_from_voltage(float adc_ntc_v, float vdd_v, bool *valid)
 {
     if ((valid == NULL) || (vdd_v <= 0.0f) || (adc_ntc_v <= 0.0f) || (adc_ntc_v >= vdd_v))

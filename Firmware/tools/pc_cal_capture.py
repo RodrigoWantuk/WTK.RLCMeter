@@ -168,10 +168,16 @@ class Client:
         if len(data) != 32:
             raise CaptureError("invalid status length")
         values = struct.unpack_from("<5Ii", data)
-        return dict(capture_id=values[0], calibration_sequence=values[1], safety_faults=values[2],
+        result = dict(capture_id=values[0], calibration_sequence=values[1], safety_faults=values[2],
                     safety_blocks=values[3], protocol_errors=values[4], temperature_mC=values[5],
                     capture_status=data[24], busy=bool(data[25]), result_valid=bool(data[26]),
                     calibrated=bool(data[27]), transfer_safe=bool(data[28]))
+        if self.identity is not None and self.identity["capabilities"] & 32:
+            millivolts = struct.unpack_from("<H", data, 30)[0]
+            if millivolts > 4350:
+                raise CaptureError("invalid nominal battery telemetry")
+            result["battery_voltage_v"] = millivolts / 1000 if millivolts else None
+        return result
 
     def begin(self, key, standard, load=0j):
         if standard not in STANDARDS:

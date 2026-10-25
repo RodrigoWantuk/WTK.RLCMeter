@@ -291,6 +291,16 @@ static int test_charger_and_power_helpers(void)
 int main(void)
 {
     int failures = 0;
+    failures += expect_true(hw_battery_telemetry_mv(3.9f, HW_BATTERY_OK) == 3900u,
+                            "fresh nominal battery millivolts");
+    failures += expect_true(hw_battery_telemetry_mv(3.2f, HW_BATTERY_CRITICAL) == 3200u,
+                            "critical battery remains observable without measurement permission");
+    failures += expect_true(hw_battery_telemetry_mv(3.9f, HW_BATTERY_UNKNOWN) == 0u,
+                            "stale or unknown battery is unavailable");
+    failures += expect_true(hw_battery_telemetry_mv(NAN, HW_BATTERY_OK) == 0u &&
+                            hw_battery_telemetry_mv(4.5f, HW_BATTERY_OK) == 0u &&
+                            hw_battery_telemetry_mv(-1.0f, HW_BATTERY_OK) == 0u,
+                            "invalid voltages never become telemetry");
 #if WTK_ENABLE_BENCH_SUPPLY
     hw_safety_input_t bench = valid_input();
     bench.battery = HW_BATTERY_UNKNOWN;

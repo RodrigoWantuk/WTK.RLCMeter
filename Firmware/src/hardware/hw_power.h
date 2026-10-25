@@ -17,6 +17,8 @@
 
 float hw_battery_vbat_from_adc_voltage(float adc_bat_v);
 hw_battery_state_t hw_battery_state_from_voltage(float vbat_v, bool valid);
+/* Zero is unavailable. Pass the freshness-qualified auxiliary battery state. */
+uint16_t hw_battery_telemetry_mv(float vbat_v, hw_battery_state_t state);
 float hw_ntc_resistance_from_voltage(float adc_ntc_v, float vdd_v, bool *valid);
 bool hw_ntc_temperature_from_resistance(float resistance_ohm, float *temperature_c);
 

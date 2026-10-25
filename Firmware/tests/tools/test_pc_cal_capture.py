@@ -35,6 +35,37 @@ class SerialIntegration(unittest.TestCase):
         self.assertEqual(identity["adc_provenance"],"NOMINAL_3V3_NOT_CALIBRATED")
         self.assertFalse(self.client.status()["calibrated"])
 
+    def test_legacy_status_does_not_export_battery(self):
+        self.serial.control(11,struct.pack("<BH",0,4000))
+        identity=self.client.identify()
+        self.assertFalse(identity["capabilities"] & 32)
+        self.assertNotIn("battery_voltage_v",self.client.status())
+        _,body=self.client.command(capture.STATUS)
+        self.assertEqual(body[30:],b"\x00\x00")
+
+    def test_battery_status_readable_while_charger_blocks_capture(self):
+        self.serial.control(11,struct.pack("<BH",1,4050))
+        identity=self.client.identify()
+        self.assertTrue(identity["capabilities"] & 32)
+        self.serial.inject(1)
+        state=self.client.status()
+        self.assertEqual(state["battery_voltage_v"],4.05)
+        self.assertTrue(state["safety_blocks"] & 1)
+        self.assertTrue(state["transfer_safe"])
+        self.assertFalse(state["busy"])
+        self.assertEqual(state["capture_id"],0)
+
+    def test_battery_unavailable_is_not_zero_volts(self):
+        self.serial.control(11,struct.pack("<BH",1,0))
+        self.client.identify()
+        self.assertIsNone(self.client.status()["battery_voltage_v"])
+
+    def test_out_of_range_battery_telemetry_rejected(self):
+        self.serial.control(11,struct.pack("<BH",1,65000))
+        self.client.identify()
+        with self.assertRaisesRegex(capture.CaptureError,"battery telemetry"):
+            self.client.status()
+
     def test_complete_campaign_and_resume(self):
         with tempfile.TemporaryDirectory() as directory:
             campaign=Path(directory)/"captures.json"; candidate=Path(directory)/"candidate.bin"

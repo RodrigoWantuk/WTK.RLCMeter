@@ -26,6 +26,7 @@ enum
     APP_CAL_CAPTURE_RX_TIMEOUT_MS = 250u,
     APP_CAL_CAPTURE_TIMEOUT_MS = 20000u,
     APP_CAL_CAPTURE_ADC_NOMINAL_3V3 = 1u,
+    APP_CAL_CAPTURE_CAP_BATTERY_MV = 1u << 5,
 };
 
 typedef enum
@@ -63,6 +64,7 @@ typedef struct
     bool temperature_valid;
     bool factory_allowed; /* Preflight only: hardware still issues/validates its permit. */
     bool transfer_safe;   /* SAFE, excitation OFF, range disabled, quiet released. */
+    uint16_t battery_mv; /* 1..4350 nominal ADC mV; zero when unknown/stale. */
 } app_cal_capture_snapshot_t;
 
 typedef struct
@@ -73,6 +75,7 @@ typedef struct
     uint8_t device_uid[12];
     bool synthetic;
     bool installation_supported;
+    bool battery_telemetry_supported;
 } app_cal_capture_io_t;
 
 typedef struct

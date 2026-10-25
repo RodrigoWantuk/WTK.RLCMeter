@@ -109,7 +109,8 @@ static void identify(app_cal_capture_service_t *service, uint32_t id)
     put32(body, MEASUREMENT_CAL_HARDWARE_REV1);
     put16(body+4, MEASUREMENT_CAL_MODEL_VERSION_CURRENT);
     put16(body+6, 1u); /* BRINGUP_CAL service profile */
-    put32(body+8, 0x0fu | (WTK_ENABLE_CAL_INSTALL_SERVICE && service->io.installation_supported ? 0x10u : 0u));
+    put32(body+8, 0x0fu | (WTK_ENABLE_CAL_INSTALL_SERVICE && service->io.installation_supported ? 0x10u : 0u) |
+                  (service->io.battery_telemetry_supported ? APP_CAL_CAPTURE_CAP_BATTERY_MV : 0u));
     put16(body+12, MEASUREMENT_CONDITION_REV1_MAX_SUPPORTED);
     put16(body+14, APP_CAL_CAPTURE_OBSERVATION_BYTES);
     put32(body+16, APP_CAL_CAPTURE_TIMEOUT_MS);
@@ -137,6 +138,7 @@ static void status_reply(app_cal_capture_service_t *service, uint32_t id)
     body[27] = app_calibration_service_active_valid(service->session.service) ? 1u : 0u;
     body[28] = state.transfer_safe ? 1u : 0u;
     body[29] = state.temperature_valid ? 1u : 0u;
+    if (service->io.battery_telemetry_supported) put16(body+30, state.battery_mv);
     reply(service, APP_CAL_CAPTURE_STATUS, id, APP_CAL_CAPTURE_OK, body, sizeof(body));
 }
 
