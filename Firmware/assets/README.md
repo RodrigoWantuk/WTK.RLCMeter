@@ -5,7 +5,8 @@ wire schema is v2 and the product resource API is v4. API v4 requires complete E
 PT-BR UTF-8 catalogs (`0x0001..0x0059`) and three A1 bitmap font roles. An older API
 v3 pack must be rebuilt and uploaded; the firmware must not silently reinterpret it.
 
-The current pack also includes optional 240x320 RGB565 RLE art for the READY screen.
+The current seven-entry pack includes optional 240x320 RGB565 RLE art for the READY
+screen and a separate personalized three-second boot splash (`0x00030006`).
 Art contains no words or numerical readouts. The firmware composes localized text,
 values, status, and icon glyphs over it. Corrupt or absent optional art falls back to
 the plain background; missing/corrupt required text or fonts enters the internal
@@ -26,6 +27,10 @@ of W25Q and never grants measurement permission.
   `image/boot-art-v2-rle.json` is 240x320 with three significant bits per RGB channel
   before RGB565 encoding, keeping the compressed command stream bounded. The other
   screen image sources are historical experiments and are not packaged.
+- `source/screens/wtk-rlcmeter-boot-splash-rodrigo-wantuk-240x320.png`: owner-supplied
+  indexed PNG. `image/personalized-boot-splash-rle.json` preserves native RGB565
+  precision (`--channel-bits 8`). Every embedded profile streams this optional
+  splash, holds the completed image for 3000 ms, then clears it.
 - `font/wtk-pixel-base.json`: previous provisional source, retained for legacy
   synthetic format tests; it is not in the product pack.
 
@@ -42,25 +47,48 @@ Regenerate the optional art when its PNG source changes:
 python Firmware/tools/prepare_rgb565_image_resource.py Firmware/assets/source/screens/boot-art-v2.png -o Firmware/assets/image/boot-art-v2-rle.json --width 240 --height 320 --channel-bits 3
 ```
 
+Regenerate the personalized splash without recoloring it (8-bit indexed, RGB and
+RGBA non-interlaced PNGs are supported):
+
+```sh
+python Firmware/tools/prepare_rgb565_image_resource.py Firmware/assets/source/screens/wtk-rlcmeter-boot-splash-rodrigo-wantuk-240x320.png -o Firmware/assets/image/personalized-boot-splash-rle.json --width 240 --height 320 --channel-bits 8 --description "Owner supplied personalized boot splash; native RGB565 precision"
+```
+
 Build, inspect, frame, and upload the pack from the repository root:
 
 ```sh
 python Firmware/tools/resource_pack_tool.py bundle Firmware/assets/resource_manifest.json -o Firmware/build/resources/product.wrp2 --summary Firmware/build/resources/product.json --stream Firmware/build/resources/product.wpc
 python Firmware/tools/resource_pack_tool.py inspect Firmware/build/resources/product.wrp2
-python Firmware/tools/resource_pack_tool.py upload Firmware/build/resources/product.wrp2 --port COM5
+python Firmware/tools/resource_pack_tool.py upload Firmware/build/resources/product.wrp2 --port COM5 --report Firmware/build/resources/upload-001.json
 ```
 
 The last command uses the product PC-link resource receiver through a serial COM
 port. It is for provisioning/recovery; ordinary menus, measurement, and calibration
 do not require UART. Never put a resource pack inside the internal MCU Flash image.
 
-On the first board, the physical install required10ms per byte, per-byte flushing
-and10s settling after BEGIN while the recovery screen redrew. The generic CLI
-above sends whole frames and was not qualified by that run. Use the bounded paced
-procedure and independent Flash readback recorded in the
-[first-board installation report](../../docs/review/bringup-2026-10-24/Resource-Install.md)
-when provisioning this polled-UART configuration. All193 frames and the complete
-22891-byte external readback were verified; calibration/settings were preserved.
+The supported uploader opens with DTR/RTS inactive, flushes each byte, defaults to
+1 ms byte pacing and 250 ms post-BEGIN settling, and validates every ACK including
+END/COMPLETE. It stops on any rejection, malformed response or timeout without
+replaying frames. A saved report records partial failures; inspect the target
+before restarting a transfer. An ACK is not an independent physical readback.
+Back up the complete sector-rounded erase span and the capacity-relative mutable
+32 KiB tail before replacement; compare the complete installed pack and tail after.
+
+A receiver-enabled PRODUCT accepts RESOURCE_BEGIN from idle READY,
+CALIBRATION_REQUIRED, Maintenance or PC-link presentation only, with inactive
+runtime/teardown and no pending settings save. The shell additionally requires
+K1 SAFE, range and excitation off, no quiet window or safety fault; normal Flash
+ownership checks remain mandatory. This permits asset replacement without a
+connected display. Active measurement, calibration, faults and unsafe states do
+not grant host maintenance entry. No calibration permission is granted by upload.
+TFT redraw is deferred while the receiver owns Flash, keeping polled UART live.
+Wait for the shared boot presentation to finish (up to 33 s including bounded
+progress/clear time) before initiating any serial session; do not send during boot.
+
+The older receiver used for the [first-board installation](../../docs/review/bringup-2026-10-24/Resource-Install.md)
+required `--inter-byte-delay-ms 10 --settle-after-begin-ms 10000`. Its 193 ACKs and
+22891-byte readback qualify that older pack only. The new pack is 104499 bytes,
+uses 26 sectors (`[0,0x1A000)`), and must receive its own physical acceptance.
 
 ## Preview and validation
 

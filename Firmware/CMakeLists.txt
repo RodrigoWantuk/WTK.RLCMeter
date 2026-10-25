@@ -30,6 +30,7 @@ option(WTK_ENABLE_SUPPLEMENTARY_CURVES "Enable optional post-OSL WCRV calibratio
 option(WTK_BRINGUP_K1_TEST "BRINGUP-only empty-fixture K1 pulse; excludes experimental DC pilot for Flash space" OFF)
 option(WTK_BRINGUP_BENCH_SUPPLY "BRINGUP-only operator-confirmed external 5V supply, without battery" OFF)
 option(WTK_BRINGUP_PERIPHERAL_TEST "BRINGUP-only standalone display/buttons/buzzer diagnostic; no active lab console" OFF)
+option(WTK_BRINGUP_DC_PILOT "Opt in to experimental DC diagnostics; subject to the 64KiB image limit" OFF)
 string(TOUPPER "${WTK_FIRMWARE_PROFILE}" WTK_FIRMWARE_PROFILE)
 set(WTK_ENABLE_PERIPHERAL_TEST_VALUE 0)
 if(WTK_BRINGUP_PERIPHERAL_TEST)
@@ -115,7 +116,7 @@ else()
 endif()
 
 if((WTK_TARGET_PLATFORM STREQUAL "host") OR
-   (WTK_FIRMWARE_PROFILE STREQUAL "BRINGUP" AND NOT WTK_BRINGUP_K1_TEST AND NOT WTK_BRINGUP_BENCH_SUPPLY AND NOT WTK_BRINGUP_PERIPHERAL_TEST))
+   (WTK_BRINGUP_DC_PILOT AND WTK_FIRMWARE_PROFILE STREQUAL "BRINGUP" AND NOT WTK_BRINGUP_K1_TEST AND NOT WTK_BRINGUP_BENCH_SUPPLY AND NOT WTK_BRINGUP_PERIPHERAL_TEST))
     set(WTK_ENABLE_DC_PILOT_VALUE 1)
 else()
     set(WTK_ENABLE_DC_PILOT_VALUE 0)
@@ -187,6 +188,7 @@ set(WTK_COMMON_SOURCES
     src/ui/ui_font.c
     src/ui/ui_format.c
     src/ui/ui_image.c
+    src/ui/ui_boot_splash.c
     src/ui/ui_product.c
     src/ui/ui_text_catalog.c
     src/ui/ui_text.c
@@ -292,6 +294,7 @@ elseif(WTK_TARGET_PLATFORM STREQUAL "stm32")
     endif()
     add_executable(wtk_rlcmeter
         ${WTK_SHELL_SOURCE}
+        src/app/app_boot_splash.c
         src/app/main.c
         src/bsp/bsp_clock.c
         src/bsp/bsp_adc.c
@@ -307,6 +310,8 @@ elseif(WTK_TARGET_PLATFORM STREQUAL "stm32")
         src/bsp/bsp_watchdog.c
         src/drivers/spi_bus.c
         src/drivers/w25q_device.c
+        src/drivers/ili9341.c
+        src/storage/resource_w25q_adapter.c
         src/storage/measurement_cal_w25q_adapter.c
         src/hardware/hw_backlight.c
         src/hardware/hw_buzzer.c
@@ -316,14 +321,13 @@ elseif(WTK_TARGET_PLATFORM STREQUAL "stm32")
     )
     if(NOT WTK_FIRMWARE_PROFILE STREQUAL "BRINGUP_CAL")
         target_sources(wtk_rlcmeter PRIVATE src/bsp/bsp_diagnostics.c
-            src/drivers/ili9341.c src/ui/ui_fallback_renderer.c)
+            src/ui/ui_fallback_renderer.c)
     endif()
     if(WTK_FIRMWARE_PROFILE STREQUAL "BRINGUP")
         target_sources(wtk_rlcmeter PRIVATE src/app/app_bringup_console.c)
     elseif(WTK_FIRMWARE_PROFILE STREQUAL "PRODUCT")
         target_sources(wtk_rlcmeter PRIVATE
             src/storage/app_settings_w25q_adapter.c
-            src/storage/resource_w25q_adapter.c
         )
     endif()
     set_target_properties(wtk_rlcmeter PROPERTIES

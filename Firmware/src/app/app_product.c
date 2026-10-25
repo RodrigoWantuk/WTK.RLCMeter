@@ -414,6 +414,25 @@ static bool runtime_active(const app_product_t *product)
     return false;
 }
 
+bool app_product_request_resource_upload(app_product_t *product)
+{
+    if (product == NULL || !product->initialized || runtime_active(product) ||
+        product->runtime_teardown_kind != APP_PRODUCT_RUNTIME_TEARDOWN_NONE ||
+        product->settings_save_requested) return false;
+    switch (product->view.state)
+    {
+    case UI_PRODUCT_STATE_CALIBRATION_REQUIRED:
+    case UI_PRODUCT_STATE_READY:
+    case UI_PRODUCT_STATE_MAINTENANCE:
+    case UI_PRODUCT_STATE_PC_LINK_STATUS:
+        clear_requests(product);
+        set_state(product, UI_PRODUCT_STATE_PC_LINK_STATUS);
+        return true;
+    default:
+        return false;
+    }
+}
+
 static void begin_runtime_teardown(app_product_t *product, ui_product_state_t target_state)
 {
     if ((product == NULL) || (product->runtime_teardown_kind != APP_PRODUCT_RUNTIME_TEARDOWN_NONE))

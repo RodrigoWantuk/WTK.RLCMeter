@@ -93,7 +93,7 @@ static resource_status_t validate_image_commands(ui_image_catalog_t *catalog,
 
 static resource_status_t mount_image(ui_image_catalog_t *catalog,
                                      uint32_t resource_id,
-                                     ui_image_resource_t *image)
+                                     ui_image_resource_t *image, bool verify)
 {
     if ((catalog == NULL) || (image == NULL))
     {
@@ -114,10 +114,10 @@ static resource_status_t mount_image(ui_image_catalog_t *catalog,
     {
         return RESOURCE_STATUS_CORRUPT;
     }
-    status = resource_catalog_verify_payload(catalog->resource_catalog, &image->entry);
-    if (status != RESOURCE_STATUS_OK)
+    if (verify)
     {
-        return status;
+        status = resource_catalog_verify_payload(catalog->resource_catalog, &image->entry);
+        if (status != RESOURCE_STATUS_OK) return status;
     }
     uint8_t header_bytes[RESOURCE_IMAGE_RGB565_RLE_HEADER_SIZE];
     status = resource_catalog_read(catalog->resource_catalog,
@@ -136,12 +136,12 @@ static resource_status_t mount_image(ui_image_catalog_t *catalog,
     {
         return status;
     }
-    status = validate_image_commands(catalog, image);
-    if (status != RESOURCE_STATUS_OK)
+    if (verify)
     {
-        return status;
+        status = validate_image_commands(catalog, image);
+        if (status != RESOURCE_STATUS_OK) return status;
     }
-    image->ready = true;
+    image->ready = verify;
     return RESOURCE_STATUS_OK;
 }
 
@@ -152,7 +152,7 @@ static const ui_image_resource_t *lookup_image(const ui_image_catalog_t *catalog
     {
         return NULL;
     }
-    if ((resource_id == RESOURCE_ID_IMAGE_SCREEN_BOOT) && catalog->boot.ready)
+    if ((resource_id == catalog->resource_id) && catalog->boot.ready)
     {
         return &catalog->boot;
     }
@@ -170,14 +170,22 @@ void ui_image_catalog_init(ui_image_catalog_t *catalog)
 resource_status_t ui_image_catalog_mount(ui_image_catalog_t *catalog,
                                          resource_catalog_t *resource_catalog)
 {
+    return ui_image_catalog_mount_resource(catalog, resource_catalog, RESOURCE_ID_IMAGE_SCREEN_BOOT);
+}
+
+resource_status_t ui_image_catalog_mount_resource(ui_image_catalog_t *catalog,
+                                                  resource_catalog_t *resource_catalog,
+                                                  uint32_t resource_id)
+{
     if ((catalog == NULL) || (resource_catalog == NULL))
     {
         return RESOURCE_STATUS_INVALID_ARG;
     }
     *catalog = (ui_image_catalog_t){
         .resource_catalog = resource_catalog,
+        .resource_id = resource_id,
     };
-    const resource_status_t status = mount_image(catalog, RESOURCE_ID_IMAGE_SCREEN_BOOT, &catalog->boot);
+    const resource_status_t status = mount_image(catalog, resource_id, &catalog->boot, true);
     if (status == RESOURCE_STATUS_DEFERRED)
     {
         return status;
@@ -187,6 +195,61 @@ resource_status_t ui_image_catalog_mount(ui_image_catalog_t *catalog,
         catalog->boot = (ui_image_resource_t){0};
     }
     catalog->ready = catalog->boot.ready;
+    return RESOURCE_STATUS_OK;
+}
+
+resource_status_t ui_image_catalog_prepare(ui_image_catalog_t *catalog,
+                                           resource_catalog_t *resource_catalog,
+                                           uint32_t resource_id, ui_image_validation_t *validation)
+{
+    if (catalog == NULL || resource_catalog == NULL || validation == NULL) return RESOURCE_STATUS_INVALID_ARG;
+    *catalog = (ui_image_catalog_t){.resource_catalog = resource_catalog, .resource_id = resource_id};
+    *validation = (ui_image_validation_t){.payload_crc = STORAGE_CRC32_INIT, .command_crc = STORAGE_CRC32_INIT};
+    const resource_status_t status = mount_image(catalog, resource_id, &catalog->boot, false);
+    if (status != RESOURCE_STATUS_OK) return status;
+    const ui_image_resource_t *image = &catalog->boot;
+    if (image->entry.payload_size == 0u) return RESOURCE_STATUS_NOT_FOUND;
+    if (image->entry.payload_size != image->header.command_offset + image->header.command_size ||
+        image->header.command_size > image->header.decoded_pixel_count * RESOURCE_IMAGE_RGB565_RLE_RECORD_SIZE)
+        return RESOURCE_STATUS_CORRUPT;
+    return RESOURCE_STATUS_OK;
+}
+
+resource_status_t ui_image_catalog_validate_step(ui_image_catalog_t *catalog,
+                                                 ui_image_validation_t *validation)
+{
+    if (catalog == NULL || validation == NULL || catalog->boot.entry.payload_size == 0u)
+        return RESOURCE_STATUS_INVALID_ARG;
+    if (catalog->ready) return RESOURCE_STATUS_OK;
+    const ui_image_resource_t *image = &catalog->boot;
+    if (validation->cursor >= image->entry.payload_size) return RESOURCE_STATUS_CORRUPT;
+    uint8_t bytes[128];
+    uint32_t size = image->entry.payload_size - validation->cursor;
+    if (size > sizeof(bytes)) size = sizeof(bytes);
+    const resource_status_t status = read_image(catalog, image, validation->cursor, bytes, size);
+    if (status != RESOURCE_STATUS_OK) return status;
+    validation->payload_crc = storage_crc32_update(validation->payload_crc, bytes, size);
+    uint32_t start = 0u;
+    if (validation->cursor < image->header.command_offset)
+        start = image->header.command_offset - validation->cursor;
+    if (start < size)
+    {
+        validation->command_crc = storage_crc32_update(validation->command_crc, &bytes[start], size - start);
+        for (uint32_t offset = start; offset < size; offset += RESOURCE_IMAGE_RGB565_RLE_RECORD_SIZE)
+        {
+            const uint16_t count = get_u16(&bytes[offset]);
+            if (count == 0u || count > image->header.decoded_pixel_count - validation->pixels)
+                return RESOURCE_STATUS_CORRUPT;
+            validation->pixels += count;
+        }
+    }
+    validation->cursor += size;
+    if (validation->cursor < image->entry.payload_size) return RESOURCE_STATUS_DEFERRED;
+    if ((validation->payload_crc ^ STORAGE_CRC32_XOR_OUT) != image->entry.payload_crc32 ||
+        (validation->command_crc ^ STORAGE_CRC32_XOR_OUT) != image->header.command_crc32 ||
+        validation->pixels != image->header.decoded_pixel_count) return RESOURCE_STATUS_CORRUPT;
+    catalog->boot.ready = true;
+    catalog->ready = true;
     return RESOURCE_STATUS_OK;
 }
 

@@ -1,4 +1,5 @@
 #include "app/app_shell.h"
+#include "app/app_boot_splash.h"
 
 #include "app/app_bringup_console.h"
 #include "app/app_calibration_service.h"
@@ -467,6 +468,15 @@ static APP_NOINLINE app_resource_update_status_t product_pc_link_process_frame(c
     {
         g_pc_link_pending_protocol_status = APP_PC_LINK_STATUS_INVALID_ARG;
         return APP_RESOURCE_UPDATE_STATUS_INVALID_ARG;
+    }
+    if (frame->type == APP_PC_LINK_FRAME_RESOURCE_BEGIN &&
+        app_safety_fault_mask(&g_safety_faults) == 0u &&
+        hw_k1_commanded_state(&g_k1) == HW_K1_STATE_SAFE &&
+        hw_range_get_state(&g_range) == HW_RANGE_FSM_DISABLED &&
+        bsp_excitation_mode() == BSP_EXCITATION_MODE_OFF &&
+        !hw_peripherals_quiet_requested())
+    {
+        (void)app_product_request_resource_upload(&g_product);
     }
     if (g_product.view.state != UI_PRODUCT_STATE_PC_LINK_STATUS)
     {
@@ -1342,6 +1352,19 @@ static void app_step(void)
 #endif
     app_update_safety_state();
 
+#if WTK_ENABLE_K1_BENCH_TEST && WTK_ENABLE_BRINGUP_CONSOLE
+    if (!app_bringup_console_k1_test_owned(&g_bringup_console))
+#endif
+    {
+        (void)ili9341_init_step(&g_display, now_ms);
+    }
+    if (app_boot_splash_step(&g_display, now_ms,
+            app_safety_fault_any(&g_safety_faults) || hw_peripherals_quiet_requested()))
+    {
+        hw_buzzer_step(now_ms);
+        return;
+    }
+
     buttons_update(&g_buttons, app_read_button_mask(), now_ms);
 
     button_event_t event;
@@ -1363,12 +1386,6 @@ static void app_step(void)
 #endif
     }
 
-#if WTK_ENABLE_K1_BENCH_TEST && WTK_ENABLE_BRINGUP_CONSOLE
-    if (!app_bringup_console_k1_test_owned(&g_bringup_console))
-#endif
-    {
-        (void)ili9341_init_step(&g_display, now_ms);
-    }
 #if WTK_ENABLE_BRINGUP_CONSOLE
     if (g_display.ready && !g_display_ready_reported)
     {
@@ -1456,7 +1473,12 @@ static void app_step(void)
     app_product_make_view(&g_product, &product_view);
     product_apply_outputs();
     ui_product_request(&g_product_ui, &product_view);
-    const bsp_status_t ui_status =
+    /* Keep polled UART responsive while the resource receiver owns Flash. */
+    bool defer_resource_ui = false;
+#if WTK_ENABLE_PRODUCT_RESOURCE_UPDATE
+    defer_resource_ui = g_resource_update_configured;
+#endif
+    const bsp_status_t ui_status = defer_resource_ui ? BSP_STATUS_BUSY :
         ui_product_step(&g_product_ui, &g_display, hw_peripherals_quiet_requested());
     if ((ui_status != BSP_STATUS_OK) && (ui_status != BSP_STATUS_BUSY))
     {
@@ -1653,6 +1675,7 @@ void app_shell_run(void)
     }
 
     ili9341_init_start(&g_display, bsp_time_now_ms());
+    app_boot_splash_start(&g_flash, bsp_time_now_ms());
 #if !WTK_ENABLE_BRINGUP_CONSOLE
     product_apply_outputs();
 #endif

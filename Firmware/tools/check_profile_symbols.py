@@ -64,8 +64,8 @@ def capture_composition_errors(commands: list[dict], profile: str) -> list[str]:
     if profile != "BRINGUP_CAL":
         return ["capture development service compiled in " + profile] if present & service else []
     forbidden = {"app_shell.c", "app_bringup_console.c", "app_calibration_campaign.c",
-                 "app_product.c", "ui_product.c", "resource_receiver.c", "resource_store.c",
-                 "app_settings_store.c", "ili9341.c", "ui_fallback_renderer.c"}
+                 "app_product.c", "ui_product.c", "resource_receiver.c",
+                 "app_settings_store.c", "ui_fallback_renderer.c"}
     errors = ["BRINGUP_CAL missing capture source: " + name for name in sorted(service-present)]
     errors += ["BRINGUP_CAL unrelated source: " + name for name in sorted(present & forbidden)]
     return errors

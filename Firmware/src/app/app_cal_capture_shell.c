@@ -1,5 +1,6 @@
 /* Exclusive BRINGUP_CAL shell. Acquisition/permits are the existing hardware FSM. */
 #include "app/app_shell.h"
+#include "app/app_boot_splash.h"
 
 #include "app/app_cal_capture_service.h"
 #include "app/app_io_workspace.h"
@@ -34,6 +35,7 @@ static hw_metrology_measure_t measure;
 static app_calibration_service_t calibration;
 static app_cal_capture_service_t capture;
 static w25q_device_t flash;
+static ili9341_t boot_display;
 static uint16_t sine_table[HW_EXCITATION_LUT_MAX_POINTS];
 
 static void latch(bsp_status_t status, uint32_t mask)
@@ -277,6 +279,8 @@ void app_shell_run(void)
     bsp_reset_read_device_uid(io.device_uid);
     latch(app_cal_capture_init(&capture, &calibration, &capture_io, &io,
         bsp_clock_get_summary(), clock_status), APP_SAFETY_FAULT_METROLOGY_RUNTIME);
+    ili9341_init_start(&boot_display, bsp_time_now_ms());
+    app_boot_splash_start(&flash, bsp_time_now_ms());
     for (;;)
     {
         const uint32_t now = bsp_time_now_ms();
@@ -286,6 +290,13 @@ void app_shell_run(void)
         if (hw_aux_sensors_fault_mask(&sensors) != 0u) fault_adc(NULL);
         if (!hw_metrology_measure_k1_owned()) latch(hw_k1_force_safe(&k1), APP_SAFETY_FAULT_K1_IO);
         if (fault_mask(NULL) != 0u) latch(hw_range_force_disabled(&range), APP_SAFETY_FAULT_RANGE_IO);
+        (void)ili9341_init_step(&boot_display, now);
+        if (app_boot_splash_step(&boot_display, now,
+                fault_mask(NULL) != 0u || hw_peripherals_quiet_requested()))
+        {
+            bsp_watchdog_service();
+            continue;
+        }
         for (uint8_t n = 0u; n < 32u; n++)
         {
             uint8_t byte;

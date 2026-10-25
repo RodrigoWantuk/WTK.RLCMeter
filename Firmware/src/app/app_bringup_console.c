@@ -3382,42 +3382,13 @@ void app_bringup_console_init(app_bringup_console_t *console)
         return;
     }
 
+    /* One deterministic reset also keeps splash-enabled BRINGUP within 64 KiB. */
+    *console = (app_bringup_console_t){0};
 #if WTK_ENABLE_BRINGUP_CONSOLE
-    console->line_length = 0u;
-#if WTK_ENABLE_BENCH_SUPPLY
-    console->bench_supply_confirmed = false;
-#endif
+    app_calibration_campaign_init(&console->cal_campaign);
 #if WTK_ENABLE_K1_BENCH_TEST
     hw_k1_bench_init(&console->k1_test);
-    console->k1_test_flash_ref = NULL;
 #endif
-    console->flash_test_state = APP_BRINGUP_FLASH_TEST_IDLE;
-    console->test_sector_address = 0u;
-    console->busy_observed = false;
-    console->dump_active = false;
-    console->dump_row = 0u;
-    console->dump_source = APP_BRINGUP_METROLOGY_DUMP_NONE;
-    console->cal_frame_active = false;
-    console->cal_frame_size = 0u;
-    console->cal_frame_offset = 0u;
-    console->cal_session = (app_calibration_session_t){0};
-    app_calibration_campaign_init(&console->cal_campaign);
-    console->auto_session = (app_measurement_session_t){0};
-    console->auto_hint = (measurement_auto_hint_t){0};
-    console->auto_sequence = 0u;
-    console->cal_service = NULL;
-    console->workspace = NULL;
-    console->range_ref = NULL;
-    console->k1_ref = NULL;
-    console->sensors_ref = NULL;
-    console->charger_ref = NULL;
-    console->faults_ref = NULL;
-    for (size_t i = 0u; i < sizeof(console->line); i++)
-    {
-        console->line[i] = '\0';
-    }
-#else
-    console->unused = 0u;
 #endif
 }
 

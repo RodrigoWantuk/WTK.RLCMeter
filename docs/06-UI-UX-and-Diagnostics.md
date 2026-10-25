@@ -531,3 +531,22 @@ application/measurement state
 Safety warnings and mandatory boot gates override ordinary navigation.
 
 The UI must never directly operate K1, K2, RANGE_EN, or excitation GPIOs. It emits user intent; application/hardware services decide whether the requested action is allowed.
+
+## Shared boot splash (2026-10-24)
+
+Every embedded profile, including BRINGUP_CAL and peripheral/relay/bench variants,
+uses the same optional owner-supplied 240x320 W25Q image at resource ID 0x00030006.
+The existing READY artwork remains separate. Initialization and incremental CRC/
+RLE validation precede streaming; each validation call reads at most 128 bytes and
+each TFT draw/clear call sends at most 64 pixels. No framebuffer or heap is added.
+The completed image is held for 3000 ms, measured from the following loop after the
+last pixel transfer; unsigned elapsed time handles millisecond wraparound.
+
+Sensors, watchdog and SAFE policy continue throughout presentation. Normal UI,
+serial commands, capture, relay pulses and persistent mutations wait. Failed or
+absent assets/display skip the optional phase; wait/validation/draw has a 15000 ms
+budget, hold is 3000 ms, and clear has its own 15000 ms budget. Safety faults or quiet
+requests abort immediately. Display orientation remains rotation 2. BRINGUP_CAL
+returns to its existing binary-only service after its boot-only graphics phase.
+See [asset provisioning](../Firmware/assets/README.md) for the updated procedure.
+Visual appearance and visible timing require observation on the connected TFT.

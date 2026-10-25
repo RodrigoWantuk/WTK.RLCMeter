@@ -130,3 +130,6 @@ Rev.1 firmware is not considered complete until:
 [Plan18](18-First-Board-Resource-Provisioning.md) records the owner-requested
 production resource installation, physical W25Q readback, preserved mutable data
 and return to standard BRINGUP for remaining bench work.
+
+[Plan 19](19-Shared-Boot-Splash-and-Provisioning.md) adds the owner-supplied splash
+to every firmware profile and the external resource provisioning procedure.

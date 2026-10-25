@@ -2,7 +2,7 @@
 
 ## October24 integration baseline
 
-The shared acquisition/DSP/30ms relay fixes apply to all metrology profiles. All TFT profiles use the working common DCS initialization, portrait180 and slower TFT clock. BRINGUP_CAL stays headless; PRODUCT retains real safety and valid-calibration gates.
+The shared acquisition/DSP/30ms relay fixes apply to all metrology profiles. All TFT profiles use the working common DCS initialization, portrait180 and slower TFT clock. BRINGUP_CAL has only the shared optional boot splash, then returns to its binary serial service; PRODUCT retains real safety and valid-calibration gates.
 
 See [current evidence, input limits and release status](review/bringup-2026-10-24/README.md).
 

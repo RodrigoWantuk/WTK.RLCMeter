@@ -82,6 +82,8 @@ bsp_status_t app_product_init(app_product_t *product,
                               const app_measurement_session_io_t *measurement_io,
                               const app_cal_session_io_t *calibration_io);
 void app_product_handle_button_event(app_product_t *product, const button_event_t *event);
+/* Host RESOURCE_BEGIN may enter maintenance only from an idle presentation. */
+bool app_product_request_resource_upload(app_product_t *product);
 void app_product_step(app_product_t *product,
                       const app_product_inputs_t *inputs,
                       const bsp_clock_summary_t *clock_summary,

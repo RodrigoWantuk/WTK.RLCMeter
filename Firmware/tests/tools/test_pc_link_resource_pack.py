@@ -4,6 +4,8 @@ import struct
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
+from types import SimpleNamespace
 
 
 TOOLS = Path(__file__).resolve().parents[2] / "tools"
@@ -21,6 +23,50 @@ PC_SPEC.loader.exec_module(pc_link_resource_pack)
 
 
 class PcLinkResourcePackTests(unittest.TestCase):
+    def test_paced_upload_safe_lines_and_stop_on_missing_ack(self):
+        frames = pc_link_resource_pack.iter_resource_frames(b"test pack")
+
+        class Link:
+            def __init__(self, **kwargs):
+                self.kwargs = kwargs
+                self.data = bytearray()
+                self.tx = bytearray()
+                self.closed = False
+            def open(self):
+                assert self.kwargs['port'] is None and self.dtr is False and self.rts is False
+            def close(self): self.closed = True
+            def flush(self): pass
+            def write(self, data): self.tx.extend(data); return len(data)
+            def read(self, size):
+                result = bytes(self.data[:size]); del self.data[:size]; return result
+
+        link = Link(port=None)
+        for frame in frames:
+            kind, sequence, _ = pc_link_resource_pack.decode_frame(frame)
+            status = 2 if kind == pc_link_resource_pack.FRAME_RESOURCE_END else 0
+            link.data.extend(pc_link_resource_pack.encode_frame(2, sequence, struct.pack('<HHHH',sequence,0,status,0)))
+        with patch.dict(sys.modules, {'serial':SimpleNamespace(Serial=lambda **kw: link)}), patch.object(pc_link_resource_pack.time, 'sleep') as delay:
+            report = pc_link_resource_pack.send_serial(frames, 'COM4', 115200, 0)
+        self.assertEqual(report['outcome'], 'ALL_FRAMES_ACKNOWLEDGED')
+        self.assertEqual(link.tx, b''.join(frames))
+        self.assertTrue(link.closed)
+        self.assertEqual(delay.call_count, sum(map(len,frames))+1)
+        link = Link(port=None)
+        with tempfile.TemporaryDirectory() as tmp, patch.dict(sys.modules, {'serial':SimpleNamespace(Serial=lambda **kw: link)}):
+            path=Path(tmp)/'failure.json'
+            with self.assertRaises(TimeoutError):
+                pc_link_resource_pack.send_serial(frames, 'COM4', 115200, 0, 0, 0, path)
+            self.assertEqual(link.tx, frames[0])
+            self.assertIn('STOPPED_INSPECT_BEFORE_RETRY', path.read_text())
+
+    def test_status_rejects_oversized_header_before_payload_read(self):
+        class Link:
+            def read(self, size):
+                self.asserted = size
+                return struct.pack('<IBBHHHI',pc_link_resource_pack.MAGIC,1,2,0,1,65535,0)
+        with self.assertRaises(ValueError):
+            pc_link_resource_pack.read_status_frame(Link())
+
     def _decode_header(self, frame: bytes):
         return struct.unpack("<IBBHHHI", frame[: pc_link_resource_pack.HEADER_SIZE])
 

@@ -575,3 +575,21 @@ See also:
 - [`../docs/04-Firmware-Architecture.md`](../docs/04-Firmware-Architecture.md)
 - [`../docs/13-Detailed-Firmware-Design.md`](../docs/13-Detailed-Firmware-Design.md)
 - [`../plans/README.md`](../plans/README.md)
+
+## Personalized boot presentation
+
+All STM32 presets show the optional W25Q personalized splash for three seconds
+following its complete render. See [assets/README.md](assets/README.md) for source
+regeneration and paced, ACK-verified provisioning. Missing optional art never
+bypasses safety or calibration. Wait for boot presentation to complete before UART
+commands, including the BRINGUP_CAL binary handshake.
+
+`WTK_BRINGUP_DC_PILOT` now defaults OFF. The experimental DC command is a separate
+explicit opt-in; all ordinary AC, calibration and safety diagnostics remain.
+The first splash-enabled BRINGUP with DC exceeded guaranteed Flash by 2268 bytes;
+DC separation plus deterministic whole-console initialization permits the default
+image to fit without increasing the 64 KiB silicon limit. A feature-rich DC opt-in
+may still fail the hard size gate; it is not a qualified default image.
+Current size tooling enforces PRODUCT 64512-byte Flash/17408-byte accounted RAM and
+BRINGUP 65536-byte Flash/18432-byte accounted RAM; historical stage budgets above
+are retained for traceability. See plan 19 for source-bound final build evidence.

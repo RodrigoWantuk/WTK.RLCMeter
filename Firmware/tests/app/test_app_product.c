@@ -597,6 +597,32 @@ static int test_boot_calibration_gate(void)
     return failures;
 }
 
+static int test_host_resource_maintenance_entry(void)
+{
+    int failures = 0;
+    fake_io_t fake = {0};
+    app_product_t product;
+    failures += expect_true(init_product(&product, &fake) == BSP_STATUS_OK, "resource entry init");
+    app_product_inputs_t inputs = inputs_ready();
+    boot_to_ready(&product, &inputs);
+    product.request_click = true;
+    failures += expect_true(app_product_request_resource_upload(&product), "idle host enters maintenance");
+    failures += expect_true(product.view.state == UI_PRODUCT_STATE_PC_LINK_STATUS && !product.request_click &&
+                            fake.start_count == 0u, "upload clears acquisition gestures");
+    const ui_product_state_t denied[] = {UI_PRODUCT_STATE_MEASURING, UI_PRODUCT_STATE_FAULT,
+        UI_PRODUCT_STATE_CALIBRATION_WIZARD, UI_PRODUCT_STATE_SAFETY_BLOCKED};
+    for (size_t i=0u; i<sizeof(denied)/sizeof(denied[0]); i++)
+    {
+        product.view.state = denied[i];
+        failures += expect_true(!app_product_request_resource_upload(&product), "busy/fault presentation denies host upload");
+    }
+    product.view.state = UI_PRODUCT_STATE_CALIBRATION_REQUIRED;
+    failures += expect_true(app_product_request_resource_upload(&product), "blank calibration allows asset maintenance only");
+    product.runtime_teardown_kind = 1u;
+    failures += expect_true(!app_product_request_resource_upload(&product), "teardown denies upload");
+    return failures;
+}
+
 static int test_ok_gestures_and_measurement_flow(void)
 {
     int failures = 0;
@@ -1256,6 +1282,7 @@ int main(int argc, char **argv)
     failures += test_factory_ac_lifecycle(directory);
 #endif
     failures += test_boot_calibration_gate();
+    failures += test_host_resource_maintenance_entry();
     failures += test_ok_gestures_and_measurement_flow();
     failures += test_failed_refinement_hides_stale_primary();
     failures += test_menu_calibration_status_and_dirty_candidate();
