@@ -134,3 +134,8 @@ OPEN repeats reproduce the missing HG-overlap evidence; compiler-derived RAM
 statistics explain the final LOAD rejection. The candidate builder remains
 blocked. A one-point NTC comparison using an owner-provided contact thermometer
 is next; no calibration has been installed or physically qualified.
+
+[NTC cold comparison](review/bringup-2026-10-25/NTC-Comparison.md) preserves the
+external 23.5-degC bead-contact reference against firmware 27.27030 degC. The
+purchased NTC is listed only as 100 kohm; Beta is unknown. A warm reference is
+pending before fitting an effective divider ratio and Beta. No trim is applied.

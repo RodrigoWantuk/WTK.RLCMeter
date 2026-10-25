@@ -193,6 +193,20 @@ between the probe, PCB and bead. The owner was asked for direct isolated-bead
 contact, approximately 60 seconds of stabilization, and another reference reading.
 No NTC correction has been applied and no thermometer model is recorded.
 
+Direct isolated-bead contact gave a corrected external reference of 23.5 degC.
+The paired firmware reading was 27.27030 degC, raw 1952, 91087.27 nominal ohm,
+age 236 ms, difference 3.77030 degC. The owner could not read a resistor marking;
+the purchased thermistor listing says only "NTC 3mm 100k", so B3950 is not
+confirmed. Do not fit Beta from the two different-contact cold comparisons or
+silently install a fixed offset as a full-curve calibration.
+See [cold NTC evidence](../docs/review/bringup-2026-10-25/NTC-Comparison.md).
+The owner was asked to gently warm the bead and contacting probe together to
+approximately 30–35 degC, stabilize, and report the next reference. Two actual
+temperature points can fit effective R25/Rtop and Beta from raw divider ratios;
+this avoids pretending Rtop or R25 was independently measured. Reference
+uncertainty and broader curve qualification remain unresolved. Persistent
+runtime calibration still requires an explicit versioned storage/API design.
+
 A04.1 delivers the [guided OSL campaign](../Firmware/tools/PC_OSL_CAMPAIGN.md):
 six-reference inventory, explicit passive-fixture confirmations, atomic resumable
 CCO1 evidence, real C-backed 99-observation workflow, existing 33-key solver and
