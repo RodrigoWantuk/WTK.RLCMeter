@@ -107,6 +107,17 @@ counter to 1; a paced read-only recovery confirmed SAFE/idle and zero faults.
 It did not replay START or change accepted artifacts. The owner was asked for
 the fresh 100-ohm reading/attachment. No complete candidate or installation yet.
 
+The owner reported "100R exatos, está conectado". All six 100-ohm LOAD keys
+passed acquisition and strict same-image OSL/float32 checks; progress is now
+75/99 observations and 9/33 complete conditions. Saturated HG paths were rejected;
+the 10-kHz/100-mVrms fit used valid HG with actual same-key overlap evidence.
+Fresh batteries were 3.71341 V before this group and 3.71502 V before requesting
+the 1-kohm reading/attachment, both OK. No faults or protocol-counter increase
+occurred during the group. See [100-ohm checkpoint](../docs/review/bringup-2026-10-25/OSL-Load-100.md).
+Four reference groups, independent validation, candidate generation and
+installation remain pending. Printed nominal/tolerance remains the uncertain
+fit anchor; the fresh DMM display does not establish traceable accuracy.
+
 A04.1 delivers the [guided OSL campaign](../Firmware/tools/PC_OSL_CAMPAIGN.md):
 six-reference inventory, explicit passive-fixture confirmations, atomic resumable
 CCO1 evidence, real C-backed 99-observation workflow, existing 33-key solver and

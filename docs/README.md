@@ -109,3 +109,7 @@ remain pending; earlier endpoint checkpoints retain their historical status.
 accepted same-image triplets (69/99 observations), their strict float32 fit
 checks and the owner's battery check requirement before every new resistor.
 Five LOAD groups, independent validation and installation remain pending.
+
+[100-ohm LOAD completion](review/bringup-2026-10-25/OSL-Load-100.md) records six
+more accepted captures and fit checks: 75/99 observations, 9/33 complete
+conditions. Battery remains OK; four LOAD groups and independent validation remain.
