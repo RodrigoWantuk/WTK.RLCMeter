@@ -128,6 +128,16 @@ Protocol counter stayed at 1 and fault mask at zero. Nominal 1 kohm +/-1% remain
 the uncertain reference anchor; no exact lead correction or DMM uncertainty is
 invented. Three LOAD groups, independent validation and installation remain pending.
 
+The owner repeated 9.99 kohm and confirmed the 10-kohm reference attached alone.
+All six LOAD keys passed acquisition and strict same-image float32 OSL checks.
+The [10-kohm checkpoint](../docs/review/bringup-2026-10-25/OSL-Load-10000.md)
+preserves 87/99 observations and 21/33 complete triplets with explicit path and
+clipping evidence. Fresh batteries were 3.70857 V before this group and 3.70696 V
+before requesting the 100-kohm reading/attachment, both OK. Protocol counter
+stayed at 1 and fault mask at zero. Nominal 10 kohm +/-1% remains the uncertain
+fit anchor. The 100-kohm and 1-Mohm LOAD groups, independent validation,
+candidate generation and installation remain pending.
+
 A04.1 delivers the [guided OSL campaign](../Firmware/tools/PC_OSL_CAMPAIGN.md):
 six-reference inventory, explicit passive-fixture confirmations, atomic resumable
 CCO1 evidence, real C-backed 99-observation workflow, existing 33-key solver and
