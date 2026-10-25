@@ -10,14 +10,17 @@ October 25 first-unit update: [all 99 OSL captures](docs/review/bringup-2026-10-
 are preserved, with 30 valid fits and three high-Z/10-kHz fits still blocked.
 An owner-authorized [experimental NTC factory profile](docs/review/bringup-2026-10-25/NTC-Factory-Profile.md)
 is deployed on the first UID and included in nine unit builds. It is unqualified;
-generic builds retain nominal NTC conversion. OSL installation and independent
-metrology/power qualification remain unfinished.
+generic builds retain nominal NTC conversion. Independent metrology/power
+qualification remains unfinished.
 
 A subsequent [coherent calibration pilot](docs/review/bringup-2026-10-25/Coherent-Calibration.md)
 recovers actual1X/HG overlap for all three problematic OPEN keys without relaxing
-the stability criterion. Its new source-bound cohort now has all 33 OPEN and
-all 33 SHORT observations, with a usable common path for every key. LOADs,
-complete OSL fitting, installation and independent validation remain pending.
+the stability criterion. All 33 engineering OSL fits now pass Python and C
+validation using 15 current and 18 explicitly audited complete original triplets.
+Sequence 1 is physically installed, with exact full W25Q readback before and
+after reboot. The unit remains BRINGUP_CAL, SAFE, with battery 3.879 V over UART.
+Independent accuracy, scope and final-lead validation remain pending. See
+[installation evidence](Firmware/releases/2026-10-25/installation-residual-requalification/README.md).
 
 ## Project goals
 

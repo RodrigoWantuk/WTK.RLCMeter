@@ -1,6 +1,29 @@
 # Coherent calibration recovery — October 25, 2026
 
-Status: ALL_66_NEW_SOURCE_ENDPOINTS_PASS; LOAD_PENDING; OSL_NOT_INSTALLED.
+Status: ALL_33_ENGINEERING_FITS_INSTALLED_AND_PERSISTENT; INDEPENDENT_QUALIFICATION_PENDING.
+
+Final checkpoint: all fresh LOADs are complete. The explicit condition-level
+composition retains 18 audited complete original triplets and 15 current
+triplets without relabeling source or promoting quality. All 33 pass Python,
+the actual C solver and strict serialized checks. Source 46df1fbb fixes an
+installer scheduling defect: after residual evidence expires, it waits through
+all eight real safe sweeps before advancing NOR. Protection limits, ADC/DSP,
+stored model and captures are unchanged. All 46 host tests and nine strict
+unit-profile builds pass.
+
+Sequence 1 is active in W25Q. Its entire 2,760-byte physical readback matches the
+validated candidate before and after a controlled reboot, SHA256
+af76d19b15a510dff0c880a4ab6e86893e0065ac7e845b9930111680752da78c.
+One polling response was lost during synchronous storage work; read-only
+recovery verified installation without replaying COMMIT. Final serial status
+is SAFE/idle, battery 3.879 V, zero safety/protocol errors, calibrated=true.
+The board remains BRINGUP_CAL. Independent R/C/L holdouts, accuracy, scope,
+experimental NTC qualification and final-lead calibration remain pending.
+No QUALIFIED flag or certified accuracy is claimed.
+
+See [complete installation and recovery evidence](../../../Firmware/releases/2026-10-25/installation-residual-requalification/README.md).
+The following chronology preserves earlier checkpoints; their pending statements
+are superseded by this final checkpoint.
 
 The owner remeasured the approximately1-Mohm resistor as996 kohm and confirmed
 direct attachment alone. Six independent LOAD observations at100 mVrms and six

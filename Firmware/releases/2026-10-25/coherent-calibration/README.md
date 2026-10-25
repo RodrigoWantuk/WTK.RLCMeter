@@ -1,5 +1,13 @@
 # Coherent calibration pilot — first unit
 
+Final result: all 33 engineering condition fits are installed as active sequence
+1, with exact physical W25Q readback before and after reboot. The explicit
+composition uses 18 audited original complete triplets and 15 current triplets;
+source identities and quality flags remain intact. See
+[the completed installation](../installation-residual-requalification/README.md).
+The chronology below preserves earlier pilot checkpoints. No independent
+accuracy, scope, experimental NTC or final-lead qualification is claimed.
+
 Source a52dba35c74e0643a8b15d916eb29c427d917f77 adds bounded coherent groups only
 to the CAL profile and host tests. PRODUCT and ordinary BRINGUP compile out the
 integration state. All46 host tests and nine strict UID-bound NTC builds pass.

@@ -34,7 +34,7 @@ The following complementary execution plans were written against commit `8abc1b3
 - [14B — Calibration serial battery telemetry](14B-Calibration-Battery-Telemetry.md) — fresh nominal VBAT over read-only TTL STATUS; first-unit charger-absent reading verified.
 - [14C — High-Z integration investigation](14C-High-Z-Integration-Investigation.md) — bounded OPEN/LOAD repeatability diagnostics before changing integration or calibration provenance.
 - [14D — Condition-local calibration reuse](14D-Condition-Local-Calibration-Reuse.md) — explicitly audited reuse of complete compatible triplets, preserving source identity and all 33-condition validation gates.
-- [14E — Installation sensor refresh](14E-Installation-Sensor-Refresh.md) — wait for actual fresh residual evidence after synchronous validation, retaining hard interlocks and deadlines.
+- [14E — Installation sensor refresh](14E-Installation-Sensor-Refresh.md) — complete engineering installation and reboot persistence verified; wait through all eight real residual requalification sweeps, retaining hard interlocks and deadlines.
 - [15 — Agent workstreams and release gates](15-Execution-Workstreams-and-Release-Gates.md) — ordered, parallelizable tickets, acceptance tests and product definition of done.
 - [16 — Optional DC and transient physics](16-Optional-DC-and-Transient-Physics.md) — DC winding resistance, capacitor self-discharge versus known-load RC decay, dielectric absorption, inductor RL field decay, physical feasibility and go/no-go before assembly.
 

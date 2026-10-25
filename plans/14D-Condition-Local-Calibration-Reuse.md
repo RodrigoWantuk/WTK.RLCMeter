@@ -1,6 +1,6 @@
 # 14D — Audited condition-local calibration reuse
 
-STATUS: CANDIDATE_VALIDATED — PHYSICAL_INSTALLATION_PENDING_14E
+STATUS: COMPLETE — ENGINEERING_COMPOSITION_INSTALLED_AND_PERSISTENT; INDEPENDENT_QUALIFICATION_PENDING
 
 ## Owner steering and bounded decision
 
@@ -80,3 +80,12 @@ physical installation returned SAFETY_BLOCKED after COMMIT; active sequence
 remains zero and no successful installation is claimed. Plan14E isolates the
 sensor-refresh scheduling fix. Captures and candidate remain unchanged; no
 further resistor exchange is required for installation recovery.
+
+## Installed result
+
+Plan 14E completed the installer-only scheduling correction. The unchanged
+33-condition candidate is installed as active sequence 1; full physical W25Q
+readback matches before and after a controlled reboot. Original identities and
+flags remain intact. Engineering capture, composition and installation are
+complete. Independent accuracy and final-lead qualification remain pending.
+See [installation evidence](../Firmware/releases/2026-10-25/installation-residual-requalification/README.md).

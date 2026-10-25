@@ -1,6 +1,6 @@
 # 14E — Installation sensor-refresh scheduling
 
-STATUS: IN_PROGRESS — RESIDUAL_REQUALIFICATION_FIX_BEFORE_INSTALLATION
+STATUS: COMPLETE — ENGINEERING_OSL_INSTALLED_AND_PERSISTENT; INDEPENDENT_QUALIFICATION_PENDING
 
 All 33 condition fits pass Python and the actual C solver. The explicitly
 audited composition reuses 18 complete old triplets and 15 complete current
@@ -58,3 +58,20 @@ faults retain their abort paths. The host test drives the real auxiliary ADC
 state machine through expiry and all eight fresh sweeps, and checks rejection
 of invalid VMID, saturation and unsafe residual. Existing installer tests cover
 no writes during waiting, timeout, and charger preemption.
+
+## Completion evidence
+
+Source 46df1fbb passes 46/46 host tests and all nine strict unit-profile builds.
+CAL uses 37,552 bytes Flash and 13,740 bytes accounted RAM. Internal-Flash
+programming and readback matched. The unchanged candidate was installed as
+active W25Q sequence 1. One STATUS request was lost during synchronous NOR work;
+the helper failed closed with a timeout, without replaying COMMIT. Subsequent
+read-only recovery found INSTALLED/error 0 and byte-exact physical readback.
+Protocol errors were 1 before reset. A controlled reboot rescanned sequence 1
+and a second full physical readback matched the same candidate SHA256. Final
+serial status is SAFE/idle, battery 3.879 V, zero safety/protocol errors and
+calibrated=true. Assets/settings were not targeted. The board remains CAL.
+
+See [physical installation evidence](../Firmware/releases/2026-10-25/installation-residual-requalification/README.md).
+This closes installation scheduling and persistence, not independent accuracy,
+scope, final-lead or thermal qualification. No additional capture was needed.
