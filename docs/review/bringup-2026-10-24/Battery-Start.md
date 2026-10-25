@@ -90,14 +90,42 @@ established by this observation. No charger-presence pass or independent
 hardware-inhibit qualification is claimed.
 
 See [the unsuccessful presence test and GPIO snapshot](charger-on-unrecognized.json)
-and [its UART transcript](charger-on-unrecognized-uart.txt). No active DUT test
-is to proceed with the charging-detection discrepancy unresolved.
+and [its UART transcript](charger-on-unrecognized-uart.txt). At this stage,
+active DUT work was deferred until the detection discrepancy was resolved.
+
+## Owner setup correction and completed charger endpoint cycle
+
+The owner acknowledged a setup error, corrected it and requested another read;
+the exact physical correction was not specified. A new passive COM4 session
+reported **PRESENT**, **BLOCKED_CHARGER**, flags9, allowed0, with K1 SAFE,
+range DISABLED and zero faults. The MVP response independently repeated the same
+charger/blocker state. Battery samples were4147/4145/4145mV, all OK.
+
+After the owner disconnected only the charger input, leaving battery/debugger/
+TTL attached and DUT terminals empty, the next passive session reported
+**ABSENT**, **BLOCKED_RANGE**, flags8, allowed0. K1 remained SAFE, ranges
+DISABLED, residual SAFE and faults zero. Battery samples were3883/3884/3889mV,
+all OK. The remaining range block is expected with no selected range; no
+measurement was started. No reset or firmware change was commanded.
+
+Together with the initial charger-off observation, these endpoints establish
+ABSENT/PRESENT/ABSENT and the corresponding software charger-block change at
+this operating point. The earlier low-level observation is preserved as
+history, not treated as a current firmware or board defect. See
+[the structured endpoint cycle](charger-cycle.json) and its three linked raw
+UART transcripts. On-state CHG_VBUS voltage was not measured. Battery values
+retain their nominal ADC scale and do not establish charging current/health.
+
+Independent QUSB_INH relay inhibition, relay-coil/transient waveforms, transition
+timing and standalone power sequencing were not exercised by these passive
+queries. All observed endpoint relay commands were already SAFE. No forced
+relay command, test-terminal voltage or calibration write was issued.
 
 ## Next physical checks
 
-- Observe charger ABSENT/PRESENT/ABSENT from the actual charger input signal,
-  including software measurement blocking, after tracing the source/path of
-  J_PWR.4. Its digital reading cannot substitute for the missing on-state voltage.
+- Record the exact corrected charger signal source/path and powered-state
+  CHG_VBUS voltage when practical; software endpoint detection/blocking is now
+  observed, while the on-state voltage remains unmeasured.
 - Separately qualify hardware inhibition, supply sequencing, battery thresholds,
   current/headroom, and unpowered/backfeed behavior. Debugger/TTL attachment means
   this session is not proof of standalone battery-only startup or power-off.

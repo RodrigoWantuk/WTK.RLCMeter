@@ -99,7 +99,8 @@ Battery ADC readings3878..3883mV/OK, chargerABSENT, K1SAFE and zero faults were
 observed. The owner subsequently reported VBAT_PROT3.9V, +5V_SYS5.1V,3V3 3.3V,
 CHG_VBUS0.0V and empty DUT terminals. See
 [the battery-start evidence and multimeter comparison](Battery-Start.md);
-charger response and broader power-system qualification remain pending.
-On subsequent owner-reported charger connection, PA15 remained LOW and the
-firmware still reported ABSENT. The signal origin/path must be traced before
-active DUT work; the linked evidence records this unsuccessful presence test.
+broader power-system qualification remains pending. After an initially missed
+connection and owner setup correction, passive UART endpoints confirmed
+ABSENT/PRESENT/ABSENT, BLOCKED_CHARGER only while present, K1SAFE and zero faults.
+The initial unsuccessful test is preserved in the same report. Independent
+hardware relay inhibition and on-state CHG_VBUS voltage remain unqualified.
