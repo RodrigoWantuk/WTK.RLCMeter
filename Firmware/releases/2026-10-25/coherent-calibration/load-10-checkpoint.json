@@ -1,0 +1,188 @@
+{
+  "status": "LOAD_10_COMPLETE_FIVE_REFERENCE_GROUPS_PENDING",
+  "identity": {
+    "hardware_revision": 65538,
+    "model": 5,
+    "profile": 1,
+    "capabilities": 127,
+    "protocol_version": 1,
+    "timeout_ms": 90000,
+    "adc_provenance": "NOMINAL_3V3_NOT_CALIBRATED",
+    "synthetic": false,
+    "uid": "54ff70068370525760380567",
+    "git": "a52dba35",
+    "firmware_version": "0.1.0"
+  },
+  "captures": 69,
+  "complete_conditions": 3,
+  "required_observations": 99,
+  "reference": {
+    "id": "R10",
+    "impedance_ohms": [
+      10.0,
+      0.0
+    ],
+    "tolerance_pct": 1.0
+  },
+  "fresh_owner_dmm_ohms": 10.4,
+  "reference_policy": "Printed nominal +/-1% fit anchor; DMM consistency only, no fixed lead subtraction or certified actual value",
+  "battery_before": {
+    "recorded_utc": "2026-10-25T20:23:09.502044+00:00",
+    "operation": "SERIAL_ONLY_POWER_PREFLIGHT",
+    "identity": {
+      "hardware_revision": 65538,
+      "model": 5,
+      "profile": 1,
+      "capabilities": 127,
+      "protocol_version": 1,
+      "timeout_ms": 90000,
+      "adc_provenance": "NOMINAL_3V3_NOT_CALIBRATED",
+      "synthetic": false,
+      "uid": "54ff70068370525760380567",
+      "git": "a52dba35",
+      "firmware_version": "0.1.0"
+    },
+    "status": {
+      "capture_id": 981717272,
+      "calibration_sequence": 0,
+      "safety_faults": 0,
+      "safety_blocks": 8,
+      "protocol_errors": 0,
+      "temperature_mC": 22655,
+      "capture_status": 0,
+      "busy": false,
+      "result_valid": true,
+      "calibrated": false,
+      "transfer_safe": true,
+      "battery_voltage_v": 3.884
+    },
+    "STLink_used": false,
+    "capture_started": false,
+    "events": [
+      {
+        "utc": "2026-10-25T20:23:09.239029+00:00",
+        "direction": "TX",
+        "hex": "504c43310150000020a80800686a6e400150000020a8e11e"
+      },
+      {
+        "utc": "2026-10-25T20:23:09.322740+00:00",
+        "direction": "RX",
+        "hex": "504c433101d0000020a81000bfa79bcc0150000020a8e11e0400000072b41b3e"
+      },
+      {
+        "utc": "2026-10-25T20:23:09.322740+00:00",
+        "direction": "TX",
+        "hex": "504c43310150000073b40800cfb9d7590150000073b41b3e"
+      },
+      {
+        "utc": "2026-10-25T20:23:09.412718+00:00",
+        "direction": "RX",
+        "hex": "504c433101d0000073b44800f0a9ebcf0150000073b41b3e0000000002000100050001007f0000002100c400905f01000100000054ff700683705257603805676135326462613335302e312e300000000000000000000000"
+      },
+      {
+        "utc": "2026-10-25T20:23:09.412718+00:00",
+        "direction": "TX",
+        "hex": "504c43310151000074b40800c28a77620151000074b41b3e"
+      },
+      {
+        "utc": "2026-10-25T20:23:09.502044+00:00",
+        "direction": "RX",
+        "hex": "504c433101d1000074b42c000feff7100151000074b41b3e0000000018d1833a000000000000000008000000000000007f5800000000010001012c0f"
+      }
+    ]
+  },
+  "final_serial_status": {
+    "capture_id": 1042003082,
+    "calibration_sequence": 0,
+    "safety_faults": 0,
+    "safety_blocks": 8,
+    "protocol_errors": 0,
+    "temperature_mC": 21932,
+    "capture_status": 0,
+    "busy": false,
+    "result_valid": true,
+    "calibrated": false,
+    "transfer_safe": true,
+    "battery_voltage_v": 3.887
+  },
+  "fits": [
+    {
+      "condition": {
+        "rref_ohms": 10,
+        "frequency_hz": 10,
+        "amplitude_mvrms": 100
+      },
+      "fit_channel": "1X",
+      "hg_observed": true,
+      "min_separation": 0.46065336257933914,
+      "serialized_float32_values": [
+        15.949472427368164,
+        0.008493827655911446,
+        10.0,
+        0.0,
+        0.03339884802699089,
+        -0.0014850074658170342,
+        0.9987378120422363,
+        -0.00014204648323357105,
+        -10.955877304077148,
+        0.018105562776327133,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "condition": {
+        "rref_ohms": 10,
+        "frequency_hz": 1000,
+        "amplitude_mvrms": 100
+      },
+      "fit_channel": "1X",
+      "hg_observed": true,
+      "min_separation": 0.45575110504458766,
+      "serialized_float32_values": [
+        15.9043550491333,
+        -0.18349437415599823,
+        10.0,
+        0.0,
+        0.03920750319957733,
+        0.0011314827715978026,
+        0.9994574785232544,
+        -0.0003982728230766952,
+        -11.069634437561035,
+        0.016590528190135956,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "condition": {
+        "rref_ohms": 10,
+        "frequency_hz": 10000,
+        "amplitude_mvrms": 100
+      },
+      "fit_channel": "1X",
+      "hg_observed": true,
+      "min_separation": 0.4495222073098133,
+      "serialized_float32_values": [
+        15.659309387207031,
+        -1.1837519407272339,
+        10.0,
+        0.0,
+        0.05906467139720917,
+        0.0007843929342925549,
+        1.0012202262878418,
+        -0.006548475474119186,
+        -10.959467887878418,
+        -0.09386873245239258,
+        0.0,
+        0.0
+      ]
+    }
+  ],
+  "c_solver_full_set_check": "PENDING_COMPLETE_33_TRIPLETS",
+  "candidate_generated": false,
+  "osl_installed": false,
+  "physically_qualified": false,
+  "sha256": "058e0197874c69912a38a70dbee2068afa75b35424cd13a1e1ab2418fea25457",
+  "capture_file_sha256": "88996f5eb8df55f059efde822088053222bfff88d4981f0b0b5e29af9d5fc835"
+}

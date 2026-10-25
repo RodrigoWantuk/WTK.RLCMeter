@@ -1,6 +1,6 @@
 # 14C — High-impedance integration investigation
 
-STATUS: IN_PROGRESS — ALL_66_ENDPOINTS_COMPLETE_LOAD_10_FIXTURE_PENDING
+STATUS: ENGINEERING_FITS_VALIDATED — INSTALLATION_PENDING_14E
 
 ## Scope and prerequisites
 
@@ -211,4 +211,27 @@ document, raw UART evidence, owner confirmation and capture script.
 No W25Q writes, calibration candidate, installation or accuracy qualification
 occurred. Fresh same-image LOADs and strict float32/C solver checks remain.
 
+The owner freshly measured 10.4 ohm and confirmed direct attachment. All three
+10-ohm LOADs pass, with both return paths, observed HG gain, six accepted blocks,
+no clipping/rejects and strict serialized-float32 OSL checks. There are 69 current
+observations and three complete current-source conditions. Battery was 3.884 V
+before this group and 3.887 V afterward; fresh pre-next-reference read 3.886 V.
+No candidate or calibration was installed.
+
+The owner then objected to repeating the six-reference exchange sequence.
+[Plan 14D](14D-Condition-Local-Calibration-Reuse.md) replaces the blanket recapture
+request with explicitly audited complete-condition reuse: 18 original triplets
+for 100 ohm/1 kohm/10 kohm, current 10-ohm triplets and fresh current high-Z LOADs.
+Sources are preserved per complete triplet, never relabelled or silently mixed.
+The audit verifies 91 unchanged critical source files, key workflow functions,
+the same real UID/hardware/model/ADC and actual target one-block metadata.
+The owner has now reported 99.95–100.00 kohm and confirmed attachment; the six
+current 100-kohm LOAD conditions are running. Only the 1-Mohm fixture follows.
+
 See [preserved pilot evidence](../Firmware/releases/2026-10-25/osl-integration-pilot/README.md).
+
+All remaining high-Z LOADs now pass with source a52dba35. The explicit plan14D
+composition has 18 unchanged original and 15 current complete condition fits,
+with all33 conditions passing Python/C solver and canonical candidate checks.
+The first installation was blocked before active calibration became valid;
+plan14E fixes the refresh scheduling without changing the acquisition or data.

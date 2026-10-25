@@ -48,6 +48,24 @@ The owner was asked to freshly measure and attach only the approximately 10-ohm
 reference after removing the jumper. Same-image LOADs, strict fitting and
 installation remain pending; no W25Q calibration record has been written.
 
+The owner next reported 10.4 ohm and direct attachment alone. `load-10.zip` and
+`load-10-checkpoint.json` preserve three accepted current-source LOADs and their
+strict serialized-float32 fits: 69 current observations, three complete current
+conditions. Printed 10 ohm +/-1% remains the uncertain anchor; the Minipa reading
+is a consistency check without automatic subtraction of the earlier 0.5-ohm
+shorted-lead reading. Fresh pre-group battery was 3.884 V, post-group 3.887 V.
+
+After the owner objected to repeated fixture exchanges, `condition-reuse-audit.json`
+documents compatible reuse of 18 complete original triplets for 100 ohm/1 kohm/
+10 kohm, with original source/identity/flags intact. The same UID/hardware/model/
+ADC, 91 unchanged critical source files, unchanged workflow math and target
+one-block acquisition metadata were checked. The current 10-ohm conditions are
+retained; all twelve high-Z conditions will use fresh current-source LOADs.
+`power-before-load-100k-reuse.json` records 3.883 V and SAFE/idle before the revised
+next-reference request. See [the explicit composition decision](../../../../plans/14D-Condition-Local-Calibration-Reuse.md).
+No default campaign verifier, safety threshold or full-set installation gate is
+relaxed. Candidate composition, C validation and installation remain pending.
+
 Do not claim completed calibration,
 installed OSL or qualified accuracy from these builds. The original99-observation
 source-7017e5e0 cohort and all f86b7f4e diagnostics remain unchanged and separate.
