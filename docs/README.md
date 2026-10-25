@@ -89,3 +89,8 @@ SAFE BRINGUP. The owner will inspect visible TFT appearance later.
 [First physical OSL OPEN checkpoint, October 25](review/bringup-2026-10-25/OSL-Open.md)
 records 33 accepted OPEN conditions, corrected capture/client behavior and the
 current nine-image bundle. SHORT/LOAD and calibration installation remain pending.
+
+[The first SHORT checkpoint and path audit](review/bringup-2026-10-25/OSL-Short.md)
+preserve 33 accepted SHORT observations and three OPEN/SHORT path conflicts.
+Zero-return SHORT handling is corrected before a same-image recapture; no
+calibration is installed or physically qualified.

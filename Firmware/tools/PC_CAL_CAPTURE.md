@@ -126,6 +126,10 @@ retains it and rejects other blockers/faults. Hardware still selects the range a
 issues/validates its real permit for every attempt; this is not a range bypass.
 The service uses six stable accepted repeats, existing headroom/path checks and
 ten-attempt limit. It owns one 3,072-byte workspace; no second ADC buffer exists.
+Known SHORT admits finite unclipped zero-return evidence, with source and
+denominator observability still required. OPEN/LOAD retain their nonzero return
+thresholds. The minimum signal needed to observe HG gain remains unchanged for
+every standard; a zero SHORT cannot manufacture HG overlap.
 RX is 144 bytes, two bounded TX replies total 288 bytes, artifact 188 bytes, and
 six complex means 48 bytes; complete current service context is 1000 bytes on ARM.
 

@@ -40,6 +40,17 @@ readings before publication. This wait shares the original capture deadline;
 timeout/cancellation/interlock never publishes a pending result. The C-backed
 fixture exercises a real post-capture refresh delay, cancellation and timeout.
 
+The first full SHORT sweep also exposed a separate endpoint rule: a known SHORT
+must observe zero return without demanding the ordinary 50 uV nonzero DUT signal.
+Only the calibration SHORT uses a zero minimum return magnitude. Excitation,
+denominator, finite-data, clipping, six-repeat stability and electrical permission
+checks remain. OPEN, LOAD and ordinary measurements retain their signal thresholds.
+HG gain overlap still requires the original nonzero threshold on both channels;
+noise at zero cannot establish a measured HG gain. The regression uses quantized
+raw ADC blocks and checks zero SHORT, zero OPEN/LOAD, absent source and clipping.
+Firmware identity changes require fresh same-image OPEN/SHORT acquisition; the
+earlier 66 observations remain preserved and are not relabelled or mixed.
+
 ## October24 integration baseline
 
 RGS-toGND boards now use hardware_revision0x00010002 (65538). Schema2/model5 and equations remain unchanged. Old0x00010001 topology records are incompatible; do not relabel them. Firmware and PC tools agree; stored bytes are not erased. New calibration must be captured on the reworked board.

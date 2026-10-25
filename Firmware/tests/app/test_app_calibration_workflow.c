@@ -458,6 +458,60 @@ static int test_clean_short_completes(void)
     return failures;
 }
 
+static int test_raw_zero_return_short_only(void)
+{
+    int failures = 0;
+    const app_cal_standard_type_t types[] = {APP_CAL_STANDARD_SHORT, APP_CAL_STANDARD_OPEN, APP_CAL_STANDARD_LOAD};
+    static hw_metrology_block_t block;
+    static uint32_t raw[HW_METROLOGY_RAW_WORD_COUNT];
+    for (size_t i = 0u; i < sizeof(types) / sizeof(types[0]); i++)
+    {
+        const app_cal_workflow_request_t request = request_for(types[i]);
+        make_block(&block, raw, &request, measurement_complex(0.100f, 0.0f),
+            measurement_complex(0.0f, 0.0f), measurement_complex(0.100f, 0.0f),
+            measurement_complex(0.0f, 0.0f));
+        app_cal_capture_sample_t sample;
+        failures += expect_true(app_calibration_workflow_sample_from_block(&block, &request, &sample) == BSP_STATUS_OK,
+            "zero-return raw block extracts");
+        failures += expect_true(!sample.hg_overlap_valid, "zero return cannot observe HG gain");
+        app_calibration_workflow_t workflow;
+        app_calibration_workflow_init(&workflow);
+        (void)app_calibration_workflow_start(&workflow, &request, 12u);
+        if (types[i] == APP_CAL_STANDARD_SHORT)
+        {
+            failures += expect_true(sample.ret_1x_usable && sample.ret_hg_usable,
+                "known SHORT observes zero on unclipped channels");
+            for (uint8_t repeat = 0u; repeat < APP_CAL_WORKFLOW_REQUIRED_ACCEPTED; repeat++)
+                failures += feed_sample(&workflow, &sample);
+            failures += expect_u32((uint32_t)app_calibration_workflow_result(&workflow),
+                (uint32_t)APP_CAL_WORKFLOW_RESULT_OK, "zero SHORT completes with real source");
+        }
+        else
+        {
+            failures += feed_sample(&workflow, &sample);
+            failures += expect_true((app_calibration_workflow_last_reject_flags(&workflow) &
+                APP_CAL_REJECT_NO_USABLE_CHANNEL) != 0u, "OPEN/LOAD retain return-SNR gate");
+        }
+    }
+    const app_cal_workflow_request_t request = request_for(APP_CAL_STANDARD_SHORT);
+    make_block(&block, raw, &request, measurement_complex(0.0f, 0.0f),
+        measurement_complex(0.0f, 0.0f), measurement_complex(0.0f, 0.0f), measurement_complex(0.0f, 0.0f));
+    app_cal_capture_sample_t sample;
+    (void)app_calibration_workflow_sample_from_block(&block, &request, &sample);
+    app_calibration_workflow_t workflow;
+    app_calibration_workflow_init(&workflow);
+    (void)app_calibration_workflow_start(&workflow, &request, 13u);
+    failures += feed_sample(&workflow, &sample);
+    failures += expect_true((app_calibration_workflow_last_reject_flags(&workflow) &
+        APP_CAL_REJECT_SOURCE_TOO_SMALL) != 0u, "zero SHORT still requires observable excitation");
+    make_block(&block, raw, &request, measurement_complex(1.750f, 0.0f),
+        measurement_complex(0.0f, 0.0f), measurement_complex(1.750f, 0.0f), measurement_complex(0.0f, 0.0f));
+    (void)app_calibration_workflow_sample_from_block(&block, &request, &sample);
+    failures += expect_true(!sample.ret_1x_usable && !sample.ret_hg_usable,
+        "SHORT does not admit clipped source channels");
+    return failures;
+}
+
 static int test_endpoint_stability_scale(app_cal_standard_type_t type, float spread, bool stable)
 {
     int failures = 0;
@@ -1713,6 +1767,7 @@ int main(int argc, char **argv)
     failures += test_raw_hg_observed_transfer_preserves_nonideal_gain();
     failures += test_clipped_hg_does_not_reject_good_1x_path();
     failures += test_clean_short_completes();
+    failures += test_raw_zero_return_short_only();
     failures += test_endpoint_stability_scale(APP_CAL_STANDARD_OPEN, 0.001f, true);
     failures += test_endpoint_stability_scale(APP_CAL_STANDARD_OPEN, 0.05f, false);
     failures += test_endpoint_stability_scale(APP_CAL_STANDARD_SHORT, 0.5f, true);

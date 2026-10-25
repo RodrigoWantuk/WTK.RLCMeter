@@ -62,6 +62,15 @@ SHORT/LOAD, reference confirmation at attachment, candidate generation,
 installation and independent holdouts remain pending. This does not complete P14
 or any electrical/accuracy qualification gate.
 
+The first SHORT sweep also accepted 33/33, but the OPEN/SHORT path intersection
+was empty for three keys. Preserve [the first SHORT/path audit](../docs/review/bringup-2026-10-25/OSL-Short.md).
+A raw zero-return regression reproduced the ordinary return-SNR gate rejecting
+known SHORT. The bounded correction exempts only SHORT from a nonzero return
+minimum, retaining clipping, source, denominator, repeatability and all permits.
+HG gain overlap retains its nonzero SNR gate. Validate the raw zero/negative
+controls and embedded budgets, deploy the new identity, and reacquire both
+standards under that same image before LOAD. Do not mix the prior identities.
+
 A04.1 delivers the [guided OSL campaign](../Firmware/tools/PC_OSL_CAMPAIGN.md):
 six-reference inventory, explicit passive-fixture confirmations, atomic resumable
 CCO1 evidence, real C-backed 99-observation workflow, existing 33-key solver and

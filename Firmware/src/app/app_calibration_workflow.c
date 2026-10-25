@@ -706,14 +706,20 @@ static app_cal_capture_sample_t make_sample_from_phasors(const hw_metrology_bloc
     const bool ret_hg_clipped = stream_clipped(block, HW_METROLOGY_STREAM_RET_HG) ||
                                 stream_clipped(block, HW_METROLOGY_STREAM_VEXC_2) ||
                                 vmid_clipped;
+    /* A known SHORT measures the zero-return offset/noise. Requiring a nonzero
+       DUT signal would discard exactly that endpoint. Source, denominator,
+       finiteness, clipping and endpoint-repeatability checks still apply. */
+    const float return_min = request->standard.type == APP_CAL_STANDARD_SHORT ? 0.0f : config->return_min_v_peak;
     const measurement_channel_quality_t ret_1x_quality =
-        measurement_channel_quality(&ret_1x, ret_1x_clipped, true, config->return_min_v_peak);
+        measurement_channel_quality(&ret_1x, ret_1x_clipped, true, return_min);
     const measurement_channel_quality_t ret_hg_quality =
         measurement_channel_quality(&ret_hg_reconstructed,
                                     ret_hg_clipped,
                                     !measurement_complex_near_zero(config->ret_hg_transfer, 1.0e-6f),
-                                    config->return_min_v_peak);
-    const bool hg_overlap_valid = raw_hg_ratio_valid && ret_1x_quality.usable && ret_hg_quality.usable;
+                                    return_min);
+    const bool hg_overlap_valid = raw_hg_ratio_valid && ret_1x_quality.usable && ret_hg_quality.usable &&
+        ret_1x_quality.signal_peak_v >= config->return_min_v_peak &&
+        ret_hg_quality.signal_peak_v >= config->return_min_v_peak;
 
     app_cal_capture_sample_t sample = {
         .key = request->key,
