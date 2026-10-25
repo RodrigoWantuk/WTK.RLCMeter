@@ -96,5 +96,7 @@ See [basic checks](../a05/Basic-Functions-Before-Final-Assembly.md),
 After publication, the owner connected the assembled battery supply and the
 standard BRINGUP image was programmed/readback-verified and booted through COM4.
 Battery ADC readings3878..3883mV/OK, chargerABSENT, K1SAFE and zero faults were
-observed. See [the battery-start evidence](Battery-Start.md); charger response,
-multimeter comparison and power-system qualification remain pending.
+observed. The owner subsequently reported VBAT_PROT3.9V, +5V_SYS5.1V,3V3 3.3V,
+CHG_VBUS0.0V and empty DUT terminals. See
+[the battery-start evidence and multimeter comparison](Battery-Start.md);
+charger response and broader power-system qualification remain pending.

@@ -55,10 +55,25 @@ See the [raw UART transcript](battery-start-uart.txt) and
 OpenOCD logs and UART event bytes remain locally under
 `Firmware/build/battery-start-20261024/` (ignored build evidence).
 
+## Owner multimeter comparison, charger input off
+
+The owner subsequently confirmed empty DUT terminals and reported these DC
+measurements against GND: VBAT_PROT **3.9 V**, +5V_SYS **5.1 V**, 3V3 **3.3 V**,
+and CHG_VBUS **0.0 V**. Instrument identity, uncertainty and additional displayed
+digits were not supplied. The battery reading is consistent with the nominal
+ADC indication at the precision reported; no calibration coefficient or accuracy
+claim can be derived from this comparison.
+
+A fresh no-reset passive COM4 session returned battery3878/3876/3870mV, all OK,
+VMID valid, residual SAFE, zero faults, charger ABSENT, K1 SAFE and ranges
+DISABLED. No active command was issued. See
+[the owner comparison and passive snapshot](battery-power-off-dmm.json) and
+[its UART transcript](battery-power-off-dmm-uart.txt). The regulated5.1V and3.3V
+readings establish the reported DC levels at this operating point; ripple,
+current capacity and load/transient behavior remain unmeasured.
+
 ## Next physical checks
 
-- Compare VBAT_PROT, regulated+5V_SYS and3V3 against the owner's multimeter with
-  charger input off; confirm empty DUT terminals before further fixture work.
 - Observe charger ABSENT/PRESENT/ABSENT from the actual charger input signal,
   including software measurement blocking. The disconnected-input observation
   above does not test charger-presence response or independent relay inhibition.
