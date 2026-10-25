@@ -118,6 +118,16 @@ Four reference groups, independent validation, candidate generation and
 installation remain pending. Printed nominal/tolerance remains the uncertain
 fit anchor; the fresh DMM display does not establish traceable accuracy.
 
+The owner repeated 992 ohm and confirmed the 1-kohm reference attached alone.
+All six LOAD keys passed acquisition and strict same-image float32 OSL checks,
+with 1X selected for every fit and clipped HG rejected at 500 mVrms. The
+[1-kohm checkpoint](../docs/review/bringup-2026-10-25/OSL-Load-1000.md) preserves
+81/99 observations and 15/33 complete triplets. Fresh batteries were 3.71502 V
+before this group and 3.71179 V before requesting the 10-kohm reference, both OK.
+Protocol counter stayed at 1 and fault mask at zero. Nominal 1 kohm +/-1% remains
+the uncertain reference anchor; no exact lead correction or DMM uncertainty is
+invented. Three LOAD groups, independent validation and installation remain pending.
+
 A04.1 delivers the [guided OSL campaign](../Firmware/tools/PC_OSL_CAMPAIGN.md):
 six-reference inventory, explicit passive-fixture confirmations, atomic resumable
 CCO1 evidence, real C-backed 99-observation workflow, existing 33-key solver and

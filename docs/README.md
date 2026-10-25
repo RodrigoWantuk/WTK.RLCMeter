@@ -113,3 +113,7 @@ Five LOAD groups, independent validation and installation remain pending.
 [100-ohm LOAD completion](review/bringup-2026-10-25/OSL-Load-100.md) records six
 more accepted captures and fit checks: 75/99 observations, 9/33 complete
 conditions. Battery remains OK; four LOAD groups and independent validation remain.
+
+[1-kohm LOAD completion](review/bringup-2026-10-25/OSL-Load-1000.md) records six
+more accepted captures: 81/99 observations, 15/33 complete fit checks. Fresh
+battery is OK; the 10-kohm, 100-kohm and 1-Mohm LOAD groups remain pending.
