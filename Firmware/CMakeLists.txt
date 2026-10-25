@@ -106,6 +106,11 @@ if(WTK_FIRMWARE_PROFILE STREQUAL "BRINGUP_CAL")
     set(WTK_ENABLE_BRINGUP_CONSOLE 0)
 elseif(WTK_FIRMWARE_PROFILE STREQUAL "BRINGUP")
     set(WTK_DIAGNOSTIC_LOG_LEVEL_DEFAULT 5)
+    if(WTK_BRINGUP_BENCH_SUPPLY OR WTK_BRINGUP_K1_TEST)
+        # Keep all diagnostic commands; omit unsolicited verbose boot/button logs
+        # so the optional splash also fits these C8 engineering variants.
+        set(WTK_DIAGNOSTIC_LOG_LEVEL_DEFAULT 3)
+    endif()
     set(WTK_ENABLE_BRINGUP_CONSOLE 1)
 elseif(WTK_BUILD_TYPE STREQUAL "Release")
     set(WTK_DIAGNOSTIC_LOG_LEVEL_DEFAULT 2)
@@ -198,6 +203,7 @@ if(WTK_FIRMWARE_PROFILE STREQUAL "BRINGUP_CAL")
     # Exclusive calibration service image: no PRODUCT UI, lab/DC or write commands.
     set(WTK_COMMON_SOURCES
         src/app/app_safety_fault.c
+        src/app/app_flash_access.c
         src/app/app_calibration_runtime.c
         src/app/app_calibration_service.c
         src/app/app_calibration_session.c
@@ -209,6 +215,8 @@ if(WTK_FIRMWARE_PROFILE STREQUAL "BRINGUP_CAL")
         src/bsp/bsp_adc_core.c
         src/bsp/bsp_status.c
         src/drivers/w25q_core.c
+        src/drivers/ili9341_color.c
+        src/drivers/ili9341_geometry.c
         src/hardware/hw_aux_sensors.c
         src/hardware/hw_buzzer_policy.c
         src/hardware/hw_charger.c
@@ -231,6 +239,9 @@ if(WTK_FIRMWARE_PROFILE STREQUAL "BRINGUP_CAL")
         src/measurement/measurement_calibration_store.c
         src/storage/storage_crc32.c
         src/storage/storage_layout.c
+        src/storage/resource_store.c
+        src/ui/ui_image.c
+        src/ui/ui_boot_splash.c
     )
 endif()
 if(WTK_PRODUCT_FACTORY_PROVISIONED_VALUE AND WTK_TARGET_PLATFORM STREQUAL "stm32")

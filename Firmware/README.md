@@ -593,3 +593,9 @@ may still fail the hard size gate; it is not a qualified default image.
 Current size tooling enforces PRODUCT 64512-byte Flash/17408-byte accounted RAM and
 BRINGUP 65536-byte Flash/18432-byte accounted RAM; historical stage budgets above
 are retained for traceability. See plan 19 for source-bound final build evidence.
+
+Bench-supply and empty-fixture K1 variants retain their full command sets but use
+log level3 and the minimal SAFE_BOOT banner instead of unsolicited verbose boot,
+button and safety-transition messages. Standard BRINGUP keeps its detailed banner
+and logs. This bounds those splash-enabled diagnostic images without removing
+measurement/calibration commands or changing safety policy.

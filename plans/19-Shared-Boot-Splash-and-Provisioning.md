@@ -68,3 +68,10 @@ CRC/missing/display timeout/fault exits, exact owner-PNG RGB565 runs, indexed
 palette transparency/bounds, safe serial line opening, missing-ACK stop and idle
 maintenance admission. Physical preflight observes battery about3.81V/OK,
 charger ABSENT, K1 SAFE, range DISABLED, residual SAFE and zero faults.
+
+The first full matrix exposed missing boot-only sources in the exclusive CAL list
+and Flash overflows in bench/K1 variants. CAL now explicitly includes resource/
+image/boot, geometry/color and Flash-access policy dependencies, while excluding
+PRODUCT UI/settings/console. Bench/K1 retain every command and use log level3 plus
+minimal SAFE_BOOT, reducing unsolicited logging only. Development checks pass for
+these corrected compositions; repeat the full matrix on the corrected clean SHA.
