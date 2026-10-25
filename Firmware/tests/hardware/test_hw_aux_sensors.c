@@ -1,5 +1,6 @@
 #include "hardware/hw_aux_sensors.h"
 #include "hardware/hw_measure_permit.h"
+#include "app/app_cal_install_safety.h"
 
 #include <math.h>
 #include <stdbool.h>
@@ -444,6 +445,49 @@ static int test_vmid_referenced_permission(void)
     return failures;
 }
 
+static int test_install_waits_for_actual_residual_requalification(void)
+{
+    int failures = 0;
+    fake_adc_t fake = safe_fake_adc();
+    hw_aux_sensors_t sensors;
+    hw_aux_adc_io_t io = fake_io(&fake);
+    (void)hw_aux_sensors_init(&sensors, &io, 0u);
+    for (uint32_t sweep = 0u; sweep < HW_RESIDUAL_REQUIRED_SAFE_COUNT; sweep++)
+        run_conversions(&sensors, sweep * HW_AUX_RESIDUAL_SWEEP_PERIOD_MS, 12u);
+
+    hw_aux_sensors_snapshot_t state;
+    hw_aux_sensors_snapshot(&sensors, 200u, &state);
+    failures += expect_true(app_cal_install_aux_refresh_pending(&state),
+                            "expired evidence pauses installation");
+    for (uint32_t sweep = 0u; sweep < HW_RESIDUAL_REQUIRED_SAFE_COUNT; sweep++)
+    {
+        const uint32_t now = 200u + sweep * HW_AUX_RESIDUAL_SWEEP_PERIOD_MS;
+        run_conversions(&sensors, now, 12u);
+        hw_aux_sensors_snapshot(&sensors, now, &state);
+        const bool pending = sweep + 1u < HW_RESIDUAL_REQUIRED_SAFE_COUNT;
+        failures += expect_true(state.residual_age_ms == 0u && state.vmid_valid,
+                                "requalification samples are fresh and electrically valid");
+        failures += expect_true(app_cal_install_aux_refresh_pending(&state) == pending,
+                                "all eight actual safe sweeps are required before writer resumes");
+        failures += expect_true((state.residual_state == HW_RESIDUAL_SAFE) == !pending,
+                                "wait hint never grants residual SAFE");
+    }
+    for (uint8_t invalid = 0u; invalid < 3u; invalid++)
+    {
+        fake = safe_fake_adc();
+        if (invalid == 0u) fake.vmid_raw = raw_from_voltage(1.0f);
+        else if (invalid == 1u) fake.hi_raw = BSP_ADC_RAW_MAX;
+        else fake.hi_raw = raw_for_terminal(1.65f, 3.0f);
+        io = fake_io(&fake);
+        (void)hw_aux_sensors_init(&sensors, &io, 0u);
+        run_conversions(&sensors, 0u, 12u);
+        hw_aux_sensors_snapshot(&sensors, 0u, &state);
+        failures += expect_true(!app_cal_install_aux_refresh_pending(&state),
+                                "invalid VMID, saturation and unsafe residual do not request recovery wait");
+    }
+    return failures;
+}
+
 int main(void)
 {
     int failures = 0;
@@ -452,5 +496,6 @@ int main(void)
     failures += test_residual_invalid_and_saturated();
     failures += test_battery_and_ntc();
     failures += test_adc_error_and_pause();
+    failures += test_install_waits_for_actual_residual_requalification();
     return (failures == 0) ? 0 : 1;
 }

@@ -1,0 +1,30 @@
+{
+  "source": "ba9482359cf36688d9e88c8250f8fec303e7abff",
+  "deployment_status": "INTERNAL_FLASH_VERIFIED_INSTALLATION_STILL_BLOCKED",
+  "uart_battery_validation": "REQUIRES_BENCH_VALIDATION_AFTER_PROGRAMMING",
+  "previous_running_source": "a52dba35",
+  "intended_uid": "54ff70068370525760380567",
+  "firmware_sha256": "b9192ae5e5afbac22e9a44bfc7563a9a11ea8dc1e4c16087480755ebb3db0d30",
+  "binary_size": 37488,
+  "linked": {
+    "flash_bytes": 37488,
+    "bss": 11648,
+    "ram_static_bytes": 11692,
+    "noinit_bytes": 0,
+    "reserved_stack_bytes": 2048,
+    "ram_accounted_bytes": 13740
+  },
+  "host_tests": "46/46 PASS",
+  "embedded_profiles": "9/9 PASS_STRICT_WARNINGS_AND_MEMORY",
+  "package_sha256": "c09dae7acf9b385cc8015d29d43f536d46bca9d8ef4ac2f9faa33d70dfd91a78",
+  "external_flash_written": false,
+  "osl_installed": false,
+  "physical_installation_attempts_failed": 3,
+  "blockers_at_abort": 12,
+  "transfer_safe_at_abort": true,
+  "safety_faults_at_abort": 0,
+  "residual_requalification_count_at_abort": 1,
+  "residual_unknown_fresh_sample": true,
+  "diagnosis": "Age-only wait failed during eight-sweep residual requalification; no new captures required",
+  "diagnostic_archive_sha256": "e2f5c240f59ba9f74ef003fe87ebc46fd883cc095fd2795882f54b79accda06b"
+}
