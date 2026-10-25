@@ -1,0 +1,376 @@
+{
+  "schema": "WTK_PHYSICAL_RESOURCE_INSTALL_1",
+  "simulated": false,
+  "recorded_utc": "2026-10-25T00:39:17.803747+00:00",
+  "outcome": "EXTERNAL_PACK_READBACK_IDENTICAL_AND_BRINGUP_RESTORED",
+  "target_uid": "54ff70068370525760380567",
+  "jedec": "EF4016",
+  "capacity_bytes": 4194304,
+  "pack": {
+    "entries": [
+      {
+        "font": null,
+        "format": 1,
+        "image": null,
+        "language_id": 1,
+        "payload_crc32": "0x469FC2C7",
+        "payload_size": 1613,
+        "resource_id": "0x00010001",
+        "resource_type": 1
+      },
+      {
+        "font": null,
+        "format": 1,
+        "image": null,
+        "language_id": 2,
+        "payload_crc32": "0x1857FB3C",
+        "payload_size": 1710,
+        "resource_id": "0x00010002",
+        "resource_type": 1
+      },
+      {
+        "font": {
+          "ascent": 13,
+          "bitmap_bytes": 940,
+          "descent": 4,
+          "first_codepoint": 32,
+          "glyph_count": 94,
+          "index_bytes": 1880,
+          "index_crc32": 1705614,
+          "last_codepoint": 57352,
+          "line_height": 17,
+          "max_height": 12,
+          "max_width": 12
+        },
+        "format": 2,
+        "image": null,
+        "language_id": null,
+        "payload_crc32": "0xB1B6342C",
+        "payload_size": 2852,
+        "resource_id": "0x00020001",
+        "resource_type": 2
+      },
+      {
+        "font": {
+          "ascent": 17,
+          "bitmap_bytes": 1789,
+          "descent": 5,
+          "first_codepoint": 32,
+          "glyph_count": 94,
+          "index_bytes": 1880,
+          "index_crc32": 2126364000,
+          "last_codepoint": 57352,
+          "line_height": 22,
+          "max_height": 16,
+          "max_width": 16
+        },
+        "format": 2,
+        "image": null,
+        "language_id": null,
+        "payload_crc32": "0xD8C0D36D",
+        "payload_size": 3701,
+        "resource_id": "0x00020002",
+        "resource_type": 2
+      },
+      {
+        "font": {
+          "ascent": 29,
+          "bitmap_bytes": 5451,
+          "descent": 8,
+          "first_codepoint": 32,
+          "glyph_count": 94,
+          "index_bytes": 1880,
+          "index_crc32": 873831456,
+          "last_codepoint": 57352,
+          "line_height": 37,
+          "max_height": 27,
+          "max_width": 24
+        },
+        "format": 2,
+        "image": null,
+        "language_id": null,
+        "payload_crc32": "0x27578435",
+        "payload_size": 7363,
+        "resource_id": "0x00020003",
+        "resource_type": 2
+      },
+      {
+        "font": null,
+        "format": 3,
+        "image": {
+          "command_bytes": 5384,
+          "command_crc32": 1445685228,
+          "decoded_pixels": 76800,
+          "height": 320,
+          "rle_runs": 1346,
+          "width": 240
+        },
+        "language_id": null,
+        "payload_crc32": "0x76CF64B0",
+        "payload_size": 5416,
+        "resource_id": "0x00030002",
+        "resource_type": 4
+      }
+    ],
+    "entry_count": 6,
+    "resource_api_version": 4,
+    "schema_version": 2,
+    "sha256": "1048f3baa7942354e1c3d84b9b5cb361e7e3bd7347f221fdc2d3b2660b6ee9b4",
+    "size_bytes": 22891
+  },
+  "sources": [
+    {
+      "path": "Firmware/assets/resource_manifest.json",
+      "bytes": 1033,
+      "sha256": "05823a668add2c83204e30c8b3012470a9ea784b96207878c62fc748032cf824"
+    },
+    {
+      "path": "Firmware/assets/text/en.json",
+      "bytes": 2521,
+      "sha256": "b30ad467d023402d67c5798a77ba1eaa3923d8bd11e4f59be8a3921b303ce77d"
+    },
+    {
+      "path": "Firmware/assets/text/pt-BR.json",
+      "bytes": 2621,
+      "sha256": "2800bcf748d4ba47e5ec0129ed2874892517b06f352699648902d479f9e7feda"
+    },
+    {
+      "path": "Firmware/assets/font/plex-small-a1.json",
+      "bytes": 13790,
+      "sha256": "30a7795248f340a24c511d862ba357e6106d7f37e6d01afa1163615f08c67b8f"
+    },
+    {
+      "path": "Firmware/assets/font/plex-medium-a1.json",
+      "bytes": 19083,
+      "sha256": "8bf69351649df25b5a6c3da575a7038eadaadeee603f8c7a081a67f479cf58d5"
+    },
+    {
+      "path": "Firmware/assets/font/plex-large-a1.json",
+      "bytes": 43631,
+      "sha256": "1ffec5e1b034a73ed2f127d977af0a5147e90cc4afa0355d65f6ee9fdf6d7d37"
+    },
+    {
+      "path": "Firmware/assets/image/boot-art-v2-rle.json",
+      "bytes": 55821,
+      "sha256": "01077e86b3c7164f801c907e4657a123a8f236f948f93eb515ae590f0c36a7d0"
+    }
+  ],
+  "erase_span": {
+    "start": 0,
+    "end_exclusive": 24576,
+    "bytes": 24576
+  },
+  "external_readback": {
+    "bytes": 22891,
+    "sha256": "1048f3baa7942354e1c3d84b9b5cb361e7e3bd7347f221fdc2d3b2660b6ee9b4",
+    "erase_span_sha256": "e6d86dfcb6414f06cb8b3e2577a3ad235f2e8944435dec514fd7d97387b75c97",
+    "padding_erased": true
+  },
+  "mutable_tail": {
+    "start": 4161536,
+    "bytes": 32768,
+    "before_sha256": "2d864c0b789a43214eee8524d3182075125e5ca2cd527f3582ec87ffd94076bc",
+    "after_sha256": "2d864c0b789a43214eee8524d3182075125e5ca2cd527f3582ec87ffd94076bc",
+    "unchanged": true,
+    "all_erased": true
+  },
+  "temporary_receiver": {
+    "source": {
+      "git_sha": "0dd1f3fe40ce7e9c68d563bcb80d405042396ead",
+      "dirty": false,
+      "git_status": "",
+      "input_sha256": "e207509903afde75dc07d12c78ced1d6058da317a77fafdb6b2dae6d47876abc"
+    },
+    "readback": {
+      "start": 134217728,
+      "end_exclusive": 134270576,
+      "bytes": 52848,
+      "expected_sha256": "239ac2b6866da5461a6252264c16ebe1b7f6433811d19adcd62028c22ba442d5",
+      "actual_sha256": "239ac2b6866da5461a6252264c16ebe1b7f6433811d19adcd62028c22ba442d5",
+      "full_flash_sha256": "4186ceb3f95a7ae47738b02f59957fae4231bfa2745e0e29031bed6b57903df2",
+      "full_flash_bytes": 65536
+    },
+    "scope": "Factory PRODUCT recovery solely for assets; no OSL/production-release gate waived"
+  },
+  "initial_transfer": {
+    "recorded_utc": "2026-10-25T00:29:30.098243+00:00",
+    "simulated": false,
+    "port": "COM4",
+    "baud": 115200,
+    "operation": "EXISTING_PRODUCT_PLC1_RESOURCE_UPLOAD",
+    "pack_sha256": "1048f3baa7942354e1c3d84b9b5cb361e7e3bd7347f221fdc2d3b2660b6ee9b4",
+    "pack_bytes": 22891,
+    "erase_span": {
+      "start": 0,
+      "bytes": 24576
+    },
+    "frame_count": 193,
+    "byte_delay_ms": 5,
+    "source": "Tracked resource_manifest.json, schema2/API4",
+    "outcome": "INCOMPLETE_NO_REPLAY",
+    "error": "TimeoutError: Incomplete ACK, needed16, received0; no replay",
+    "final_product_release": "NOT_ACCEPTED; no valid calibration",
+    "limitation": "ACK is not persisted-byte readback; separate W25Q verification required",
+    "acknowledged_frames": 3
+  },
+  "initial_failure": {
+    "rx_received": 130,
+    "rx_expected": 144,
+    "session_accepted_bytes": 240,
+    "nor_idle": true,
+    "resolution": "Separate inspected reset/recovery; new BEGIN with byte flushing,10ms pacing and10s render dwell"
+  },
+  "successful_transfer": {
+    "recorded_utc": "2026-10-25T00:33:04.911353+00:00",
+    "simulated": false,
+    "port": "COM4",
+    "baud": 115200,
+    "operation": "EXISTING_PRODUCT_PLC1_RESOURCE_UPLOAD",
+    "pack_sha256": "1048f3baa7942354e1c3d84b9b5cb361e7e3bd7347f221fdc2d3b2660b6ee9b4",
+    "pack_bytes": 22891,
+    "erase_span": {
+      "start": 0,
+      "bytes": 24576
+    },
+    "frame_count": 193,
+    "byte_delay_ms": 10,
+    "byte_flush": true,
+    "post_begin_render_wait_s": 10,
+    "restart_review": "First attempt RX130/144, session accepted240bytes, NOR idle; separate controlled reset/recovery and slower new BEGIN",
+    "source": "Tracked resource_manifest.json, schema2/API4",
+    "outcome": "ALL_FRAMES_ACKNOWLEDGED",
+    "error": null,
+    "final_product_release": "NOT_ACCEPTED; no valid calibration",
+    "limitation": "ACK is not persisted-byte readback; separate W25Q verification required",
+    "acknowledged_frames": 193,
+    "nor_operation": "Each frame ACK deferred by firmware until erase/program completion"
+  },
+  "product_admission_after_upload": {
+    "resource_status": 0,
+    "product_state": 3,
+    "calibration_active_valid": 0,
+    "runtime_kind": 1,
+    "update_state": 6,
+    "update_error": 0,
+    "safety_fault_mask": 0,
+    "flash_operation": 0,
+    "measurement_session_state": 0,
+    "attempt_started": 0,
+    "rx_received": 0,
+    "rx_expected": 16,
+    "ack_deferred": 0,
+    "gpioa_idr": 22016,
+    "gpioa_odr": 45056,
+    "gpiob_odr": 3096,
+    "recorded_utc": "2026-10-25T00:38:20.517088+00:00",
+    "simulated": false,
+    "stage": "after",
+    "core_resumed": true,
+    "profile": "Temporary published factory PRODUCT resource receiver; no metrology release",
+    "k1_cmd": false,
+    "range_en": false,
+    "excitation_cmd": false,
+    "charger_pa15_high": false,
+    "offsets": "Pinned Arm compiler layout-product.s plus receiver-image ELF symbol addresses",
+    "outcome": "EXPECTED_SAFE_RESOURCE_STATE"
+  },
+  "product_admission_after_reset": {
+    "resource_status": 0,
+    "product_state": 3,
+    "calibration_active_valid": 0,
+    "runtime_kind": 1,
+    "update_state": 0,
+    "update_error": 0,
+    "safety_fault_mask": 0,
+    "flash_operation": 0,
+    "measurement_session_state": 0,
+    "attempt_started": 0,
+    "rx_received": 0,
+    "rx_expected": 16,
+    "ack_deferred": 0,
+    "gpioa_idr": 22016,
+    "gpioa_odr": 45056,
+    "gpiob_odr": 3096,
+    "recorded_utc": "2026-10-25T00:38:29.837384+00:00",
+    "simulated": false,
+    "stage": "restart",
+    "core_resumed": true,
+    "profile": "Temporary published factory PRODUCT resource receiver; no metrology release",
+    "k1_cmd": false,
+    "range_en": false,
+    "excitation_cmd": false,
+    "charger_pa15_high": false,
+    "offsets": "Pinned Arm compiler layout-product.s plus receiver-image ELF symbol addresses",
+    "outcome": "EXPECTED_SAFE_RESOURCE_STATE"
+  },
+  "restoration": {
+    "source": {
+      "git_sha": "0dd1f3fe40ce7e9c68d563bcb80d405042396ead",
+      "dirty": false,
+      "git_status": "",
+      "input_sha256": "e207509903afde75dc07d12c78ced1d6058da317a77fafdb6b2dae6d47876abc"
+    },
+    "readback": {
+      "start": 134217728,
+      "end_exclusive": 134283216,
+      "bytes": 65488,
+      "expected_sha256": "e4af20eff8f4e06de291fd2c06e5de1437517ad0f0364da253a736f6f244876a",
+      "actual_sha256": "e4af20eff8f4e06de291fd2c06e5de1437517ad0f0364da253a736f6f244876a",
+      "full_flash_sha256": "9c6e1a70bfc7f118104ad70ffcc0043ebf59cc6ccf85eb531241b54406d810f1",
+      "full_flash_bytes": 65536
+    },
+    "identity": {
+      "firmware": "0.1.0",
+      "git": "0dd1f3fe40ce",
+      "build": "MinSizeRel",
+      "profile": "BRINGUP",
+      "hardware": "Rev1-STM32F103C8T6-BluePill",
+      "reset": "SOFTWARE",
+      "clock_status": "OK",
+      "clock_source": "HSE_PLL",
+      "sysclk_hz": "72000000",
+      "hclk_hz": "72000000",
+      "pclk1_hz": "36000000",
+      "pclk2_hz": "72000000",
+      "adc_hz": "12000000",
+      "swd": "PRESERVED",
+      "boot_state": "SAFE_BOOT",
+      "watchdog_policy": "IWDG_START_AFTER_UART_BANNER"
+    },
+    "final_mvp": {
+      "clock.clock": "HSE_PLL",
+      "clock.sysclk_hz": "72000000",
+      "flash.flash": "DETECTED",
+      "flash.jedec": "0x00EF4016",
+      "display.display": "READY",
+      "charger.charger": "ABSENT",
+      "safety.safety": "BLOCKED",
+      "safety.blocker": "BLOCKED_RANGE",
+      "safety.faults": "0x00000000",
+      "k1.k1": "SAFE",
+      "range_state.range_state": "DISABLED",
+      "range_state.current": "INVALID",
+      "range_state.safety": "DISABLED",
+      "calibration.calibration": "NO_VALID_CALIBRATION",
+      "calibration.active": "0",
+      "calibration.sequence": "0",
+      "residual.residual": "SAFE",
+      "residual.battery": "OK",
+      "resource.resource": "BRINGUP_NA",
+      "last_metrology.last_metrology": "OK"
+    }
+  },
+  "debugger_read_note": "Existing W25Q read API invoked on idle verified BRINGUP; scratch restored. A separate controlled boot followed each backup/readback because debugger Flash algorithms may disturb CPU context; detach alone is not boot acceptance.",
+  "bundle": {
+    "path": "Firmware/releases/2026-10-24/production-resources.zip",
+    "bytes": 12920,
+    "sha256": "bf7427a2e4f8e000ba839801f327b25c978cf02d466f7a5641fcc971a4b3a582"
+  },
+  "calibration": "No valid calibration created or installed",
+  "requires_bench_validation": [
+    "Power-loss during resource writes",
+    "Flash lifetime/full-capacity qualification",
+    "Physical product display appearance with TTL disconnected",
+    "Independent K1 hardware inhibition and power sequencing"
+  ]
+}

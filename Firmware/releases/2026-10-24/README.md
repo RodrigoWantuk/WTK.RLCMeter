@@ -27,3 +27,7 @@ back up the current image and preserve W25Q. Old0x00010001 OSL is incompatible,
 not erased or re-labelled. Capture new calibration on the reworked board.
 Battery/charger and physical/metrology qualification remain separate; see
 [the integration report](../../../docs/review/bringup-2026-10-24/README.md).
+
+The [production Resource Pack](production-resources.md) was subsequently installed
+and verified on the first board's external W25Q. It is separate from these internal
+firmware images and does not contain calibration coefficients.

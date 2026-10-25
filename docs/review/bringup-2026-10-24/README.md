@@ -104,3 +104,11 @@ connection and owner setup correction, passive UART endpoints confirmed
 ABSENT/PRESENT/ABSENT, BLOCKED_CHARGER only while present, K1SAFE and zero faults.
 The initial unsuccessful test is preserved in the same report. Independent
 hardware relay inhibition and on-state CHG_VBUS voltage remain unqualified.
+
+## Production resources installed
+
+The current22891-byte schema2/API4 text/font/art pack was installed through the
+existing PRODUCT recovery receiver, admitted after reset and verified byte-for-byte
+from W25Q. The32KiB mutable tail is unchanged, and standard BRINGUP was restored
+and booted SAFE. See [the physical resource-install report](Resource-Install.md)
+for hashes, transfer pacing, backups and remaining qualification boundaries.

@@ -126,3 +126,7 @@ Rev.1 firmware is not considered complete until:
 ## First-board consolidation
 
 [Plan17](17-Bringup-Consolidation-and-Publish.md) integrates October24 bring-up findings, current owner exports, CHG input analysis, all firmware profiles and Git publication.
+
+[Plan18](18-First-Board-Resource-Provisioning.md) records the owner-requested
+production resource installation, physical W25Q readback, preserved mutable data
+and return to standard BRINGUP for remaining bench work.

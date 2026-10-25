@@ -54,6 +54,14 @@ The last command uses the product PC-link resource receiver through a serial COM
 port. It is for provisioning/recovery; ordinary menus, measurement, and calibration
 do not require UART. Never put a resource pack inside the internal MCU Flash image.
 
+On the first board, the physical install required10ms per byte, per-byte flushing
+and10s settling after BEGIN while the recovery screen redrew. The generic CLI
+above sends whole frames and was not qualified by that run. Use the bounded paced
+procedure and independent Flash readback recorded in the
+[first-board installation report](../../docs/review/bringup-2026-10-24/Resource-Install.md)
+when provisioning this polled-UART configuration. All193 frames and the complete
+22891-byte external readback were verified; calibration/settings were preserved.
+
 ## Preview and validation
 
 The host-only `wtk_ui_product_preview` target links the real product renderer and
