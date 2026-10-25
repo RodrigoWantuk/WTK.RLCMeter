@@ -8,7 +8,8 @@ void ui_boot_splash_start(ui_boot_splash_t *splash, const resource_catalog_io_t 
     if (splash == NULL) return;
     /* Each owned operation initializes its context before admission. */
     splash->state = UI_BOOT_SPLASH_DONE;
-    if (io == NULL || io->read == NULL || partition_size == 0u) return;
+    if (io == NULL) return;
+    /* resource_catalog_mount validates the callback and partition before I/O. */
     splash->io = *io;
     splash->partition_start = partition_start;
     splash->partition_size = partition_size;
@@ -80,7 +81,8 @@ bool ui_boot_splash_step(ui_boot_splash_t *splash, const ili9341_t *display,
         return true;
     case UI_BOOT_SPLASH_CLEAR:
         status = ili9341_fill_step(display, &splash->clear, ILI9341_FILL_CHUNK_PIXELS);
-        if (status == BSP_STATUS_OK) splash->state = UI_BOOT_SPLASH_DONE;
+        /* OK acknowledges one chunk; the driver's active flag owns completion. */
+        if (!splash->clear.active) splash->state = UI_BOOT_SPLASH_DONE;
         break;
     default:
         splash->state = UI_BOOT_SPLASH_DONE;

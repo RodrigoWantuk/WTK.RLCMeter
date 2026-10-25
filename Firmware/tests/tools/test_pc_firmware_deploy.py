@@ -63,6 +63,12 @@ def image_fixture(root,profile):
 
 
 class DeployTests(unittest.TestCase):
+    def test_minimal_diagnostic_banner_does_not_claim_uart_git_identity(self):
+        identity=d.boot_identity('BRINGUP','a'*40,'0.1.0',False)
+        self.assertEqual(identity['interface'],'LIMITED_UART_UI_REQUIRED')
+        self.assertIsNone(identity['git_prefix'])
+        self.assertIn('SWD',identity['limitation'])
+
     def setUp(self):
         self.temp=tempfile.TemporaryDirectory(); self.addCleanup(self.temp.cleanup); self.root=Path(self.temp.name)
         self.image=image_fixture(self.root/"image with spaces [exec dangerous] $value","BRINGUP")

@@ -15,7 +15,8 @@ void app_boot_splash_start(const w25q_device_t *flash, uint32_t now_ms)
     g_boot_splash.state = UI_BOOT_SPLASH_DONE;
     if (flash == NULL || !flash->detected ||
         !storage_layout_partition(flash->part.capacity_bytes, STORAGE_PARTITION_RESOURCE_PACK, &partition)) return;
-    g_boot_reader = (resource_w25q_reader_t){.flash = flash};
+    /* Policy fields stay zero in this private boot-only reader. */
+    g_boot_reader.flash = flash;
     const resource_catalog_io_t io = resource_w25q_catalog_io(&g_boot_reader);
     ui_boot_splash_start(&g_boot_splash, &io, partition.start, partition.size, now_ms);
 }

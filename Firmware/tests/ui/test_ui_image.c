@@ -41,7 +41,8 @@ bsp_status_t ili9341_fill_step(const ili9341_t *display, ili9341_fill_t *fill, u
     const uint32_t count = fill->remaining_pixels < max_pixels ? fill->remaining_pixels : max_pixels;
     fill->remaining_pixels -= count;
     fill->active = fill->remaining_pixels != 0u;
-    return fill->active ? BSP_STATUS_BUSY : BSP_STATUS_OK;
+    /* Match the real ILI9341 contract: OK for each successful partial chunk. */
+    return BSP_STATUS_OK;
 }
 
 static int expect_true(bool condition, const char *message)

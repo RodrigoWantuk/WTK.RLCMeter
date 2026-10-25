@@ -783,8 +783,10 @@ static hw_excitation_mode_t lab_bsp_excitation_mode(void)
         return HW_EXCITATION_MODE_NEUTRAL;
     case BSP_EXCITATION_MODE_SINE:
         return HW_EXCITATION_MODE_SINE;
+#if WTK_ENABLE_DC_PILOT
     case BSP_EXCITATION_MODE_DC_PILOT:
         return HW_EXCITATION_MODE_DC_PILOT;
+#endif
     case BSP_EXCITATION_MODE_OFF:
     default:
         return HW_EXCITATION_MODE_OFF;
@@ -1618,7 +1620,10 @@ static bool parse_cal_campaign_begin_tokens(const char *line, measurement_cal_ke
 static bool lab_metrology_busy(const app_bringup_console_t *console)
 {
     return (console != NULL) &&
-           ((console->dc_state != APP_BRINGUP_DC_IDLE) ||
+           (
+#if WTK_ENABLE_DC_PILOT
+           (console->dc_state != APP_BRINGUP_DC_IDLE) ||
+#endif
            hw_metrology_session_active(&console->session) ||
            hw_metrology_measure_active(&console->measure) ||
            app_calibration_session_active(&console->cal_session) ||

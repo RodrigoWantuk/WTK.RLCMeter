@@ -133,7 +133,10 @@ def parse_config(raw):
     return {k:v.strip().strip('"') for k,v in fields.items()}
 
 
-def boot_identity(profile,sha_value,version):
+def boot_identity(profile,sha_value,version,detailed_bringup=True):
+    if profile=="BRINGUP" and not detailed_bringup:
+        return dict(interface="LIMITED_UART_UI_REQUIRED",firmware_version=version,hardware=HARDWARE,
+            git_prefix=None,limitation="Minimal SAFE_BOOT banner; use SWD byte verification and independent bench acceptance")
     return dict(interface="BRINGUP_UART" if profile=="BRINGUP" else "PLC1_IDENTIFY" if profile=="BRINGUP_CAL" else "LIMITED_UART_UI_REQUIRED",
         firmware_version=version,hardware=HARDWARE,git_prefix=sha_value[:12] if profile=="BRINGUP" else sha_value[:8] if profile=="BRINGUP_CAL" else None,
         limitation="PRODUCT banner is only WTK.RLCMeter SAFE_BOOT; UI/bench acceptance separate" if profile=="FACTORY_PRODUCT" else "reported short Git identity is not binary authentication")
@@ -158,7 +161,8 @@ def manifest(build_dir,out,profile,state,preset):
     for name,raw in (("firmware.bin",binary),("firmware.elf",elf),("build_config.h",config),
                      ("linker.ld",read(REPO/"Firmware/cmake/stm32/STM32F103C8Tx_FLASH.ld"))):
         (out/name).write_bytes(raw); files[name]=dict(bytes=len(raw),sha256=sha(raw))
-    identity=boot_identity(profile,state["git_sha"],flags["WTK_PROJECT_VERSION"])
+    identity=boot_identity(profile,state["git_sha"],flags["WTK_PROJECT_VERSION"],
+        flags.get("WTK_DIAGNOSTIC_LOG_LEVEL_DEFAULT","5u") not in ("1u","2u","3u"))
     value=dict(schema="WTK_FIRMWARE_1",source=state,profile=profile,factory_provisioned=spec[2],supplementary_curves=False,
         bringup_k1_test=flags.get("WTK_ENABLE_K1_BENCH_TEST","0u")=="1u",
         bringup_bench_supply=flags.get("WTK_ENABLE_BENCH_SUPPLY","0u")=="1u",
@@ -203,7 +207,7 @@ def inspect(path,profile=None):
         (peripheral and (value["profile"]!="BRINGUP" or bench or supply or flags.get("WTK_ENABLE_DC_PILOT")!="0u"))):
         raise ValueError("invalid BRINGUP peripheral test configuration")
     if (flags["WTK_FIRMWARE_PROFILE"],flags["WTK_PRODUCT_FACTORY_PROVISIONED"],flags["WTK_GIT_COMMIT"],flags["WTK_ENABLE_SUPPLEMENTARY_CURVES"],flags["WTK_BUILD_TYPE"],flags["WTK_HARDWARE_COMPATIBILITY"])!=(spec[1],"1u" if spec[2] else "0u",value["source"]["git_sha"][:12],"0u",spec[3],HARDWARE): raise ValueError("generated configuration mismatch")
-    if value.get("firmware_version")!=flags.get("WTK_PROJECT_VERSION") or value.get("expected_boot")!=boot_identity(value["profile"],value["source"]["git_sha"],flags["WTK_PROJECT_VERSION"]): raise ValueError("boot/version metadata mismatch")
+    if value.get("firmware_version")!=flags.get("WTK_PROJECT_VERSION") or value.get("expected_boot")!=boot_identity(value["profile"],value["source"]["git_sha"],flags["WTK_PROJECT_VERSION"],flags.get("WTK_DIAGNOSTIC_LOG_LEVEL_DEFAULT","5u") not in ("1u","2u","3u")): raise ValueError("boot/version metadata mismatch")
     linker=read(root/"linker.ld").decode()
     if not re.search(r'FLASH\s*\(rx\)\s*:\s*ORIGIN\s*=\s*0x08000000,\s*LENGTH\s*=\s*64K',linker) or not re.search(r'RAM\s*\(xrw\)\s*:\s*ORIGIN\s*=\s*0x20000000,\s*LENGTH\s*=\s*20K',linker): raise ValueError("linker contract mismatch")
     if not re.fullmatch("[0-9a-f]{40}",value["source"]["git_sha"]): raise ValueError("full source SHA required")
@@ -516,7 +520,9 @@ def observe(deployment_path,evidence_path,out):
     if not record["SIMULATED"] and (value.get("SIMULATED") or value.get("OFFLINE_REPLAY") or value.get("synthetic")): raise ValueError("synthetic observation cannot confirm physical boot")
     profile=record["image"]["profile"]
     identity=value.get("identity",value)
-    if profile=="BRINGUP":
+    if profile=="BRINGUP" and record["image"]["expected_boot"]["interface"]=="LIMITED_UART_UI_REQUIRED":
+        status="UNKNOWN: minimal diagnostic banner requires independent SWD identity and bench acceptance"
+    elif profile=="BRINGUP":
         if identity.get("profile")!="BRINGUP" or identity.get("git")!=record["image"]["source"]["git_sha"][:12]: raise ValueError("BRINGUP banner identity mismatch")
         status="OBSERVED_MATCHING_BRINGUP_BANNER"
     elif profile=="BRINGUP_CAL":

@@ -7,7 +7,7 @@ v3 pack must be rebuilt and uploaded; the firmware must not silently reinterpret
 
 The current seven-entry pack includes optional 240x320 RGB565 RLE art for the READY
 screen and a separate personalized three-second boot splash (`0x00030006`).
-Art contains no words or numerical readouts. The firmware composes localized text,
+The READY artwork contains no words or numerical readouts. The firmware composes localized text,
 values, status, and icon glyphs over it. Corrupt or absent optional art falls back to
 the plain background; missing/corrupt required text or fonts enters the internal
 bilingual PC-link recovery screen. The small internal emergency font is independent

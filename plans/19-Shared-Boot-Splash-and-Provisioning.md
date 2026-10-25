@@ -84,3 +84,11 @@ reviewed new session uses10ms per BEGIN byte, then2ms per byte while TFT redraw 
 suspended. These are now the supported defaults; the earlier1ms default is not
 qualified. The firmware binary source remains52df01cdd341; this tooling correction
 and later physical evidence are tracked in subsequent commits.
+
+The actual running-core boot trace found full-image HOLD for3000ms but no full
+CLEAR: ILI9341 fill returns OK for each successful chunk, not only completion.
+Correct the controller to follow fill.active, and correct the host fake to model
+that contract. The revised timing/clear host test passes. The updated BRINGUP link
+uses65536bytes; unused DC-only status branches are excluded when DC is disabled.
+No safety/AC/calibration commands were removed. Rebuild the full source-bound
+matrix again before final programming. The resource pack itself needs no change.
