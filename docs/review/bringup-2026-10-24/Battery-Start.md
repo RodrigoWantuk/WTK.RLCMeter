@@ -72,11 +72,32 @@ DISABLED. No active command was issued. See
 readings establish the reported DC levels at this operating point; ripple,
 current capacity and load/transient behavior remain unmeasured.
 
+## Charger connected, presence not detected
+
+The owner then reported connecting the charger, but could not take multimeter
+readings in that setup. The expected charger-present state was **not observed**:
+both passive charger/MVP responses remained ABSENT, and safety remained
+BLOCKED_RANGE rather than BLOCKED_CHARGER. Zero faults, K1 SAFE and range
+DISABLED were maintained. Battery samples were3870/3875/3870mV, stateOK.
+
+A separate ST-Link halt/read/resume snapshot, without reset or register writes,
+confirmed PA15 CRH mode nibble4 (floating digital input) and PA15 IDR LOW.
+K1_CMD, RANGE_EN and PWM_EXC output latches were all LOW; the core was resumed.
+This confirms the observed digital level, not a measured CHG_VBUS voltage or
+the cause of that level. The exact signal source, charger-input energization
+and physical path still require identification; no solder/design fault is
+established by this observation. No charger-presence pass or independent
+hardware-inhibit qualification is claimed.
+
+See [the unsuccessful presence test and GPIO snapshot](charger-on-unrecognized.json)
+and [its UART transcript](charger-on-unrecognized-uart.txt). No active DUT test
+is to proceed with the charging-detection discrepancy unresolved.
+
 ## Next physical checks
 
 - Observe charger ABSENT/PRESENT/ABSENT from the actual charger input signal,
-  including software measurement blocking. The disconnected-input observation
-  above does not test charger-presence response or independent relay inhibition.
+  including software measurement blocking, after tracing the source/path of
+  J_PWR.4. Its digital reading cannot substitute for the missing on-state voltage.
 - Separately qualify hardware inhibition, supply sequencing, battery thresholds,
   current/headroom, and unpowered/backfeed behavior. Debugger/TTL attachment means
   this session is not proof of standalone battery-only startup or power-off.
