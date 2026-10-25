@@ -13,6 +13,12 @@ all embedded permissions. No release qualification or energized-DUT scope is add
 Six nominal 1% LOAD candidates were inventoried at the direct DUT terminals;
 three band identifications remain provisional. The owner requires a fresh DMM
 reading before each LOAD attachment. Final test leads require a new calibration.
+The owner additionally requires a fresh battery check before proceeding to each
+new resistor value. Read only while SAFE/idle, preserve the measured voltage and
+state, and request charging instead of starting that group if battery is LOW
+(nominal threshold 3.50 V), CRITICAL or otherwise not ready. Never estimate charge
+percentage or remaining runtime from this uncalibrated voltage. Charger interlock
+continues to prohibit capture while charging. A stale/missing check must be repeated.
 The verified BRINGUP_CAL boot reports hardware 0x10002/model 5 and blank storage.
 
 The first authorized OPEN sweep stopped at its first condition (10 ohm, 10 Hz,
@@ -88,6 +94,18 @@ not a completed OSL fit: HG-only triplets still need actual same-key overlap.
 LOAD captures and serialized solver checks remain pending, followed by separate
 installation and independent holdouts. The owner has been asked for the fresh
 10-ohm DMM reading before the first LOAD attachment. No qualification gate changed.
+
+The owner repeated 10.5 ohm on the Minipa 200-ohm range and explicitly confirmed
+the nominal 10-ohm resistor attached alone. All three 100-mVrms LOAD keys passed
+six repeats, both return paths, clipping zero, observed HG overlap and the strict
+same-image OSL/float32 fit checks. See [first LOAD checkpoint](../docs/review/bringup-2026-10-25/OSL-Load-10.md).
+Progress is 69/99 observations, 3/33 complete conditions. Nominal 10 ohm +/-1%
+remains an uncertain fit anchor, not an exact lead-corrected DMM reading. Fresh
+pre-group battery readings were 3.71824 V before 10 ohm and 3.71663 V before
+100 ohm, both OK. A post-capture read-only STATUS timeout increased the protocol
+counter to 1; a paced read-only recovery confirmed SAFE/idle and zero faults.
+It did not replay START or change accepted artifacts. The owner was asked for
+the fresh 100-ohm reading/attachment. No complete candidate or installation yet.
 
 A04.1 delivers the [guided OSL campaign](../Firmware/tools/PC_OSL_CAMPAIGN.md):
 six-reference inventory, explicit passive-fixture confirmations, atomic resumable

@@ -104,3 +104,8 @@ Same-image OPEN/LOAD, installation and independent qualification remain pending.
 records 66 accepted captures on source `7017e5e0`, with common return paths at all
 33 keys. LOAD, solver validation, installation and independent qualification
 remain pending; earlier endpoint checkpoints retain their historical status.
+
+[First 10-ohm LOAD group](review/bringup-2026-10-25/OSL-Load-10.md) records three
+accepted same-image triplets (69/99 observations), their strict float32 fit
+checks and the owner's battery check requirement before every new resistor.
+Five LOAD groups, independent validation and installation remain pending.
