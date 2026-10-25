@@ -51,6 +51,8 @@ class PcLinkResourcePackTests(unittest.TestCase):
         self.assertEqual(link.tx, b''.join(frames))
         self.assertTrue(link.closed)
         self.assertEqual(delay.call_count, sum(map(len,frames))+1)
+        self.assertEqual(delay.call_args_list[0].args, (0.010,))
+        self.assertIn(((0.002,), {}), delay.call_args_list)
         link = Link(port=None)
         with tempfile.TemporaryDirectory() as tmp, patch.dict(sys.modules, {'serial':SimpleNamespace(Serial=lambda **kw: link)}):
             path=Path(tmp)/'failure.json'

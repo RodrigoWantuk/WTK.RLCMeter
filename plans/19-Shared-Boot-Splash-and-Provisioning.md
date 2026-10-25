@@ -75,3 +75,12 @@ image/boot, geometry/color and Flash-access policy dependencies, while excluding
 PRODUCT UI/settings/console. Bench/K1 retain every command and use log level3 plus
 minimal SAFE_BOOT, reducing unsolicited logging only. Development checks pass for
 these corrected compositions; repeat the full matrix on the corrected clean SHA.
+
+Corrected clean source52df01cdd341 passes all nine strict-warning embedded builds.
+The initial physical upload at1ms byte pacing failed at the first header (BAD_MAGIC,
+no erase/program operation started). The tool stopped without replay. A live SAFE
+snapshot confirmed update IDLE/NOR idle; after a separate controlled reset, the
+reviewed new session uses10ms per BEGIN byte, then2ms per byte while TFT redraw is
+suspended. These are now the supported defaults; the earlier1ms default is not
+qualified. The firmware binary source remains52df01cdd341; this tooling correction
+and later physical evidence are tracked in subsequent commits.

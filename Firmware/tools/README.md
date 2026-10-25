@@ -131,6 +131,6 @@ isolated, non-deployable linker experiments for the future migration budget.
 
 Resource provisioning uses `resource_pack_tool.py upload` with per-byte pacing,
 DTR/RTS inactive before opening, bounded ACK validation and optional `--report`.
-Default pacing is1ms per byte and250ms post-BEGIN. Legacy receiver images may need
+Default pacing is10ms per BEGIN byte,2ms per later byte and250ms post-BEGIN. Legacy receiver images may need
 `--inter-byte-delay-ms 10 --settle-after-begin-ms 10000`. No ambiguous frame is
 replayed automatically. See [the complete asset procedure](../assets/README.md).

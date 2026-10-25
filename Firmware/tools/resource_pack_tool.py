@@ -103,7 +103,8 @@ def cmd_upload(args: argparse.Namespace) -> int:
     inspect_pack(pack)
     frames = iter_resource_frames(pack, args.chunk_size)
     send_serial(frames, args.port, args.baud, args.inter_frame_delay_ms / 1000.0,
-                args.inter_byte_delay_ms / 1000.0, args.settle_after_begin_ms / 1000.0, args.report)
+                args.inter_byte_delay_ms / 1000.0, args.settle_after_begin_ms / 1000.0, args.report,
+                args.begin_byte_delay_ms / 1000.0)
     print(f"uploaded frames={len(frames)} pack_bytes={len(pack)} port={args.port}")
     return 0
 

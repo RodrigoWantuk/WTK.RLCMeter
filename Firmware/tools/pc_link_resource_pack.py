@@ -133,10 +133,10 @@ def read_status_frame(link) -> tuple[int, int, int, int]:
 
 
 def send_serial(frames: list[bytes], port: str, baud: int, inter_frame_delay_s: float,
-                inter_byte_delay_s: float = 0.001, settle_after_begin_s: float = 0.25,
-                report_path: Path | None = None) -> dict:
+                inter_byte_delay_s: float = 0.002, settle_after_begin_s: float = 0.25,
+                report_path: Path | None = None, begin_byte_delay_s: float = 0.010) -> dict:
     """Stop on any ambiguous ACK; never replay a potentially committed frame."""
-    for delay in (inter_frame_delay_s, inter_byte_delay_s, settle_after_begin_s):
+    for delay in (inter_frame_delay_s, inter_byte_delay_s, settle_after_begin_s, begin_byte_delay_s):
         if not math.isfinite(delay) or delay < 0:
             raise ValueError("delays must be finite and nonnegative")
     if report_path is not None and report_path.exists():
@@ -152,6 +152,7 @@ def send_serial(frames: list[bytes], port: str, baud: int, inter_frame_delay_s: 
 
     report = dict(port=port, baud=baud, stream_sha256=hashlib.sha256(b"".join(frames)).hexdigest(),
                   inter_byte_delay_s=inter_byte_delay_s, settle_after_begin_s=settle_after_begin_s,
+                  begin_byte_delay_s=begin_byte_delay_s,
                   outcome="IN_PROGRESS", frames=[])
     started = time.monotonic()
     link = serial.Serial(port=None, baudrate=baud, timeout=15.0, write_timeout=15.0)
@@ -164,13 +165,14 @@ def send_serial(frames: list[bytes], port: str, baud: int, inter_frame_delay_s: 
             frame_type, sequence, _payload = decode_frame(frame)
             item = dict(sequence=sequence, tx_hex=frame.hex(), started_s=time.monotonic()-started)
             report["frames"].append(item)
-            pieces = (bytes([value]) for value in frame) if inter_byte_delay_s else (frame,)
+            byte_delay = max(inter_byte_delay_s, begin_byte_delay_s) if frame_type == FRAME_RESOURCE_BEGIN else inter_byte_delay_s
+            pieces = (bytes([value]) for value in frame) if byte_delay else (frame,)
             for piece in pieces:
                 if link.write(piece) != len(piece):
                     raise IOError("short serial write")
                 link.flush()
-                if inter_byte_delay_s:
-                    time.sleep(inter_byte_delay_s)
+                if byte_delay:
+                    time.sleep(byte_delay)
             status_sequence, pc_status, update_status, update_state = read_status_frame(link)
             item.update(status_sequence=status_sequence, pc_status=pc_status, update_status=update_status,
                         update_state=update_state, acknowledged_s=time.monotonic()-started)
@@ -195,9 +197,11 @@ def send_serial(frames: list[bytes], port: str, baud: int, inter_frame_delay_s: 
 
 
 def add_serial_options(parser) -> None:
-    parser.add_argument("--inter-byte-delay-ms", type=float, default=1.0,
+    parser.add_argument("--inter-byte-delay-ms", type=float, default=2.0,
                         help="flush each byte and pace polled UART (legacy images may require 10 ms)")
     parser.add_argument("--settle-after-begin-ms", type=float, default=250.0)
+    parser.add_argument("--begin-byte-delay-ms", type=float, default=10.0,
+                        help="slower BEGIN while the existing screen may still redraw")
     parser.add_argument("--report", type=Path, help="save ACK evidence, including partial failures")
 
 
@@ -220,7 +224,8 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.port:
         send_serial(frames, args.port, args.baud, args.inter_frame_delay_ms / 1000.0,
-                    args.inter_byte_delay_ms / 1000.0, args.settle_after_begin_ms / 1000.0, args.report)
+                    args.inter_byte_delay_ms / 1000.0, args.settle_after_begin_ms / 1000.0, args.report,
+                    args.begin_byte_delay_ms / 1000.0)
 
     if args.out is None and not args.port:
         total = sum(len(frame) for frame in frames)

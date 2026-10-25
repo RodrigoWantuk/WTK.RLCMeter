@@ -67,7 +67,7 @@ port. It is for provisioning/recovery; ordinary menus, measurement, and calibrat
 do not require UART. Never put a resource pack inside the internal MCU Flash image.
 
 The supported uploader opens with DTR/RTS inactive, flushes each byte, defaults to
-1 ms byte pacing and 250 ms post-BEGIN settling, and validates every ACK including
+10 ms byte pacing for BEGIN, 2 ms for subsequent frames and 250 ms post-BEGIN settling, and validates every ACK including
 END/COMPLETE. It stops on any rejection, malformed response or timeout without
 replaying frames. A saved report records partial failures; inspect the target
 before restarting a transfer. An ACK is not an independent physical readback.
