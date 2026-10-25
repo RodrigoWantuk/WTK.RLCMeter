@@ -30,6 +30,17 @@ test_app_calibration_workflow.c. Validate host tests and affected embedded build
 before deployment; preserve W25Q and re-identify the exact binary before resuming.
 Physical OPEN/SHORT/LOAD capture and independent holdouts remain incomplete.
 
+The corrected runtime then completed ten hardware blocks without permit/runtime
+errors but rejected OPEN stability. RAM statistics exposed relative-to-zero
+endpoint testing and comparison of unaligned common source phase. A later UART
+request was also lost during synchronous processing. The next bounded correction
+is documented in docs/07-Calibration-and-Validation.md: nonzero endpoint scales,
+source-amplitude repeatability, common-phase-aligned exported means, and replies
+held until the repeat workflow drains. Add near-zero/excessive-dispersion controls
+and independent-block phase rotation to the real C-backed capture fixture.
+Validate all affected images and preserve each rejected physical attempt. Do not
+reinterpret software acceptance as metrology qualification or mark scope checks PASS.
+
 A04.1 delivers the [guided OSL campaign](../Firmware/tools/PC_OSL_CAMPAIGN.md):
 six-reference inventory, explicit passive-fixture confirmations, atomic resumable
 CCO1 evidence, real C-backed 99-observation workflow, existing 33-key solver and

@@ -1,5 +1,41 @@
 # Calibration and Validation
 
+## First-board repeatability corrections — October 25, 2026
+
+Independent coherent ADC blocks can have different common timer-start phases.
+Source repeatability compares peak amplitudes; return impedance/admittance and
+effective HG-transfer repeatability remain complex and retain relative phase.
+The PC capture service rotates all six fundamental phasors by the same unit
+rotation before averaging blocks, using VEXC1 as phase origin (VEXC2 if VEXC1 is
+too small). This preserves within-block voltage ratios and channel phase while
+preventing cancellation of otherwise coherent signals. It does not calibrate
+ADC skew, physical phase error or source frequency.
+
+Endpoint repeatability needs a nonzero scale: OPEN uses dimensionless
+`y = (Vs - Vx) / Vx`, whose ideal value is zero, and SHORT uses impedance near
+zero. Their standard-deviation limits use the existing 20000 ppm (2%) fraction
+of `max(1, |mean(y)|)` for OPEN and `max(nominal RREF, |mean(Z)|)` for SHORT.
+LOAD, source amplitude and effective HG transfer retain relative limits about
+their nonzero means. Six accepted blocks and the ten-attempt bound remain.
+This is an explicit endpoint-quality policy correction, not an accuracy bound:
+2% of the range scale does not imply 2% of a small DUT value. Independent holdouts
+and a measured uncertainty budget remain required. Nominal RREF sets the scale
+of this stability test only; it does not replace the uncertain LOAD anchor.
+
+First-board evidence exposed both issues: low-range OPEN had normalized residual
+mean about 0.000516 with standard deviation 0.001299, while the source variation
+was about 0.40%. At 1 MOhm / 1 kHz the unaligned source phasor variation was about
+11.2%, but OPEN normalized-return variation was about 1.42% (1X) / 0.62% (HG).
+These observations motivate software regression cases; they are not accuracy or
+electrical qualification. Scope-dependent checks remain NOT_TESTED under the
+owner's explicitly limited engineering campaign.
+
+Calibration capture also refreshes real auxiliary samples between repeats,
+recognizes fully drained aborts, and holds UART replies after the first hardware
+attempt until the entire repeat workflow drains. Initial START acknowledgement
+still precedes hardware activity. Capture deadline, permits, excitation levels,
+OSL equations and persistent schema/model remain unchanged.
+
 ## October24 integration baseline
 
 RGS-toGND boards now use hardware_revision0x00010002 (65538). Schema2/model5 and equations remain unchanged. Old0x00010001 topology records are incompatible; do not relabel them. Firmware and PC tools agree; stored bytes are not erased. New calibration must be captured on the reworked board.

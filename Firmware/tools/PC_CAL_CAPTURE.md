@@ -101,8 +101,10 @@ Channel order is VEXC1, RET1X, VEXC2, RET_HG, VMID_ADC1, VMID_ADC2.
 Flags bits 0 stable, 1 safe teardown, 2 usable 1X, 3 usable HG, 4 observed HG
 overlap, 5 temperature available, 6 nominal ADC NOT calibrated, 7 1X clipped,
 8 HG clipped, 9 synthetic. No bit asserts physical qualification. GND phasors
-are running means of the existing accepted VMID-referenced samples restored with
-the same averaged VMID; the existing normalization/OSL equations remain unchanged.
+are running means of accepted samples after a shared unit phase rotation of all
+six channels, using VEXC1 (VEXC2 fallback) as phase origin. VMID is a fundamental
+phasor, not its DC voltage. Arbitrary phase between independent blocks cannot
+cancel the source mean; channel ratios and the normalization/OSL equations remain unchanged.
 The existing session uses `measurement_adc_calibration_ideal()` even if an OSL
 set is present. These actual nominal 3.3/4095 V/code and zero-offset values are
 reported, not substituted with invented measured ADC values.
@@ -118,7 +120,10 @@ six complex means 48 bytes; complete service context is 976 bytes on ARM.
 RX fragments expire at 250 ms. A capture expires after 20 seconds independently
 of PC connectivity and drains the existing hardware abort FSM. CANCEL also drains
 that FSM. TX occurs only after SAFE, excitation OFF, range disabled, acquisition
-inactive and quiet mode released. Main-loop byte reads/writes are bounded; TXE
+inactive and quiet mode released. After the first hardware attempt, replies are
+held until the entire repeat workflow drains, preventing a reply between blocks
+from inviting another request during synchronous DSP. The initial START ACK
+still leaves before any hardware attempt. Main-loop byte reads/writes are bounded; TXE
 polling is nonblocking. Queue overflow aborts capture and invalidates its result.
 Only one volatile result exists; another START invalidates it. Capture commands
 do not install anything; use the separate A06.2b installer afterwards. An installation

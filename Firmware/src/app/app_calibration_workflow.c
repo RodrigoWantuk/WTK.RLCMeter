@@ -71,16 +71,21 @@ static float stats_variance_mag2(const app_cal_complex_stats_t *stats)
     return (stats->m2_re + stats->m2_im) / (float)(stats->count - 1u);
 }
 
-static bool stats_stable(const app_cal_complex_stats_t *stats)
+static bool stats_stable_scaled(const app_cal_complex_stats_t *stats, float reference_scale)
 {
     if ((stats == NULL) || (stats->count < APP_CAL_WORKFLOW_REQUIRED_ACCEPTED))
     {
         return false;
     }
-    const float mean_mag = measurement_complex_mag(stats->mean);
+    const float mean_mag = max_float(reference_scale, measurement_complex_mag(stats->mean));
     const float limit = max_float(1.0e-9f,
                                   mean_mag * ((float)APP_CAL_WORKFLOW_STABILITY_LIMIT_PPM / 1000000.0f));
     return stats_variance_mag2(stats) <= (limit * limit);
+}
+
+static bool stats_stable(const app_cal_complex_stats_t *stats)
+{
+    return stats_stable_scaled(stats, 0.0f);
 }
 
 static void temperature_push(app_cal_temperature_evidence_t *stats, int32_t temperature_mC)
@@ -227,10 +232,16 @@ static void evaluate_completion(app_calibration_workflow_t *workflow)
     }
 
     const bool open = workflow->request.standard.type == APP_CAL_STANDARD_OPEN;
-    const bool ret_1x_stable = open ? stats_stable(&workflow->evidence.open_y_1x) :
-                                      stats_stable(&workflow->evidence.z_1x);
-    const bool ret_hg_stable = open ? stats_stable(&workflow->evidence.open_y_hg) :
-                                     stats_stable(&workflow->evidence.z_hg);
+    /* OPEN y=(Vs-Vx)/Vx and SHORT Z approach zero. Relative error about zero
+       cannot define endpoint repeatability. Use the unit transfer / RREF scale;
+       LOAD, source and HG transfer retain their existing relative criteria. */
+    float endpoint_scale = open ? 1.0f : 0.0f;
+    if (workflow->request.standard.type == APP_CAL_STANDARD_SHORT)
+        endpoint_scale = measurement_dsp_config_ideal(workflow->request.key.range_id).zref_ohms.re;
+    const bool ret_1x_stable = stats_stable_scaled(open ? &workflow->evidence.open_y_1x :
+        &workflow->evidence.z_1x, endpoint_scale);
+    const bool ret_hg_stable = stats_stable_scaled(open ? &workflow->evidence.open_y_hg :
+        &workflow->evidence.z_hg, endpoint_scale);
     const bool source_1_stable = stats_stable(&workflow->evidence.source_1);
     const bool source_2_stable = stats_stable(&workflow->evidence.source_2);
 
@@ -395,9 +406,11 @@ bsp_status_t app_calibration_workflow_submit_sample(app_calibration_workflow_t *
     {
         temperature_push(&workflow->evidence.temperature, sample->temperature_mC);
     }
-    stats_push(&workflow->evidence.source, sample->source_v);
-    stats_push(&workflow->evidence.source_1, sample->vexc_1_v);
-    stats_push(&workflow->evidence.source_2, sample->vexc_2_v);
+    /* Independent blocks have arbitrary common phase. Source repeatability is
+       amplitude repeatability; complex return ratios still test relative phase. */
+    stats_push(&workflow->evidence.source, measurement_complex(sample->vexc_1_peak_v, 0.0f));
+    stats_push(&workflow->evidence.source_1, measurement_complex(sample->vexc_1_peak_v, 0.0f));
+    stats_push(&workflow->evidence.source_2, measurement_complex(sample->vexc_2_peak_v, 0.0f));
     if (sample->ret_1x_usable)
     {
         workflow->evidence.ret_1x_path.sample_count++;

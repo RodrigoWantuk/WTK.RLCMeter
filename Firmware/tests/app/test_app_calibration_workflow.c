@@ -458,6 +458,66 @@ static int test_clean_short_completes(void)
     return failures;
 }
 
+static int test_endpoint_stability_scale(app_cal_standard_type_t type, float spread, bool stable)
+{
+    int failures = 0;
+    app_calibration_workflow_t workflow;
+    app_calibration_workflow_init(&workflow);
+    const app_cal_workflow_request_t request = request_for(type);
+    (void)app_calibration_workflow_start(&workflow, &request, 10u);
+    const uint8_t count = stable ? APP_CAL_WORKFLOW_REQUIRED_ACCEPTED : APP_CAL_WORKFLOW_MAX_ATTEMPTS;
+    for (uint8_t i = 0u; i < count; i++)
+    {
+        const float value = ((i % 2u) == 0u) ? spread : -spread;
+        app_cal_capture_sample_t sample = sample_for(&request,
+            measurement_complex(value, 0.0f), APP_CAL_REJECT_NONE);
+        if (type == APP_CAL_STANDARD_OPEN)
+        {
+            sample.open_y_1x = measurement_complex(value, 0.0f);
+            sample.open_y_hg = sample.open_y_1x;
+        }
+        failures += feed_sample(&workflow, &sample);
+    }
+    failures += expect_u32((uint32_t)app_calibration_workflow_result(&workflow),
+        (uint32_t)(stable ? APP_CAL_WORKFLOW_RESULT_OK : APP_CAL_WORKFLOW_RESULT_UNSTABLE),
+        "endpoint noise uses declared scale while excessive dispersion remains rejected");
+    return failures;
+}
+
+static int test_raw_common_phase_origin(bool changing_return)
+{
+    int failures = 0;
+    app_calibration_workflow_t workflow;
+    app_calibration_workflow_init(&workflow);
+    const app_cal_workflow_request_t request = request_for(APP_CAL_STANDARD_OPEN);
+    (void)app_calibration_workflow_start(&workflow, &request, 11u);
+    const measurement_complex_t phases[] = {{1.0f, 0.0f}, {0.0f, 1.0f}, {-1.0f, 0.0f},
+        {0.0f, -1.0f}, {0.70710678f, 0.70710678f}, {-0.70710678f, -0.70710678f}};
+    const uint8_t count = changing_return ? APP_CAL_WORKFLOW_MAX_ATTEMPTS : APP_CAL_WORKFLOW_REQUIRED_ACCEPTED;
+    static hw_metrology_block_t block;
+    static uint32_t raw[HW_METROLOGY_RAW_WORD_COUNT];
+    for (uint8_t i = 0u; i < count; i++)
+    {
+        const measurement_complex_t source = measurement_complex_mul(phases[i % 6u],
+            measurement_complex(0.100f, 0.0f));
+        const float relative_phase = changing_return ? (((i % 2u) == 0u) ? 0.1f : -0.1f) : 0.0f;
+        const measurement_complex_t returned = measurement_complex_mul(source,
+            measurement_complex(1.0f, relative_phase));
+        make_block(&block, raw, &request, source, returned, source,
+            measurement_complex_mul(returned, measurement_complex(TEST_HG_NOMINAL, 0.0f)));
+        app_cal_capture_sample_t sample;
+        failures += expect_true(app_calibration_workflow_sample_from_block(&block, &request, &sample) == BSP_STATUS_OK,
+            "phase-rotated raw block extracts normally");
+        failures += expect_complex_near(sample.vexc_1_v, source, 0.001f,
+            "raw sample retains its block phase while workflow tests relative observables");
+        failures += feed_sample(&workflow, &sample);
+    }
+    failures += expect_u32((uint32_t)app_calibration_workflow_result(&workflow),
+        (uint32_t)(changing_return ? APP_CAL_WORKFLOW_RESULT_UNSTABLE : APP_CAL_WORKFLOW_RESULT_OK),
+        "common phase cancels but true relative return variation stays observable");
+    return failures;
+}
+
 static int test_unsupported_condition_rejected(void)
 {
     app_calibration_workflow_t workflow;
@@ -1653,6 +1713,12 @@ int main(int argc, char **argv)
     failures += test_raw_hg_observed_transfer_preserves_nonideal_gain();
     failures += test_clipped_hg_does_not_reject_good_1x_path();
     failures += test_clean_short_completes();
+    failures += test_endpoint_stability_scale(APP_CAL_STANDARD_OPEN, 0.001f, true);
+    failures += test_endpoint_stability_scale(APP_CAL_STANDARD_OPEN, 0.05f, false);
+    failures += test_endpoint_stability_scale(APP_CAL_STANDARD_SHORT, 0.5f, true);
+    failures += test_endpoint_stability_scale(APP_CAL_STANDARD_SHORT, 100.0f, false);
+    failures += test_raw_common_phase_origin(false);
+    failures += test_raw_common_phase_origin(true);
     failures += test_unsupported_condition_rejected();
     failures += test_clipping_rejected_until_bounded_failure();
     failures += test_unstable_evidence_fails_after_max_attempts();

@@ -126,7 +126,11 @@ static bsp_status_t start_capture(const hw_metrology_measure_request_t *request,
     measurement_complex_t returned=measurement_complex_mul(source,t);
     measurement_complex_t channels[4]={source,returned,source,
         measurement_complex_mul(returned,measurement_complex(15.31f,0.03f))};
-    float c=1.0f,s=0.0f;
+    /* Independent coherent blocks need not share a timer-start phase. Exercising
+       four quadrants prevents raw cross-block phasor cancellation from hiding. */
+    const float phase_c[4]={1.0f,0.0f,-1.0f,0.0f};
+    const float phase_s[4]={0.0f,1.0f,0.0f,-1.0f};
+    float c=phase_c[product_attempts%4u],s=phase_s[product_attempts%4u];
     const float dc=profile.samples_per_cycle==64u?0.9951847267f:0.9238795325f;
     const float ds=profile.samples_per_cycle==64u?0.0980171403f:0.3826834324f;
     for(uint32_t n=0;n<HW_METROLOGY_SAMPLES_PER_BLOCK;n++)

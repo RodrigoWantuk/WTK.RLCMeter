@@ -541,11 +541,24 @@ static void accumulate(app_cal_capture_service_t *service)
         measurement_complex_add(sample->ret_1x_v, vmid),
         measurement_complex_add(sample->vexc_2_v, vmid),
         measurement_complex_add(sample->ret_hg_raw_v, vmid), sample->vmid_adc1_v, sample->vmid_adc2_v};
+    /* Rotate all channels together before averaging independent blocks. Ratios
+       and interchannel phase survive; arbitrary timer-start phase cannot cancel
+       the mean excitation. VMID is a fundamental phasor, not its DC voltage. */
+    const bool first = sample->vexc_1_peak_v > 1.0e-6f;
+    const measurement_complex_t source = first ? sample->vexc_1_v : sample->vexc_2_v;
+    const float magnitude = first ? sample->vexc_1_peak_v : sample->vexc_2_peak_v;
+    measurement_complex_t rotation = {1.0f, 0.0f};
+    if (magnitude > 1.0e-6f)
+    {
+        const float inverse = 1.0f / magnitude;
+        rotation = measurement_complex(source.re * inverse, -source.im * inverse);
+    }
     service->mean_count++;
     for (size_t i = 0u; i < 6u; i++)
     {
+        const measurement_complex_t aligned = measurement_complex_mul(values[i], rotation);
         service->mean[i] = measurement_complex_add(service->mean[i], scale(
-            measurement_complex_sub(values[i], service->mean[i]), 1.0f/(float)service->mean_count));
+            measurement_complex_sub(aligned, service->mean[i]), 1.0f/(float)service->mean_count));
     }
     const hw_metrology_block_t *block = service->session.io->capture_block(service->session.io->user);
     if (block != NULL)
@@ -629,7 +642,7 @@ void app_cal_capture_step(app_cal_capture_service_t *service, uint32_t now_ms)
         if (!service->cancel_requested && expired(now_ms, service->capture_deadline))
             abort_capture(service, APP_CAL_CAPTURE_TIMEOUT);
         /* START acknowledgement leaves USART before the first hardware attempt. */
-        if (!(service->tx_count != 0u && service->mean_count == 0u &&
+        if (!(service->tx_count != 0u && !service->session.started_capture &&
               service->session.state == APP_CAL_SESSION_START_CAPTURE && !service->cancel_requested))
         {
             const app_cal_session_event_t event = app_calibration_session_step(&service->session, now_ms);
@@ -649,6 +662,9 @@ void app_cal_capture_step(app_cal_capture_service_t *service, uint32_t now_ms)
         }
     }
     if (!snapshot(service).transfer_safe) return;
+    /* Hold replies until the whole repeat workflow drains. Replying between
+       blocks invites another host request during synchronous DSP processing. */
+    if (app_calibration_session_active(&service->session) && service->session.started_capture) return;
     for (uint8_t n = 0u; n < 16u && service->tx_count != 0u; n++)
     {
         if (service->io.try_write_byte(service->tx[service->tx_head][service->tx_offset], service->io.user) != BSP_STATUS_OK)
