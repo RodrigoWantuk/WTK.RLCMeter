@@ -94,3 +94,8 @@ current nine-image bundle. SHORT/LOAD and calibration installation remain pendin
 preserve 33 accepted SHORT observations and three OPEN/SHORT path conflicts.
 Zero-return SHORT handling is corrected before a same-image recapture; no
 calibration is installed or physically qualified.
+
+[Corrected SHORT checkpoint](review/bringup-2026-10-25/OSL-Zero-Short.md)
+records 33/33 accepted conditions with both return paths on source `7017e5e0`.
+The source-bound nine-image bundle and deployment readback are preserved.
+Same-image OPEN/LOAD, installation and independent qualification remain pending.

@@ -71,6 +71,14 @@ HG gain overlap retains its nonzero SNR gate. Validate the raw zero/negative
 controls and embedded budgets, deploy the new identity, and reacquire both
 standards under that same image before LOAD. Do not mix the prior identities.
 
+The corrected source `7017e5e0` passed all 44 CTests and nine embedded builds.
+Its verified BRINGUP_CAL deployment completed a new 33/33 SHORT sweep with both
+return paths accepted at every key, six stable repeats, SAFE teardown and no new
+protocol errors. See [corrected SHORT checkpoint](../docs/review/bringup-2026-10-25/OSL-Zero-Short.md).
+This cohort still requires OPEN and LOAD under the same image; the earlier
+source-063c7378 observations remain historical only. No candidate is generated
+or installed, and physical qualification remains incomplete.
+
 A04.1 delivers the [guided OSL campaign](../Firmware/tools/PC_OSL_CAMPAIGN.md):
 six-reference inventory, explicit passive-fixture confirmations, atomic resumable
 CCO1 evidence, real C-backed 99-observation workflow, existing 33-key solver and
