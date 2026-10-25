@@ -1,5 +1,13 @@
 # Technical Documentation
 
+Latest first-unit checkpoint: [calibrated PRODUCT READY handoff](../Firmware/releases/2026-10-25/calibrated-product-ready/README.md).
+The 33-condition engineering OSL is installed and persistent. PRODUCT now loads
+it and reaches READY with SAFE outputs; physical TFT confirmation and independent
+metrology qualification remain pending. The linked handoff also records current
+C/L, polarized-capacitor, small-inductor, Click/Live and frequency-search limits.
+Chronological checkpoints below retain their original historical status and are
+superseded where the latest handoff provides newer evidence.
+
 Current October24 CAD/firmware, CHG_VBUS5.5V analysis, calibration identity and bench status: [consolidation report](review/bringup-2026-10-24/README.md).
 
 This directory contains the living technical specification for WTK.RLCMeter.

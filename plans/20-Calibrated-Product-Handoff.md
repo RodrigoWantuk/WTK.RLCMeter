@@ -1,6 +1,6 @@
 # 20 — Calibrated PRODUCT handoff without another resistor campaign
 
-STATUS: IN_PROGRESS — PHYSICAL_PRODUCT_SCHEDULING_REGRESSION
+STATUS: IMPLEMENTED_REQUIRES_BENCH_VALIDATION — PRODUCT_READY_CONFIRMED; VISUAL_CHECK_PENDING
 
 The owner requests the next step after persistent sequence 1, without another
 resistor round, plus the actual PRODUCT/C/L/autorange status. Reuse the verified
@@ -45,3 +45,25 @@ C/L measurement is required for this handoff. C/L accuracy, small inductors,
 polarized capacitors, final test leads and broader safety qualification remain
 REQUIRES_BENCH_VALIDATION. Document current autorange limits (Click, six attempts,
 1 kHz initial and at most one second-frequency check, no automatic 10-Hz search).
+
+## Delivery checkpoint
+
+Source 8849cfa2 passes 46/46 standard and 47/47 PC-provisioned PRODUCT host tests.
+The power interruption corrupted an ignored build report; Git fsck passed and
+all nine strict UID-bound embedded images were rebuilt in a new directory.
+FACTORY_PRODUCT is 54,224 bytes Flash / 15,568 bytes accounted RAM. It was
+programmed and read back exactly, then booted to READY with all 33 active
+sequence-1 records, resources OK, zero safety faults and no measurement session.
+K1 remained SAFE, range/excitation OFF, and the actual raw disabled-range flag
+remained 8. No resistor campaign, C/L test or W25Q upload was repeated.
+
+The initial refused preflight after power restoration is preserved. A fresh
+preflight had battery state OK, age 1,154 ms and no supply/charger/fault blocker;
+the programming-only expiry exception was not needed. The last actual battery
+voltage was 3.873 V via COM4 before PRODUCT; no voltage was read via SWD.
+All BSP/hardware/measurement Git blobs are unchanged from 46df1fbb, preserving
+the installed calibration model and acquisition. The owner has been asked to
+connect the display with power off, empty the terminals, and confirm splash/
+READY without pressing OK. Visual/interaction and independent physical R/C/L
+qualification remain pending. See
+[delivery and actual feature limits](../Firmware/releases/2026-10-25/calibrated-product-ready/README.md).

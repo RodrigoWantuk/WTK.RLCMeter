@@ -18,7 +18,10 @@ recovers actual1X/HG overlap for all three problematic OPEN keys without relaxin
 the stability criterion. All 33 engineering OSL fits now pass Python and C
 validation using 15 current and 18 explicitly audited complete original triplets.
 Sequence 1 is physically installed, with exact full W25Q readback before and
-after reboot. The unit remains BRINGUP_CAL, SAFE, with battery 3.879 V over UART.
+after reboot. The subsequent [calibrated PRODUCT handoff](Firmware/releases/2026-10-25/calibrated-product-ready/README.md)
+now boots to READY with sequence 1, all 33 records, resources OK and SAFE outputs.
+No measurement is started at boot. The latest pre-PRODUCT battery read was
+3.873 V over UART; physical display confirmation remains pending.
 Independent accuracy, scope and final-lead validation remain pending. See
 [installation evidence](Firmware/releases/2026-10-25/installation-residual-requalification/README.md).
 

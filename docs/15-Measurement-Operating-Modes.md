@@ -6,6 +6,16 @@ These modes change *when* complete measurement transactions are requested. They 
 
 ## Design principle
 
+Current implementation checkpoint (October 25, 2026): PRODUCT exposes Click;
+continuous Live is not enabled in the UI. A fresh Click probes 1 kohm / 1 kHz /
+100 mVrms, or reuses a valid previous-condition hint, then selects range/channel
+and may retry amplitude and one secondary frequency. Reactive refinement from
+1 kHz selects 10 kHz. The 10-Hz acquisition/calibration profile exists but is not
+automatically selected by the current fresh-Click search. The session is bounded
+to six attempts, four range transitions and one frequency refinement. The Live
+sections below define intended behavior, not a claim of an available UI mode.
+See [actual feature status and remaining bench checks](../Firmware/releases/2026-10-25/calibrated-product-ready/README.md).
+
 The instrument always measures complex impedance first and interprets the DUT afterward. Neither Click nor Live mode asks the user to preselect resistor, capacitor, or inductor type.
 
 Both modes use the same measurement engine:

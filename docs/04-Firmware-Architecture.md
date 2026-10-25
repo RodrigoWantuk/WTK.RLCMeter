@@ -82,6 +82,17 @@ The DUT should remain connected to the measurement AFE only for the time require
 
 A display or external-Flash failure must not bypass safety policy.
 
+PRODUCT application scheduling is separate from hardware permission. An actual
+disabled idle range can schedule preparation; it is not relabeled READY for
+`hw_safety_evaluate` or the relay. Expected residual refresh and an owned
+transaction's ADC/range transitions do not self-cancel that hardware FSM. Hard
+charger/residual/supply/fault blockers remain. At PERMIT_ISSUE only, an attempt
+can wait cooperatively for real refreshed evidence for at most 1,000 ms from
+its start, then falls through to the unchanged strict permit check. Normal TFT
+steps yield while the polled auxiliary group is active or residual safety is
+requalifying; fresh actual fault/unsafe evidence still allows warning rendering.
+See [the physical READY checkpoint](../Firmware/releases/2026-10-25/calibrated-product-ready/README.md).
+
 ## BSP
 
 `bsp` encapsulates:
