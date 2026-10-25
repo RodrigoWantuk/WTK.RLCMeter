@@ -1,4 +1,5 @@
 #include "app/app_product.h"
+#include "app/app_product_scheduling.h"
 #include "app/app_io_workspace.h"
 #include "storage/resource_store.h"
 #include "ui/ui_text_catalog.h"
@@ -1248,6 +1249,61 @@ static int test_factory_ac_lifecycle(const char *directory)
 }
 #endif
 
+static int test_actual_idle_and_owned_safety_scheduling(void)
+{
+    int failures = 0;
+    const bsp_clock_summary_t clock = {.source = BSP_CLOCK_SOURCE_HSE_PLL,
+        .sysclk_hz = 72000000u, .hse_ready = true};
+    fake_io_t fake = {0};
+    fake.outcome_count = 1u;
+    fake.outcomes[0] = good_outcome(measurement_complex(1000.0f, 0.0f), MEASUREMENT_INTERPRET_RESISTIVE);
+    app_product_t product;
+    failures += expect_true(init_product(&product, &fake) == BSP_STATUS_OK, "idle-range product init");
+    app_product_inputs_t inputs = inputs_ready();
+    hw_safety_input_t electrical = {.charger = HW_CHARGER_ABSENT,
+        .residual = HW_RESIDUAL_SAFE, .battery = HW_BATTERY_OK,
+        .range = HW_RANGE_DISABLED};
+    inputs.safety_result = hw_safety_evaluate(&electrical);
+    inputs.range_disabled = true;
+    boot_to_ready(&product, &inputs);
+    failures += expect_true(!inputs.safety_result.measure_allowed &&
+        product.view.state == UI_PRODUCT_STATE_READY && fake.start_count == 0u,
+        "actual disabled range allows scheduling READY but neither hardware permission nor automatic start");
+    click_ok(&product);
+    for (uint32_t now = 3u; now < 7u; now++) app_product_step(&product, &inputs, &clock, BSP_STATUS_OK, now);
+    failures += expect_true(fake.start_count == 1u, "OK schedules hardware transaction from disabled range");
+    electrical.residual = HW_RESIDUAL_UNKNOWN;
+    inputs.residual_refresh_pending = true;
+    inputs.safety_result = hw_safety_evaluate(&electrical);
+    for (uint32_t now = 7u; now < 30u; now++) app_product_step(&product, &inputs, &clock, BSP_STATUS_OK, now);
+    failures += expect_true(!fake.abort_called && product.view.state == UI_PRODUCT_STATE_RESULT &&
+        product.view.has_measurement_result, "owned ADC invalidation and post-capture refresh do not cancel valid work");
+    inputs.residual_refresh_pending = false;
+    app_product_step(&product, &inputs, &clock, BSP_STATUS_OK, 30u);
+    failures += expect_true(product.view.state == UI_PRODUCT_STATE_SAFETY_BLOCKED,
+        "unexplained invalid sensor evidence blocks new scheduling");
+    inputs.safety_result = hw_safety_evaluate(&(hw_safety_input_t){.charger=HW_CHARGER_ABSENT,
+        .residual=HW_RESIDUAL_SAFE, .battery=HW_BATTERY_OK, .range=HW_RANGE_INVALID});
+    inputs.range_disabled = false;
+    app_product_step(&product, &inputs, &clock, BSP_STATUS_OK, 31u);
+    failures += expect_true(product.view.state == UI_PRODUCT_STATE_SAFETY_BLOCKED,
+        "an invalid range is never treated as the expected idle state");
+    const hw_safety_input_t blocked[] = {
+        {.charger=HW_CHARGER_PRESENT,.residual=HW_RESIDUAL_SAFE,.battery=HW_BATTERY_OK,.range=HW_RANGE_DISABLED},
+        {.charger=HW_CHARGER_ABSENT,.residual=HW_RESIDUAL_UNSAFE,.battery=HW_BATTERY_OK,.range=HW_RANGE_DISABLED},
+        {.charger=HW_CHARGER_ABSENT,.residual=HW_RESIDUAL_SAFE,.battery=HW_BATTERY_CRITICAL,.range=HW_RANGE_DISABLED},
+        {.charger=HW_CHARGER_ABSENT,.residual=HW_RESIDUAL_SAFE,.battery=HW_BATTERY_UNKNOWN,.range=HW_RANGE_DISABLED},
+        {.charger=HW_CHARGER_ABSENT,.residual=HW_RESIDUAL_SAFE,.battery=HW_BATTERY_OK,.range=HW_RANGE_DISABLED,.application_fault=true},
+    };
+    for (size_t i=0u; i<sizeof(blocked)/sizeof(blocked[0]); i++)
+    {
+        const hw_safety_result_t result = hw_safety_evaluate(&blocked[i]);
+        failures += expect_true(!app_product_schedule_allowed(&result,true,true,true),
+            "charger, actual residual, critical/unknown battery and faults still preempt owned work");
+    }
+    return failures;
+}
+
 int main(int argc, char **argv)
 {
     if ((argc == 2) && (strcmp(argv[1], "--sizes") == 0))
@@ -1282,6 +1338,7 @@ int main(int argc, char **argv)
     failures += test_factory_ac_lifecycle(directory);
 #endif
     failures += test_boot_calibration_gate();
+    failures += test_actual_idle_and_owned_safety_scheduling();
     failures += test_host_resource_maintenance_entry();
     failures += test_ok_gestures_and_measurement_flow();
     failures += test_failed_refinement_hides_stale_primary();

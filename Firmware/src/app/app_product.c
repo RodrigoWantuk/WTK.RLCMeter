@@ -1,4 +1,5 @@
 #include "app/app_product.h"
+#include "app/app_product_scheduling.h"
 
 #include <stddef.h>
 #include "wtk_build_config.h"
@@ -1072,13 +1073,18 @@ void app_product_step(app_product_t *product,
 
     const ui_product_calibration_state_t next_cal =
         ui_cal_state(inputs->calibration_status, inputs->calibration_active_valid);
-    const ui_product_blocker_t next_blocker = ui_blocker(inputs->safety_result.primary_blocker);
+    const bool measurement_active = product->runtime_kind == APP_PRODUCT_RUNTIME_MEASUREMENT &&
+        runtime_active(product);
+    const bool schedule_allowed = app_product_schedule_allowed(&inputs->safety_result,
+        inputs->range_disabled, inputs->residual_refresh_pending, measurement_active);
+    const ui_product_blocker_t next_blocker = schedule_allowed ? UI_PRODUCT_BLOCK_NONE :
+        ui_blocker(inputs->safety_result.primary_blocker);
     const bool next_storage_unavailable = inputs->calibration_status == APP_CAL_SERVICE_STORAGE_UNAVAILABLE;
 #if WTK_PRODUCT_FACTORY_PROVISIONED
     const bool calibration_changed = product->view.calibration_active_valid &&
         (!inputs->calibration_active_valid ||
          product->view.calibration_sequence != inputs->calibration_active_sequence);
-    if (calibration_changed || !inputs->safety_result.measure_allowed ||
+    if (calibration_changed || !schedule_allowed ||
         inputs->safety_fault_mask != 0u || inputs->display_fault ||
         resource_status_requires_upload(inputs->resource_status))
     {
@@ -1149,9 +1155,9 @@ void app_product_step(app_product_t *product,
     /* Revoke presentation immediately, then drain the existing hardware owner.
        A changed valid OSL sequence also cannot finish an old capture as new. */
     if (product->runtime_kind == APP_PRODUCT_RUNTIME_MEASUREMENT && runtime_active(product) &&
-        (calibration_changed || !inputs->safety_result.measure_allowed))
+        (calibration_changed || !schedule_allowed))
     {
-        const ui_product_state_t target = !inputs->safety_result.measure_allowed ?
+        const ui_product_state_t target = !schedule_allowed ?
             UI_PRODUCT_STATE_SAFETY_BLOCKED : inputs->calibration_active_valid ?
             UI_PRODUCT_STATE_READY : UI_PRODUCT_STATE_CALIBRATION_REQUIRED;
         set_state(product, target);
@@ -1534,7 +1540,7 @@ void app_product_step(app_product_t *product,
         return;
     }
 
-    if (!inputs->safety_result.measure_allowed)
+    if (!schedule_allowed)
     {
         set_state(product, UI_PRODUCT_STATE_SAFETY_BLOCKED);
         product->request_click = false;

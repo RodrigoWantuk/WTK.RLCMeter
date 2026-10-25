@@ -1,5 +1,7 @@
 #include "app/app_shell.h"
 #include "app/app_boot_splash.h"
+#include "app/app_product_scheduling.h"
+#include "app/app_cal_install_safety.h"
 
 #include "app/app_bringup_console.h"
 #include "app/app_calibration_service.h"
@@ -959,6 +961,8 @@ static bsp_status_t product_init_metrology_measure(void)
                                      HW_METROLOGY_RAW_WORD_COUNT);
 }
 
+static uint32_t g_product_permit_refresh_deadline_ms;
+
 static bsp_status_t product_auto_start_attempt(const hw_metrology_measure_request_t *request,
                                                uint32_t now_ms,
                                                void *user)
@@ -971,6 +975,7 @@ static bsp_status_t product_auto_start_attempt(const hw_metrology_measure_reques
         return workspace_status;
     }
     const bsp_status_t status = hw_metrology_measure_start(&g_product_measure, request, now_ms);
+    g_product_permit_refresh_deadline_ms = now_ms + 1000u;
     if ((status != BSP_STATUS_OK) && (status != BSP_STATUS_BUSY))
     {
         (void)app_io_workspace_release(&g_io_workspace, APP_IO_WORKSPACE_OWNER_METROLOGY);
@@ -981,6 +986,13 @@ static bsp_status_t product_auto_start_attempt(const hw_metrology_measure_reques
 static bsp_status_t product_auto_step_attempt(uint32_t now_ms, void *user)
 {
     (void)user;
+    if (hw_metrology_measure_state(&g_product_measure) == HW_METROLOGY_MEASURE_PERMIT_ISSUE)
+    {
+        hw_measure_permit_issue_input_t input;
+        if (product_permit_issue_input(&input, NULL) == BSP_STATUS_OK &&
+            app_product_permit_refresh_pending(&input, now_ms, g_product_permit_refresh_deadline_ms))
+            return BSP_STATUS_BUSY;
+    }
     return hw_metrology_measure_step(&g_product_measure, now_ms);
 }
 
@@ -1458,6 +1470,8 @@ static void app_step(void)
         .temperature_mC = ntc_temperature_mC,
         .temperature_valid = product_sensor_snapshot.ntc_temperature_valid,
         .safety_result = g_safety_result,
+        .range_disabled = hw_range_get_state(&g_range) == HW_RANGE_FSM_DISABLED,
+        .residual_refresh_pending = app_cal_install_aux_refresh_pending(&product_sensor_snapshot),
         .safety_fault_mask = app_safety_fault_mask(&g_safety_faults),
         .display_fault = g_product_display_fault || (g_display.init_state == ILI9341_INIT_ERROR),
         .settings_storage_busy =
@@ -1478,8 +1492,14 @@ static void app_step(void)
 #if WTK_ENABLE_PRODUCT_RESOURCE_UPDATE
     defer_resource_ui = g_resource_update_configured;
 #endif
+    /* Polled auxiliary conversions must finish their group before slow TFT
+       work. After a long text draw, reacquire all real safe sweeps first.
+       Actual unsafe/invalid fresh evidence still permits warning rendering. */
+    const bool defer_sensor_ui = !hw_aux_sensors_is_idle(&g_aux_sensors) ||
+        product_inputs.residual_refresh_pending;
     const bsp_status_t ui_status = defer_resource_ui ? BSP_STATUS_BUSY :
-        ui_product_step(&g_product_ui, &g_display, hw_peripherals_quiet_requested());
+        ui_product_step(&g_product_ui, &g_display,
+            hw_peripherals_quiet_requested() || defer_sensor_ui);
     if ((ui_status != BSP_STATUS_OK) && (ui_status != BSP_STATUS_BUSY))
     {
         g_product_display_fault = true;

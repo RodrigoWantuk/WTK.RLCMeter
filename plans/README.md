@@ -138,3 +138,7 @@ and return to standard BRINGUP for remaining bench work.
 
 [Plan 19](19-Shared-Boot-Splash-and-Provisioning.md) adds the owner-supplied splash
 to every firmware profile and the external resource provisioning procedure.
+
+[Plan 20](20-Calibrated-Product-Handoff.md) transitions the calibrated first unit
+to PRODUCT without another resistor campaign, correcting application scheduling
+around idle ranges, residual requalification and slow TFT work.

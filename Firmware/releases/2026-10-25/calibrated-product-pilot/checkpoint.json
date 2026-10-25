@@ -1,0 +1,21 @@
+{
+  "status": "PRODUCT_BOOT_CALIBRATION_LOADED_SAFE_SCHEDULING_BLOCKED",
+  "source": "46df1fbb557a803da7df9683ddfbc2ff124cb1dc",
+  "profile": "FACTORY_PRODUCT",
+  "flash_bytes": 53968,
+  "ram_accounted_bytes": 15568,
+  "programming": "INTERNAL_FLASH_VERIFIED",
+  "active_sequence": 1,
+  "records": 33,
+  "measurement_session_sequence": 0,
+  "safety_faults": 0,
+  "product_state": 21,
+  "blocker_flags": 12,
+  "last_battery_uart_v": 3.873,
+  "battery_voltage_read_via_swd": false,
+  "residual_age_ms": 79,
+  "residual_max_age_ms": 50,
+  "visual_validation": "PENDING",
+  "physically_qualified": false,
+  "evidence_sha256": "e798f6fbd109b1d1f51cb7fd2761eca070f21a59fb2dc5f1141d44c2d91e263e"
+}

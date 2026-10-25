@@ -1,6 +1,7 @@
 #include "hardware/hw_aux_sensors.h"
 #include "hardware/hw_measure_permit.h"
 #include "app/app_cal_install_safety.h"
+#include "app/app_product_scheduling.h"
 
 #include <math.h>
 #include <stdbool.h>
@@ -471,6 +472,17 @@ static int test_install_waits_for_actual_residual_requalification(void)
                                 "all eight actual safe sweeps are required before writer resumes");
         failures += expect_true((state.residual_state == HW_RESIDUAL_SAFE) == !pending,
                                 "wait hint never grants residual SAFE");
+        hw_measure_permit_issue_input_t input = {.charger=HW_CHARGER_ABSENT,
+            .residual=state.residual_state,.residual_age_ms=state.residual_age_ms,
+            .battery=HW_BATTERY_OK,.battery_age_ms=0u,.range=HW_RANGE_READY,
+            .range_id=HW_RANGE_ID_1K,.k1_state=HW_K1_STATE_SAFE};
+        failures += expect_true(app_product_permit_refresh_pending(&input,now,1000u)==pending,
+                                "PRODUCT waits through all eight real auxiliary sweeps");
+        failures += expect_true(!app_product_permit_refresh_pending(&input,1000u,1000u),
+                                "PRODUCT recovery wait expires instead of extending permission");
+        input.charger=HW_CHARGER_PRESENT;
+        failures += expect_true(!app_product_permit_refresh_pending(&input,now,1000u),
+                                "charger preempts PRODUCT recovery wait");
     }
     for (uint8_t invalid = 0u; invalid < 3u; invalid++)
     {

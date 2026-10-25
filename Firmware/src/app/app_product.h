@@ -22,6 +22,8 @@ typedef struct
     int32_t temperature_mC;
     bool temperature_valid;
     hw_safety_result_t safety_result;
+    bool range_disabled; /* Actual idle FSM state, not an invented READY range. */
+    bool residual_refresh_pending; /* Scheduling only; real permit still requires SAFE. */
     uint32_t safety_fault_mask;
     bool display_fault;
     bool settings_storage_busy;
