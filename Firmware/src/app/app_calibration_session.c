@@ -86,8 +86,23 @@ bsp_status_t app_calibration_session_init(app_calibration_session_t *session,
     session->service = service;
     session->state = APP_CAL_SESSION_IDLE;
     session->last_sample_status = BSP_STATUS_OK;
+#if WTK_ENABLE_CAL_INTEGRATION
+    session->integration_blocks = 1u;
+#endif
     return BSP_STATUS_OK;
 }
+
+#if WTK_ENABLE_CAL_INTEGRATION
+bsp_status_t app_calibration_session_set_integration(app_calibration_session_t *session,
+                                                     uint16_t blocks_per_group)
+{
+    if (session == NULL || blocks_per_group == 0u || blocks_per_group > 96u)
+        return BSP_STATUS_INVALID_ARG;
+    if (app_calibration_session_active(session)) return BSP_STATUS_BUSY;
+    session->integration_blocks = blocks_per_group;
+    return BSP_STATUS_OK;
+}
+#endif
 
 bsp_status_t app_calibration_session_start(app_calibration_session_t *session,
                                            const app_cal_workflow_request_t *request,
@@ -116,6 +131,11 @@ bsp_status_t app_calibration_session_start(app_calibration_session_t *session,
     session->last_reject_flags = APP_CAL_REJECT_NONE;
     session->last_sample_status = BSP_STATUS_OK;
     session->started_capture = false;
+#if WTK_ENABLE_CAL_INTEGRATION
+    session->integration = (app_cal_integration_t){0};
+    session->integration_attempts = 0u;
+    session->integration_last_clip_mask = 0u;
+#endif
     return BSP_STATUS_BUSY;
 }
 
@@ -147,6 +167,11 @@ app_cal_session_event_t app_calibration_session_step(app_calibration_session_t *
     case APP_CAL_SESSION_START_CAPTURE:
     {
         measurement_cal_key_t key = {0};
+#if WTK_ENABLE_CAL_INTEGRATION
+        const bool continuing = session->integration.count != 0u;
+        if (continuing) key = wf->request.key;
+        else
+#endif
         if (app_calibration_workflow_capture_request(wf, &key) != BSP_STATUS_OK)
         {
             queue_terminal_event(session);
@@ -160,11 +185,18 @@ app_cal_session_event_t app_calibration_session_step(app_calibration_session_t *
             .range_id = key.range_id,
         };
         const bsp_status_t started = session->io->start_capture(&request, now_ms, session->io->user);
+#if WTK_ENABLE_CAL_INTEGRATION
+        session->integration_attempts++;
+        if (!continuing)
+#endif
         (void)app_calibration_workflow_mark_capture_started(wf);
         if ((started != BSP_STATUS_OK) && (started != BSP_STATUS_BUSY))
         {
             (void)app_calibration_workflow_submit_failure(wf, APP_CAL_REJECT_PHASE05);
             session->last_reject_flags = APP_CAL_REJECT_PHASE05;
+#if WTK_ENABLE_CAL_INTEGRATION
+            session->integration = (app_cal_integration_t){0};
+#endif
             session->state = APP_CAL_SESSION_START_CAPTURE;
             session->pending_event = APP_CAL_SESSION_EVENT_CAPTURE_REJECTED;
             return take_event(session);
@@ -190,6 +222,26 @@ app_cal_session_event_t app_calibration_session_step(app_calibration_session_t *
                 app_calibration_workflow_sample_from_block(session->io->capture_block(session->io->user),
                                                            &wf->request,
                                                            &session->last_sample);
+#if WTK_ENABLE_CAL_INTEGRATION
+            if (session->last_sample_status == BSP_STATUS_OK && session->integration_blocks > 1u)
+            {
+                session->last_sample_status = app_cal_integration_push(&session->integration,
+                    session->integration_blocks, session->io->capture_block(session->io->user),
+                    &wf->request, &session->last_sample);
+                if (session->last_sample_status == BSP_STATUS_BUSY)
+                {
+                    session->io->capture_acknowledge(session->io->user);
+                    session->state = APP_CAL_SESSION_START_CAPTURE;
+                    return APP_CAL_SESSION_EVENT_NONE;
+                }
+                session->integration_last_clip_mask = session->integration.clip_mask;
+                session->integration = (app_cal_integration_t){0};
+                if (session->last_sample_status != BSP_STATUS_OK)
+                    session->last_sample.reject_flags |= APP_CAL_REJECT_DSP;
+            }
+            if (session->last_sample_status != BSP_STATUS_OK)
+                session->integration = (app_cal_integration_t){0};
+#endif
             (void)app_calibration_workflow_submit_sample(wf, &session->last_sample);
             session->last_reject_flags = app_calibration_workflow_last_reject_flags(wf);
         }
@@ -198,6 +250,9 @@ app_cal_session_event_t app_calibration_session_step(app_calibration_session_t *
             session->last_reject_flags = reject_from_measure_error(session->io->capture_error(session->io->user));
             (void)app_calibration_workflow_submit_failure(wf, session->last_reject_flags);
             session->last_sample_status = BSP_STATUS_ERROR;
+#if WTK_ENABLE_CAL_INTEGRATION
+            session->integration = (app_cal_integration_t){0};
+#endif
         }
         session->io->capture_acknowledge(session->io->user);
         session->state = APP_CAL_SESSION_START_CAPTURE;
@@ -242,6 +297,9 @@ bsp_status_t app_calibration_session_cancel(app_calibration_session_t *session)
         return BSP_STATUS_OK;
     }
     const bsp_status_t cancel_status = app_calibration_workflow_cancel(wf);
+#if WTK_ENABLE_CAL_INTEGRATION
+    session->integration = (app_cal_integration_t){0};
+#endif
     if ((session->state == APP_CAL_SESSION_WAIT_CAPTURE) && session->io->capture_active(session->io->user))
     {
         (void)session->io->capture_abort(session->io->user);

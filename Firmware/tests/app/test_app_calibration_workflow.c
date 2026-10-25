@@ -1736,6 +1736,65 @@ static int test_campaign_solves_condition_and_inserts_candidate_record(void)
     return failures;
 }
 
+static int test_coherent_integration(void)
+{
+    int failures = 0;
+    const app_cal_workflow_request_t request = {
+        .key = {.hardware_revision = MEASUREMENT_CAL_HARDWARE_REV1,
+                .model_version = MEASUREMENT_CAL_MODEL_VERSION_CURRENT,
+                .range_id = HW_RANGE_ID_1K, .frequency = HW_EXCITATION_FREQ_10KHZ,
+                .amplitude = HW_EXCITATION_AMP_100MVRMS},
+        .standard = {.type = APP_CAL_STANDARD_LOAD, .z_valid = true, .z_ohms = {1000.0f,0.0f}}};
+    const measurement_complex_t phases[4] = {{1.0f,0.0f},{0.0f,1.0f},{-1.0f,0.0f},{0.0f,-1.0f}};
+    const measurement_complex_t skew = {0.98f,0.1f};
+    for (unsigned clipped = 0u; clipped < 3u; clipped++)
+    {
+        app_cal_integration_t integration = {0};
+        app_cal_capture_sample_t sample = {0};
+        for (unsigned i = 0u; i < 4u; i++)
+        {
+            const float source = i % 2u == 0u ? 0.1f : 0.2f;
+            const float transfer = i % 2u == 0u ? 0.2f : 0.3f;
+            const measurement_complex_t vmid = measurement_complex_mul(phases[i],measurement_complex(0.001f,0.0f));
+            const measurement_complex_t vs1 = measurement_complex_mul(phases[i],measurement_complex(source,0.0f));
+            const measurement_complex_t vx = measurement_complex_mul(vs1,measurement_complex(transfer,0.0f));
+            const measurement_complex_t vhg = measurement_complex_mul(measurement_complex_mul(vx,skew),measurement_complex(15.0f,0.0f));
+            measurement_complex_t reconstructed;
+            const measurement_dsp_config_t config = measurement_dsp_config_ideal(HW_RANGE_ID_1K);
+            (void)measurement_complex_div(vhg,config.ret_hg_transfer,&reconstructed);
+            const measurement_phasor_set_t phasors = {.valid = true,
+                .vmid = vmid, .vmid_adc1 = vmid, .vmid_adc2 = vmid,
+                .vexc_1 = measurement_complex_add(vs1,vmid),
+                .vexc_2 = measurement_complex_add(measurement_complex_mul(vs1,skew),vmid),
+                .ret_1x = measurement_complex_add(vx,vmid),
+                .ret_hg = measurement_complex_add(vhg,vmid),
+                .ret_hg_reconstructed = measurement_complex_add(reconstructed,vmid)};
+            hw_metrology_block_t metadata = {.valid = true};
+            if (i == 1u && clipped != 0u)
+            {
+                metadata.clipped = true;
+                metadata.streams[clipped == 1u ? HW_METROLOGY_STREAM_RET_HG : HW_METROLOGY_STREAM_VMID_ADC1].hard_clipped = true;
+            }
+            failures += expect_true(app_calibration_workflow_sample_from_phasors(
+                &metadata,&request,&phasors,&sample) == BSP_STATUS_OK,"physical phasor test input");
+            const bsp_status_t status = app_cal_integration_push(&integration,4u,&metadata,&request,&sample);
+            failures += expect_true(status == (i == 3u ? BSP_STATUS_OK : BSP_STATUS_BUSY),
+                                    "coherent group remains partial until all physical blocks arrive");
+        }
+        failures += expect_near(sample.vexc_1_v.re,0.15f,1.0e-6f,"four timer quadrants align source");
+        failures += expect_near(sample.vexc_1_v.im,0.0f,1.0e-6f,"source phase alignment");
+        failures += expect_near(sample.ret_1x_v.re/sample.vexc_1_v.re,0.26666667f,1.0e-6f,
+                                "derive ratio from phasor means, not mean of per-block ratios");
+        failures += expect_near(sample.hg_observed_transfer.re,15.0f,1.0e-4f,
+                                "observed gain retains independently skewed source path");
+        failures += expect_true(sample.ret_hg_usable == (clipped == 0u),"one clipped HG block stays unusable");
+        failures += expect_true(sample.ret_1x_usable == (clipped != 2u),"VMID clipping cannot be averaged away");
+        if (clipped != 0u)
+            failures += expect_true(!sample.hg_overlap_valid,"clipping cannot manufacture overlap");
+    }
+    return failures;
+}
+
 int main(int argc, char **argv)
 {
     if ((argc > 1) && (strcmp(argv[1], "--print-sizes") == 0))
@@ -1760,6 +1819,7 @@ int main(int argc, char **argv)
     }
 
     int failures = 0;
+    failures += test_coherent_integration();
     failures += test_clean_load_completes();
     failures += test_open_accepts_phasor_evidence_without_forced_z();
     failures += test_raw_open_block_accepts_denominator_singularity();

@@ -83,6 +83,8 @@ u16 (1=BRINGUP_CAL), 8 capability bitmap u32 (bits 0 identity, 1 status, 2 captu
 3 cancel), 12 condition count u16, 14 artifact size u16, 16 timeout ms u32,
 20 ADC provenance u16 (1), 22 synthetic u8, 23 zero, 24 UID[12], 36 git[8],
 44 firmware version[16], NUL padded. Capability bit 4 now advertises the optional A06.2b installation handler.
+Capability bit 6 advertises the grouped-integration service: artifact size is
+196 instead of 188, and maximum capture deadline is 90000 instead of 20000 ms.
 Status offsets: 0 capture ID, 4 active OSL sequence, 8 faults, 12 safety blockers,
 16 protocol errors (all u32), 20 temperature mC i32; bytes 24 capture error,
 25 session busy, 26 result available, 27 active calibration valid, 28 transfer safe,
@@ -101,6 +103,10 @@ identifies the device and reads battery telemetry using TTL only. Older firmware
 omits the voltage field and needs one firmware update before supporting this read.
 
 ## CCO1 observation artifact (188 bytes)
+
+Legacy service producers retain this exact format. Current BRINGUP_CAL opts in
+to CCO2 below; older clients reject its negotiated length, rather than treating
+group counts as physical-block counts.
 
 RESULT chunks contain at most 96 bytes; offsets/counts are explicitly checked.
 The PC validates chunk identity, whole-artifact CRC, condition and device identity.
@@ -174,3 +180,42 @@ large synthetic SHORT residual supports stable HG overlap; it is not a board mod
 or accuracy claim. Existing hardware FSM mock tests separately cover real permits,
 range sequencing, timeouts, charger abort and safe teardown. Physical GPIO/ADC/UART
 behavior is REQUIRES_BENCH_VALIDATION.
+
+## CCO2 grouped coherent calibration pilot (196 bytes)
+
+Capability bit 6 selects magic CCO2, artifact API2 and length196. PLC1 request API1,
+the installation protocol and calibration schema2/model5 are unchanged. Offsets
+0..183 retain the CCO1 field meanings except that accepted/rejected/attempts at
+40..42 count independent groups. Bytes184..185 are physical blocks/group u16;
+186..187 physical acquisition attempts u16; 188..189 accepted physical blocks
+u16; 190..191 reserved zero; 192..195 CRC32 over bytes0..191. RESULT remains in
+chunks of at most96 bytes, so the host reads three chunks. All fields are LE.
+
+For every standard at 10 kHz, 1 Mohm/100 mVrms uses96 physical blocks/group;
+1 Mohm/500 mVrms and100 kohm/100 mVrms use16; other keys use one. A group averages
+six observed complex phasors after common source-phase rotation, then derives
+impedance and effective HG transfer from the phasor means. It does not average
+per-block ratios. Clipping is ORed across the group; no clipped stream becomes
+valid through averaging. Six independent groups and the existing2% workflow
+criterion remain mandatory, with ten group attempts maximum. Physical attempts
+include partially rejected groups; accepted physical blocks equal accepted
+groups times blocks/group. Old CCO1 observations are never reinterpreted.
+
+Every contributing physical block remains a complete existing permitted hardware
+transaction and SAFE teardown using the single3072-byte raw workspace. No ADC
+timing, hardware transaction deadline, relay guard or safety threshold changes.
+Temperature metadata uses the freshness-qualified auxiliary reading at the last
+physical transaction in each group, rather than a long-request-start placeholder.
+
+Only integrated keys receive a90-second global capture deadline; ordinary keys
+keep20 seconds. The updated client defaults to95-second response allowance after
+identifying this service, and uses91-second quiet windows for integrated keys,
+21 seconds otherwise. Explicitly insufficient timeouts fail before START. The
+hardware FSM still stops on its own timeout/fault/interlock and drains to SAFE;
+longer PC quiet time does not extend a hardware permit or keep K1 energized
+between physical transactions. Cancellation discards partial means.
+
+This is a bounded engineering pilot. Longer integration is not proof of physical
+accuracy or sufficient overlap: the original validity gates still decide that.
+A changed source requires a new calibration cohort. See
+[the investigation plan](../../plans/14C-High-Z-Integration-Investigation.md).

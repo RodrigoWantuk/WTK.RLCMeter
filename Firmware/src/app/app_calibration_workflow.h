@@ -213,6 +213,12 @@ bsp_status_t app_calibration_workflow_sample_from_block(const hw_metrology_block
                                                         const app_cal_workflow_request_t *request,
                                                         app_cal_capture_sample_t *sample);
 
+/* Checked physical-block phasors or a bounded coherent mean; clipping metadata
+   must include every contributing physical block. No safety authorization. */
+bsp_status_t app_calibration_workflow_sample_from_phasors(const hw_metrology_block_t *block,
+    const app_cal_workflow_request_t *request, const measurement_phasor_set_t *phasors,
+    app_cal_capture_sample_t *sample);
+
 app_cal_workflow_state_t app_calibration_workflow_state(const app_calibration_workflow_t *workflow);
 app_cal_workflow_result_t app_calibration_workflow_result(const app_calibration_workflow_t *workflow);
 const app_cal_evidence_t *app_calibration_workflow_evidence(const app_calibration_workflow_t *workflow);

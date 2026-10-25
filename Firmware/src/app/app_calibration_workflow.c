@@ -803,6 +803,18 @@ bsp_status_t app_calibration_workflow_sample_from_block(const hw_metrology_block
     return BSP_STATUS_OK;
 }
 
+bsp_status_t app_calibration_workflow_sample_from_phasors(const hw_metrology_block_t *block,
+    const app_cal_workflow_request_t *request, const measurement_phasor_set_t *phasors,
+    app_cal_capture_sample_t *sample)
+{
+    if (block == NULL || request == NULL || phasors == NULL || sample == NULL ||
+        !block->valid || block->dma_error || block->timeout || !phasors->valid)
+        return BSP_STATUS_INVALID_ARG;
+    const measurement_dsp_config_t config = measurement_dsp_config_ideal(request->key.range_id);
+    *sample = make_sample_from_phasors(block, request, phasors, &config);
+    return BSP_STATUS_OK;
+}
+
 app_cal_workflow_state_t app_calibration_workflow_state(const app_calibration_workflow_t *workflow)
 {
     return (workflow == NULL) ? APP_CAL_WORKFLOW_IDLE : workflow->state;

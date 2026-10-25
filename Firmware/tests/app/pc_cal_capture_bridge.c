@@ -318,6 +318,15 @@ int main(void)
             capture.io.battery_telemetry_supported=data[0]!=0u;
             battery_mv=(uint16_t)((uint16_t)data[1] | ((uint16_t)data[2]<<8u));
         }
+        /* Host-only coherent mode selection; never a target UART command. */
+        else if(header[0]==12u && count==1u)
+            capture.io.coherent_integration_supported=data[0]!=0u;
+        else if(header[0]==13u && count==0u)
+        {
+            const uint16_t values[4]={capture.session.integration.count,capture.session.integration_attempts,
+                calibration.workflow.evidence.accepted,calibration.workflow.evidence.attempts};
+            memcpy(output,values,sizeof(values));output_size=sizeof(values);
+        }
         else return 4;
         uint8_t size[2]={(uint8_t)output_size,(uint8_t)(output_size>>8u)};
         (void)fwrite(size,1u,2u,stdout);(void)fwrite(output,1u,output_size,stdout);(void)fflush(stdout);

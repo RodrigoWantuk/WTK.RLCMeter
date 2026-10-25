@@ -101,6 +101,10 @@ if(WTK_CAL_INSTALL_SERVICE AND (WTK_TARGET_PLATFORM STREQUAL "host" OR WTK_FIRMW
     set(WTK_ENABLE_CAL_INSTALL_SERVICE 1)
 endif()
 set(WTK_ENABLE_CAL_CAPTURE_SERVICE 0)
+set(WTK_ENABLE_CAL_INTEGRATION 0)
+if(WTK_TARGET_PLATFORM STREQUAL "host" OR WTK_FIRMWARE_PROFILE STREQUAL "BRINGUP_CAL")
+    set(WTK_ENABLE_CAL_INTEGRATION 1)
+endif()
 if(WTK_FIRMWARE_PROFILE STREQUAL "BRINGUP_CAL")
     set(WTK_ENABLE_CAL_CAPTURE_SERVICE 1)
     set(WTK_DIAGNOSTIC_LOG_LEVEL_DEFAULT 1)
@@ -253,7 +257,8 @@ if(WTK_PRODUCT_FACTORY_PROVISIONED_VALUE AND WTK_TARGET_PLATFORM STREQUAL "stm32
 endif()
 add_library(wtk_firmware_common STATIC ${WTK_COMMON_SOURCES})
 if(WTK_TARGET_PLATFORM STREQUAL "host" OR WTK_FIRMWARE_PROFILE STREQUAL "BRINGUP_CAL")
-    target_sources(wtk_firmware_common PRIVATE src/app/app_cal_capture_service.c)
+    target_sources(wtk_firmware_common PRIVATE src/app/app_cal_capture_service.c
+        src/app/app_cal_integration.c)
 endif()
 if(WTK_ENABLE_SUPPLEMENTARY_CURVES)
     target_sources(wtk_firmware_common PRIVATE

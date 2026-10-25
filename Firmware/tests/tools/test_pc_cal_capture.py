@@ -43,6 +43,82 @@ class SerialIntegration(unittest.TestCase):
         _,body=self.client.command(capture.STATUS)
         self.assertEqual(body[30:],b"\x00\x00")
 
+    def test_coherent_capture_physical_counts_and_legacy_rejection(self):
+        self.serial.control(12,b'\x01')
+        self.client.timeout=10
+        identity=self.client.identify()
+        self.assertTrue(identity['capabilities'] & 64)
+        self.assertEqual(identity['timeout_ms'],90000)
+        key=pc_osl.Key(1000000,10000,100)
+        row=self.client.capture(key,'LOAD',dict(id='SYNTHETIC_1M',
+            impedance_ohms=[1000000,0],tolerance_pct=1))
+        self.assertEqual(len(bytes.fromhex(row['artifact_hex'])),196)
+        self.assertEqual(row['acquisition']['blocks_per_group'],96)
+        self.assertEqual(row['acquisition']['accepted_physical_blocks'],576)
+        self.assertEqual(row['acquisition']['physical_attempts'],576)
+        self.assertEqual(row['acquisition']['accepted'],6)
+        self.assertTrue(row['quality']['hg_observed'])
+        corrupt=bytearray.fromhex(row['artifact_hex'])
+        struct.pack_into('<H',corrupt,186,575)
+        struct.pack_into('<I',corrupt,192,zlib.crc32(corrupt[:192]))
+        with self.assertRaisesRegex(capture.CaptureError,'integration provenance'):
+            capture.observation(bytes(corrupt),identity,row['capture_id'],key,'LOAD',row['reference'])
+        legacy=dict(identity,capabilities=identity['capabilities'] & ~64)
+        with self.assertRaises(capture.CaptureError):
+            capture.observation(bytes.fromhex(row['artifact_hex']),legacy,row['capture_id'],key,'LOAD',row['reference'])
+
+    def test_coherent_cancel_partial_group_discards_result(self):
+        self.serial.control(12,b'\x01')
+        self.client.identify()
+        identity=self.client.begin(pc_osl.Key(1000000,10000,100),'OPEN')
+        self.serial.advance(100)
+        pending,physical,accepted,_=struct.unpack('<4H',self.serial.control(13,b''))
+        self.assertGreater(pending,0)
+        self.assertLess(pending,96)
+        self.assertGreater(physical,0)
+        self.assertEqual(accepted,0)
+        self.client.cancel(identity)
+        state=self.client.status()
+        self.assertFalse(state['busy'])
+        self.assertFalse(state['result_valid'])
+        self.assertTrue(state['transfer_safe'])
+
+    def test_coherent_charger_abort_discards_partial_mean(self):
+        self.serial.control(12,b'\x01')
+        self.client.identify()
+        self.client.begin(pc_osl.Key(1000000,10000,100),'OPEN')
+        self.serial.advance(100)
+        self.serial.inject(1)
+        self.serial.advance(100)
+        state=self.client.status()
+        self.assertFalse(state['busy'])
+        self.assertFalse(state['result_valid'])
+        self.assertTrue(state['transfer_safe'])
+
+    def test_coherent_timeout_drains_hardware(self):
+        self.serial.control(12,b'\x01')
+        self.client.identify()
+        self.serial.inject(8)
+        self.client.begin(pc_osl.Key(1000000,10000,100),'OPEN')
+        self.serial.advance(50000)
+        self.serial.advance(40100)
+        state=self.client.status()
+        self.assertFalse(state['busy'])
+        self.assertFalse(state['result_valid'])
+        self.assertTrue(state['transfer_safe'])
+        self.assertEqual(state['capture_status'],10)
+
+    def test_coherent_quiet_windows_are_condition_specific(self):
+        client=capture.Client(object(),timeout=25)
+        client.identity=dict(capabilities=68,timeout_ms=90000)
+        self.assertEqual(client.capture_quiet_seconds(pc_osl.Key(1000000,10000,100)),91.0)
+        self.assertEqual(client.capture_quiet_seconds(pc_osl.Key(1000000,10000,500)),91.0)
+        self.assertEqual(client.capture_quiet_seconds(pc_osl.Key(100000,10000,100)),91.0)
+        self.assertEqual(client.capture_quiet_seconds(pc_osl.Key(100000,10000,500)),21.0)
+        self.assertEqual(client.capture_quiet_seconds(pc_osl.Key(1000,1000,100)),21.0)
+        with self.assertRaisesRegex(capture.CaptureError,'quiet window'):
+            client.capture(pc_osl.Key(1000000,10000,100),'OPEN')
+
     def test_battery_status_readable_while_charger_blocks_capture(self):
         self.serial.control(11,struct.pack("<BH",1,4050))
         identity=self.client.identify()

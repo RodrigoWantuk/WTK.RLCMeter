@@ -8,6 +8,10 @@
 #include "bsp/bsp_clock.h"
 #include "bsp/bsp_status.h"
 #include "hardware/hw_metrology_measure.h"
+#include "wtk_build_config.h"
+#if WTK_ENABLE_CAL_INTEGRATION
+#include "app/app_cal_integration.h"
+#endif
 
 typedef enum
 {
@@ -60,7 +64,19 @@ typedef struct
     bsp_status_t last_sample_status;
     uint32_t last_reject_flags;
     bool started_capture;
+#if WTK_ENABLE_CAL_INTEGRATION
+    app_cal_integration_t integration;
+    uint32_t integration_last_clip_mask;
+    uint16_t integration_blocks;
+    uint16_t integration_attempts;
+#endif
 } app_calibration_session_t;
+
+#if WTK_ENABLE_CAL_INTEGRATION
+/* Idle-only configuration. One preserves the original six-block workflow. */
+bsp_status_t app_calibration_session_set_integration(app_calibration_session_t *session,
+                                                     uint16_t blocks_per_group);
+#endif
 
 bsp_status_t app_calibration_session_init(app_calibration_session_t *session,
                                           app_calibration_service_t *service,

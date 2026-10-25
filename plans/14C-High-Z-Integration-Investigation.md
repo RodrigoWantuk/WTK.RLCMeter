@@ -1,6 +1,6 @@
 # 14C — High-impedance integration investigation
 
-STATUS: IN_PROGRESS — OPEN_PILOT_SAVED_LOAD_FIXTURE_PENDING
+STATUS: IN_PROGRESS — MATCHED_PILOTS_SAVED_INTEGRATION_IMPLEMENTATION
 
 ## Scope and prerequisites
 
@@ -50,5 +50,85 @@ Battery was 3.949 V initially and 3.942 V at the final serial status; SAFE/idle,
 zero safety faults, zero protocol errors, active calibration sequence zero.
 The owner was asked to remeasure and attach the 1-Mohm resistor for step 5.
 The remaining two blocked conditions and independent validation remain pending.
+
+## LOAD amplitude comparison
+
+The owner freshly reported 996 kohm and confirmed the resistor connected alone.
+The original nominal 1 Mohm +/-1% uncertain reference is retained; the DMM reading
+is recorded as a consistency observation, not a certified exact impedance.
+Fresh serial battery was 3.947 V before the new LOAD series. Six independent
+artifacts at 100 mVrms and six at 500 mVrms were collected with the same resistor,
+source f86b7f4e and unchanged hardware/acquisition/stability logic.
+
+| Fixture | Amplitude | Relative complex SD, normalized 1X | Relative complex SD, effective HG |
+| --- | --- | --- | --- |
+| OPEN, previous six exported means | 100 mVrms | 6.91360% | 6.83089% |
+| LOAD, six exported means | 100 mVrms | 4.53700% | 4.66066% |
+| LOAD, six exported means | 500 mVrms | 1.94897% | 1.90355% |
+
+These are dispersions across exported six-block means, not the within-artifact
+statistics used by the firmware. Every LOAD artifact remains HG-only, without
+observed HG overlap; the diagnostic 1.9% number does not promote any path flag.
+Improvement with amplitude supports investigating low-signal observability but
+does not isolate ADC, VMID, analog noise, interference or another cause. No
+longer-integration length or production accuracy is qualified by these results.
+
+All 12 LOAD artifacts are preserved separately, zero safety faults/protocol
+errors, SAFE teardown. Final battery is 3.934 V by serial, charger absent and
+active OSL sequence zero. No calibration candidate, W25Q write or firmware change
+occurred during these pilots. The original source-7017e5e0 campaign is untouched.
+
+Before selecting a corrective implementation, complete a matching six-artifact
+OPEN series at 500 mVrms on f86b7f4e. The owner was asked to remove the resistor
+and confirm completely empty terminals, without RESET. This is an explicit
+fixture dependency; do not start the OPEN capture until that reply arrives.
+
+The owner replied "open". Six matching OPEN artifacts at 500 mVrms completed:
+normalized 1X dispersion 2.45374%, effective HG dispersion 2.42160%, all HG-only
+with no observed overlap. Final serial battery 3.941 V; SAFE/idle, no faults or
+protocol errors. All four diagnostic series remain separate from calibration.
+
+## Explicit corrective design amendment
+
+Implement a CAL-only grouped coherent integration pilot; host builds include it
+for tests, PRODUCT/ordinary BRINGUP compile it out. Each physical block remains
+the original 256 samples/3072-byte DMA buffer and a complete existing hardware
+transaction, including its real permit, 30-ms operate guard, SAFE teardown,
+auxiliary restoration and fresh safety checks before the next transaction.
+No ADC clock, sample rate, DMA topology, relay guard or analog threshold changes.
+
+Align the six observed GND-referenced complex phasors by the common source phase
+and average them before recomputing transfer, impedance and HG observability.
+Do not average impedance ratios, fabricate overlap or recover a clipped stream;
+OR clipping over the entire group. Six independent groups still have to satisfy
+the existing 2% workflow criterion, with at most ten group attempts. Fixed
+integration lengths: 96 physical blocks/group for 1 Mohm/10 kHz/100 mVrms;
+16 for 1 Mohm/10 kHz/500 mVrms and 100 kohm/10 kHz/100 mVrms; one otherwise.
+These are conservative pilot choices, not a validated noise model.
+
+The original 20-second global timeout is insufficient for hundreds of complete
+SAFE transactions. Explicitly extend only integrated calibration captures to a
+90-second bounded deadline; ordinary captures retain 20 seconds and all hardware
+transaction deadlines are unchanged. IDENTIFY advertises the maximum; the updated
+client uses the selected condition's quiet window and rejects explicitly short
+timeouts before START. Charger/fault/cancellation still drain the hardware FSM.
+
+Advertise capability bit6 and emit CCO2/API2/196-byte artifacts in this service
+mode, so old clients reject the new format. Preserve offsets 0..183; add u16
+blocks/group at184, physical attempts at186, accepted physical blocks at188,
+reserved zero at190, CRC32 at192. Counts40..42 now explicitly count groups.
+Legacy fixtures/clients keep CCO1/188-byte behavior. Capture API framing, OSL model5,
+ADC nominal scaling and installed-record schema remain unchanged. A new source
+cohort is mandatory; never rewrite old artifacts or silently mix firmwares.
+
+Expected files: build config/CMake gating; a bounded app integration helper;
+calibration workflow phasor reconstruction entrypoint; session grouping and
+cancel/error reset; capture service provenance/deadline/format; CAL shell opt-in;
+Python decoder and quiet-window negotiation; meaningful C/Python tests and protocol
+docs. Verify phase rotation, ratio-of-means, clipping preservation, partial-group
+cancellation, fault/timeout teardown, exact physical counts, legacy parsing and
+old-cohort compatibility. Run all host checks and strict nine unit builds with
+the existing UID-bound NTC profile. Program only a verified image, then pilot the
+three OPEN conditions before choosing any reacquisition or installation step.
 
 See [preserved pilot evidence](../Firmware/releases/2026-10-25/osl-integration-pilot/README.md).

@@ -21,12 +21,15 @@ enum
     APP_CAL_INSTALL_ABORT = 0x5bu,
     APP_CAL_CAPTURE_RESPONSE = 0x80u,
     APP_CAL_CAPTURE_OBSERVATION_BYTES = 188u,
+    APP_CAL_CAPTURE_INTEGRATED_BYTES = 196u,
+    APP_CAL_CAPTURE_INTEGRATED_TIMEOUT_MS = 90000u,
     APP_CAL_CAPTURE_CHUNK_BYTES = 96u,
     APP_CAL_CAPTURE_FRAME_BYTES = APP_PC_LINK_HEADER_SIZE + APP_PC_LINK_MAX_PAYLOAD_BYTES,
     APP_CAL_CAPTURE_RX_TIMEOUT_MS = 250u,
     APP_CAL_CAPTURE_TIMEOUT_MS = 20000u,
     APP_CAL_CAPTURE_ADC_NOMINAL_3V3 = 1u,
     APP_CAL_CAPTURE_CAP_BATTERY_MV = 1u << 5,
+    APP_CAL_CAPTURE_CAP_INTEGRATED = 1u << 6,
 };
 
 typedef enum
@@ -76,6 +79,7 @@ typedef struct
     bool synthetic;
     bool installation_supported;
     bool battery_telemetry_supported;
+    bool coherent_integration_supported;
 } app_cal_capture_io_t;
 
 typedef struct
@@ -86,7 +90,7 @@ typedef struct
     bsp_status_t clock_status;
     uint8_t rx[APP_CAL_CAPTURE_FRAME_BYTES];
     uint8_t tx[2][APP_CAL_CAPTURE_FRAME_BYTES]; /* Two bounded replies allow emergency CANCEL. */
-    uint8_t observation[APP_CAL_CAPTURE_OBSERVATION_BYTES];
+    uint8_t observation[APP_CAL_CAPTURE_INTEGRATED_BYTES];
     measurement_complex_t mean[6];
     uint16_t rx_size;
     uint16_t rx_expected;
