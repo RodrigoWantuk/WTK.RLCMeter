@@ -138,6 +138,25 @@ stayed at 1 and fault mask at zero. Nominal 10 kohm +/-1% remains the uncertain
 fit anchor. The 100-kohm and 1-Mohm LOAD groups, independent validation,
 candidate generation and installation remain pending.
 
+The owner repeated 99.8 kohm and confirmed the 100-kohm reference attached alone.
+All six raw LOAD observations are preserved, but only five fit checks pass.
+At 100 kohm / 10 kHz / 100 mVrms, OPEN and LOAD are HG-only, SHORT has both paths,
+and no standard has observed HG overlap. The strict solver rejects this triplet;
+do not substitute nominal gain, invalid 1X ratios or changed quality flags.
+The first sweep stopped after preserving that raw observation and rejection.
+Only the previously unattempted 10-kHz/500-mVrms key was then captured separately
+under the unchanged confirmed fixture; it passed with observed same-key overlap.
+No rejected START was replayed. The [100-kohm checkpoint](../docs/review/bringup-2026-10-25/OSL-Load-100000.md)
+records 93/99 raw observations, 27 complete triplets, 26 solvable fits and one
+blocked fit. This disproves the bench assumption that a common OPEN/SHORT path
+alone is sufficient to finish every OSL key. It does not establish a component
+fault. Investigate gain observability/coverage within the current metrology
+contracts; keep the blocked key incomplete rather than asserting qualification.
+Fresh batteries were 3.70696 V before this group and 3.70374 V before asking for
+the 1-Mohm reference, both OK. Protocol counter stayed at 1; safety faults zero,
+SAFE/idle confirmed. Six 1-Mohm LOADs, blocked-key resolution, independent
+validation, candidate generation and installation remain pending.
+
 A04.1 delivers the [guided OSL campaign](../Firmware/tools/PC_OSL_CAMPAIGN.md):
 six-reference inventory, explicit passive-fixture confirmations, atomic resumable
 CCO1 evidence, real C-backed 99-observation workflow, existing 33-key solver and

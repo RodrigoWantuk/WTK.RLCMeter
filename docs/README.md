@@ -121,3 +121,9 @@ battery is OK; the 10-kohm, 100-kohm and 1-Mohm LOAD groups remain pending.
 [10-kohm LOAD completion](review/bringup-2026-10-25/OSL-Load-10000.md) records
 87/99 observations and 21/33 complete fit checks. Battery remains OK; the
 100-kohm and 1-Mohm LOAD groups, independent validation and installation remain.
+
+[100-kohm capture and unresolved fit](review/bringup-2026-10-25/OSL-Load-100000.md)
+records 93/99 observations, 26 accepted fits and one blocked fit at 100 kohm /
+10 kHz / 100 mVrms because actual HG overlap is absent. All six raw 100-kohm
+captures are preserved. The 1-Mohm LOAD group and resolution of that fit remain
+pending; no full candidate or calibration installation exists.
