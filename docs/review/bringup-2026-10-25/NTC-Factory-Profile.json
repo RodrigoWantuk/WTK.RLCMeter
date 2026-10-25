@@ -1,0 +1,198 @@
+{
+  "recorded_utc": "2026-10-25T16:00:46.398082+00:00",
+  "SIMULATED": false,
+  "status": "EXPERIMENTAL_UNIT_NTC_PROFILE_DEPLOYED_NOT_QUALIFIED",
+  "source": {
+    "git_sha": "0da88bfd9bf032da48e317f7ece9a03e9d719d5f",
+    "dirty": false,
+    "git_status": "",
+    "input_sha256": "8947ff2b6f4ecdcb60b4ed201eac6c7039bde1fbb2aa6c7fd8e9282cb9822696"
+  },
+  "profile": {
+    "schema": "WTK_NTC_COMPILED_V1",
+    "profile": {
+      "format": "WTK_NTC_FACTORY_PROFILE_V1",
+      "uid": "54ff70068370525760380567",
+      "qualified": false,
+      "owner_authorized": true,
+      "thermal_contact_uncertain": true,
+      "reference_uncertainty_c": null,
+      "reference_method": "Owner-provided contact thermometer; direct isolated-bead contact, cold and sustained hand-warmed reference",
+      "points": [
+        {
+          "temperature_c": 23.5,
+          "adc_raw": 1952,
+          "evidence": "ntc-reference-002, 2026-10-25T15:03:35Z"
+        },
+        {
+          "temperature_c": 30.1,
+          "adc_raw": 1856,
+          "evidence": "ntc-reference-004, 2026-10-25T15:24:26Z; owner explicitly requested use despite possible contact interference"
+        }
+      ],
+      "scope": "Experimental effective model for this UID; intrinsic Beta and wider temperature accuracy are not qualified"
+    },
+    "uid": "54ff70068370525760380567",
+    "profile_sha256": "9b3826a20b3c621a9e92be0035431b140c45d7a23acaba8ec237a63e4e8cad44",
+    "effective_beta_k": 1284.690748293537,
+    "effective_r25_over_rtop": 0.8912414562904697,
+    "qualified": false,
+    "lut_le_hex": "0000a0c128373b48000070c16ab02948000020c10c611a480000a0c050f20c4800000000c01c01480000a040584aed470000204193b4da4700007041b725ca470000a0416758bb470000bc41a1e7b147cdccf04113e7a14700000c42fa5a974700002042b59b8d47000034422cc48447000048423873794700005c42c9c96a4700007042ed635d4700008242bb1e514700008c42b9db4547000096423d803b470000a042dcf43147"
+  },
+  "identity": {
+    "hardware_revision": 65538,
+    "model": 5,
+    "profile": 1,
+    "capabilities": 31,
+    "protocol_version": 1,
+    "timeout_ms": 20000,
+    "adc_provenance": "NOMINAL_3V3_NOT_CALIBRATED",
+    "synthetic": false,
+    "uid": "54ff70068370525760380567",
+    "git": "0da88bfd",
+    "firmware_version": "0.1.0"
+  },
+  "deployment_outcome": "INTERNAL_FLASH_VERIFIED",
+  "readback": {
+    "start": 134217728,
+    "end_exclusive": 134253592,
+    "bytes": 35864,
+    "expected_sha256": "e6b5c028675746941c96f763716e1119561b9edeb41ec184485c0f0df1a4763d",
+    "actual_sha256": "e6b5c028675746941c96f763716e1119561b9edeb41ec184485c0f0df1a4763d",
+    "full_flash_sha256": "97246d6c8bc3cb40edc21f4d5aba3124d98f1f78a879f3b4ef6942a88ccb2b79",
+    "full_flash_bytes": 65536
+  },
+  "post_deployment": {
+    "recorded_utc": "2026-10-25T15:52:51.751268+00:00",
+    "operation": "NO_RESET_NTC_FACTORY_PROFILE_VERIFICATION",
+    "firmware_identity": {
+      "hardware_revision": 65538,
+      "model": 5,
+      "profile": 1,
+      "capabilities": 31,
+      "protocol_version": 1,
+      "timeout_ms": 20000,
+      "adc_provenance": "NOMINAL_3V3_NOT_CALIBRATED",
+      "synthetic": false,
+      "uid": "54ff70068370525760380567",
+      "git": "0da88bfd",
+      "firmware_version": "0.1.0"
+    },
+    "scale": "Nominal ADC 3.3V; not independently calibrated",
+    "values": {
+      "battery_v": 3.5473992824554443,
+      "battery_raw": 2201,
+      "battery_state": 0,
+      "battery_timestamp_ms": 119207,
+      "battery_published": 1,
+      "aux_paused": 0,
+      "vmid_v": 1.6560440063476562,
+      "fault_mask": 0,
+      "ntc_raw": 1975,
+      "ntc_voltage_v": 1.5915751457214355,
+      "ntc_resistance_ohm": 93160.3828125,
+      "ntc_temperature_c": 21.998838424682617,
+      "ntc_valid": 1,
+      "ntc_temperature_valid": 1,
+      "ntc_timestamp_ms": 118708,
+      "ntc_published": 1,
+      "age_ms": 339,
+      "ntc_age_ms": 838
+    },
+    "before_status": {
+      "capture_id": 0,
+      "calibration_sequence": 0,
+      "safety_faults": 0,
+      "safety_blocks": 8,
+      "protocol_errors": 0,
+      "temperature_mC": 21998,
+      "capture_status": 8,
+      "busy": false,
+      "result_valid": false,
+      "calibrated": false,
+      "transfer_safe": true
+    },
+    "after_status": {
+      "capture_id": 0,
+      "calibration_sequence": 0,
+      "safety_faults": 0,
+      "safety_blocks": 8,
+      "protocol_errors": 0,
+      "temperature_mC": 22064,
+      "capture_status": 8,
+      "busy": false,
+      "result_valid": false,
+      "calibrated": false,
+      "transfer_safe": true
+    },
+    "ram_sha256": "d606c25559cb53bccc2f35b15d58f338f0fb834ceea0aef5f231c33984398708",
+    "correction_applied": true,
+    "paired_external_reference": false,
+    "profile_sha256": "9b3826a20b3c621a9e92be0035431b140c45d7a23acaba8ec237a63e4e8cad44",
+    "engineering_only": true,
+    "physically_qualified": false
+  },
+  "expected_host_interpolation_c": 21.998837874619763,
+  "embedded_builds": "9/9 PASS; each BIN contains the bound LUT",
+  "host_tests": "46/46 CTest PASS",
+  "deployment_tests": "59 tests: 54 passed, 5 optional integration tests skipped",
+  "reference_authority": "Owner explicitly requested use of 30.1C despite possible probe/finger contact interference",
+  "thermal_contact_uncertain": true,
+  "reference_uncertainty_c": null,
+  "intrinsic_beta_known": false,
+  "correction_applied": true,
+  "physically_qualified": false,
+  "independent_temperature_validation": "NOT_TESTED",
+  "osl_installed": false,
+  "osl_status": "99 captures retained, 30 fits valid, three high-Z/10kHz fits blocked",
+  "external_w25q_written": false,
+  "artifacts": {
+    "firmware.zip": {
+      "bytes": 2746267,
+      "sha256": "3e696a36aa4b5e1a74f3483daea1cb3d1219c5eba153e2d95e4383d61b5c7349"
+    },
+    "physical-evidence.zip": {
+      "bytes": 337866,
+      "sha256": "3429c68d0a22392f1c49ab197f5206772c4432976933bf30a9608bfe50b4b727"
+    }
+  },
+  "charging_status": {
+    "recorded_utc": "2026-10-25T16:03:12.962567+00:00",
+    "operation": "READ_ONLY_UART_CHARGING_STATUS",
+    "identity": {
+      "hardware_revision": 65538,
+      "model": 5,
+      "profile": 1,
+      "capabilities": 31,
+      "protocol_version": 1,
+      "timeout_ms": 20000,
+      "adc_provenance": "NOMINAL_3V3_NOT_CALIBRATED",
+      "synthetic": false,
+      "uid": "54ff70068370525760380567",
+      "git": "0da88bfd",
+      "firmware_version": "0.1.0"
+    },
+    "status": {
+      "capture_id": 0,
+      "calibration_sequence": 0,
+      "safety_faults": 0,
+      "safety_blocks": 9,
+      "protocol_errors": 0,
+      "temperature_mC": 22327,
+      "capture_status": 8,
+      "busy": false,
+      "result_valid": false,
+      "calibrated": false,
+      "transfer_safe": true
+    },
+    "charger_present": true,
+    "voltage_unavailable_without_swd": true,
+    "STLink_disconnected_by_owner": true,
+    "capture_started": false
+  },
+  "deployable_manifests": {
+    "BRINGUP": "837ce5d9ff02e88e5c4386161a11c7ab6957552dbecb0792d5279f074c31f1c2",
+    "BRINGUP_CAL": "0665d68db9d820440aa7608cf4e7a7b0c72de09971a611a9dd0c8933d7ba2643",
+    "FACTORY_PRODUCT": "87fe9584ee670cd5c8f65387a1a0e58458ffc2d68cdb8cc96b3ce566fe2d3a5f"
+  }
+}

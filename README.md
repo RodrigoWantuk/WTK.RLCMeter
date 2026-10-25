@@ -6,6 +6,13 @@ The project combines a custom mixed-signal PCB, an **STM32 Blue Pill** module, a
 
 > **Current status — October24,2026:** basic R/C/L and display/buttons/buzzer observations are recorded. Current CAD includes six RGS gate-toGND pull-downs; shared firmware includes acquisition/phase/relay fixes and mounted display orientation. Calibration and battery/charger/metrology qualification remain pending. See [bring-up consolidation](docs/review/bringup-2026-10-24/README.md).
 
+October 25 first-unit update: [all 99 OSL captures](docs/review/bringup-2026-10-25/OSL-All-99.md)
+are preserved, with 30 valid fits and three high-Z/10-kHz fits still blocked.
+An owner-authorized [experimental NTC factory profile](docs/review/bringup-2026-10-25/NTC-Factory-Profile.md)
+is deployed on the first UID and included in nine unit builds. It is unqualified;
+generic builds retain nominal NTC conversion. OSL installation and independent
+metrology/power qualification remain unfinished.
+
 ## Project goals
 
 - Measure **resistance, capacitance, inductance, and complex impedance**.

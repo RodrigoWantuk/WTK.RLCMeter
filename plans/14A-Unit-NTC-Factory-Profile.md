@@ -1,6 +1,6 @@
 # 14A — Experimental per-unit NTC factory profile
 
-STATUS: IN_PROGRESS — OWNER_AUTHORIZED_ENGINEERING_CALIBRATION
+STATUS: COMPLETE_EXPERIMENTAL_IMPLEMENTATION — REQUIRES_INDEPENDENT_THERMAL_VALIDATION
 
 ## Scope and authority
 
@@ -69,6 +69,29 @@ deployment binding are implemented. Default host tests passed 46/46, including
 the actual C anchor conversion. Generator tests reject invalid/qualified data;
 deployment tests exercise wrong UID before target access and simulated-only
 programming. A dirty-source BRINGUP size probe is 65,512 bytes, unchanged from
-the prior image; its manifest verified the linked LUT bytes. Final committed
-nine-profile builds, physical programming/readback and post-boot verification
-are still pending. Do not treat the size probe as the final deployed artifact.
+the prior image; its manifest verified the linked LUT bytes. At that checkpoint,
+committed nine-profile builds and physical deployment were pending; the final
+delivery below supersedes that status. The size probe was not deployed.
+
+## Final delivery
+
+Source `0da88bfd` completed all nine unit builds with strict warning/memory gates;
+the canonical table is present in every BIN. BRINGUP is 65,512 bytes and
+BRINGUP_CAL is 35,864 bytes. Host tests passed 46/46; deployment tests passed
+54 cases with five optional integrations skipped. Schema2 manifest validation
+bound the actual table bytes, UID and profile hash to the programmed image.
+The BRINGUP_CAL image was programmed/read back and re-identified on the real UID.
+Post-boot SAFE/idle, zero faults and zero protocol errors were confirmed. Raw1975
+converted to 21.99884 degC, agreeing with host evaluation of the embedded LUT;
+no simultaneous external reference was available, so this is software/byte
+verification, not independent accuracy qualification.
+
+See [delivery and remaining limits](../docs/review/bringup-2026-10-25/NTC-Factory-Profile.md).
+Battery was 3.54740 V afterward. The owner disconnected ST-Link to attach the
+charger while retaining TTL. Read-only COM4 status then confirmed CHARGER_PRESENT,
+blockers 0x09 (charger plus disabled range), SAFE/idle, no faults. No acquisition
+was requested. Exact battery voltage is unavailable in this serial profile until
+SWD is restored; do not infer charge percentage from the charger-present flag.
+
+All original OSL evidence is preserved, with three blocked fits still unresolved.
+This delivery completes the explicitly experimental NTC implementation only.

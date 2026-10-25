@@ -44,6 +44,12 @@ The earlier 2N7002DW/SOT-363 concept was replaced by individual 2N7002 SOT-23 de
 | TFT | External ILI9341 SPI module |
 | NTC | MF58-104J3950GB, 100 kΩ / B≈3950 |
 
+The first owner's assembled replacement was purchased only as "NTC 3mm 100k";
+its Beta and exact RNTC population were not independently identified. Preserve
+the BOM above as assembly intent. The optional [unit factory profile](../Firmware/tools/NTC_FACTORY_PROFILE.md)
+is an owner-authorized experimental fit, not proof that this substitute matches
+MF58-104J3950GB or that the full temperature curve is qualified.
+
 ## RREF values
 
 ```text

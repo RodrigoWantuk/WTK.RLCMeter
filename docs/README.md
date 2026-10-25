@@ -139,3 +139,8 @@ is next; no calibration has been installed or physically qualified.
 external 23.5-degC bead-contact reference against firmware 27.27030 degC. The
 purchased NTC is listed only as 100 kohm; Beta is unknown. A warm reference is
 pending before fitting an effective divider ratio and Beta. No trim is applied.
+
+[Experimental NTC factory profile delivery](review/bringup-2026-10-25/NTC-Factory-Profile.md)
+supersedes that cold-comparison checkpoint: the owner-authorized two-point model
+is compiled into all nine UID-bound unit images and verified on the board.
+Independent thermal accuracy is not qualified. The three RLC fit blocks remain.

@@ -207,6 +207,28 @@ this avoids pretending Rtop or R25 was independently measured. Reference
 uncertainty and broader curve qualification remain unresolved. Persistent
 runtime calibration still requires an explicit versioned storage/API design.
 
+The owner explicitly authorized using 30.1 degC despite possible pad/finger
+interference. The sustained warm reference was captured at raw1856, nominal
+29.35729 degC; raw1877 was an earlier transient and is not a fit anchor. The
+[isolated factory-profile phase 14A](14A-Unit-NTC-Factory-Profile.md) implemented
+a versioned per-unit build-time LUT instead of inventing mutable storage. All
+nine unit images passed strict builds, all 46 host CTests passed, and schema2
+manifests bind the LUT and UID before programming. Source 0da88bfd was flashed,
+read back and re-identified. The adjusted conversion is active, explicitly
+experimental/unqualified; no independent third temperature is claimed.
+See [NTC delivery](../docs/review/bringup-2026-10-25/NTC-Factory-Profile.md).
+
+The owner disconnected ST-Link to connect the charger, retaining TTL. Read-only
+COM4 status confirmed charger present, blockers 0x09, SAFE/idle and zero faults.
+Last SWD battery was 3.54740 V before charging; serial STATUS cannot report
+the exact voltage in this current profile. Do not infer state of charge.
+Keep charging and acquisition separate. Before later hardware tests, disconnect
+the charger, reconnect ST-Link and confirm fresh supply/SAFE state. The next
+RLC work is a bounded investigation of longer coherent integration with explicit
+sample provenance, unchanged real permits and stability criteria. Do not simply
+flip invalid 1X/HG flags. Any acquisition change needs its own plan, host/target
+tests and a pilot before deciding how to reacquire calibration evidence.
+
 A04.1 delivers the [guided OSL campaign](../Firmware/tools/PC_OSL_CAMPAIGN.md):
 six-reference inventory, explicit passive-fixture confirmations, atomic resumable
 CCO1 evidence, real C-backed 99-observation workflow, existing 33-key solver and

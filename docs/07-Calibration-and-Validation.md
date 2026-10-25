@@ -1,5 +1,19 @@
 # Calibration and Validation
 
+## First-unit experimental NTC profile
+
+The optional [factory profile](../Firmware/tools/NTC_FACTORY_PROFILE.md) fits
+owner-supplied temperature/raw-ADC pairs to an effective divider ratio and Beta,
+then emits a fixed-size MCU lookup table. It is UID-bound, versioned and explicitly
+unqualified. The first unit used 23.5 degC/ADC1952 and 30.1 degC/ADC1856 at the
+owner's explicit request despite contact uncertainty. These fitted parameters
+are not verified intrinsic component values; wider-range extrapolation and an
+independent third temperature remain unvalidated. Generic builds keep nominal
+100-kohm/B3950 conversion. Rebuilds must explicitly select the unit profile.
+See [physical delivery and limits](review/bringup-2026-10-25/NTC-Factory-Profile.md).
+This NTC adjustment does not complete the 33-condition OSL qualification or
+authorize installing a candidate with missing gain-overlap evidence.
+
 ## First-board repeatability corrections — October 25, 2026
 
 Independent coherent ADC blocks can have different common timer-start phases.
