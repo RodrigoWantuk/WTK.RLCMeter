@@ -90,3 +90,11 @@ promoted into PRODUCT. Compilation does not certify measurement accuracy.
 See [basic checks](../a05/Basic-Functions-Before-Final-Assembly.md),
 [display evidence](../a05/Display-White-Screen-2026-10-24.md) and
 [plan17](../../../plans/17-Bringup-Consolidation-and-Publish.md).
+
+## Subsequent battery-powered session
+
+After publication, the owner connected the assembled battery supply and the
+standard BRINGUP image was programmed/readback-verified and booted through COM4.
+Battery ADC readings3878..3883mV/OK, chargerABSENT, K1SAFE and zero faults were
+observed. See [the battery-start evidence](Battery-Start.md); charger response,
+multimeter comparison and power-system qualification remain pending.

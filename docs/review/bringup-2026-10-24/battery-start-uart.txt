@@ -1,0 +1,131 @@
+WTK.RLCMeter
+firmware: 0.1.0
+git: 0dd1f3fe40ce
+build: MinSizeRel
+profile: BRINGUP
+hardware: Rev1-STM32F103C8T6-BluePill
+reset: SOFTWARE
+clock_status: OK
+clock_source: HSE_PLL
+sysclk_hz: 72000000
+hclk_hz: 72000000
+pclk1_hz: 36000000
+pclk2_hz: 72000000
+adc_hz: 12000000
+swd: PRESERVED
+boot_state: SAFE_BOOT
+watchdog_policy: IWDG_START_AFTER_UART_BANNER
+k1: OK
+k2: OK
+range: OK
+charger_init: OK
+adc: OK
+aux_sensors: OK
+charger: ABSENT
+k2_topology: FIXED_0R_LINK
+safety_faults: 0x00000000
+spi2: OK
+backlight: OK
+backlight_pwm_hz: 1000
+buzzer: OK
+w25q: OK
+calibration: ERROR
+calibration_state: NO_VALID_CALIBRATION
+w25q_part: W25Q32
+w25q_jedec: 0x00EF4016
+w25q_capacity: 4194304
+w25q_test_sector: 4190208
+safety_state: WAIT_SAFE
+safety_block: BLOCKED_SENSOR_INVALID
+safety_state: WAIT_SAFE
+safety_block: BLOCKED_RANGE
+MVP_BEGIN
+clock=HSE_PLL sysclk_hz=72000000
+flash=DETECTED jedec=0x00EF4016
+display=NOT_READY
+charger=ABSENT
+safety=BLOCKED blocker=BLOCKED_RANGE faults=0x00000000
+k1=SAFE
+range_state=DISABLED current=INVALID safety=DISABLED
+calibration=NO_VALID_CALIBRATION active=0 sequence=0
+residual=SAFE battery=OK
+resource=BRINGUP_NA
+last_metrology=OK
+MVP_END
+display: READY
+lab fault: 0x00000000
+charger: ABSENT
+lab safety: BLOCKED_RANGE flags=8 allowed=0
+lab range: DISABLED requested=INVALID current=INVALID
+lab adc: IDLE channel=INVALID last=OK
+lab flash info: W25Q32 0x00EF4016 4194304
+CAL sch=2 model=5 hw=0x00010002 svc=NO_VALID_CALIBRATION act=0
+CALST max=3072 ctx=2688 rt=2684 svc=5776 lab=3240
+CALWF st=IDLE res=NONE
+CAL_SLOT A start=0x003F8000 size=4096
+CAL_SLOT B start=0x003F9000 size=4096
+CAL_S A fr=INVALID seq=0 sch=0 hw=0x00000000 model=0 val=MISSING fl=0x00000001 rec=0
+CAL_S B fr=INVALID seq=0 sch=0 hw=0x00000000 model=0 val=MISSING fl=0x00000001 rec=0
+lab sensors vmid_raw: 2058 valid=1
+lab sensors vmid: 1658mV
+lab sensors ov_raw: hi=2054 lo=2056
+lab sensors safe_hi: 1455mV
+lab sensors safe_lo: 1557mV
+lab sensors residual_diff: -102mV
+lab sensors residual_state: SAFE safe_count=8 age_ms=10
+lab sensors battery: 3879mV
+lab sensors battery_state: OK raw=2407 age_ms=232
+lab sensors ntc: raw=2044 mv=1647 resistance_ohm=99658 valid=1 ntc_temperature_mC=25087 ntc_temperature_valid=1 age_ms=732
+lab sensors vmid_raw: 2055 valid=1
+lab sensors vmid: 1656mV
+lab sensors ov_raw: hi=2056 lo=2054
+lab sensors safe_hi: 1707mV
+lab sensors safe_lo: 1605mV
+lab sensors residual_diff: 102mV
+lab sensors residual_state: SAFE safe_count=8 age_ms=4
+lab sensors battery: 3883mV
+lab sensors battery_state: OK raw=2409 age_ms=25
+lab sensors ntc: raw=2046 mv=1649 resistance_ohm=99853 valid=1 ntc_temperature_mC=25037 ntc_temperature_valid=1 age_ms=525
+lab sensors vmid_raw: 2057 valid=1
+lab sensors vmid: 1658mV
+lab sensors ov_raw: hi=2054 lo=2056
+lab sensors safe_hi: 1505mV
+lab sensors safe_lo: 1607mV
+lab sensors residual_diff: -102mV
+lab sensors residual_state: SAFE safe_count=8 age_ms=0
+lab sensors battery: 3883mV
+lab sensors battery_state: OK raw=2409 age_ms=314
+lab sensors ntc: raw=2045 mv=1648 resistance_ohm=99756 valid=1 ntc_temperature_mC=25062 ntc_temperature_valid=1 age_ms=314
+lab sensors vmid_raw: 2054 valid=1
+lab sensors vmid: 1655mV
+lab sensors ov_raw: hi=2055 lo=2056
+lab sensors safe_hi: 1706mV
+lab sensors safe_lo: 1757mV
+lab sensors residual_diff: -51mV
+lab sensors residual_state: SAFE safe_count=8 age_ms=5
+lab sensors battery: 3878mV
+lab sensors battery_state: OK raw=2406 age_ms=108
+lab sensors ntc: raw=2047 mv=1650 resistance_ohm=99951 valid=1 ntc_temperature_mC=25012 ntc_temperature_valid=1 age_ms=108
+lab sensors vmid_raw: 2057 valid=1
+lab sensors vmid: 1658mV
+lab sensors ov_raw: hi=2054 lo=2056
+lab sensors safe_hi: 1505mV
+lab sensors safe_lo: 1607mV
+lab sensors residual_diff: -102mV
+lab sensors residual_state: SAFE safe_count=8 age_ms=3
+lab sensors battery: 3879mV
+lab sensors battery_state: OK raw=2407 age_ms=400
+lab sensors ntc: raw=2047 mv=1650 resistance_ohm=99951 valid=1 ntc_temperature_mC=25012 ntc_temperature_valid=1 age_ms=900
+MVP_BEGIN
+clock=HSE_PLL sysclk_hz=72000000
+flash=DETECTED jedec=0x00EF4016
+display=READY
+charger=ABSENT
+safety=BLOCKED blocker=BLOCKED_RANGE faults=0x00000000
+k1=SAFE
+range_state=DISABLED current=INVALID safety=DISABLED
+calibration=NO_VALID_CALIBRATION active=0 sequence=0
+residual=SAFE battery=OK
+resource=BRINGUP_NA
+last_metrology=OK
+MVP_END
