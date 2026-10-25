@@ -189,7 +189,27 @@ static bsp_status_t capture_start(const hw_metrology_measure_request_t *request,
     return status;
 }
 static bsp_status_t capture_step(uint32_t now, void *user)
-{ (void)user; return hw_metrology_measure_step(&measure, now); }
+{
+    (void)user;
+    /* ADC ownership invalidates residual evidence. Let the real auxiliary ADC
+       refresh it between repeats while K1 is still SAFE. The service deadline
+       bounds this cooperative wait; the hardware FSM still issues its permit. */
+    if (hw_metrology_measure_state(&measure) == HW_METROLOGY_MEASURE_PERMIT_ISSUE)
+    {
+        hw_measure_permit_issue_input_t input;
+        if (permit_issue(&input, NULL) == BSP_STATUS_OK &&
+            input.charger == HW_CHARGER_ABSENT && input.safety_fault_mask == 0u &&
+            input.k1_state == HW_K1_STATE_SAFE && input.range == HW_RANGE_READY &&
+            (input.residual == HW_RESIDUAL_UNKNOWN || input.residual == HW_RESIDUAL_SAFE) &&
+            (input.battery == HW_BATTERY_UNKNOWN || input.battery == HW_BATTERY_OK ||
+             input.battery == HW_BATTERY_LOW) &&
+            (input.residual == HW_RESIDUAL_UNKNOWN || input.battery == HW_BATTERY_UNKNOWN ||
+             input.residual_age_ms > HW_MEASURE_PERMIT_RESIDUAL_MAX_AGE_MS ||
+             input.battery_age_ms > HW_MEASURE_PERMIT_BATTERY_MAX_AGE_MS))
+            return BSP_STATUS_BUSY;
+    }
+    return hw_metrology_measure_step(&measure, now);
+}
 static bool capture_active(void *user)
 { (void)user; return hw_metrology_measure_active(&measure); }
 static bool capture_done(void *user)

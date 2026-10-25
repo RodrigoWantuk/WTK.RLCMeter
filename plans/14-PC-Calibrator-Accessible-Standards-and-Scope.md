@@ -3,6 +3,33 @@
 STATUS: IN_PROGRESS — OSL CLI AND DESKTOP MVP IMPLEMENTED_TESTED_HOST / REQUIRES_BENCH_VALIDATION
 PRIORITY: P1. A usable Windows PC utility is the standard calibration UX; Python CLI remains testable backend.
 
+## First-board OSL execution — October 25, 2026
+
+The owner requested engineering OSL using earlier DC checks while the Hantek is
+unavailable. Scope-dependent qualification remains NOT_TESTED; the desktop B01
+gate is unchanged and is not approved. The supported capture backend retains
+all embedded permissions. No release qualification or energized-DUT scope is added.
+
+Six nominal 1% LOAD candidates were inventoried at the direct DUT terminals;
+three band identifications remain provisional. The owner requires a fresh DMM
+reading before each LOAD attachment. Final test leads require a new calibration.
+The verified BRINGUP_CAL boot reports hardware 0x10002/model 5 and blank storage.
+
+The first authorized OPEN sweep stopped at its first condition (10 ohm, 10 Hz,
+100 mVrms) after the independent 20-second deadline. No complete observation was
+accepted or installed. A no-reset RAM snapshot showed one accepted block followed
+by a second transaction with PERMIT error, hardware IDLE, and session cancellation.
+The firmware returned to SAFE with zero latched faults. The historical deployment
+and failed attempt remain preserved under Firmware/build/calibration-20261025.
+
+Bounded corrective scope: app_cal_capture_shell.c waits cooperatively for real
+auxiliary ADC freshness before issuing the next permit, under the existing service
+deadline. app_calibration_session.c recognizes a drained inactive hardware abort
+without treating it as a successful block. Regression belongs in
+test_app_calibration_workflow.c. Validate host tests and affected embedded builds
+before deployment; preserve W25Q and re-identify the exact binary before resuming.
+Physical OPEN/SHORT/LOAD capture and independent holdouts remain incomplete.
+
 A04.1 delivers the [guided OSL campaign](../Firmware/tools/PC_OSL_CAMPAIGN.md):
 six-reference inventory, explicit passive-fixture confirmations, atomic resumable
 CCO1 evidence, real C-backed 99-observation workflow, existing 33-key solver and

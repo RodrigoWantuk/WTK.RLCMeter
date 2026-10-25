@@ -37,6 +37,7 @@ typedef struct
                                   uint32_t now_ms,
                                   void *user);
     bsp_status_t (*step_capture)(uint32_t now_ms, void *user);
+    /* True until all hardware/ADC/workspace teardown is complete, including abort. */
     bool (*capture_active)(void *user);
     bool (*capture_done)(void *user);
     bool (*capture_dumpable)(void *user);

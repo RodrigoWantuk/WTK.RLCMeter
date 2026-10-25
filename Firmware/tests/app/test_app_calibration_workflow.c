@@ -45,6 +45,8 @@ typedef struct
     bool abort_called;
     bool start_error;
     bool fail_capture;
+    bool abort_finishes_idle;
+    bool hold_abort_active;
     hw_metrology_measure_error_t error;
 } fake_phase05_t;
 
@@ -914,8 +916,12 @@ static bsp_status_t fake_phase05_step(uint32_t now_ms, void *user)
         return BSP_STATUS_INVALID_ARG;
     }
     fake->step_count++;
+    if (fake->abort_called && fake->hold_abort_active)
+    {
+        return BSP_STATUS_BUSY;
+    }
     fake->active = false;
-    fake->done = true;
+    fake->done = !fake->abort_finishes_idle;
     if (fake->abort_called)
     {
         fake->dumpable = false;
@@ -1073,7 +1079,7 @@ static int test_session_runs_open_capture_end_to_end(void)
     return failures;
 }
 
-static int test_session_phase05_safety_abort_fails_safely(void)
+static int test_session_phase05_safety_abort_fails_safely(bool finishes_idle)
 {
     int failures = 0;
     app_calibration_service_t service;
@@ -1095,6 +1101,7 @@ static int test_session_phase05_safety_abort_fails_safely(void)
     fake.blocks[0] = &block;
     fake.block_count = 1u;
     fake.fail_capture = true;
+    fake.abort_finishes_idle = finishes_idle;
     fake.error = HW_METROLOGY_MEASURE_ERR_PERMIT;
     const bsp_clock_summary_t clock = good_clock();
     failures += expect_true(app_calibration_session_start(&session, &request, &clock, BSP_STATUS_OK, 0u) ==
@@ -1146,7 +1153,13 @@ static int test_session_cancel_waits_for_phase05_abort(void)
     failures += expect_true(app_calibration_session_cancel(&session) == BSP_STATUS_BUSY,
                             "cancel during Phase05 waits");
     failures += expect_true(fake.abort_called, "Phase05 abort requested");
+    fake.hold_abort_active = true;
     failures += expect_u32((uint32_t)app_calibration_session_step(&session, 2u),
+                           (uint32_t)APP_CAL_SESSION_EVENT_NONE,
+                           "cancel keeps hardware ownership until abort drains");
+    failures += expect_true(app_calibration_session_active(&session), "cancel still draining");
+    fake.hold_abort_active = false;
+    failures += expect_u32((uint32_t)app_calibration_session_step(&session, 3u),
                            (uint32_t)APP_CAL_SESSION_EVENT_CANCELED,
                            "cancel terminal event");
     failures += expect_true(!app_calibration_session_active(&session), "canceled session inactive");
@@ -1656,7 +1669,8 @@ int main(int argc, char **argv)
     failures += test_second_recalibration_alternates_slots_without_aliasing();
     failures += test_campaign_solves_condition_and_inserts_candidate_record();
     failures += test_session_runs_open_capture_end_to_end();
-    failures += test_session_phase05_safety_abort_fails_safely();
+    failures += test_session_phase05_safety_abort_fails_safely(false);
+    failures += test_session_phase05_safety_abort_fails_safely(true);
     failures += test_session_cancel_waits_for_phase05_abort();
     return failures == 0 ? 0 : 1;
 }

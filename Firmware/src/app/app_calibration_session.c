@@ -178,7 +178,8 @@ app_cal_session_event_t app_calibration_session_step(app_calibration_session_t *
     case APP_CAL_SESSION_WAIT_CAPTURE:
     {
         const bsp_status_t step_status = session->io->step_capture(now_ms, session->io->user);
-        if (!session->io->capture_done(session->io->user))
+        /* Both successful DONE and a drained abort to IDLE are terminal. */
+        if (session->io->capture_active(session->io->user))
         {
             (void)step_status;
             return APP_CAL_SESSION_EVENT_NONE;
@@ -209,8 +210,7 @@ app_cal_session_event_t app_calibration_session_step(app_calibration_session_t *
     case APP_CAL_SESSION_CANCELING:
     {
         (void)session->io->step_capture(now_ms, session->io->user);
-        if (!session->io->capture_active(session->io->user) ||
-            session->io->capture_done(session->io->user))
+        if (!session->io->capture_active(session->io->user))
         {
             session->io->capture_acknowledge(session->io->user);
             app_calibration_workflow_cancel_complete(wf);
