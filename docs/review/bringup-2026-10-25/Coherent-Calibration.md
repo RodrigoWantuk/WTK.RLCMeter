@@ -1,6 +1,6 @@
 # Coherent calibration recovery — October 25, 2026
 
-Status: THREE_OPEN_PILOTS_PASS; NEW_SOURCE_OPEN_IN_PROGRESS; OSL_NOT_INSTALLED.
+Status: ALL_33_NEW_SOURCE_OPEN_PASS; SHORT_LOAD_PENDING; OSL_NOT_INSTALLED.
 
 The owner remeasured the approximately1-Mohm resistor as996 kohm and confirmed
 direct attachment alone. Six independent LOAD observations at100 mVrms and six
@@ -32,8 +32,14 @@ HG paths and observed HG overlap:100 kohm/10 kHz/100 mVrms and1 Mohm/10 kHz at
 groups, zero rejects and clipping, SAFE teardown, zero safety/protocol errors.
 The final serial battery reading was3.931 V, nominal scaling.
 
-These three exact artifacts seed a new same-image source-a52dba35 OPEN cohort,
-whose other30 keys are in progress on the unchanged empty fixture. Historical
+These three exact artifacts seed a new same-image source-a52dba35 OPEN cohort.
+All other30 keys have now completed on the unchanged empty fixture, for33 OPEN
+observations,198 accepted groups and948 accepted physical blocks/attempts. CRC,
+SHA, unique keys, exact artifact metadata, UID/source/model and nominal ADC
+provenance were verified. The final serial battery is3.920 V, SAFE/idle,
+fault/protocol counters0, charger absent and active OSL sequence0. The owner was
+asked for a direct short copper jumper without RESET before33 same-source SHORTs.
+Historical
 source7017 and f86 observations remain separate. New-source SHORT/LOAD,
 float32/C solver checks, candidate installation, independent holdouts and scope
 qualification remain pending. No complete calibration or accuracy is claimed.

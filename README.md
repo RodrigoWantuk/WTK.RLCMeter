@@ -15,8 +15,9 @@ metrology/power qualification remain unfinished.
 
 A subsequent [coherent calibration pilot](docs/review/bringup-2026-10-25/Coherent-Calibration.md)
 recovers actual1X/HG overlap for all three problematic OPEN keys without relaxing
-the stability criterion. A new source-bound calibration cohort is in progress;
-complete OSL fitting, installation and independent validation remain pending.
+the stability criterion. Its new source-bound cohort now has all33 OPEN
+conditions; SHORT/LOAD, complete OSL fitting, installation and independent
+validation remain pending.
 
 ## Project goals
 

@@ -1,6 +1,6 @@
 # 14C — High-impedance integration investigation
 
-STATUS: IN_PROGRESS — THREE_OPEN_OVERLAP_PILOTS_PASS_NEW_COHORT_OPEN_RUNNING
+STATUS: IN_PROGRESS — NEW_SOURCE_33_OPEN_COMPLETE_SHORT_FIXTURE_PENDING
 
 ## Scope and prerequisites
 
@@ -165,5 +165,24 @@ CCO2 artifacts seed a new same-image OPEN cohort. With the owner's OPEN fixture
 unchanged, the remaining30 keys are being acquired without repeating those three
 or mixing any older source. Complete new-source SHORT/LOAD and strict solver
 checks are still required before candidate generation or installation.
+
+## Complete same-source OPEN checkpoint
+
+All33 source-a52dba35 OPEN conditions are now accepted. The three exact pilot
+artifacts were retained unchanged and the other30 keys were acquired once on the
+same image and unchanged owner-confirmed empty fixture. The full cohort contains
+198 accepted groups and948 accepted physical blocks/attempts, no rejected groups.
+Every condition retains actual usable paths; clipped HG streams remain excluded
+where 1X is usable. In particular all three difficult10-kHz OPEN keys have both
+paths and observed HG overlap. CRC/SHA, identity, ADC provenance, unique keys and
+exact artifact metadata were rechecked before archiving.
+
+Final serial status: battery3.920 V nominal, SAFE/idle, fault0, protocol0,
+charger absent, active OSL sequence0. Settings/resources/calibration W25Q partitions
+were not programmed. Source7017 and f86 cohorts remain unchanged and separate.
+The owner was asked to connect a short, firm copper jumper directly between the
+terminals without RESET. SHORT capture must wait for that explicit reply.
+Current next stage is33 same-image SHORT keys, then freshly measured LOADs.
+No complete OSL candidate or installed calibration exists yet.
 
 See [preserved pilot evidence](../Firmware/releases/2026-10-25/osl-integration-pilot/README.md).

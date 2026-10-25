@@ -24,7 +24,16 @@ respectively, with zero rejected groups or clipping. Final pilot battery is
 3.931 V over COM4, SAFE/idle, zero safety faults and protocol errors.
 `physical-evidence.zip` preserves programming/readback, boot, all three raw CCO2
 artifacts, UART evidence and the bounded pilot script. Their exact bytes seed
-the new source-a52dba35 OPEN cohort; the remaining30 OPEN keys are in progress.
+the new source-a52dba35 OPEN cohort.
+
+All33 OPEN keys are now accepted, totaling198 groups and948 accepted physical
+blocks/attempts. `open-complete.zip` preserves the exact three pilot seeds and
+30 new observations with raw CCO2 bytes, UART evidence and the complete33-key
+capture document. `open-checkpoint.json` records hashes, counts and final serial
+status: battery3.920 V, SAFE/idle, fault/protocol0, charger absent, active OSL0.
+Clipped HG streams remain excluded when 1X supplies the valid OPEN evidence.
+Same-image SHORT and freshly measured LOADs remain pending. The owner was asked
+for a short copper jumper; no SHORT is started without that fixture confirmation.
 
 Do not claim completed calibration,
 installed OSL or qualified accuracy from these builds. The original99-observation
