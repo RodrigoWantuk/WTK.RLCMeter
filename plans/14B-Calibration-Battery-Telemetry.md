@@ -1,6 +1,6 @@
 # 14B — Read-only battery telemetry during PC calibration
 
-STATUS: SOFTWARE_VERIFIED — DEPLOYMENT_PENDING_STLINK_CONNECTION
+STATUS: IMPLEMENTED — PHYSICAL_SERIAL_READ_PASS_CHARGER_ABSENT
 
 The owner requests battery voltage over TTL, including while charging, without
 SWD reads. Current BRINGUP_CAL STATUS lacks voltage; actual COM4 requests confirmed
@@ -54,3 +54,20 @@ charger absent after disconnection, but cannot provide voltage. Do not substitut
 the earlier 3.54740-V reading or infer a fresh value from the charger state.
 The owner was asked to reconnect ST-Link once for programming; subsequent
 voltage reads will use TTL only. No firmware has been programmed in this phase.
+
+## Physical deployment checkpoint
+
+The owner reconnected ST-Link and COM4, disconnected the charger and explicitly
+requested battery reading and continuation. The verified 36,040-byte image was
+programmed and read back byte-for-byte; the full 64-KiB readback SHA-256 is
+e64882a9730c4e272b6ffbd41590ebc56c7de8845c6da5c12c9185f490f12442.
+After controlled boot, COM4 identifies source f86b7f4e, capabilities 63, expected
+UID/hardware/model, SAFE/idle, zero safety faults and zero protocol errors.
+STATUS reports 3.949 V using nominal ADC scaling. Compared with the earlier
+pre-charge 3.54740 V, this is about +0.402 V, not a state-of-charge percentage.
+This reading uses serial only; SWD was used for internal-Flash programming.
+No W25Q writes occurred, and active OSL sequence remains zero.
+
+Physical evidence is archived beside the guarded image. Charger-present voltage
+read remains REQUIRES_BENCH_VALIDATION; its protocol/interlock behavior passes
+the real-C host fixture. RLC calibration and qualification remain separate.

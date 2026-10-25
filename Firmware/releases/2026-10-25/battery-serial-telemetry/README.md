@@ -1,4 +1,4 @@
-# Calibration serial battery telemetry — prepared image
+# Calibration serial battery telemetry — deployed image
 
 Source `f86b7f4e946c4a9fafe605c88a5d476252e9e027` adds capability-negotiated,
 read-only nominal battery millivolts to BRINGUP_CAL STATUS over TTL. The image
@@ -13,12 +13,20 @@ and use the deployment manifest with the bound UID. Generic production profiles
 keep their existing behavior; this capability belongs to the calibration service.
 No external W25Q update, OSL installation or acquisition change is required.
 
-Status at preparation: NOT_DEPLOYED_STLINK_DISCONNECTED. The running `0da88bfd`
-image was queried over COM4 after charger disconnection and has no serial voltage
-field. No fresh voltage was inferred from its charger state or old readings.
-One internal-Flash update remains necessary before physical serial validation.
-Battery telemetry with/without the charger is REQUIRES_BENCH_VALIDATION until
-the updated image is running. The three high-Z/10-kHz OSL fits remain pending.
+The owner reconnected ST-Link and TTL and disconnected the charger. Programming
+and full internal-Flash readback passed; COM4 IDENTIFY matches `f86b7f4e` with
+capabilities 63. STATUS reports 3.949 V, SAFE/idle, no safety faults, no protocol
+errors and charger absent (blockers 8). The earlier pre-charge reading was
+3.54740 V: the nominal readings increased by about 0.402 V. No state-of-charge
+percentage or calibrated voltage accuracy is inferred. The voltage was read
+over TTL, not SWD. No external Flash was programmed; the OSL slots remain blank.
+
+`physical-evidence.zip` preserves sealed programming/readback, preflight,
+post-boot identity, raw UART transactions and serial battery evidence. The
+historical `serial-before-update.json` demonstrates why the old image required
+updating. Charger-present voltage reading remains REQUIRES_BENCH_VALIDATION;
+the charger-present protocol case passes the C-backed host tests. The three
+high-Z/10-kHz OSL fits remain pending.
 
 See [protocol and CLI](../../../tools/PC_CAL_CAPTURE.md) and
 [execution plan](../../../../plans/14B-Calibration-Battery-Telemetry.md).
