@@ -14,6 +14,7 @@ include(STM32CubeF1)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 find_package(Python3 COMPONENTS Interpreter QUIET)
+include(FactoryNtc)
 
 set(WTK_TARGET_PLATFORM "host" CACHE STRING "Build target platform: host or stm32")
 set_property(CACHE WTK_TARGET_PLATFORM PROPERTY STRINGS host stm32)

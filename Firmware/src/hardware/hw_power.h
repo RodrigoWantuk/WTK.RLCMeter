@@ -8,6 +8,8 @@
 #define HW_BATTERY_CRITICAL_V (3.25f)
 #define HW_BATTERY_MAX_PLAUSIBLE_V (4.35f)
 
+/* Nominal resistance scale. An optional UID-bound factory build replaces the
+ * temperature LUT with an experimental effective divider-ratio calibration. */
 #define HW_NTC_FIXED_TOP_OHM (100000.0f)
 #define HW_NTC_R0_OHM (100000.0f)
 #define HW_NTC_T0_K (298.15f)

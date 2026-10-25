@@ -5,6 +5,12 @@ SWD deployment writes only the selected internal application image. Option bytes
 OSL, external W25Q and hardware qualification remain outside its write scope.
 Physical qualification remains **REQUIRES_BENCH_VALIDATION**. Fake SWD results are SIMULATED.
 
+Optional [per-unit NTC factory builds](NTC_FACTORY_PROFILE.md) use
+`--ntc-factory-profile` and manifest schema `WTK_FIRMWARE_2`. The profile and
+float32 table are bound to the BIN and explicit MCU UID; older tools reject the
+new manifest. Generic images remain schema 1. Rebuilding a unit without its
+profile restores the nominal NTC table. No external W25Q write is involved.
+
 ## Supported programmer
 
 Pinned **xPack OpenOCD 0.12.0-6 Windows x64**, reporting

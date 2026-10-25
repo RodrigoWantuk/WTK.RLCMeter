@@ -1,4 +1,5 @@
 #include "hardware/hw_power.h"
+#include "wtk_build_config.h"
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -9,6 +10,9 @@ typedef struct
     float resistance_ohm;
 } ntc_lut_point_t;
 
+#if defined(WTK_NTC_FACTORY_CALIBRATION) && WTK_NTC_FACTORY_CALIBRATION
+#include "wtk_ntc_factory_lut.h"
+#else
 static const ntc_lut_point_t k_ntc_lut[] = {
     {.temperature_c = -20.0f, .resistance_ohm = 1053847.0f},
     {.temperature_c = -15.0f, .resistance_ohm = 778981.0f},
@@ -32,6 +36,7 @@ static const ntc_lut_point_t k_ntc_lut[] = {
     {.temperature_c = 75.0f, .resistance_ohm = 14917.0f},
     {.temperature_c = 80.0f, .resistance_ohm = 12703.0f},
 };
+#endif
 
 float hw_battery_vbat_from_adc_voltage(float adc_bat_v)
 {

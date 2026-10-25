@@ -2,6 +2,10 @@
 
 Current shared display/acquisition baseline, calibration hardware0x00010002 and physical release boundary: [October24 integration](../docs/review/bringup-2026-10-24/README.md). Existing command-line presets remain canonical. No new production image is automatically deployed.
 
+The first unit's optional [experimental NTC factory profile](tools/NTC_FACTORY_PROFILE.md)
+must be explicitly selected on rebuild. Generic builds retain the nominal table.
+The profile is UID-bound, unqualified, and independent of unfinished OSL calibration.
+
 For reproducible linked Flash attribution, profile/commit comparisons and the
 current completion budget, see the [A01 report](../docs/review/a01/README.md) and
 [tool commands](../docs/review/a01/tooling.md). `WTK_FLASH_FORENSICS=ON` is an

@@ -18,6 +18,7 @@ import time
 import uuid
 
 import pc_bringup as b01
+import ntc_factory_profile as ntc_factory
 from pc_osl_install import validate_candidate
 
 TOOLS=Path(__file__).resolve().parent
@@ -163,7 +164,8 @@ def manifest(build_dir,out,profile,state,preset):
         (out/name).write_bytes(raw); files[name]=dict(bytes=len(raw),sha256=sha(raw))
     identity=boot_identity(profile,state["git_sha"],flags["WTK_PROJECT_VERSION"],
         flags.get("WTK_DIAGNOSTIC_LOG_LEVEL_DEFAULT","5u") not in ("1u","2u","3u"))
-    value=dict(schema="WTK_FIRMWARE_1",source=state,profile=profile,factory_provisioned=spec[2],supplementary_curves=False,
+    value=dict(schema="WTK_FIRMWARE_2" if flags.get("WTK_NTC_FACTORY_CALIBRATION","0u")=="1u" else "WTK_FIRMWARE_1",source=state,profile=profile,factory_provisioned=spec[2],supplementary_curves=False,
+        ntc_factory_profile=load(build_dir/"generated/wtk_ntc_factory_profile.json") if flags.get("WTK_NTC_FACTORY_CALIBRATION","0u")=="1u" else None,
         bringup_k1_test=flags.get("WTK_ENABLE_K1_BENCH_TEST","0u")=="1u",
         bringup_bench_supply=flags.get("WTK_ENABLE_BENCH_SUPPLY","0u")=="1u",
         bringup_peripheral_test=flags.get("WTK_ENABLE_PERIPHERAL_TEST","0u")=="1u",
@@ -178,7 +180,7 @@ def manifest(build_dir,out,profile,state,preset):
 
 def inspect(path,profile=None):
     path=Path(path); value=checked(load(path)); root=path.parent
-    if value.get("schema")!="WTK_FIRMWARE_1" or value.get("profile") not in PROFILES: raise ValueError("unsupported image manifest")
+    if value.get("schema") not in ("WTK_FIRMWARE_1","WTK_FIRMWARE_2") or value.get("profile") not in PROFILES: raise ValueError("unsupported image manifest")
     spec=PROFILES[value["profile"]]
     if profile and value["profile"]!=profile: raise ValueError("selected profile differs from artifact")
     if (value["factory_provisioned"],value["supplementary_curves"],value["preset"],value["build_configuration"],value["hardware"])!=(spec[2],False,spec[0],spec[3],HARDWARE): raise ValueError("unsupported configuration")
@@ -194,6 +196,9 @@ def inspect(path,profile=None):
     ram_budget=17408 if spec[2] else 18432
     if len(binary)>budget or metrics["ram_accounted_bytes"]>ram_budget or metrics["reserved_stack_bytes"]<2048: raise ValueError("project memory gate violated")
     flags=parse_config(read(root/"build_config.h"))
+    ntc_factory.validate_binary(value.get("ntc_factory_profile"), binary, flags)
+    if (value["schema"]=="WTK_FIRMWARE_2") != (value.get("ntc_factory_profile") is not None):
+        raise ValueError("UID-bound NTC profiles require manifest schema 2")
     bench=value.get("bringup_k1_test",False)
     if (type(bench) is not bool or bench != (flags.get("WTK_ENABLE_K1_BENCH_TEST","0u")=="1u") or
         (bench and (value["profile"]!="BRINGUP" or flags.get("WTK_ENABLE_DC_PILOT")!="0u"))):
@@ -214,7 +219,7 @@ def inspect(path,profile=None):
     return value
 
 
-def build(profile,out,dry_run=False,k1_bench_test=False,bench_supply=False,peripheral_test=False):
+def build(profile,out,dry_run=False,k1_bench_test=False,bench_supply=False,peripheral_test=False,ntc_factory_profile=None):
     if k1_bench_test and profile!="BRINGUP": raise ValueError("K1 bench test requires BRINGUP")
     if bench_supply and (profile!="BRINGUP" or k1_bench_test): raise ValueError("bench supply requires a separate BRINGUP image")
     if peripheral_test and (profile!="BRINGUP" or k1_bench_test or bench_supply):
@@ -224,6 +229,7 @@ def build(profile,out,dry_run=False,k1_bench_test=False,bench_supply=False,perip
           f'-DWTK_BRINGUP_K1_TEST={"ON" if k1_bench_test else "OFF"}',
           f'-DWTK_BRINGUP_BENCH_SUPPLY={"ON" if bench_supply else "OFF"}',
           f'-DWTK_BRINGUP_PERIPHERAL_TEST={"ON" if peripheral_test else "OFF"}']
+    argv.append("-DWTK_NTC_FACTORY_PROFILE="+str(Path(ntc_factory_profile).resolve()) if ntc_factory_profile else "-DWTK_NTC_FACTORY_PROFILE=")
     commands=[argv,["cmake","--build",str(folder),"-j","6"]]
     if dry_run: return dict(dry_run=True,commands=commands,target_access=False)
     out.mkdir(parents=True,exist_ok=False); before=source_state()
@@ -371,6 +377,7 @@ def debug_authorization(session_path,board,operator,supply,acks):
 
 
 def authorize(image,session_path,board,operator,supply,previous,uid,accept,acks,simulated,installation=None,cal_readback=None,resource=None):
+    ntc_factory.require_target(image.get("ntc_factory_profile"), uid)
     if image["source"]["dirty"] and not simulated: raise ValueError("dirty-source image cannot be physically deployed")
     if not re.fullmatch("[0-9a-f]{24}",uid): raise ValueError("explicit inspected target UID required")
     for name,value in (("board",board),("operator",operator),("independent supply arrangement",supply)):
@@ -425,6 +432,8 @@ def authorize(image,session_path,board,operator,supply,previous,uid,accept,acks,
 def deployment(action,manifest_path,backend,out,authorization=None,uid="",dry_run=False):
     image=inspect(manifest_path) if manifest_path else None
     if image: image=dict(image,manifest_path=str(Path(manifest_path).resolve()))
+    if action=="program" and image:
+        ntc_factory.require_target(image.get("ntc_factory_profile"), uid)
     out=Path(out).resolve()
     if dry_run:
         return dict(dry_run=True,target_access=False,commands=backend.plan(action,out,image,uid),
@@ -555,6 +564,7 @@ def main(argv=None):
     p.add_argument("--k1-bench-test",action="store_true",help="build the optional BRINGUP empty-fixture relay test variant")
     p.add_argument("--bench-supply",action="store_true",help="build the optional BRINGUP external-5V bench variant")
     p.add_argument("--peripheral-test",action="store_true",help="build standalone BRINGUP display/buttons/buzzer diagnostic")
+    p.add_argument("--ntc-factory-profile",type=Path,help="build with an experimental NTC profile bound to one MCU UID")
     p.add_argument("--openocd",type=Path); p.add_argument("--scripts",type=Path); p.add_argument("--adapter-serial")
     p.add_argument("--fake-device",type=Path); p.add_argument("--fake-scenario",choices=("normal","missing-adapter","unpowered","wrong-id","geometry","rdp","timeout","interrupted","readback-mismatch","missing-complete","unexpected-reset"),default="normal")
     p.add_argument("--session",type=Path); p.add_argument("--board"); p.add_argument("--operator"); p.add_argument("--supply")
@@ -568,10 +578,11 @@ def main(argv=None):
         if args.k1_bench_test and args.action!="build": raise ValueError("--k1-bench-test is a build option; inspect/program use manifest identity")
         if args.bench_supply and args.action!="build": raise ValueError("--bench-supply is a build option; inspect/program use manifest identity")
         if args.peripheral_test and args.action!="build": raise ValueError("--peripheral-test is a build option; inspect/program use manifest identity")
+        if args.ntc_factory_profile and args.action!="build": raise ValueError("--ntc-factory-profile is a build option; program uses sealed manifest identity")
         if args.action=="doctor": result=doctor(args.openocd,args.scripts) if not args.dry_run else dict(dry_run=True,target_access=False,commands=["git --version","cmake --version","ninja --version","arm-none-eabi-gcc --version","selected openocd --version"])
         elif args.action=="build":
             if not args.profile or not args.out: raise ValueError("build needs --profile and new --out")
-            result=build(args.profile,args.out,args.dry_run,args.k1_bench_test,args.bench_supply,args.peripheral_test)
+            result=build(args.profile,args.out,args.dry_run,args.k1_bench_test,args.bench_supply,args.peripheral_test,args.ntc_factory_profile)
         elif args.action=="inspect":
             if not args.manifest: raise ValueError("inspect needs --manifest")
             result=inspect(args.manifest,args.profile)

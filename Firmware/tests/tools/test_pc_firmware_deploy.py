@@ -63,6 +63,58 @@ def image_fixture(root,profile):
 
 
 class DeployTests(unittest.TestCase):
+    def ntc_image(self):
+        import ntc_factory_profile as ntc
+        profile=d.load(Path(__file__).resolve().parents[2]/"config/units/54ff70068370525760380567-ntc-engineering.json")
+        profile["uid"]=UID
+        metadata=ntc.compile_profile(profile)
+        table=bytes.fromhex(metadata["lut_le_hex"])
+        value=d.load(self.image)
+        binary=bytearray(self.image.with_name("firmware.bin").read_bytes())
+        elf=bytearray(self.image.with_name("firmware.elf").read_bytes())
+        binary[100:100+len(table)]=table
+        elf[0x1000+100:0x1000+100+len(table)]=table
+        config=self.image.with_name("build_config.h").read_bytes()
+        config+=(f'#define WTK_NTC_FACTORY_CALIBRATION 1u\n#define WTK_NTC_FACTORY_UID "{UID}"\n'
+                 f'#define WTK_NTC_PROFILE_SHA256 "{metadata["profile_sha256"]}"\n').encode()
+        for name,raw in (("firmware.bin",binary),("firmware.elf",elf),("build_config.h",config)):
+            self.image.with_name(name).write_bytes(raw)
+            value["files"][name]=dict(bytes=len(raw),sha256=d.sha(raw))
+        value.update(schema="WTK_FIRMWARE_2",ntc_factory_profile=metadata)
+        value["seal_sha256"]=d.seal(value); d.save(self.image,value)
+        d.inspect(self.image)
+        return value
+
+    def test_ntc_wrong_unit_stops_before_any_backend_access(self):
+        self.ntc_image()
+        class NoAccess:
+            simulated=True
+            def plan(self,*args): raise AssertionError("target planning reached")
+            def execute(self,*args): raise AssertionError("target access reached")
+        for uid in ("", "0"*24):
+            with self.assertRaisesRegex(ValueError,"matching target UID"):
+                d.deployment("program",self.image,NoAccess(),self.root/"wrong-unit",uid=uid,dry_run=True)
+
+    def test_ntc_schema_downgrade_cannot_bypass_older_tool_rejection(self):
+        value=self.ntc_image()
+        self.assertEqual(value["schema"],"WTK_FIRMWARE_2")
+        value["schema"]="WTK_FIRMWARE_1"; value["seal_sha256"]=d.seal(value); d.save(self.image,value)
+        with self.assertRaisesRegex(ValueError,"schema 2"): d.inspect(self.image)
+
+    def test_ntc_matching_unit_fake_program_stays_simulated(self):
+        self.ntc_image()
+        result=self.run_deploy()
+        self.assertEqual(result["outcome"],"SIMULATED_VERIFIED")
+        self.assertTrue(result["SIMULATED"])
+
+
+    def test_ntc_build_option_is_explicit_and_generic_default_is_clear(self):
+        profile=self.root/"unit profile.json"
+        generic=d.build("BRINGUP_CAL",self.root/"generic",dry_run=True)
+        unit=d.build("BRINGUP_CAL",self.root/"unit",dry_run=True,ntc_factory_profile=profile)
+        self.assertIn("-DWTK_NTC_FACTORY_PROFILE=",generic["commands"][0])
+        self.assertIn("-DWTK_NTC_FACTORY_PROFILE="+str(profile.resolve()),unit["commands"][0])
+
     def test_minimal_diagnostic_banner_does_not_claim_uart_git_identity(self):
         identity=d.boot_identity('BRINGUP','a'*40,'0.1.0',False)
         self.assertEqual(identity['interface'],'LIMITED_UART_UI_REQUIRED')

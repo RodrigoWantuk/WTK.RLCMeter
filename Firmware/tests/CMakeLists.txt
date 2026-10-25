@@ -767,6 +767,31 @@ if(WTK_WARNINGS_AS_ERRORS_HOST)
     wtk_treat_warnings_as_errors(wtk_pc_osl_bridge)
 endif()
 find_package(Python3 3.9 REQUIRED COMPONENTS Interpreter)
+add_test(NAME wtk_ntc_factory_profile_test
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/test_ntc_factory_profile.py)
+set(WTK_NTC_TEST_GENERATED "${CMAKE_CURRENT_BINARY_DIR}/ntc-factory-generated")
+file(MAKE_DIRECTORY "${WTK_NTC_TEST_GENERATED}")
+execute_process(COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/ntc_factory_profile.py
+    --profile ${PROJECT_SOURCE_DIR}/config/units/54ff70068370525760380567-ntc-engineering.json
+    --header ${WTK_NTC_TEST_GENERATED}/wtk_ntc_factory_lut.h
+    --metadata ${WTK_NTC_TEST_GENERATED}/profile.json
+    RESULT_VARIABLE WTK_NTC_TEST_RESULT)
+if(NOT WTK_NTC_TEST_RESULT EQUAL 0)
+    message(FATAL_ERROR "NTC factory test data generation failed")
+endif()
+file(READ "${PROJECT_BINARY_DIR}/generated/wtk_build_config.h" WTK_NTC_TEST_CONFIG)
+string(REPLACE "#define WTK_NTC_FACTORY_CALIBRATION 0u" "#define WTK_NTC_FACTORY_CALIBRATION 1u"
+       WTK_NTC_TEST_CONFIG "${WTK_NTC_TEST_CONFIG}")
+file(WRITE "${WTK_NTC_TEST_GENERATED}/wtk_build_config.h" "${WTK_NTC_TEST_CONFIG}")
+add_executable(wtk_hw_ntc_factory_test hardware/test_hw_ntc_factory.c ../src/hardware/hw_power.c)
+target_include_directories(wtk_hw_ntc_factory_test PRIVATE ${WTK_NTC_TEST_GENERATED} ${PROJECT_SOURCE_DIR}/src)
+wtk_configure_c_target(wtk_hw_ntc_factory_test)
+wtk_apply_project_warnings(wtk_hw_ntc_factory_test)
+wtk_apply_common_compile_options(wtk_hw_ntc_factory_test)
+if(WTK_WARNINGS_AS_ERRORS_HOST)
+    wtk_treat_warnings_as_errors(wtk_hw_ntc_factory_test)
+endif()
+add_test(NAME wtk_hw_ntc_factory_test COMMAND wtk_hw_ntc_factory_test)
 if(WTK_PRODUCT_FACTORY_PROVISIONED)
     add_test(NAME wtk_product_ac_ui_integration
         COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/../tools/verify_product_ac_ui.py
