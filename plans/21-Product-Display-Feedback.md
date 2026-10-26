@@ -1,6 +1,6 @@
 # 21 — PRODUCT display feedback
 
-STATUS: IN_PROGRESS
+STATUS: IMPLEMENTED_REQUIRES_BENCH_VALIDATION — OWNER_CONFIRMS_DISPLAY_IMPROVED
 
 The owner confirms personalized splash and READY with active OSL, but reports
 READY art painted twice, slow rendering, and low brightness with correct colors.
@@ -31,3 +31,9 @@ images and linker gates. Program a source-bound PRODUCT image preserving W25Q
 assets, settings and sequence 1. Confirm READY/SAFE/no auto measurement using
 metadata, then ask the owner to verify brightness, one READY painting and normal
 colors. Keep ADC/DSP, hardware permits, analog limits and calibration unchanged.
+
+Source ddd565db passed 46/47 host tests by profile and all nine strict unit builds.
+Physical programming/readback and READY metadata confirm normal clock and 75%
+brightness, active sequence 1/33 records and SAFE outputs. The owner confirms
+visible improvement; subsequent C/L publication concerns are a separate task.
+See [delivery](../Firmware/releases/2026-10-25/display-feedback/README.md).

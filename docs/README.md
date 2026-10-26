@@ -2,8 +2,8 @@
 
 Latest first-unit checkpoint: [calibrated PRODUCT READY handoff](../Firmware/releases/2026-10-25/calibrated-product-ready/README.md).
 The 33-condition engineering OSL is installed and persistent. PRODUCT now loads
-it and reaches READY with SAFE outputs; physical TFT confirmation and independent
-metrology qualification remain pending. The linked handoff also records current
+it and reaches READY with SAFE outputs. The owner confirms splash and READY;
+independent metrology qualification remains pending. The linked handoff also records current
 C/L, polarized-capacitor, small-inductor, Click/Live and frequency-search limits.
 Chronological checkpoints below retain their original historical status and are
 superseded where the latest handoff provides newer evidence.
