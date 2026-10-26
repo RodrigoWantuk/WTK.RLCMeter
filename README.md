@@ -236,3 +236,7 @@ in SAFE. Visible TFT confirmation is deferred by the owner; metrology calibratio
 and remaining electrical qualification are still separate release prerequisites.
 See [delivery evidence](docs/review/bringup-2026-10-25/Boot-Splash.md) and
 [the supported upload procedure](Firmware/assets/README.md).
+
+The [nominal 0.47-uH follow-up](Firmware/releases/2026-10-25/inductor-047-limit-check/README.md) was resistance-like at 1 kHz
+and did not publish L. Automatic frequency search and sub-microhenry
+capability remain unvalidated; this is not a proven hardware lower limit.

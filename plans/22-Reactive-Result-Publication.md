@@ -58,3 +58,16 @@ loss and absolute accuracy are unqualified. No code or calibration was changed.
 The basic known-inductor check is now observed; 0.15/2.2-uH sensitivity and
 independent qualification remain pending. See
 [physical evidence](../Firmware/releases/2026-10-25/inductor-470-check/README.md).
+
+## Nominal 0.47-uH automatic-mode limit observation
+
+The owner then fitted a nominal 0.47-uH inductor and triggered session 5.
+One 1-kHz / 10-ohm / HG attempt produced R=0.235328 ohm, X=-0.0100988 ohm,
+RESISTIVE classification and no published L or C. The current policy skips
+frequency refinement for resistive results, so 10 kHz was not tested. This
+observes a current automatic-search limitation, not a proven hardware lower
+limit. Do not relabel the negative reactance as a successful inductance result.
+Actual SAFE teardown, zero faults and the same 33-record calibration were
+verified; no code/calibration was changed. Sub-microhenry sensitivity, phase
+and fixture compensation remain REQUIRES_BENCH_VALIDATION. See
+[physical evidence](../Firmware/releases/2026-10-25/inductor-047-limit-check/README.md).

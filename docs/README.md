@@ -169,3 +169,7 @@ pending before fitting an effective divider ratio and Beta. No trim is applied.
 supersedes that cold-comparison checkpoint: the owner-authorized two-point model
 is compiled into all nine UID-bound unit images and verified on the board.
 Independent thermal accuracy is not qualified. The three RLC fit blocks remain.
+
+The [nominal 0.47-uH follow-up](../Firmware/releases/2026-10-25/inductor-047-limit-check/README.md) was resistance-like at 1 kHz
+and did not publish L. Automatic frequency search and sub-microhenry
+capability remain unvalidated; this is not a proven hardware lower limit.
