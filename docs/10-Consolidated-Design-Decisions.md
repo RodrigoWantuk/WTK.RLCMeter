@@ -1061,3 +1061,36 @@ Residual thresholds apply to both terminal-to-measured-VMID departures and their
 difference; absolute terminal diagnostics remain available. Thresholds, saturation,
 freshness and eight SAFE evaluations remain. This is not earth-referenced isolation.
 See [B02.2 evidence and electrical limits](review/b02/B02.2-report.md).
+
+
+## 2026-10-26 — Evidence admission, continuous K1 ownership and menu patches
+
+Owner-authorized successor: [plan 24](../plans/24-Measurement-Evidence-Session-and-UI.md).
+
+Classification/trend evidence now requires a successful finite capture and a
+usable, unclipped selected RET with finite peak at least the existing 2 mV
+weak-return policy threshold. Rejected attempts remain in diagnostics. This
+prevents the observed weak, reranged candidates from deciding the component
+class; it does not lower R/C/L thresholds or qualify sub-microhenry measurements.
+
+PC-provisioned PRODUCT alone enables a continuous hardware-owned automatic
+session (six captures, 500-ms cooperative deadline, original battery-evidence
+expiry), starting from the unchanged fresh consumed initial permit. New range
+conditions are allowed only inside this live bounded authorization, with neutral
+excitation, controlled RANGE_EN transitions and settling. No token reissue,
+synthetic residual reading or UI-owned GPIO path is introduced. Live hard blockers
+and failures revoke ownership; final publication waits for SAFE and ADC restore.
+Actual release latency and analog behavior remain REQUIRES_BENCH_VALIDATION.
+
+The same profile enables an exact nine-row menu cache plus one in-flight row,
+without a framebuffer. Completed-row geometry/text/color/font-mode comparison
+skips unchanged rows; full-width row erasure handles shorter values and removed
+warnings. Language/screen/resource changes and failed paints establish a new
+full baseline. Quiet suspends row clears and glyphs. The full legacy-wizard
+image exceeded its existing Flash gate with the new UI path; it keeps the prior
+renderer instead of increasing that gate or removing legacy features.
+
+Calibration schema/model/hardware revision and stored OSL/NTC coefficients are
+unchanged. The unit's calibration remains engineering data, without a new
+accuracy or metrology qualification claim. No new resistor campaign is required
+for this policy/lifecycle change.

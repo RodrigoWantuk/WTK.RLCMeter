@@ -64,6 +64,16 @@ static void store_policy_event(app_measurement_session_t *session,
     }
     else if (event == MEASUREMENT_AUTO_EVENT_FINAL_RESULT)
     {
+#if WTK_ENABLE_MEASURE_SESSION_HOLD
+        if ((session->io->finish_session != NULL) && session->io->attempt_active(session->io->user))
+        {
+            session->have_partial = false;
+            session->have_final = false;
+            session->pending_event = APP_MEASUREMENT_EVENT_NONE;
+            session->state = APP_MEASUREMENT_SESSION_FINISHING;
+            return;
+        }
+#endif
         const measurement_session_result_t *final = measurement_auto_last_result(&session->policy);
         if (final != NULL)
         {
@@ -100,6 +110,9 @@ static void make_request(const app_measurement_session_t *session,
         .frequency = session->current_attempt.frequency,
         .amplitude = session->current_attempt.amplitude,
         .range_id = session->current_attempt.range_id,
+#if WTK_ENABLE_MEASURE_SESSION_HOLD
+        .session_hold = session->io->finish_session != NULL,
+#endif
     };
 }
 
@@ -168,6 +181,23 @@ app_measurement_event_t app_measurement_session_step(app_measurement_session_t *
     {
         return APP_MEASUREMENT_EVENT_ERROR;
     }
+#if WTK_ENABLE_MEASURE_SESSION_HOLD
+    /* Held results remain under the hardware owner's supervision while DSP,
+     * policy events and the next-condition handoff run in the foreground. */
+    if ((session->io != NULL) && (session->io->finish_session != NULL) &&
+        ((session->state == APP_MEASUREMENT_SESSION_PROCESS_DSP) ||
+         (session->state == APP_MEASUREMENT_SESSION_START_ATTEMPT)) &&
+        session->attempt_started && session->io->attempt_active(session->io->user))
+    {
+        const bsp_status_t status = session->io->step_attempt(now_ms, session->io->user);
+        if (status != BSP_STATUS_OK && status != BSP_STATUS_BUSY)
+        {
+            session->pending_event = APP_MEASUREMENT_EVENT_NONE;
+            session->have_partial = false;
+            session->state = APP_MEASUREMENT_SESSION_CANCELING;
+        }
+    }
+#endif
     if (session->pending_event != APP_MEASUREMENT_EVENT_NONE)
     {
         return take_pending_event(session);
@@ -189,6 +219,14 @@ app_measurement_event_t app_measurement_session_step(app_measurement_session_t *
         }
         if (!measurement_auto_next_attempt(&session->policy, &session->current_attempt))
         {
+#if WTK_ENABLE_MEASURE_SESSION_HOLD
+            if (session->io->finish_session != NULL && session->io->attempt_active(session->io->user))
+            {
+                (void)session->io->attempt_abort(session->io->user);
+                session->state = APP_MEASUREMENT_SESSION_CANCELING;
+                return APP_MEASUREMENT_EVENT_NONE;
+            }
+#endif
             session->state = APP_MEASUREMENT_SESSION_DONE;
             session->pending_event = APP_MEASUREMENT_EVENT_ERROR;
             return take_pending_event(session);
@@ -234,6 +272,12 @@ app_measurement_event_t app_measurement_session_step(app_measurement_session_t *
 
     case APP_MEASUREMENT_SESSION_PROCESS_DSP:
     {
+        if (session->cancel_requested)
+        {
+            (void)session->io->attempt_abort(session->io->user);
+            session->state = APP_MEASUREMENT_SESSION_CANCELING;
+            return APP_MEASUREMENT_EVENT_NONE;
+        }
         measurement_attempt_result_t attempt_result;
         if (!session->io->attempt_dumpable(session->io->user))
         {
@@ -272,6 +316,15 @@ app_measurement_event_t app_measurement_session_step(app_measurement_session_t *
             (step_status == BSP_STATUS_OK))
         {
             session->io->attempt_acknowledge(session->io->user);
+#if WTK_ENABLE_MEASURE_SESSION_HOLD
+            if (session->io->finish_session != NULL)
+            {
+                const measurement_auto_status_t terminal = session->cancel_requested ?
+                    MEASUREMENT_AUTO_STATUS_CANCELED : MEASUREMENT_AUTO_STATUS_SAFETY_ABORT;
+                store_policy_event(session, measurement_auto_stop_session(&session->policy, terminal));
+                return take_pending_event(session);
+            }
+#endif
             measurement_attempt_result_t canceled =
                 app_measurement_attempt_from_dsp(&session->current_attempt, NULL, false, false, true);
             store_policy_event(session, measurement_auto_submit_result(&session->policy, &canceled));
@@ -280,7 +333,38 @@ app_measurement_event_t app_measurement_session_step(app_measurement_session_t *
         return APP_MEASUREMENT_EVENT_NONE;
     }
 
+#if WTK_ENABLE_MEASURE_SESSION_HOLD
+    case APP_MEASUREMENT_SESSION_FINISHING:
+    {
+        (void)session->io->finish_session(session->io->user);
+        (void)session->io->step_attempt(now_ms, session->io->user);
+        if (!session->io->attempt_active(session->io->user))
+        {
+            const hw_metrology_measure_error_t error = session->io->attempt_error(session->io->user);
+            if (session->cancel_requested || error != HW_METROLOGY_MEASURE_OK)
+            {
+                (void)measurement_auto_stop_session(&session->policy,
+                    session->cancel_requested ? MEASUREMENT_AUTO_STATUS_CANCELED :
+                                                MEASUREMENT_AUTO_STATUS_SAFETY_ABORT);
+            }
+            session->io->attempt_acknowledge(session->io->user);
+            store_policy_event(session, MEASUREMENT_AUTO_EVENT_FINAL_RESULT);
+            return take_pending_event(session);
+        }
+        return APP_MEASUREMENT_EVENT_NONE;
+    }
+#endif
+
     default:
+#if WTK_ENABLE_MEASURE_SESSION_HOLD
+        if (session->io != NULL && session->io->finish_session != NULL &&
+            session->io->attempt_active(session->io->user))
+        {
+            (void)session->io->attempt_abort(session->io->user);
+            session->state = APP_MEASUREMENT_SESSION_CANCELING;
+            return APP_MEASUREMENT_EVENT_NONE;
+        }
+#endif
         session->state = APP_MEASUREMENT_SESSION_DONE;
         session->pending_event = APP_MEASUREMENT_EVENT_ERROR;
         return take_pending_event(session);
@@ -305,7 +389,16 @@ bsp_status_t app_measurement_session_cancel(app_measurement_session_t *session)
         {
             session->io->attempt_acknowledge(session->io->user);
         }
-        (void)measurement_auto_cancel(&session->policy);
+#if WTK_ENABLE_MEASURE_SESSION_HOLD
+        if (session->io->finish_session != NULL)
+        {
+            (void)measurement_auto_stop_session(&session->policy, MEASUREMENT_AUTO_STATUS_CANCELED);
+        }
+        else
+#endif
+        {
+            (void)measurement_auto_cancel(&session->policy);
+        }
         store_policy_event(session, MEASUREMENT_AUTO_EVENT_FINAL_RESULT);
         return BSP_STATUS_OK;
     }
@@ -461,6 +554,10 @@ const char *app_measurement_session_state_string(app_measurement_session_state_t
         return "PROCESS_DSP";
     case APP_MEASUREMENT_SESSION_DONE:
         return "DONE";
+#if WTK_ENABLE_MEASURE_SESSION_HOLD
+    case APP_MEASUREMENT_SESSION_FINISHING:
+        return "FINISHING";
+#endif
     case APP_MEASUREMENT_SESSION_CANCELING:
     default:
         return "CANCELING";

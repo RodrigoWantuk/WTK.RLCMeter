@@ -256,6 +256,9 @@ bool measurement_auto_next_attempt(const measurement_auto_session_t *session,
 measurement_auto_event_t measurement_auto_submit_result(measurement_auto_session_t *session,
                                                         const measurement_attempt_result_t *result);
 measurement_auto_event_t measurement_auto_cancel(measurement_auto_session_t *session);
+/* Revoke a provisional/final result when acquisition-session cleanup fails. */
+measurement_auto_event_t measurement_auto_stop_session(measurement_auto_session_t *session,
+                                                       measurement_auto_status_t status);
 measurement_auto_hint_t measurement_auto_make_hint(const measurement_session_result_t *result);
 
 bool measurement_auto_condition_allowed(hw_range_id_t range_id,

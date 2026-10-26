@@ -1097,3 +1097,54 @@ show/report fault when UI/diagnostics are available
 ## Implementation sequence
 
 The normative implementation sequence is maintained in [`../plans/`](../plans/). Agents must not treat the module list in this document as permission to implement later phases early.
+
+
+## Bounded factory session and result closure (2026-10-26)
+
+The generated WTK_ENABLE_MEASURE_SESSION_HOLD flag follows PC-provisioned
+PRODUCT. hw_metrology_measure_request_t.session_hold opts automatic captures
+into a continuous session; fixed captures leave it false. SESSION_HOLD is
+appended to the hardware enum, preserving the previous state numbers.
+
+After DMA stop/neutral settling, a held block is valid for in-memory DSP via
+hw_metrology_measure_result_ready(). It is deliberately not UART-dumpable.
+Acknowledging it invalidates that block while retaining K1/ADC/quiet ownership.
+A validated continuation through hw_metrology_measure_start() preserves the
+original consumed permit metadata, checks clocks/amplitude/domain/authorization,
+and prepares the new range through the existing service. The new range does
+not energize K1 again. ADC capture configuration/timing and DSP math are retained.
+
+Six captures and a 500-ms cooperative deadline bound the session, additionally
+limited by the original battery-evidence expiry. Only neutral, owner-controlled
+range transitions can tolerate DISABLED/TRANSITIONING; invalid/unexpected range,
+charger/unknown charger, DMA/fault, lost K1, timeout, invalid request or cancel
+enters normal emergency cleanup. Ten-Hz, DC and bench-supply captures retain
+individual SAFE transactions. Foreground deadline checks are not a measured
+hard-real-time release guarantee; watchdog behavior remains unchanged.
+
+App measurement IO has an optional finish_session callback. Its presence opts
+requests into holding. START/PROCESS/pending-event handoffs continue to step
+the hardware supervisor. FINISHING keeps final_ready false until the hardware
+owner is inactive and cleanup errors are checked. measurement_auto_stop_session()
+can revoke provisional final success with CANCELED/SAFETY_ABORT/FAILED, but cannot
+turn an error back into FINAL_OK. The exclusive I/O workspace stays leased until
+final cleanup; held continuation checks the existing lease instead of attempting
+a second acquire. Lost/stolen leases fail closed.
+
+Classification and frequency-trend traversal share the same evidence-admission
+predicate. All raw attempts and the explicit primary quality selection remain
+inspectable; selected-path evidence below 2 mV, nonfinite or clipped/unusable
+cannot vote. Contradictory usable evidence remains inconclusive.
+
+WTK_ENABLE_UI_ROW_CACHE follows the same profile boundary. Nine exact completed
+rows and one painting row are statically bounded (440 bytes of row storage on
+Arm, plus small control/alignment overhead). Cache commit follows successful
+text completion. Same-menu generations skip identical rows; changed or removed
+rows are fully erased by bounded ILI9341 chunks before repaint. Display-menu,
+brightness and timeout states share one layout family. Language/resource/screen
+changes or a failed draw invalidate the baseline. Result/page transitions retain
+their existing rendering behavior. No framebuffer, heap, ISR rendering or new
+persistent record format is introduced.
+
+Metrology IO initialization also requires the live charger callback; all board
+adapters provide it. Missing runtime charger supervision must fail closed.

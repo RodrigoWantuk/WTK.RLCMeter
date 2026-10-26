@@ -53,6 +53,7 @@ typedef struct
     hw_k1_t *real_k1;
     bool range_enabled;
     bool address_while_enabled;
+    bool address_while_driven;
     uint8_t address;
     bool freeze_sensors;
     bool off_while_range_enabled;
@@ -609,6 +610,7 @@ static bsp_status_t preflight_range_address(uint8_t address, void *user)
 {
     fake_io_t *fake = (fake_io_t *)user;
     fake->address_while_enabled |= fake->range_enabled;
+    fake->address_while_driven |= fake->exc == HW_EXCITATION_MODE_SINE;
     fake->address = address;
     return BSP_STATUS_OK;
 }
@@ -888,10 +890,194 @@ static int test_30ms_relay_guard(void)
     return failures;
 }
 
+#if WTK_ENABLE_MEASURE_SESSION_HOLD
+static int run_until_hold(hw_metrology_measure_t *measure, fake_io_t *fake, uint32_t *now)
+{
+    for (uint32_t i = 0u; i < 200u; i++)
+    {
+        fake->now_ms = *now;
+        (void)hw_metrology_measure_step(measure, (*now)++);
+        if (measure->state == HW_METROLOGY_MEASURE_SESSION_HOLD) return 0;
+        if (measure->state == HW_METROLOGY_MEASURE_IDLE || measure->state == HW_METROLOGY_MEASURE_DONE) break;
+    }
+    return 1;
+}
+
+static int test_bounded_relay_session(void)
+{
+    int failures = 0;
+    for (uint8_t wrap = 0u; wrap < 2u; wrap++)
+    {
+        uint32_t raw[HW_METROLOGY_RAW_WORD_COUNT] = {0};
+        fake_io_t fake = {.k1 = HW_K1_STATE_SAFE, .charger = HW_CHARGER_ABSENT};
+        hw_metrology_measure_io_t io;
+        hw_metrology_measure_t measure;
+        hw_range_t range;
+        const hw_range_io_t range_io = {
+            .write_enable = preflight_range_enable, .write_address = preflight_range_address, .user_data = &fake};
+        (void)hw_range_init(&range, &range_io);
+        fake.real_range = &range;
+        bind_default_permit_inputs(&fake, HW_RANGE_ID_1K);
+        bind_io(&io, &fake);
+        (void)hw_metrology_measure_init(&measure, &io, raw, HW_METROLOGY_RAW_WORD_COUNT);
+        const bsp_clock_summary_t clock = production_clock();
+        hw_metrology_measure_request_t request = make_request(&clock, HW_RANGE_ID_1K, HW_EXCITATION_AMP_100MVRMS);
+        request.session_hold = true;
+        uint32_t now = (wrap == 0u) ? 0u : UINT32_MAX - 80u;
+        failures += expect_true(hw_metrology_measure_start(&measure, &request, now) == BSP_STATUS_BUSY,
+                                "session begins with ordinary safe entry");
+        for (uint8_t i = 0u; i < 4u; i++)
+        {
+            failures += expect_true(run_until_hold(&measure, &fake, &now) == 0, "capture reaches supervised HOLD");
+            failures += expect_true(fake.k1 == HW_K1_STATE_MEASURE && fake.exc == HW_EXCITATION_MODE_NEUTRAL &&
+                                       fake.quiet && fake.aux_paused && measure.adc_owned,
+                                    "held capture owns neutral K1 ADC quiet window");
+            failures += expect_true(hw_metrology_measure_result_ready(&measure) &&
+                                       !hw_metrology_measure_dumpable(&measure), "held result is DSP-only, never UART dumpable");
+            hw_metrology_measure_acknowledge(&measure);
+            failures += expect_true(hw_metrology_measure_active(&measure) && hw_metrology_measure_k1_owned(),
+                                    "DSP acknowledgement cannot release session ownership");
+            if (i < 3u)
+            {
+                request.range_id = (i == 0u) ? HW_RANGE_ID_100R : HW_RANGE_ID_10R;
+                request.frequency = (i == 2u) ? HW_EXCITATION_FREQ_10KHZ : HW_EXCITATION_FREQ_1KHZ;
+                failures += expect_true(hw_metrology_measure_start(&measure, &request, now) == BSP_STATUS_BUSY,
+                                        "continue same hardware-owned authorization");
+            }
+        }
+        failures += expect_true(fake.k1_request_calls == 1u && fake.permit_validate_calls == 1u &&
+                                   measure.permit.consumed && fake.restore_calls == 0u && fake.resume_calls == 0u,
+                                "four conditions use one K1 entry and no stale permit reissue or aux resume");
+        failures += expect_true(!fake.address_while_enabled && !fake.address_while_driven,
+                                "actual range service changes address only disabled and neutral");
+        (void)hw_metrology_measure_finish_session(&measure);
+        failures += expect_true(run_until_idle(&measure, &fake, &now) == 0, "session final cleanup completes");
+        failures += expect_true(fake.k1 == HW_K1_STATE_SAFE && fake.exc == HW_EXCITATION_MODE_OFF &&
+                                   !fake.quiet && fake.restore_calls == 1u && fake.resume_calls == 1u &&
+                                   !hw_metrology_measure_k1_owned() && !range.enabled,
+                                "final cleanup restores ADC once and leaves all outputs SAFE");
+    }
+    return failures;
+}
+
+static int test_session_capture_limit_and_range_timeout(void)
+{
+    int failures = 0;
+    for (uint8_t variant = 0u; variant < 3u; variant++)
+    {
+        uint32_t raw[HW_METROLOGY_RAW_WORD_COUNT] = {0};
+        fake_io_t fake = {.k1 = HW_K1_STATE_SAFE, .charger = HW_CHARGER_ABSENT};
+        hw_metrology_measure_io_t io;
+        hw_metrology_measure_t measure;
+        bind_default_permit_inputs(&fake, HW_RANGE_ID_1K);
+        bind_io(&io, &fake);
+        (void)hw_metrology_measure_init(&measure, &io, raw, HW_METROLOGY_RAW_WORD_COUNT);
+        const bsp_clock_summary_t clock = production_clock();
+        hw_metrology_measure_request_t request = make_request(&clock, HW_RANGE_ID_1K, HW_EXCITATION_AMP_100MVRMS);
+        request.session_hold = true;
+        if (variant == 2u) request.frequency = HW_EXCITATION_FREQ_10HZ;
+        uint32_t now = 0u;
+        (void)hw_metrology_measure_start(&measure, &request, now);
+        if (variant == 2u)
+        {
+            failures += expect_true(run_until_idle(&measure, &fake, &now) == 0 &&
+                                       fake.k1 == HW_K1_STATE_SAFE && fake.restore_calls == 1u && !fake.quiet,
+                                    "slow 10-Hz request retains one-capture SAFE teardown");
+            continue;
+        }
+        const uint8_t captures = (variant == 0u) ? (uint8_t)HW_METROLOGY_SESSION_MAX_CAPTURES : 1u;
+        for (uint8_t i = 0u; i < captures; i++)
+        {
+            failures += expect_true(run_until_hold(&measure, &fake, &now) == 0, "bounded capture reaches HOLD");
+            hw_metrology_measure_acknowledge(&measure);
+            if (i + 1u < captures) (void)hw_metrology_measure_start(&measure, &request, now);
+        }
+        if (variant == 0u)
+        {
+            failures += expect_true(hw_metrology_measure_start(&measure, &request, now) == BSP_STATUS_ERROR,
+                                    "seventh capture cannot extend session authorization");
+        }
+        else
+        {
+            request.range_id = HW_RANGE_ID_100R;
+            (void)hw_metrology_measure_start(&measure, &request, now);
+            (void)hw_metrology_measure_step(&measure, now++);
+            fake.range_ready = false;
+            fake.range_state = HW_RANGE_TRANSITIONING;
+        }
+        failures += expect_true(run_until_idle(&measure, &fake, &now) == 0 &&
+                                   fake.k1 == HW_K1_STATE_SAFE && !fake.quiet && fake.restore_calls == 1u,
+                                "capture limit or unsettled range triggers complete safe cleanup");
+        if (variant == 1u)
+            failures += expect_true(measure.error == HW_METROLOGY_MEASURE_ERR_RANGE,
+                                    "bounded neutral range transition cannot wait forever");
+        failures += expect_true(fake.k1_request_calls == 1u, "bounded failure never reenergizes relay");
+    }
+    return failures;
+}
+
+static int test_held_session_fault_matrix(void)
+{
+    int failures = 0;
+    for (uint8_t fault = 0u; fault < 16u; fault++)
+    {
+        uint32_t raw[HW_METROLOGY_RAW_WORD_COUNT] = {0};
+        fake_io_t fake = {.k1 = HW_K1_STATE_SAFE, .charger = HW_CHARGER_ABSENT};
+        hw_metrology_measure_io_t io;
+        hw_metrology_measure_t measure;
+        bind_default_permit_inputs(&fake, HW_RANGE_ID_1K);
+        fake.issue_input.battery_age_ms = (fault == 8u) ? 800u : 0u;
+        bind_io(&io, &fake);
+        (void)hw_metrology_measure_init(&measure, &io, raw, HW_METROLOGY_RAW_WORD_COUNT);
+        const bsp_clock_summary_t clock = production_clock();
+        hw_metrology_measure_request_t request = make_request(&clock, HW_RANGE_ID_1K, HW_EXCITATION_AMP_100MVRMS);
+        request.session_hold = true;
+        uint32_t now = 0u;
+        (void)hw_metrology_measure_start(&measure, &request, now);
+        failures += expect_true(run_until_hold(&measure, &fake, &now) == 0, "fault fixture reaches held capture");
+        hw_metrology_measure_acknowledge(&measure);
+        switch (fault)
+        {
+        case 0u: fake.charger = HW_CHARGER_PRESENT; break;
+        case 1u: fake.charger = HW_CHARGER_UNKNOWN; break;
+        case 2u: fake.fault_mask = 1u; break;
+        case 3u: fake.range_state = HW_RANGE_INVALID; break;
+        case 4u: fake.range_state = HW_RANGE_DISABLED; break;
+        case 5u: fake.exc = HW_EXCITATION_MODE_SINE; break;
+        case 6u: fake.dma_error = true; break;
+        case 7u: now = measure.session_deadline_ms; break;
+        case 8u: now = measure.session_battery_deadline_ms; break;
+        case 9u: fake.k1 = HW_K1_STATE_SAFE; break;
+        case 10u:
+            request.range_id = HW_RANGE_ID_10R; request.amplitude = HW_EXCITATION_AMP_500MVRMS;
+            (void)hw_metrology_measure_start(&measure, &request, now); break;
+        case 11u: (void)hw_metrology_measure_abort(&measure); break;
+        case 12u: fake.range_id = HW_RANGE_ID_100R; break;
+        case 13u: (void)hw_metrology_measure_start(&measure, NULL, now); break;
+        case 14u: fake.restore_fail = true; (void)hw_metrology_measure_finish_session(&measure); break;
+        default: fake.range_state = (hw_safety_range_state_t)255; break;
+        }
+        failures += expect_true(run_until_idle(&measure, &fake, &now) == 0, "held fault converges through bounded cleanup");
+        failures += expect_true(fake.k1 == HW_K1_STATE_SAFE && fake.exc == HW_EXCITATION_MODE_OFF &&
+                                   !fake.quiet && !hw_metrology_measure_dumpable(&measure) &&
+                                   !hw_metrology_measure_k1_owned() && measure.error != HW_METROLOGY_MEASURE_OK,
+                                "held fault revokes result and all hazardous outputs");
+        failures += expect_true(fake.k1_request_calls == 1u && fake.permit_validate_calls == 1u,
+                                "fault never reenergizes K1 or reuses consumed permit");
+    }
+    return failures;
+}
+#endif
+
 int main(void)
 {
     int failures = test_first_measurement_preflight();
     failures += test_30ms_relay_guard();
+#if WTK_ENABLE_MEASURE_SESSION_HOLD
+    failures += test_bounded_relay_session();
+    failures += test_held_session_fault_matrix();
+    failures += test_session_capture_limit_and_range_timeout();
+#endif
 #if WTK_ENABLE_BENCH_SUPPLY
     failures += test_external_bench_supply();
 #endif
@@ -909,6 +1095,10 @@ int main(void)
     bind_io(&io, &fake);
 
     hw_metrology_measure_t measure;
+    io.charger_state = NULL;
+    failures += expect_true(hw_metrology_measure_init(&measure, &io, raw, HW_METROLOGY_RAW_WORD_COUNT) ==
+                                BSP_STATUS_INVALID_ARG, "missing live charger callback must fail closed");
+    io.charger_state = fake_charger;
     failures += expect_true(hw_metrology_measure_init(&measure, &io, raw, HW_METROLOGY_RAW_WORD_COUNT) ==
                                 BSP_STATUS_OK,
                             "init");

@@ -154,3 +154,9 @@ remains pending.
 apparently resistive low-impedance results after ratio-based range selection.
 The original nominal 0.47-uH result was not resolved; additional search does not
 qualify sub-microhenry capability or override contradictory phase evidence.
+
+[Plan 24](24-Measurement-Evidence-Session-and-UI.md) implements trustworthy
+classification/trend evidence, bounded hardware-owned K1 continuation and exact
+incremental menus in PC-provisioned PRODUCT. Raw captures/calibration are
+preserved; unattended validation cannot replace pending physical switching/UI
+checks. Legacy full-wizard and fixed-capture profiles retain their safe paths.

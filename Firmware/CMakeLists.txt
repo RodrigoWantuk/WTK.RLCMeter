@@ -110,12 +110,9 @@ if(WTK_FIRMWARE_PROFILE STREQUAL "BRINGUP_CAL")
     set(WTK_DIAGNOSTIC_LOG_LEVEL_DEFAULT 1)
     set(WTK_ENABLE_BRINGUP_CONSOLE 0)
 elseif(WTK_FIRMWARE_PROFILE STREQUAL "BRINGUP")
-    set(WTK_DIAGNOSTIC_LOG_LEVEL_DEFAULT 5)
-    if(WTK_BRINGUP_BENCH_SUPPLY OR WTK_BRINGUP_K1_TEST)
-        # Keep all diagnostic commands; omit unsolicited verbose boot/button logs
-        # so the optional splash also fits these C8 engineering variants.
-        set(WTK_DIAGNOSTIC_LOG_LEVEL_DEFAULT 3)
-    endif()
+    # Keep every diagnostic command and safety message; omit unsolicited verbose
+    # boot/button logs to retain C8 space for the shared measurement policy.
+    set(WTK_DIAGNOSTIC_LOG_LEVEL_DEFAULT 3)
     set(WTK_ENABLE_BRINGUP_CONSOLE 1)
 elseif(WTK_BUILD_TYPE STREQUAL "Release")
     set(WTK_DIAGNOSTIC_LOG_LEVEL_DEFAULT 2)

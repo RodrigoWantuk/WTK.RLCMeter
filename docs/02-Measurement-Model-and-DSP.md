@@ -156,7 +156,9 @@ The existing six-attempt/four-range/one-frequency limits and no-repeat rule
 still apply. Actual SHORT/OPEN, invalid data, safety abort and cancellation
 retain their priorities. No 10-ohm/500-mVrms condition is allowed. Higher-RREF
 and already-10-kHz resistive results do not trigger this additional check.
-Every requested condition still uses a fresh guarded acquisition transaction.
+Every requested condition uses the guarded hardware FSM. PC-provisioned PRODUCT
+may continue within an explicitly bounded continuous K1 authorization; fixed
+captures retain fresh individual permits (see plan 24).
 
 The second frequency is supporting evidence. Existing primary selection,
 classification thresholds and conservative disagreement handling remain
@@ -180,3 +182,14 @@ A reading may be rejected or marked `EXTENDED` / `LOW_CONFIDENCE` due to:
 - missing/incompatible calibration.
 
 The firmware should prefer an explicit low-confidence or rejected result over presenting accuracy that has not been established.
+
+## Classification evidence admission
+
+A mathematically finite candidate does not automatically qualify as classification
+or frequency-trend evidence. The selected return must be usable, unclipped and
+finite, with peak at least the existing 2-mV weak-return policy threshold; failed
+or clipped captures do not vote. Raw history remains complete. The same predicate
+is used for frequency-trend pairs, so weak rerange attempts cannot poison that
+trend either. Primary quality ordering and conservative handling of genuinely
+contradictory usable captures remain unchanged. This is an evidence policy,
+not a new calibrated accuracy bound. See plan 24.

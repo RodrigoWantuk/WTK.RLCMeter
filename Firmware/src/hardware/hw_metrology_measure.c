@@ -173,13 +173,24 @@ static bool io_complete(const hw_metrology_measure_io_t *io)
            (io->excitation_sine != NULL) &&
            (io->excitation_mode != NULL) &&
            (io->excitation_dma_error != NULL) &&
+           (io->charger_state != NULL) &&
            (io->safety_fault_mask != NULL) &&
            (io->permit_issue_input != NULL) &&
            (io->permit_validate_input != NULL);
 }
 
-static bool measure_dynamic_abort(hw_metrology_measure_t *measure)
+static bool measure_dynamic_abort(hw_metrology_measure_t *measure, uint32_t now_ms)
 {
+    (void)now_ms;
+#if WTK_ENABLE_MEASURE_SESSION_HOLD
+    if (measure->session_connected &&
+        (deadline_reached(now_ms, measure->session_deadline_ms) ||
+         deadline_reached(now_ms, measure->session_battery_deadline_ms) ||
+         (measure->io.k1_commanded_state(measure->io.user) != HW_K1_STATE_MEASURE)))
+    {
+        return true;
+    }
+#endif
 #if WTK_ENABLE_BENCH_SUPPLY
     if (measure->permit.valid && measure->permit.bench_supply_confirmed)
     {
@@ -208,10 +219,23 @@ static bool measure_dynamic_abort(hw_metrology_measure_t *measure)
         return true;
     }
 
+    bool owned_range_transition = false;
+#if WTK_ENABLE_MEASURE_SESSION_HOLD
+    owned_range_transition = measure->session_connected &&
+        ((measure->state == HW_METROLOGY_MEASURE_RANGE_REQUEST) ||
+         (measure->state == HW_METROLOGY_MEASURE_RANGE_WAIT));
+    if ((owned_range_transition || (measure->state == HW_METROLOGY_MEASURE_SESSION_HOLD)) &&
+        (measure->io.excitation_mode(measure->io.user) != HW_EXCITATION_MODE_NEUTRAL))
+    {
+        return true;
+    }
+#endif
     if ((measure->io.range_safety_state == NULL) ||
         (measure->io.range_current_id == NULL) ||
-        (measure->io.range_safety_state(measure->io.user) != HW_RANGE_READY) ||
-        (measure->io.range_current_id(measure->io.user) != measure->request.range_id))
+        ((uint32_t)measure->io.range_safety_state(measure->io.user) > (uint32_t)HW_RANGE_TRANSITIONING) ||
+        (!owned_range_transition &&
+         ((measure->io.range_safety_state(measure->io.user) != HW_RANGE_READY) ||
+          (measure->io.range_current_id(measure->io.user) != measure->request.range_id))))
     {
         return true;
     }
@@ -274,6 +298,9 @@ static void abort_cleanup_step(hw_metrology_measure_t *measure,
         {
             measure->io.latch_metrology_runtime_fault(measure->io.user);
         }
+#if WTK_ENABLE_MEASURE_SESSION_HOLD
+        measure->session_connected = false;
+#endif
         measure->k1_owned = measure->abort_release_guard_pending;
         if (measure->abort_release_guard_pending)
         {
@@ -375,6 +402,10 @@ bsp_status_t hw_metrology_measure_init(hw_metrology_measure_t *measure,
     measure->k1_reached_measure = false;
     measure->abort_release_guard_pending = false;
     measure->abort_phase = (uint8_t)HW_METROLOGY_MEASURE_ABORT_NONE;
+#if WTK_ENABLE_MEASURE_SESSION_HOLD
+    measure->session_connected = false;
+    measure->session_capture_count = 0u;
+#endif
     measure->block.valid = false;
     hw_measure_permit_init(&measure->permit);
     sync_k1_globals(measure);
@@ -388,8 +419,49 @@ bsp_status_t hw_metrology_measure_start(hw_metrology_measure_t *measure,
     (void)now_ms;
     if ((measure == NULL) || (request == NULL))
     {
+#if WTK_ENABLE_MEASURE_SESSION_HOLD
+        if (measure != NULL && measure->state == HW_METROLOGY_MEASURE_SESSION_HOLD)
+        {
+            enter_abort(measure, HW_METROLOGY_MEASURE_ERR_INVALID);
+            sync_k1_globals(measure);
+        }
+#endif
         return BSP_STATUS_INVALID_ARG;
     }
+#if WTK_ENABLE_MEASURE_SESSION_HOLD
+    if (measure->state == HW_METROLOGY_MEASURE_SESSION_HOLD)
+    {
+        if (!request->session_hold || !measure->session_connected ||
+            (measure->session_capture_count >= HW_METROLOGY_SESSION_MAX_CAPTURES) ||
+            measure_dynamic_abort(measure, now_ms) ||
+            !hw_metrology_clock_ready(request->clock_summary, request->clock_init_status) ||
+            ((request->frequency != HW_EXCITATION_FREQ_1KHZ) &&
+             (request->frequency != HW_EXCITATION_FREQ_10KHZ)) ||
+#if WTK_ENABLE_DC_PILOT
+            request->dc_pilot ||
+#endif
+            (hw_excitation_validate_amplitude(request->range_id, request->amplitude) != BSP_STATUS_OK) ||
+            (hw_metrology_adc_profile(request->frequency, &measure->adc_profile) != BSP_STATUS_OK) ||
+            (hw_excitation_freq_profile(request->frequency, &measure->exc_profile) != BSP_STATUS_OK))
+        {
+            enter_abort(measure, HW_METROLOGY_MEASURE_ERR_PERMIT);
+            sync_k1_globals(measure);
+            return BSP_STATUS_ERROR;
+        }
+        measure->request = *request;
+        measure->sequence++;
+        measure->session_capture_count++;
+        prepare_block_metadata(measure);
+        measure->block.permit_issue_ms = measure->permit.issued_at_ms;
+        measure->block.permit_validate_ms = measure->session_validate_ms;
+        measure->block.k1_operate_guard_ms = 0u;
+        measure->block.k1_release_guard_ms = 0u;
+        measure->dumpable = false;
+        measure->state = HW_METROLOGY_MEASURE_RANGE_REQUEST;
+        sync_k1_globals(measure);
+        return BSP_STATUS_BUSY;
+    }
+#endif
     if (hw_metrology_measure_active(measure))
     {
         return BSP_STATUS_BUSY;
@@ -404,6 +476,10 @@ bsp_status_t hw_metrology_measure_start(hw_metrology_measure_t *measure,
     measure->k1_reached_measure = false;
     measure->abort_release_guard_pending = false;
     measure->abort_phase = (uint8_t)HW_METROLOGY_MEASURE_ABORT_NONE;
+#if WTK_ENABLE_MEASURE_SESSION_HOLD
+    measure->session_connected = false;
+    measure->session_capture_count = 0u;
+#endif
     hw_measure_permit_init(&measure->permit);
 
     if (!hw_metrology_clock_ready(request->clock_summary, request->clock_init_status))
@@ -502,7 +578,7 @@ bsp_status_t hw_metrology_measure_abort(hw_metrology_measure_t *measure)
 
 static bsp_status_t step_success_path(hw_metrology_measure_t *measure, uint32_t now_ms)
 {
-    if (measure_dynamic_abort(measure))
+    if (measure_dynamic_abort(measure, now_ms))
     {
         enter_abort(measure, HW_METROLOGY_MEASURE_ERR_ABORT);
         return BSP_STATUS_BUSY;
@@ -547,6 +623,11 @@ static bsp_status_t step_success_path(hw_metrology_measure_t *measure, uint32_t 
         }
         if (measure->io.range_is_ready(measure->io.user))
         {
+            if (measure->io.range_current_id(measure->io.user) != measure->request.range_id)
+            {
+                enter_abort(measure, HW_METROLOGY_MEASURE_ERR_RANGE);
+                break;
+            }
             measure->state = HW_METROLOGY_MEASURE_EXC_NEUTRAL;
             break;
         }
@@ -578,6 +659,9 @@ static bsp_status_t step_success_path(hw_metrology_measure_t *measure, uint32_t 
         measure->io.quiet_request(true, measure->io.user);
         measure->quiet_held = true;
         measure->state = HW_METROLOGY_MEASURE_PERMIT_ISSUE;
+#if WTK_ENABLE_MEASURE_SESSION_HOLD
+        if (measure->session_connected) measure->state = HW_METROLOGY_MEASURE_ADC_ACQUIRE;
+#endif
         break;
 
     case HW_METROLOGY_MEASURE_PERMIT_ISSUE:
@@ -607,6 +691,10 @@ static bsp_status_t step_success_path(hw_metrology_measure_t *measure, uint32_t 
             break;
         }
         measure->block.permit_issue_ms = now_ms;
+#if WTK_ENABLE_MEASURE_SESSION_HOLD
+        measure->session_battery_deadline_ms = now_ms +
+            HW_MEASURE_PERMIT_BATTERY_MAX_AGE_MS - issue_input.battery_age_ms;
+#endif
         measure->state = HW_METROLOGY_MEASURE_PERMIT_VALIDATE;
         break;
     }
@@ -672,6 +760,19 @@ static bsp_status_t step_success_path(hw_metrology_measure_t *measure, uint32_t 
         }
         measure->k1_owned = true;
         measure->k1_reached_measure = true;
+#if WTK_ENABLE_MEASURE_SESSION_HOLD
+        measure->session_connected = measure->request.session_hold &&
+            (measure->request.frequency != HW_EXCITATION_FREQ_10HZ);
+#if WTK_ENABLE_BENCH_SUPPLY
+        measure->session_connected = measure->session_connected && !measure->permit.bench_supply_confirmed;
+#endif
+#if WTK_ENABLE_DC_PILOT
+        measure->session_connected = measure->session_connected && !measure->request.dc_pilot;
+#endif
+        measure->session_deadline_ms = now_ms + HW_METROLOGY_SESSION_MAX_CONNECTED_MS;
+        measure->session_validate_ms = measure->block.permit_validate_ms;
+        measure->session_capture_count = 1u;
+#endif
         measure->wait_deadline_ms = now_ms + HW_METROLOGY_MEASURE_K1_OPERATE_GUARD_MS;
         /* Pause invalidates residual evidence: authorize K1 with fresh sensors
          * first, then release the auxiliary ADC before metrology acquisition. */
@@ -803,6 +904,16 @@ static bsp_status_t step_success_path(hw_metrology_measure_t *measure, uint32_t 
         if (deadline_reached(now_ms, measure->wait_deadline_ms))
         {
             measure->state = HW_METROLOGY_MEASURE_K1_SAFE;
+#if WTK_ENABLE_MEASURE_SESSION_HOLD
+            if (measure->session_connected)
+            {
+                hw_metrology_analyze_block(measure->raw_words, HW_METROLOGY_SAMPLES_PER_BLOCK, &measure->block);
+                finalize_block_validity(measure);
+                measure->block.k1_release_guard_ms = 0u;
+                measure->dumpable = false;
+                measure->state = HW_METROLOGY_MEASURE_SESSION_HOLD;
+            }
+#endif
         }
         break;
 
@@ -819,6 +930,9 @@ static bsp_status_t step_success_path(hw_metrology_measure_t *measure, uint32_t 
             break;
         }
         measure->wait_deadline_ms = now_ms + HW_METROLOGY_MEASURE_K1_RELEASE_GUARD_MS;
+#if WTK_ENABLE_MEASURE_SESSION_HOLD
+        measure->session_connected = false;
+#endif
         measure->state = HW_METROLOGY_MEASURE_K1_RELEASE_GUARD;
         break;
     }
@@ -898,6 +1012,9 @@ static bsp_status_t step_success_path(hw_metrology_measure_t *measure, uint32_t 
         break;
 
     case HW_METROLOGY_MEASURE_DONE:
+#if WTK_ENABLE_MEASURE_SESSION_HOLD
+    case HW_METROLOGY_MEASURE_SESSION_HOLD:
+#endif
     case HW_METROLOGY_MEASURE_IDLE:
     case HW_METROLOGY_MEASURE_ABORT:
         break;
@@ -974,6 +1091,26 @@ bool hw_metrology_measure_dumpable(const hw_metrology_measure_t *measure)
     return (measure != NULL) && measure->dumpable && measure->block.valid;
 }
 
+#if WTK_ENABLE_MEASURE_SESSION_HOLD
+bool hw_metrology_measure_result_ready(const hw_metrology_measure_t *measure)
+{
+    return (measure != NULL) && measure->block.valid &&
+        ((measure->state == HW_METROLOGY_MEASURE_SESSION_HOLD) ||
+         (measure->state == HW_METROLOGY_MEASURE_DONE));
+}
+
+bsp_status_t hw_metrology_measure_finish_session(hw_metrology_measure_t *measure)
+{
+    if (measure == NULL) return BSP_STATUS_INVALID_ARG;
+    if (measure->state == HW_METROLOGY_MEASURE_SESSION_HOLD)
+    {
+        measure->state = HW_METROLOGY_MEASURE_K1_SAFE;
+        return BSP_STATUS_BUSY;
+    }
+    return hw_metrology_measure_active(measure) ? BSP_STATUS_BUSY : BSP_STATUS_OK;
+}
+#endif
+
 bool hw_metrology_measure_k1_owned(void)
 {
     return g_k1_owned;
@@ -995,6 +1132,14 @@ void hw_metrology_measure_acknowledge(hw_metrology_measure_t *measure)
     {
         return;
     }
+#if WTK_ENABLE_MEASURE_SESSION_HOLD
+    if (measure->state == HW_METROLOGY_MEASURE_SESSION_HOLD)
+    {
+        measure->dumpable = false;
+        measure->block.valid = false;
+        return;
+    }
+#endif
     measure->state = HW_METROLOGY_MEASURE_IDLE;
     measure->dumpable = false;
     measure->k1_owned = false;
@@ -1005,6 +1150,10 @@ const char *hw_metrology_measure_state_string(hw_metrology_measure_state_t state
 {
     switch (state)
     {
+#if WTK_ENABLE_MEASURE_SESSION_HOLD
+    case HW_METROLOGY_MEASURE_SESSION_HOLD:
+        return "SESSION_HOLD";
+#endif
     case HW_METROLOGY_MEASURE_IDLE:
         return "IDLE";
     case HW_METROLOGY_MEASURE_FORCE_K1_SAFE:

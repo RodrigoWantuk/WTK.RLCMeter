@@ -180,3 +180,9 @@ profiles. It adds a supporting 10-kHz check for usable low-RREF resistive
 results without changing classification thresholds or calibration. Actual
 four-attempt search now includes 10 kHz but leaves the nominal 0.47-uH result
 inconclusive, with no published L; K1 remains SAFE between attempts.
+
+[Session/evidence/menu improvements](../plans/24-Measurement-Evidence-Session-and-UI.md)
+add reliable classification evidence admission, bounded continuous K1 ownership
+and exact row updates in PC-provisioned PRODUCT. Fixed/legacy capture paths and
+engineering calibration are preserved. Unattended validation records software
+and passive boot separately from pending physical relay/display qualification.

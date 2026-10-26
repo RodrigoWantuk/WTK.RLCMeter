@@ -968,15 +968,21 @@ static bsp_status_t product_auto_start_attempt(const hw_metrology_measure_reques
                                                void *user)
 {
     (void)user;
+    bool continuing = false;
+#if WTK_ENABLE_MEASURE_SESSION_HOLD
+    continuing = hw_metrology_measure_state(&g_product_measure) == HW_METROLOGY_MEASURE_SESSION_HOLD;
+#endif
     const bsp_status_t workspace_status =
-        app_io_workspace_acquire(&g_io_workspace, APP_IO_WORKSPACE_OWNER_METROLOGY);
+        app_product_measurement_workspace_prepare(&g_io_workspace, continuing);
     if (workspace_status != BSP_STATUS_OK)
     {
-        return workspace_status;
+        if (continuing) (void)hw_metrology_measure_abort(&g_product_measure);
+        return BSP_STATUS_ERROR;
     }
     const bsp_status_t status = hw_metrology_measure_start(&g_product_measure, request, now_ms);
     g_product_permit_refresh_deadline_ms = now_ms + 1000u;
-    if ((status != BSP_STATUS_OK) && (status != BSP_STATUS_BUSY))
+    if ((status != BSP_STATUS_OK) && (status != BSP_STATUS_BUSY) &&
+        !hw_metrology_measure_active(&g_product_measure))
     {
         (void)app_io_workspace_release(&g_io_workspace, APP_IO_WORKSPACE_OWNER_METROLOGY);
     }
@@ -1005,13 +1011,21 @@ static bool product_auto_attempt_active(void *user)
 static bool product_auto_attempt_done(void *user)
 {
     (void)user;
+#if WTK_ENABLE_MEASURE_SESSION_HOLD
+    return hw_metrology_measure_result_ready(&g_product_measure);
+#else
     return hw_metrology_measure_state(&g_product_measure) == HW_METROLOGY_MEASURE_DONE;
+#endif
 }
 
 static bool product_auto_attempt_dumpable(void *user)
 {
     (void)user;
+#if WTK_ENABLE_MEASURE_SESSION_HOLD
+    return hw_metrology_measure_result_ready(&g_product_measure);
+#else
     return hw_metrology_measure_dumpable(&g_product_measure);
+#endif
 }
 
 static const hw_metrology_block_t *product_auto_attempt_block(void *user)
@@ -1030,7 +1044,8 @@ static void product_auto_attempt_acknowledge(void *user)
 {
     (void)user;
     hw_metrology_measure_acknowledge(&g_product_measure);
-    if (app_io_workspace_owner(&g_io_workspace) == APP_IO_WORKSPACE_OWNER_METROLOGY)
+    if (!hw_metrology_measure_active(&g_product_measure) &&
+        app_io_workspace_owner(&g_io_workspace) == APP_IO_WORKSPACE_OWNER_METROLOGY)
     {
         (void)app_io_workspace_release(&g_io_workspace, APP_IO_WORKSPACE_OWNER_METROLOGY);
     }
@@ -1041,6 +1056,14 @@ static bsp_status_t product_auto_attempt_abort(void *user)
     (void)user;
     return hw_metrology_measure_abort(&g_product_measure);
 }
+
+#if WTK_ENABLE_MEASURE_SESSION_HOLD
+static bsp_status_t product_auto_finish_session(void *user)
+{
+    (void)user;
+    return hw_metrology_measure_finish_session(&g_product_measure);
+}
+#endif
 
 static bsp_status_t product_auto_process_block(const hw_metrology_block_t *block,
                                                const measurement_attempt_config_t *attempt,
@@ -1106,6 +1129,9 @@ static const app_measurement_session_io_t g_product_session_io = {
     .attempt_error = product_auto_attempt_error,
     .attempt_acknowledge = product_auto_attempt_acknowledge,
     .attempt_abort = product_auto_attempt_abort,
+#if WTK_ENABLE_MEASURE_SESSION_HOLD
+    .finish_session = product_auto_finish_session,
+#endif
     .process_block = product_auto_process_block,
     .user = NULL,
 };

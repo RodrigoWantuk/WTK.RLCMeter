@@ -550,3 +550,34 @@ requests abort immediately. Display orientation remains rotation 2. BRINGUP_CAL
 returns to its existing binary-only service after its boot-only graphics phase.
 See [asset provisioning](../Firmware/assets/README.md) for the updated procedure.
 Visual appearance and visible timing require observation on the connected TFT.
+
+
+## Incremental factory menus (2026-10-26)
+
+PC-provisioned PRODUCT enables exact completed-row caching for the main,
+display/brightness/timeout, sound, language and maintenance menus, plus normal
+diagnostic/status/about screens. Navigation repaints only
+the old/new highlighted rows; a numeric edit repaints its changed row. The
+cache stores text, color, position, extent and font mode for nine completed
+rows plus one in-flight row; there is no screen framebuffer. A shorter value
+or removed save-warning row is erased over its old full row extent.
+
+Generation updates during a glyph or row clear converge on the newest view.
+Only completed glyph rows enter the cache. Quiet suspends both clear and text
+steps. Font/resource mode changes repaint affected rows; language and screen
+transitions rebuild the baseline. A failed clear/glyph invalidates the cache
+and forces recovery from a full baseline. READY's fixed-background coalescing
+and other result/page transitions are preserved. Numeric redraws do not add
+settings writes; existing editor save/confirm/cancel policy remains in charge.
+
+The full embedded-wizard PRODUCT retains its prior bounded renderer to fit the
+existing Flash gate. Both profiles gain correct full language-change recovery,
+including the bottom READY hint, and invalidation after failed painting. Display
+transfer-count tests cover the incremental behavior; physical appearance and
+button responsiveness await owner validation because TTL occupies the display
+connection during unattended work. See
+[plan 24](../plans/24-Measurement-Evidence-Session-and-UI.md).
+
+A custom medium font taller than the 28-pixel minimum menu row pitch uses a
+full repaint so clearing one row cannot damage cached neighbors. Provider
+invalidation is honored even when the view generation has not changed.

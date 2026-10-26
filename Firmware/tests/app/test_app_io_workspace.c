@@ -1,4 +1,5 @@
 #include "app/app_io_workspace.h"
+#include "app/app_product_scheduling.h"
 
 #include <stdbool.h>
 #include <stdio.h>
@@ -87,6 +88,22 @@ int main(void)
     failures += expect_true(app_io_workspace_release(&workspace,
                                                      APP_IO_WORKSPACE_OWNER_RESOURCE_UPDATE) == BSP_STATUS_OK,
                             "resource update release succeeds");
+
+    failures += expect_true(app_product_measurement_workspace_prepare(&workspace, true) == BSP_STATUS_ERROR,
+                            "a held continuation cannot recreate a lost workspace lease");
+    failures += expect_true(app_product_measurement_workspace_prepare(&workspace, false) == BSP_STATUS_OK,
+                            "initial attempt acquires exclusive metrology workspace");
+    failures += expect_true(app_product_measurement_workspace_prepare(&workspace, true) == BSP_STATUS_OK &&
+                                app_io_workspace_owner(&workspace) == APP_IO_WORKSPACE_OWNER_METROLOGY,
+                            "continuation preserves the same metrology lease");
+    failures += expect_true(app_product_measurement_workspace_prepare(&workspace, false) == BSP_STATUS_BUSY,
+                            "ordinary acquire remains non-reentrant");
+    (void)app_io_workspace_release(&workspace, APP_IO_WORKSPACE_OWNER_METROLOGY);
+    (void)app_io_workspace_acquire(&workspace, APP_IO_WORKSPACE_OWNER_RESOURCE_UPDATE);
+    failures += expect_true(app_product_measurement_workspace_prepare(&workspace, true) == BSP_STATUS_ERROR &&
+                                app_io_workspace_owner(&workspace) == APP_IO_WORKSPACE_OWNER_RESOURCE_UPDATE,
+                            "held request cannot steal a resource-update lease");
+    (void)app_io_workspace_release(&workspace, APP_IO_WORKSPACE_OWNER_RESOURCE_UPDATE);
 
     return failures;
 }

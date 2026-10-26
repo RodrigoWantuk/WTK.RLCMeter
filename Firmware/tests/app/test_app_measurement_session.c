@@ -35,6 +35,15 @@ typedef struct
     bool dumpable;
     bool abort_called;
     hw_metrology_measure_error_t error;
+#if WTK_ENABLE_MEASURE_SESSION_HOLD
+    bool hold_mode;
+    bool hold_waiting;
+    bool closing;
+    bool cleanup_fail;
+    bool supervision_fail;
+    uint8_t cleanup_steps;
+    uint32_t finish_calls;
+#endif
 } fake_io_t;
 
 static int expect_true(bool condition, const char *message)
@@ -127,6 +136,9 @@ static bsp_status_t fake_start_attempt(const hw_metrology_measure_request_t *req
     fake->start_count++;
     fake->active = true;
     fake->done = false;
+#if WTK_ENABLE_MEASURE_SESSION_HOLD
+    fake->hold_waiting = false;
+#endif
     fake->dumpable = !outcome->phase05_fail;
     fake->error = outcome->phase05_error;
     if (outcome->phase05_fail)
@@ -153,6 +165,32 @@ static bsp_status_t fake_step_attempt(uint32_t now_ms, void *user)
         fake->error = HW_METROLOGY_MEASURE_ERR_ABORT;
         return BSP_STATUS_OK;
     }
+#if WTK_ENABLE_MEASURE_SESSION_HOLD
+    if (fake->hold_mode)
+    {
+        if (fake->closing)
+        {
+            fake->cleanup_steps++;
+            if (fake->cleanup_steps < 2u) return BSP_STATUS_BUSY;
+            fake->active = false;
+            fake->done = false;
+            fake->error = fake->cleanup_fail ? HW_METROLOGY_MEASURE_ERR_AUX_RESTORE : HW_METROLOGY_MEASURE_OK;
+            return fake->cleanup_fail ? BSP_STATUS_ERROR : BSP_STATUS_OK;
+        }
+        if (fake->hold_waiting && fake->supervision_fail)
+        {
+            fake->abort_called = true;
+            fake->error = HW_METROLOGY_MEASURE_ERR_ABORT;
+            return BSP_STATUS_ERROR;
+        }
+        if (!fake->hold_waiting)
+        {
+            fake->hold_waiting = true;
+            fake->done = true;
+        }
+        return BSP_STATUS_BUSY;
+    }
+#endif
     fake->active = false;
     fake->done = true;
     return BSP_STATUS_OK;
@@ -193,6 +231,14 @@ static void fake_attempt_acknowledge(void *user)
     fake_io_t *fake = (fake_io_t *)user;
     if (fake != NULL)
     {
+#if WTK_ENABLE_MEASURE_SESSION_HOLD
+        if (fake->hold_mode && fake->active)
+        {
+            fake->done = false;
+            fake->dumpable = false;
+            return;
+        }
+#endif
         fake->active = false;
         fake->done = false;
         fake->dumpable = false;
@@ -554,6 +600,100 @@ static int test_live_refresh_hint_boundary(void)
     return failures;
 }
 
+#if WTK_ENABLE_MEASURE_SESSION_HOLD
+static bsp_status_t fake_finish_session(void *user)
+{
+    fake_io_t *fake = (fake_io_t *)user;
+    fake->finish_calls++;
+    fake->closing = true;
+    return BSP_STATUS_BUSY;
+}
+
+static int test_final_result_waits_for_session_cleanup(void)
+{
+    int failures = 0;
+    for (uint8_t failure = 0u; failure < 6u; failure++)
+    {
+        app_measurement_session_t session;
+        fake_io_t fake = {0};
+        fake.hold_mode = true;
+        fake.outcome_count = 1u;
+        fake.outcomes[0] = good_outcome(measurement_complex(1000.0f, 0.0f), MEASUREMENT_INTERPRET_RESISTIVE);
+        failures += start_session(&session, &fake, MEASUREMENT_AUTO_MODE_CLICK, 23u, NULL);
+        fake.io.finish_session = fake_finish_session;
+        uint32_t now = 1u;
+        for (uint32_t i = 0u; i < 30u && session.state != APP_MEASUREMENT_SESSION_FINISHING; i++)
+        {
+            (void)app_measurement_session_step(&session, now++);
+            if (failure >= 3u && fake.hold_waiting)
+            {
+                if (failure == 3u) fake.supervision_fail = true;
+                if (failure == 4u) session.state = (app_measurement_session_state_t)255;
+                if (failure == 5u)
+                {
+                    session.state = APP_MEASUREMENT_SESSION_START_ATTEMPT;
+                    session.policy.has_next_attempt = false;
+                }
+                break;
+            }
+        }
+        failures += expect_true(fake.requests[0].session_hold, "automatic request explicitly opts into session ownership");
+        failures += expect_true(fake.active && !app_measurement_session_final_ready(&session),
+                                "no final result escapes while K1 cleanup is pending");
+        if (session.state == APP_MEASUREMENT_SESSION_FINISHING)
+            failures += expect_true(strcmp(app_measurement_session_state_string(session.state), "FINISHING") == 0,
+                                    "cleanup ownership has an explicit diagnostic state");
+        if (failure == 1u) fake.cleanup_fail = true;
+        if (failure == 2u) (void)app_measurement_session_cancel(&session);
+        failures += expect_true(run_until_event(&session, APP_MEASUREMENT_EVENT_FINAL_RESULT, &now) ==
+                                    APP_MEASUREMENT_EVENT_FINAL_RESULT,
+                                "held session eventually produces a final event after cleanup");
+        failures += expect_true(!fake.active && app_measurement_session_final_ready(&session),
+                                "final event implies released hardware ownership");
+        const measurement_session_result_t *result = app_measurement_session_final(&session);
+        const measurement_auto_status_t expected = (failure == 0u) ? MEASUREMENT_AUTO_STATUS_FINAL_OK :
+            (failure == 2u) ? MEASUREMENT_AUTO_STATUS_CANCELED : MEASUREMENT_AUTO_STATUS_SAFETY_ABORT;
+        failures += expect_true(result != NULL && result->status == expected,
+                                "late cleanup fault or cancellation revokes provisional success");
+        if (failure != 0u)
+            failures += expect_true(result->confidence.publication_confidence == MEASUREMENT_CONFIDENCE_REJECTED,
+                                    "revoked result cannot be published as a valid measurement");
+    }
+    return failures;
+}
+
+static int test_held_partial_continuation_and_cancel(void)
+{
+    int failures = 0;
+    for (uint8_t cancel = 0u; cancel < 2u; cancel++)
+    {
+        fake_io_t fake = {0};
+        app_measurement_session_t session;
+        fake.hold_mode = true;
+        fake.outcome_count = 2u;
+        /* Both frequencies stay inside the 1-kohm reference ratio window. */
+        fake.outcomes[0] = good_outcome(measurement_complex(20.0f, -3000.0f), MEASUREMENT_INTERPRET_CAPACITIVE);
+        fake.outcomes[1] = good_outcome(measurement_complex(20.0f, -300.0f), MEASUREMENT_INTERPRET_CAPACITIVE);
+        failures += start_session(&session, &fake, MEASUREMENT_AUTO_MODE_CLICK, 24u, NULL);
+        fake.io.finish_session = fake_finish_session;
+        uint32_t now = 1u;
+        failures += expect_true(run_until_event(&session, APP_MEASUREMENT_EVENT_PARTIAL_RESULT, &now) ==
+                                    APP_MEASUREMENT_EVENT_PARTIAL_RESULT && fake.active &&
+                                    !app_measurement_session_final_ready(&session),
+                                "partial result keeps ownership for the bounded second-frequency check");
+        if (cancel != 0u) (void)app_measurement_session_cancel(&session);
+        failures += expect_true(run_until_event(&session, APP_MEASUREMENT_EVENT_FINAL_RESULT, &now) ==
+                                    APP_MEASUREMENT_EVENT_FINAL_RESULT && !fake.active,
+                                "continuation or between-attempt cancel reaches SAFE before final event");
+        failures += expect_u32(fake.start_count, (cancel == 0u) ? 2u : 1u, "cancellation cannot start another capture");
+        failures += expect_true(app_measurement_session_final(&session)->status ==
+                                    ((cancel == 0u) ? MEASUREMENT_AUTO_STATUS_FINAL_OK : MEASUREMENT_AUTO_STATUS_CANCELED),
+                                "held partial result receives the correct final disposition");
+    }
+    return failures;
+}
+#endif
+
 int main(int argc, char **argv)
 {
     if ((argc == 2) && (strcmp(argv[1], "--sizes") == 0))
@@ -571,5 +711,9 @@ int main(int argc, char **argv)
     failures += test_reactive_primary_survives_refinement();
     failures += test_open_short_fault_and_cancel();
     failures += test_live_refresh_hint_boundary();
+#if WTK_ENABLE_MEASURE_SESSION_HOLD
+    failures += test_final_result_waits_for_session_cleanup();
+    failures += test_held_partial_continuation_and_cancel();
+#endif
     return (failures == 0) ? 0 : 1;
 }

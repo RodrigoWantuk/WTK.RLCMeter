@@ -371,3 +371,27 @@ instrument accuracy bound from the nominal DUT marking. The pre-change
 [bench evidence](../Firmware/releases/2026-10-25/inductor-047-limit-check/README.md).
 Sub-microhenry sensitivity, fixture parasitics and phase accuracy remain
 REQUIRES_BENCH_VALIDATION.
+
+
+## Evidence selection and held-session qualification (2026-10-26)
+
+The original four-attempt nominal 0.47-uH capture is replayed in host tests.
+Its early 0.1245/1.0915-mV selected returns are retained but cannot vote under
+the existing 2-mV weak-return threshold; the later 9.305/5.875-mV attempts remain
+resistance-dominated. This fixes evidence admission, not small-inductor accuracy.
+Threshold, raw signs and conditional C/L/loss publication remain unchanged.
+
+The PC-provisioned PRODUCT session owner may keep K1 connected across bounded
+1/10-kHz captures, while fixed calibration acquisition still returns SAFE per
+capture. Stored OSL schema/model/hardware compatibility and coefficients are
+unchanged. The engineering set and UID-bound experimental NTC profile must be
+preserved through deployment. No repeated resistor campaign is part of this task.
+
+Host tests cover single K1 entry across actual range-service transitions,
+neutral/disabled address changes, fresh initial authorization, deadline/battery
+expiry, six-capture limit, timer wrap, charger/fault/DMA/cancel failures and
+publication only after SAFE cleanup. These are software/fake-I/O observations.
+Actual relay counts/timing, analog settling and phase consistency with continuous
+connection remain REQUIRES_BENCH_VALIDATION; no owner button/fixture interaction
+is available during this work. No debugger state injection or reset-triggered
+DUT measurement is an acceptable substitute for a supported measurement command.

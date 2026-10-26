@@ -137,3 +137,34 @@ Ordinary measurement/calibration still requires the existing battery checks.
 It is absent from PRODUCT and BRINGUP_CAL and never runs automatically.
 See [the full contract and physical procedure](../Firmware/tools/K1_BENCH_TEST.md).
 Physical relay, timeout, fault and interlock behavior remain REQUIRES_BENCH_VALIDATION.
+
+
+## Bounded continuous measurement session (2026-10-26)
+
+PC-provisioned PRODUCT can retain K1 in MEASURE for one automatic search after
+one initially fresh, range-bound, single-use permit is issued and consumed.
+This is continuous ownership, not reuse of that token for another K1 activation.
+The hardware FSM permits at most six captures, uses a 500-ms cooperative
+connection deadline, and also expires at the original battery evidence's
+1,000-ms age limit. The actual release latency depends on foreground scheduling;
+physical deadline, transient and interlock timing remain REQUIRES_BENCH_VALIDATION.
+
+Between captures ADC/DMA is stopped, excitation is neutral and settled, and
+quiet/auxiliary-ADC/workspace ownership is retained through bounded DSP. Only
+owned RANGE_REQUEST/RANGE_WAIT can admit the range service's intentional
+DISABLED/TRANSITIONING states, with neutral excitation and existing RANGE_EN
+break-before-address/dead-time/settling. INVALID or an unexpected state/ID still
+aborts. Live charger/unknown charger, fault, DMA error, ownership loss,
+continuation limits and cancellation revoke the session. Ten-Hz/DC and fixed
+calibration/BRINGUP transactions retain SAFE per capture.
+
+The SAFE residual dividers cannot observe the DUT while K1 connects it to the
+AFE. No fresh residual reading is fabricated while the auxiliary ADC is paused.
+The DUT must stay connected and unpowered for the complete session. Final
+publication waits for K1 SAFE/release guard, range disabled, excitation off,
+auxiliary ADC restore/resume, quiet and workspace release. Restore/cleanup errors
+revoke even a provisionally successful mathematical result. A subsequent
+session requires real residual requalification and a new initial permit.
+
+See [plan 24](../plans/24-Measurement-Evidence-Session-and-UI.md). This change
+does not extend the de-energized-passive-component or voltage envelope.

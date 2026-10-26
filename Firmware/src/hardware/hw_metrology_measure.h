@@ -22,6 +22,8 @@ enum
     HW_METROLOGY_MEASURE_RANGE_TIMEOUT_MS = 50u,
     HW_METROLOGY_MEASURE_DMA_TIMEOUT_MARGIN_MS = 50u,
     HW_METROLOGY_MEASURE_DC_PILOT_SETTLE_MS = 2u,
+    HW_METROLOGY_SESSION_MAX_CONNECTED_MS = 500u,
+    HW_METROLOGY_SESSION_MAX_CAPTURES = 6u,
 };
 
 typedef enum
@@ -57,6 +59,9 @@ typedef enum
     HW_METROLOGY_MEASURE_ANALYZE,
     HW_METROLOGY_MEASURE_DONE,
     HW_METROLOGY_MEASURE_ABORT,
+#if WTK_ENABLE_MEASURE_SESSION_HOLD
+    HW_METROLOGY_MEASURE_SESSION_HOLD,
+#endif
 } hw_metrology_measure_state_t;
 
 typedef enum
@@ -128,6 +133,9 @@ typedef struct
     hw_excitation_freq_t frequency;
     hw_excitation_amp_t amplitude;
     hw_range_id_t range_id;
+#if WTK_ENABLE_MEASURE_SESSION_HOLD
+    bool session_hold;
+#endif
 #if WTK_ENABLE_DC_PILOT
     bool dc_pilot;
     bool ac_screened;
@@ -158,6 +166,13 @@ typedef struct
     bool k1_reached_measure;
     bool abort_release_guard_pending;
     uint8_t abort_phase;
+#if WTK_ENABLE_MEASURE_SESSION_HOLD
+    uint32_t session_deadline_ms;
+    uint32_t session_battery_deadline_ms;
+    uint32_t session_validate_ms;
+    uint8_t session_capture_count;
+    bool session_connected;
+#endif
 } hw_metrology_measure_t;
 
 bsp_status_t hw_metrology_measure_init(hw_metrology_measure_t *measure,
@@ -173,6 +188,11 @@ hw_metrology_measure_state_t hw_metrology_measure_state(const hw_metrology_measu
 hw_metrology_measure_error_t hw_metrology_measure_error(const hw_metrology_measure_t *measure);
 bool hw_metrology_measure_active(const hw_metrology_measure_t *measure);
 bool hw_metrology_measure_dumpable(const hw_metrology_measure_t *measure);
+#if WTK_ENABLE_MEASURE_SESSION_HOLD
+/* In-memory DSP only while HOLD owns K1/ADC/quiet. UART dumping stays forbidden. */
+bool hw_metrology_measure_result_ready(const hw_metrology_measure_t *measure);
+bsp_status_t hw_metrology_measure_finish_session(hw_metrology_measure_t *measure);
+#endif
 bool hw_metrology_measure_k1_owned(void);
 bool hw_metrology_measure_k1_measure_active(void);
 const hw_metrology_block_t *hw_metrology_measure_block(const hw_metrology_measure_t *measure);

@@ -2,6 +2,18 @@
 #define WTK_APP_PRODUCT_SCHEDULING_H
 
 #include "hardware/hw_measure_permit.h"
+#include "app/app_io_workspace.h"
+
+/* A held capture retains the same exclusive workspace lease. This must not
+ * turn the shared allocator into a generally reentrant acquire operation. */
+static inline bsp_status_t app_product_measurement_workspace_prepare(app_io_workspace_t *workspace,
+                                                                    bool continuing)
+{
+    if (continuing)
+        return app_io_workspace_owner(workspace) == APP_IO_WORKSPACE_OWNER_METROLOGY ?
+            BSP_STATUS_OK : BSP_STATUS_ERROR;
+    return app_io_workspace_acquire(workspace, APP_IO_WORKSPACE_OWNER_METROLOGY);
+}
 
 /* Application scheduling only, never a relay permission. Disabled idle ranges
    are prepared by the hardware FSM. During its owned session, range transitions

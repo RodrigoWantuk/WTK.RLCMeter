@@ -248,3 +248,9 @@ host tests and nine strict unit-bound builds pass; calibration is preserved.
 Four actual attempts now include 10 kHz; the nominal 0.47-uH result remains
 inconclusive, with no published L. K1 still returns SAFE per attempt;
 session-wide relay ownership is a separate safety architecture change.
+
+[Session/evidence/menu improvements](plans/24-Measurement-Evidence-Session-and-UI.md)
+add reliable classification evidence admission, bounded continuous K1 ownership
+and exact row updates in PC-provisioned PRODUCT. Fixed/legacy capture paths and
+engineering calibration are preserved. Unattended validation records software
+and passive boot separately from pending physical relay/display qualification.

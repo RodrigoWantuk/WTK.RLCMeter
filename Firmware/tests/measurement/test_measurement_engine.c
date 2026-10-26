@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <math.h>
 
 static int expect_true(bool condition, const char *message)
 {
@@ -440,6 +441,66 @@ static int test_classification_vectors(void)
     return failures;
 }
 
+static int test_classification_admits_usable_evidence_only(void)
+{
+    int failures = 0;
+    measurement_attempt_result_t history[4];
+    const float r[] = {-3.3833668f, 0.16279896f, 0.32200742f, 0.24547035f};
+    const float x[] = {-1.1537869f, -0.14074898f, -0.0071538f, 0.021325944f};
+    const float peak[] = {0.000124494f, 0.00109149f, 0.009305f, 0.00587513f};
+    const hw_range_id_t ranges[] = {HW_RANGE_ID_1K, HW_RANGE_ID_100R, HW_RANGE_ID_10R, HW_RANGE_ID_10R};
+    for (uint8_t i = 0u; i < 4u; i++)
+    {
+        const measurement_attempt_config_t attempt = {
+            .range_id = ranges[i], .frequency = (i == 3u) ? HW_EXCITATION_FREQ_10KHZ : HW_EXCITATION_FREQ_1KHZ,
+            .amplitude = HW_EXCITATION_AMP_100MVRMS,
+        };
+        history[i] = make_result_for_attempt(&attempt, measurement_complex(r[i], x[i]),
+                                             (i < 2u) ? MEASUREMENT_INTERPRET_CAPACITIVE : MEASUREMENT_INTERPRET_RESISTIVE);
+        history[i].selected_channel = MEASUREMENT_RETURN_HG;
+        history[i].ret_hg_quality.signal_peak_v = peak[i];
+    }
+    measurement_session_classification_t c = measurement_auto_classify_session(history, 4u);
+    failures += expect_true(c.interpretation == MEASUREMENT_INTERPRET_RESISTIVE,
+                            "captured weak rerange candidates do not outvote usable resistive evidence");
+    failures += expect_u32(c.supporting_attempts, 2u, "only usable captures vote");
+    failures += expect_near(history[0].z_ohms.re, r[0], 0.00001f, "rejected raw evidence is retained");
+    history[0].ret_hg_quality.signal_peak_v = 0.002f;
+    c = measurement_auto_classify_session(history, 4u);
+    failures += expect_true(c.interpretation == MEASUREMENT_INTERPRET_MIXED_OR_UNKNOWN,
+                            "usable contrary evidence at threshold must not be hidden");
+    history[0].ret_hg_quality.clipped = true;
+    history[1].ret_hg_quality.usable = false;
+    history[1].ret_hg_quality.signal_peak_v = 0.02f;
+    c = measurement_auto_classify_session(history, 4u);
+    failures += expect_true(c.interpretation == MEASUREMENT_INTERPRET_RESISTIVE,
+                            "selected clipped and unusable paths cannot vote");
+    history[0].ret_hg_quality.clipped = false;
+    history[0].ret_hg_quality.signal_peak_v = INFINITY;
+    c = measurement_auto_classify_session(history, 4u);
+    failures += expect_true(c.interpretation == MEASUREMENT_INTERPRET_RESISTIVE,
+                            "nonfinite signal evidence cannot vote");
+    history[2].ret_1x_quality.clipped = true;
+    c = measurement_auto_classify_session(&history[2], 2u);
+    failures += expect_u32(c.supporting_attempts, 2u, "unused path clipping does not discard usable HG");
+    for (uint8_t i = 0u; i < 4u; i++) history[i].ret_hg_quality.usable = false;
+    c = measurement_auto_classify_session(history, 4u);
+    failures += expect_true(c.interpretation == MEASUREMENT_INTERPRET_MIXED_OR_UNKNOWN && c.supporting_attempts == 0u,
+                            "all weak or unusable evidence remains unknown");
+    history[0] = make_result(measurement_complex(20.0f, -1000.0f), MEASUREMENT_INTERPRET_CAPACITIVE);
+    history[0].config.frequency = HW_EXCITATION_FREQ_1KHZ;
+    history[1] = make_result(measurement_complex(20.0f, -9000.0f), MEASUREMENT_INTERPRET_CAPACITIVE);
+    history[1].config.frequency = HW_EXCITATION_FREQ_10KHZ;
+    history[1].ret_1x_quality.signal_peak_v = 0.0001f;
+    history[2] = make_result(measurement_complex(20.0f, -100.0f), MEASUREMENT_INTERPRET_CAPACITIVE);
+    history[2].config.frequency = HW_EXCITATION_FREQ_10KHZ;
+    c = measurement_auto_classify_session(history, 3u);
+    failures += expect_true(c.interpretation == MEASUREMENT_INTERPRET_CAPACITIVE &&
+                               (c.reason_flags & MEASUREMENT_AUTO_REASON_FREQUENCY_TREND_INCONSISTENT) == 0u,
+                            "weak captures cannot poison frequency-trend evidence either");
+    return failures;
+}
+
 static int test_terminal_and_cancellation(void)
 {
     int failures = 0;
@@ -758,6 +819,7 @@ int main(void)
     failures += test_ret_policy();
     failures += test_frequency_refinement_and_final();
     failures += test_classification_vectors();
+    failures += test_classification_admits_usable_evidence_only();
     failures += test_terminal_and_cancellation();
     failures += test_confidence_and_live_hint();
     failures += test_synthetic_sequence_harness();
