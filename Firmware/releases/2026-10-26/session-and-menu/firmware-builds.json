@@ -1,0 +1,319 @@
+{
+  "source": {
+    "git_sha": "7550d92dcf99c13d846d0d7762b30e2854ef030e",
+    "dirty": false,
+    "git_status": "",
+    "input_sha256": "c3f07656a8a186f7472a0dd7334cfa1e20f2b049e4d166d0264ab78b9bf644e5"
+  },
+  "calibration_hardware_revision": 65538,
+  "status": "SOFTWARE_BUILDS_PASS_REQUIRES_BENCH_VALIDATION",
+  "ntc_factory_profile": {
+    "schema": "WTK_NTC_COMPILED_V1",
+    "profile": {
+      "format": "WTK_NTC_FACTORY_PROFILE_V1",
+      "uid": "54ff70068370525760380567",
+      "qualified": false,
+      "owner_authorized": true,
+      "thermal_contact_uncertain": true,
+      "reference_uncertainty_c": null,
+      "reference_method": "Owner-provided contact thermometer; direct isolated-bead contact, cold and sustained hand-warmed reference",
+      "points": [
+        {
+          "temperature_c": 23.5,
+          "adc_raw": 1952,
+          "evidence": "ntc-reference-002, 2026-10-25T15:03:35Z"
+        },
+        {
+          "temperature_c": 30.1,
+          "adc_raw": 1856,
+          "evidence": "ntc-reference-004, 2026-10-25T15:24:26Z; owner explicitly requested use despite possible contact interference"
+        }
+      ],
+      "scope": "Experimental effective model for this UID; intrinsic Beta and wider temperature accuracy are not qualified"
+    },
+    "uid": "54ff70068370525760380567",
+    "profile_sha256": "9b3826a20b3c621a9e92be0035431b140c45d7a23acaba8ec237a63e4e8cad44",
+    "effective_beta_k": 1284.690748293537,
+    "effective_r25_over_rtop": 0.8912414562904697,
+    "qualified": false,
+    "lut_le_hex": "0000a0c128373b48000070c16ab02948000020c10c611a480000a0c050f20c4800000000c01c01480000a040584aed470000204193b4da4700007041b725ca470000a0416758bb470000bc41a1e7b147cdccf04113e7a14700000c42fa5a974700002042b59b8d47000034422cc48447000048423873794700005c42c9c96a4700007042ed635d4700008242bb1e514700008c42b9db4547000096423d803b470000a042dcf43147"
+  },
+  "cases": [
+    {
+      "name": "factory-release",
+      "preset": "stm32-factory-release",
+      "options": [],
+      "profile": "PRODUCT",
+      "factory": "1u",
+      "session_hold": "1u",
+      "row_cache": "1u",
+      "flash_bytes": 56260,
+      "ram_accounted_bytes": 16040,
+      "status": "PASS",
+      "files": {
+        "WTK.RLCMeter.bin": {
+          "bytes": 56260,
+          "sha256": "1fcf311bad8d9bd2da6a363ca5aeb5751cbdf566970f484d910cd9e9c34a69d0"
+        },
+        "WTK.RLCMeter.elf": {
+          "bytes": 90648,
+          "sha256": "d3cbbea7778d2427ca865914f1ea7c04f3e65ff7ec977fd53ffdf14a17b9a04a"
+        },
+        "WTK.RLCMeter.hex": {
+          "bytes": 158292,
+          "sha256": "74f08806e782a4cf7cbe37c5980515ab207475b7d66fd3c1bebf67a587d9d4a0"
+        },
+        "WTK.RLCMeter.map": {
+          "bytes": 51190,
+          "sha256": "f1875de74859e03d0113df0c5ae3f6f081943de4a7256c6fc632e76edd08dce9"
+        }
+      }
+    },
+    {
+      "name": "bringup",
+      "preset": "stm32-bringup",
+      "options": [],
+      "profile": "BRINGUP",
+      "factory": "0u",
+      "session_hold": "0u",
+      "row_cache": "0u",
+      "flash_bytes": 63828,
+      "ram_accounted_bytes": 15380,
+      "status": "PASS",
+      "files": {
+        "WTK.RLCMeter.bin": {
+          "bytes": 63828,
+          "sha256": "486b7285d0a379eafd911cac8871f3b81f2d651c8b9798ea8fbee1e6c66a7054"
+        },
+        "WTK.RLCMeter.elf": {
+          "bytes": 95244,
+          "sha256": "cd0b2dfa1924e00f6c2b07d70fded1f9d77b75682f0a04c53d751311e667d583"
+        },
+        "WTK.RLCMeter.hex": {
+          "bytes": 179590,
+          "sha256": "4444fb57e7905e4c911704d9e091a18f1ce893d597c2635cce1e7ea77fb6cdca"
+        },
+        "WTK.RLCMeter.map": {
+          "bytes": 46970,
+          "sha256": "c8317ac028ce67106720e1a67aca8e2150a6a1e1ab23215df32a9464e10e226f"
+        }
+      }
+    },
+    {
+      "name": "product-debug",
+      "preset": "stm32-debug",
+      "options": [],
+      "profile": "PRODUCT",
+      "factory": "0u",
+      "session_hold": "0u",
+      "row_cache": "0u",
+      "flash_bytes": 61280,
+      "ram_accounted_bytes": 15200,
+      "status": "PASS",
+      "files": {
+        "WTK.RLCMeter.bin": {
+          "bytes": 61280,
+          "sha256": "b3828a18088e6ed53375f151ffa78c133e034fc093ab62b6033566ba818aa64e"
+        },
+        "WTK.RLCMeter.elf": {
+          "bytes": 1490884,
+          "sha256": "fa9fc2343ebe14f1bf9457c95c780c9865c8bfe8f690d77528e2cbb500f18b18"
+        },
+        "WTK.RLCMeter.hex": {
+          "bytes": 172427,
+          "sha256": "1c1983b123b796f3629318e30a7fed31f4240c33362e0e8dc238784cc4c3c158"
+        },
+        "WTK.RLCMeter.map": {
+          "bytes": 362642,
+          "sha256": "bcb26d746ec0c08db53f02981db3594e8e132775b33d5621eda29a1661d1ef62"
+        }
+      }
+    },
+    {
+      "name": "product-release",
+      "preset": "stm32-release",
+      "options": [],
+      "profile": "PRODUCT",
+      "factory": "0u",
+      "session_hold": "0u",
+      "row_cache": "0u",
+      "flash_bytes": 64036,
+      "ram_accounted_bytes": 15520,
+      "status": "PASS",
+      "files": {
+        "WTK.RLCMeter.bin": {
+          "bytes": 64036,
+          "sha256": "c862eaad00b44fa88a4ee5907055228ec49f3735c8c15697ff1ee2305d69a842"
+        },
+        "WTK.RLCMeter.elf": {
+          "bytes": 100132,
+          "sha256": "feecdb5be1c96b3d9ca22013a12b3d122c5dd97d0ef27761c94061ad04ae0423"
+        },
+        "WTK.RLCMeter.hex": {
+          "bytes": 180175,
+          "sha256": "79f5a4e6fbba6217e90dd6ea5d8a079a2b0db73cd191203f38bca3caed3cbc82"
+        },
+        "WTK.RLCMeter.map": {
+          "bytes": 50312,
+          "sha256": "ceff3f190a760fc6df287287b92e82ecc8ceca79554b9ebb4b613647b7751a73"
+        }
+      }
+    },
+    {
+      "name": "factory-debug",
+      "preset": "stm32-factory-debug",
+      "options": [],
+      "profile": "PRODUCT",
+      "factory": "1u",
+      "session_hold": "1u",
+      "row_cache": "1u",
+      "flash_bytes": 55880,
+      "ram_accounted_bytes": 15960,
+      "status": "PASS",
+      "files": {
+        "WTK.RLCMeter.bin": {
+          "bytes": 55880,
+          "sha256": "029158a8a592a86fc2543420c2bc86c16d5642130ce6982497e12aca7c272846"
+        },
+        "WTK.RLCMeter.elf": {
+          "bytes": 1441844,
+          "sha256": "1a5aa8c8444b505608e681f0aba9c5c98f6d25a492b8948808892d7c92ce408f"
+        },
+        "WTK.RLCMeter.hex": {
+          "bytes": 157233,
+          "sha256": "20c1de098de9a84a9f50215df33ffeb484c82977155e14b7cbd13d036eb78172"
+        },
+        "WTK.RLCMeter.map": {
+          "bytes": 365132,
+          "sha256": "0bdfa5ae4c1bb77748da848fbcd9338e8226f068a5c0292f56bcc7c968cbcd51"
+        }
+      }
+    },
+    {
+      "name": "bringup-cal",
+      "preset": "stm32-bringup-cal",
+      "options": [],
+      "profile": "BRINGUP_CAL",
+      "factory": "0u",
+      "session_hold": "0u",
+      "row_cache": "0u",
+      "flash_bytes": 37572,
+      "ram_accounted_bytes": 13744,
+      "status": "PASS",
+      "files": {
+        "WTK.RLCMeter.bin": {
+          "bytes": 37572,
+          "sha256": "8bea8716e0b5a845f7b0832bed3e1c5990b00d57ed368e5cb65b14644b59f0de"
+        },
+        "WTK.RLCMeter.elf": {
+          "bytes": 62956,
+          "sha256": "69075919bd868be0ef01183d502eb953de335d2736dd24c68b396f9ab13d06ef"
+        },
+        "WTK.RLCMeter.hex": {
+          "bytes": 105745,
+          "sha256": "c863c4e0105573653e630718169ccfdbf7b670b14988c8d25c959fd9d11367dd"
+        },
+        "WTK.RLCMeter.map": {
+          "bytes": 32310,
+          "sha256": "d365296f20ae880be0135937aa31e260aed2e501acc5e995fc497258324a7acb"
+        }
+      }
+    },
+    {
+      "name": "bench-supply",
+      "preset": "stm32-bringup",
+      "options": [
+        "-DWTK_BRINGUP_BENCH_SUPPLY=ON"
+      ],
+      "profile": "BRINGUP",
+      "factory": "0u",
+      "session_hold": "0u",
+      "row_cache": "0u",
+      "flash_bytes": 65272,
+      "ram_accounted_bytes": 15468,
+      "status": "PASS",
+      "files": {
+        "WTK.RLCMeter.bin": {
+          "bytes": 65272,
+          "sha256": "809d22ed74808382459a265c88f4c51c79ef5883ce4014bc07d911238526fcb4"
+        },
+        "WTK.RLCMeter.elf": {
+          "bytes": 95128,
+          "sha256": "c57600f594c5eb3b1dd995106cd051e11b23c4f14a0fa502480acb7276b9a92a"
+        },
+        "WTK.RLCMeter.hex": {
+          "bytes": 183648,
+          "sha256": "e35911b86b357700759bb4e9ef6d864bafd7a03e4fb9f0b4eae9e1cbda5292e5"
+        },
+        "WTK.RLCMeter.map": {
+          "bytes": 46875,
+          "sha256": "ca64f5a4457326b311fa607542408f66d67fe9f24708e88220e710f26f647c24"
+        }
+      }
+    },
+    {
+      "name": "k1-test",
+      "preset": "stm32-bringup",
+      "options": [
+        "-DWTK_BRINGUP_K1_TEST=ON"
+      ],
+      "profile": "BRINGUP",
+      "factory": "0u",
+      "session_hold": "0u",
+      "row_cache": "0u",
+      "flash_bytes": 65392,
+      "ram_accounted_bytes": 15396,
+      "status": "PASS",
+      "files": {
+        "WTK.RLCMeter.bin": {
+          "bytes": 65392,
+          "sha256": "da368557e13d0471aa6d6b88908e3d2362672c31ed8b966398b9ee4e4d0c362c"
+        },
+        "WTK.RLCMeter.elf": {
+          "bytes": 95224,
+          "sha256": "364557bbdd0f8eb6947b9bd75851d1eec1753eaf770d7b4b193bdeb30170fa4b"
+        },
+        "WTK.RLCMeter.hex": {
+          "bytes": 183992,
+          "sha256": "edb6c49adc69310548eac0fec51e49a39738f4f332ac7f9d378910cdd0a4e7a9"
+        },
+        "WTK.RLCMeter.map": {
+          "bytes": 47317,
+          "sha256": "36fc94f9d003ea8ff6b12f5207ba77374727ffd582e30f3396704c57e4df8b95"
+        }
+      }
+    },
+    {
+      "name": "peripheral",
+      "preset": "stm32-bringup",
+      "options": [
+        "-DWTK_BRINGUP_PERIPHERAL_TEST=ON"
+      ],
+      "profile": "BRINGUP",
+      "factory": "0u",
+      "session_hold": "0u",
+      "row_cache": "0u",
+      "flash_bytes": 14628,
+      "ram_accounted_bytes": 12252,
+      "status": "PASS",
+      "files": {
+        "WTK.RLCMeter.bin": {
+          "bytes": 14628,
+          "sha256": "083223f38978f5ff7a660af877305d81e3409334043521122fca31add270257e"
+        },
+        "WTK.RLCMeter.elf": {
+          "bytes": 31336,
+          "sha256": "f040cde1f40cef97096085c475f30c2099f4facc715940d9a0b4683f847ee641"
+        },
+        "WTK.RLCMeter.hex": {
+          "bytes": 41215,
+          "sha256": "a65ef52d2798e14a08bd54916615b2f6eba822556dd9c8b1d9cc9b2b0c66bda4"
+        },
+        "WTK.RLCMeter.map": {
+          "bytes": 30399,
+          "sha256": "2f5daa4db563c029377fe912f711633430cd673729479875e98087777c8278a3"
+        }
+      }
+    }
+  ]
+}

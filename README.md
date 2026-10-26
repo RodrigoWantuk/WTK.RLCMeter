@@ -254,3 +254,9 @@ add reliable classification evidence admission, bounded continuous K1 ownership
 and exact row updates in PC-provisioned PRODUCT. Fixed/legacy capture paths and
 engineering calibration are preserved. Unattended validation records software
 and passive boot separately from pending physical relay/display qualification.
+
+[Session/menu delivery](Firmware/releases/2026-10-26/session-and-menu/README.md)
+now records nine passing strict profiles and verified factory PRODUCT deployment:
+56,260 B Flash / 16,040 B accounted RAM, actual READY/SAFE boot with OSL sequence 1
+and all 33 records preserved. No unattended DUT capture was triggered; physical
+relay-session and menu appearance checks remain pending.

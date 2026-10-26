@@ -1,6 +1,6 @@
 # Measurement evidence, bounded relay sessions and incremental menus
 
-STATUS: IN_PROGRESS
+STATUS: IMPLEMENTED_REQUIRES_BENCH_VALIDATION
 
 ## Authorization and baseline
 
@@ -131,3 +131,16 @@ in those four earlier sessions exceeds the retained 2-mV threshold. This input
 eligibility audit is not a new physical capture or independent accuracy test.
 Fresh committed nine-profile builds and real passive boot/SAFE verification are
 next. No new measurement, fixture change or button interaction has occurred.
+
+## Delivery checkpoint
+
+Committed source 7550d92dcf99c13d846d0d7762b30e2854ef030e passes all nine strict
+UID-bound embedded builds and memory gates. The PC-provisioned PRODUCT image is
+56,260 B Flash / 16,040 B accounted RAM. It is programmed and readback verified;
+passive COM4 boot and actual READY/SAFE metadata confirm active OSL sequence 1,
+all 33 records, no faults, no measurement/capture/held ownership and a free
+workspace. No new DUT measurement or owner interaction occurred. Actual relay
+session behavior, analog settling/phase and visual button/menu validation remain
+REQUIRES_BENCH_VALIDATION. Implementation/software deployment acceptance is met;
+independent hardware/metrology qualification is not marked complete. See
+[delivery](../Firmware/releases/2026-10-26/session-and-menu/README.md).
