@@ -552,6 +552,12 @@ static ui_product_measurement_t ui_measurement_from_result(const measurement_ses
     out.return_channel = (uint8_t)attempt->selected_channel;
     out.confidence = (uint8_t)result->confidence.publication_confidence;
     out.attempt_count = result->attempt_count;
+    /* Unresolved phase/loss can put estimated R below zero while a dominant
+       reactance still supports C/L. Preserve R; never turn it into valid loss. */
+    const bool reactive_dominant =
+        (result->classification.interpretation == MEASUREMENT_INTERPRET_CAPACITIVE ||
+         result->classification.interpretation == MEASUREMENT_INTERPRET_INDUCTIVE) &&
+        fabsf(derived->reactance_ohms) > fabsf(derived->resistance_ohms);
     /* Reuse DSP derivation/guards and the session classifier. A clipped unused HG
        path does not invalidate an unclipped usable selected 1X path. */
     out.derived_valid = out.derived_valid &&
@@ -562,7 +568,8 @@ static ui_product_measurement_t ui_measurement_from_result(const measurement_ses
         selected->usable && selected->calibration_valid && !selected->clipped &&
         result->confidence.measurement_quality != MEASUREMENT_QUALITY_INVALID &&
         measurement_complex_is_finite(attempt->z_ohms) &&
-        isfinite(derived->resistance_ohms) && derived->resistance_ohms >= 0.0f &&
+        isfinite(derived->resistance_ohms) &&
+        (derived->resistance_ohms >= 0.0f || reactive_dominant) &&
         isfinite(derived->reactance_ohms) && isfinite(derived->magnitude_ohms) &&
         derived->magnitude_ohms >= 0.0f && isfinite(derived->phase_rad) &&
         measurement_auto_condition_allowed(attempt->config.range_id,
@@ -579,7 +586,7 @@ static ui_product_measurement_t ui_measurement_from_result(const measurement_ses
         result->classification.interpretation == MEASUREMENT_INTERPRET_INDUCTIVE &&
         derived->reactance_ohms > 0.0f && isfinite(derived->inductance_h) && derived->inductance_h > 0.0f;
     const bool reactive_model = out.capacitance_valid || out.inductance_valid;
-    out.esr_valid = out.capacitance_valid;
+    out.esr_valid = out.capacitance_valid && derived->resistance_ohms >= 0.0f;
     out.q = derived->q;
     out.d = derived->d;
     out.q_valid = reactive_model && derived->q_valid && derived->resistance_ohms > 0.0f &&

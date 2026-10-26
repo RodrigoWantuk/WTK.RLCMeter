@@ -1249,6 +1249,44 @@ static int test_factory_ac_lifecycle(const char *directory)
 }
 #endif
 
+#if WTK_PRODUCT_FACTORY_PROVISIONED
+static int test_reactive_value_survives_unresolved_negative_loss(void)
+{
+    int failures = 0;
+    const fake_outcome_t cases[] = {
+        {.z={-20.685913f,0.0f},.interpretation=MEASUREMENT_INTERPRET_CAPACITIVE,
+         .electrical_model=1u,.reactive_value=9.607297e-9f},
+        {.z={-0.03f,0.0f},.interpretation=MEASUREMENT_INTERPRET_INDUCTIVE,
+         .electrical_model=2u,.reactive_value=470.0e-6f},
+        {.z={-0.5f,0.0f},.interpretation=MEASUREMENT_INTERPRET_RESISTIVE},
+        {.z={-1000.0f,-100.0f},.interpretation=MEASUREMENT_INTERPRET_CAPACITIVE},
+    };
+    app_product_inputs_t inputs = inputs_ready();
+    for (size_t i=0u; i<sizeof(cases)/sizeof(cases[0]); i++)
+    {
+        fake_io_t fake;
+        ac_fixture(&fake,cases[i]);
+        app_product_t product;
+        failures += expect_true(init_product(&product,&fake)==BSP_STATUS_OK,"negative-loss init");
+        boot_to_ready(&product,&inputs); ac_run(&product,&inputs);
+        const ui_product_measurement_t *result=&product.view.measurement_result;
+        failures += expect_true(result->derived_valid==(i<2u),
+            "dominant reactive value survives; negative resistive/dominant-R result stays invalid");
+        failures += expect_true(!result->esr_valid && !result->q_valid && !result->d_valid,
+            "negative estimated resistance never becomes a published ESR/Q/D");
+        if (i<2u)
+        {
+            failures += expect_true(i==0u ? result->capacitance_valid : result->inductance_valid,
+                "reactive model keeps its own valid value");
+            failures += expect_true(result->resistance_ohms==cases[i].z.re &&
+                result->max_error_status==MEASUREMENT_ERROR_NOT_CHARACTERIZED,
+                "raw negative R is preserved without a fabricated error bound");
+        }
+    }
+    return failures;
+}
+#endif
+
 static int test_actual_idle_and_owned_safety_scheduling(void)
 {
     int failures = 0;
@@ -1339,6 +1377,9 @@ int main(int argc, char **argv)
 #endif
     failures += test_boot_calibration_gate();
     failures += test_actual_idle_and_owned_safety_scheduling();
+#if WTK_PRODUCT_FACTORY_PROVISIONED
+    failures += test_reactive_value_survives_unresolved_negative_loss();
+#endif
     failures += test_host_resource_maintenance_entry();
     failures += test_ok_gestures_and_measurement_flow();
     failures += test_failed_refinement_hides_stale_primary();

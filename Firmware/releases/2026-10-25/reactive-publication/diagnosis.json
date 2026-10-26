@@ -1,0 +1,17 @@
+{
+  "status": "PHYSICAL_FAILURE_PRESERVED_PUBLICATION_FIX_PENDING",
+  "fixture": "Owner-confirmed isolated polyester 103J100, nominal 10nF +/-5%",
+  "source": "ddd565dbcfd1d1c28e7e520cab4a92f4dd3e65d1",
+  "session_sequence": 16,
+  "calibration_sequence": 1,
+  "classification": 1,
+  "r_ohm": -20.6859130859375,
+  "x_ohm": -1656.6046142578125,
+  "capacitance_f": 9.607297180025398e-09,
+  "dsp_status": 0,
+  "ui_derived_valid_before": 0,
+  "cause": "Factory PRODUCT blanket nonnegative-R guard suppresses an otherwise valid reactance-derived capacitor result",
+  "inductor_scope": "Unidentified very small choke; known marked fixture pending, no threshold change justified",
+  "evidence_sha256": "fd4289ff77c31ed4a79359dadae7d5f575b4b0dbb6dfe6170e8b3d51c3ff8634",
+  "physically_qualified": false
+}
