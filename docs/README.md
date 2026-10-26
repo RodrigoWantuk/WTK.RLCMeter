@@ -8,6 +8,13 @@ C/L, polarized-capacitor, small-inductor, Click/Live and frequency-search limits
 Chronological checkpoints below retain their original historical status and are
 superseded where the latest handoff provides newer evidence.
 
+Subsequent owner feedback: [display speed/redraw/brightness delivery](../Firmware/releases/2026-10-25/display-feedback/README.md)
+is installed and visibly improved. [Reactive result publication](../Firmware/releases/2026-10-25/reactive-publication/README.md)
+fixes intermittent capacitor n/a caused by a blanket nonnegative-R presentation
+guard; actual post-fix readings are 9.55/9.68 nF on the unchanged 103J100. Negative
+estimated R never becomes valid ESR/Q/D. Unknown small-choke observations still
+need a marked inductor; calibrated value availability is not an accuracy certificate.
+
 Current October24 CAD/firmware, CHG_VBUS5.5V analysis, calibration identity and bench status: [consolidation report](review/bringup-2026-10-24/README.md).
 
 This directory contains the living technical specification for WTK.RLCMeter.

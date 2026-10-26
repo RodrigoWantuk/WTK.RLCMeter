@@ -142,3 +142,9 @@ to every firmware profile and the external resource provisioning procedure.
 [Plan 20](20-Calibrated-Product-Handoff.md) transitions the calibrated first unit
 to PRODUCT without another resistor campaign, correcting application scheduling
 around idle ranges, residual requalification and slow TFT work.
+
+[Plan 21](21-Product-Display-Feedback.md) records the owner-confirmed display
+speed, duplicate-READY rendering and default-brightness correction.
+[Plan 22](22-Reactive-Result-Publication.md) separates dominant reactive C/L
+publication from unresolved loss; two actual capacitor readings pass, while
+known-inductor and independent accuracy qualification remain pending.

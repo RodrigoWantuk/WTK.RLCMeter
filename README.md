@@ -26,6 +26,14 @@ update improves rendering speed, duplicate painting and default brightness.
 Independent accuracy, scope and final-lead validation remain pending. See
 [installation evidence](Firmware/releases/2026-10-25/installation-residual-requalification/README.md).
 
+The subsequent [display update](Firmware/releases/2026-10-25/display-feedback/README.md)
+restores normal TFT speed, coalesces READY painting and improves default brightness.
+[Reactive publication recovery](Firmware/releases/2026-10-25/reactive-publication/README.md)
+separates dominant C/L reactance from unresolved negative estimated loss. Two
+actual 103J100 measurements publish 9.55/9.68 nF with SAFE teardown and unchanged
+calibration. A marked known inductor and independent accuracy/loss validation
+remain pending; no repeated resistor campaign is needed for these app fixes.
+
 ## Project goals
 
 - Measure **resistance, capacitance, inductance, and complex impedance**.
