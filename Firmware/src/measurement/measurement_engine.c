@@ -314,10 +314,8 @@ static bool explore_resistive_low_impedance(const measurement_attempt_result_t *
      * Search at higher frequency without changing classification thresholds. */
     return (result->derived.interpretation == MEASUREMENT_INTERPRET_RESISTIVE) &&
            (result->config.frequency == HW_EXCITATION_FREQ_1KHZ) &&
-           ((result->config.range_id == HW_RANGE_ID_10R) ||
-            (result->config.range_id == HW_RANGE_ID_100R)) &&
-           (result->z_ohms.re >= 0.0f) && quality->usable && !quality->clipped &&
-           !result->clipped;
+           ((uint32_t)result->config.range_id <= (uint32_t)HW_RANGE_ID_100R) &&
+           quality->usable && !quality->clipped;
 }
 
 static bool choose_frequency_refinement(const measurement_auto_session_t *session,
@@ -337,15 +335,10 @@ static bool choose_frequency_refinement(const measurement_auto_session_t *sessio
         return false;
     }
 
-    hw_excitation_freq_t next = HW_EXCITATION_FREQ_10KHZ;
-    if (result->config.frequency == HW_EXCITATION_FREQ_10KHZ)
-    {
-        next = HW_EXCITATION_FREQ_1KHZ;
-    }
-    else if (result->config.frequency == HW_EXCITATION_FREQ_10HZ)
-    {
-        next = HW_EXCITATION_FREQ_1KHZ;
-    }
+    /* Conditions are validated before scheduling: both 10 Hz and 10 kHz
+     * refine at 1 kHz; a 1-kHz condition refines at 10 kHz. */
+    const hw_excitation_freq_t next = (result->config.frequency == HW_EXCITATION_FREQ_1KHZ) ?
+                                         HW_EXCITATION_FREQ_10KHZ : HW_EXCITATION_FREQ_1KHZ;
 
     measurement_attempt_config_t attempt = make_attempt(session,
                                                         result->config.range_id,

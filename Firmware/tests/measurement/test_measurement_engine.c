@@ -638,16 +638,17 @@ static int start_low_impedance_hint(measurement_auto_session_t *session,
 static int test_low_impedance_frequency_exploration(void)
 {
     int failures = 0;
-    for (uint8_t variant = 0u; variant < 3u; variant++)
+    for (uint8_t variant = 0u; variant < 4u; variant++)
     {
         measurement_auto_session_t session;
         measurement_attempt_config_t attempt;
         failures += start_low_impedance_hint(&session, &attempt, HW_RANGE_ID_10R,
                                              HW_EXCITATION_FREQ_1KHZ);
-        /* First variant replays the observed nominal 0.47-uH result. The
-         * other variants exercise a real resistor and conflicting evidence. */
+        /* Replay the observed nominal 0.47-uH result, then a real resistor,
+         * conflicting evidence and unresolved negative estimated resistance. */
         measurement_attempt_result_t result = make_result_for_attempt(
-            &attempt, measurement_complex(0.235328108f, (variant == 1u) ? 0.0f : -0.010098783f),
+            &attempt, measurement_complex((variant == 3u) ? -0.235328108f : 0.235328108f,
+                                           (variant == 1u) ? 0.0f : -0.010098783f),
             MEASUREMENT_INTERPRET_RESISTIVE);
         result.selected_channel = MEASUREMENT_RETURN_HG;
         result.ret_hg_quality.signal_peak_v = 0.008261145f;
@@ -695,7 +696,7 @@ static int test_low_impedance_search_exclusions(void)
         measurement_attempt_result_t result = make_result_for_attempt(
             &attempt, measurement_complex((variant == 0u) ? 1000.0f : 1.0f, 0.0f),
             MEASUREMENT_INTERPRET_RESISTIVE);
-        if (variant == 2u) { result.z_ohms.re = -1.0f; result.derived.resistance_ohms = -1.0f; }
+        if (variant == 2u) { result.dsp_status = MEASUREMENT_STATUS_NONFINITE; }
         if (variant == 3u) { result.ret_1x_quality.usable = false; }
         if (variant == 4u) { result.ret_1x_quality.clipped = true; }
         if (variant == 5u) { result.safety_abort = true; }
@@ -705,7 +706,8 @@ static int test_low_impedance_search_exclusions(void)
                                     MEASUREMENT_AUTO_EVENT_FINAL_RESULT,
                                 "excluded or terminal result does not launch low-Z exploration");
         failures += expect_true(!measurement_auto_next_attempt(&session, &attempt), "excluded check stays terminal");
-        const measurement_auto_status_t expected = (variant == 5u) ? MEASUREMENT_AUTO_STATUS_SAFETY_ABORT :
+        const measurement_auto_status_t expected = (variant == 2u) ? MEASUREMENT_AUTO_STATUS_NO_VALID_CONDITION :
+                                                   (variant == 5u) ? MEASUREMENT_AUTO_STATUS_SAFETY_ABORT :
                                                    (variant == 6u) ? MEASUREMENT_AUTO_STATUS_CANCELED :
                                                    (variant == 7u) ? MEASUREMENT_AUTO_STATUS_SHORT_LIKE :
                                                                       MEASUREMENT_AUTO_STATUS_FINAL_OK;

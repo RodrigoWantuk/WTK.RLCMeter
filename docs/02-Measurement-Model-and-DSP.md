@@ -146,10 +146,11 @@ Automatic range selection first follows the existing DUT/reference ratio,
 clipping and weak-signal criteria. It does not sweep every RREF: a larger RREF
 can further reduce a small DUT's return signal. After these quality steps, a
 finite apparently resistive result at 1 kHz on RREF 10 or 100 ohm also requests
-one 10-kHz attempt at the same amplitude/RREF, provided R is nonnegative and
-the selected return path is usable and unclipped. Reactance can be zero or
+one 10-kHz attempt at the same amplitude/RREF, provided the selected return path is usable and unclipped. Reactance can be zero or
 have either sign at this stage; the check investigates possible hidden
-reactance rather than presuming a component type.
+reactance rather than presuming a component type. A finite negative estimated
+R may also be explored; unchanged publication guards still reject unsupported
+negative resistance/loss.
 
 The existing six-attempt/four-range/one-frequency limits and no-repeat rule
 still apply. Actual SHORT/OPEN, invalid data, safety abort and cancellation

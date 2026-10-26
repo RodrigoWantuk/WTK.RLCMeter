@@ -19,10 +19,11 @@ DUT/reference ratio, increase it for large ratio or clipping. An additional
 RREF is useful only when it improves the existing quality criteria; do not
 exhaustively sweep every range or raise current at the lowest RREF.
 
-After those quality steps, an apparently resistive, finite, nonnegative-R
+After those quality steps, an apparently resistive, finite
 result at 1 kHz on the 10-ohm or 100-ohm reference may request one 10-kHz check
 at the same RREF and amplitude. The selected RET path must be usable and
-unclipped. This targets low-impedance components whose reactance can be hidden
+unclipped. Estimated R may have either sign; existing publication guards still
+reject unsupported negative resistance/loss. This targets low-impedance components whose reactance can be hidden
 by winding/contact resistance at the first frequency, including zero measured
 reactance. It is an exploration heuristic, not a physical accuracy threshold.
 
@@ -74,3 +75,12 @@ neutral excitation sequencing and tested emergency cleanup. Existing fault
 policy treats invalid/indeterminate ranges as blockers. Do not skip the current
 cleanup or reuse consumed permits as a shortcut. This optimization is a separate
 safety architecture task and is not implemented by the search predicate change.
+
+The initial added R>=0 exploration filter was removed during size review: a
+finite negative estimated R also warrants a diagnostic frequency check, while
+publication of unsupported negative R/loss remains blocked by the unchanged
+PRODUCT guards. Searching and publishing are distinct. This also avoids an
+extra soft-float comparison in the nearly full BRINGUP image. The exploratory
+predicate never bypasses finite-DSP, selected-path, terminal or safety gates.
+Equivalent compact frequency selection retains all three supported mappings.
+A BRINGUP size check now fits at 65,528 bytes; final committed matrix is pending.

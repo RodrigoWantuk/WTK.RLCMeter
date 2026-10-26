@@ -352,9 +352,11 @@ Persistent calibration records therefore carry `hardware_revision` and model/sch
 ## Low-impedance search versus calibration
 
 The bounded search in [plan 23](../plans/23-Bounded-Low-Impedance-Search.md)
-adds a supporting 10-kHz attempt after a usable, unclipped, nonnegative-R,
+adds a supporting 10-kHz attempt after a usable, unclipped,
 apparently resistive 1-kHz result on the 10/100-ohm references. It changes
-condition selection only. The OSL model, coefficients, HG transfer, hardware
+condition selection only. Finite negative estimated R may also be investigated,
+while existing negative-resistance/loss publication guards remain unchanged.
+The OSL model, coefficients, HG transfer, hardware
 revision, ADC timing, calibration serialization and publication gates remain
 unchanged. The existing active engineering set can be retained; this change
 does not require another resistor calibration campaign. Each selected condition
