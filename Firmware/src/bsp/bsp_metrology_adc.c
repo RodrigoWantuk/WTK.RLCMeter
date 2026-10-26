@@ -14,6 +14,15 @@ enum
 static volatile bool g_dma_complete = false;
 static volatile bool g_dma_error = false;
 static bool g_acquired = false;
+#if WTK_ENABLE_BENCH_SUPPLY
+static bool g_capture_active = false;
+static bsp_metrology_adc_trace_t g_trace;
+
+void bsp_metrology_adc_trace(bsp_metrology_adc_trace_t *out)
+{
+    if (out != NULL) { *out = g_trace; }
+}
+#endif
 
 static bool deadline_reached(uint32_t now_ms, uint32_t deadline_ms)
 {
@@ -87,18 +96,41 @@ static void stop_tim2(void)
 {
     TIM2->CR1 &= ~TIM_CR1_CEN;
     TIM2->DIER = 0u;
-    TIM2->CCER &= ~TIM_CCER_CC2E; /* never drive PA1 */
+    TIM2->CCER &= ~TIM_CCER_CC2E; /* disable internal compare channel */
 }
 
 static void disable_adc_dma(void)
 {
     DMA1_Channel1->CCR &= ~DMA_CCR_EN;
-    ADC1->CR2 &= ~ADC_CR2_DMA;
+    /* On STM32F1 an unchanged CR2 write with ADON=1 can start a regular
+     * conversion. A pre-capture stop must not rewrite an already-clear DMA
+     * bit while the calibrated pair is enabled and waiting for TIM2. */
+    if ((ADC1->CR2 & ADC_CR2_DMA) != 0u)
+    {
+        ADC1->CR2 &= ~ADC_CR2_DMA;
+    }
     DMA1->IFCR = DMA_IFCR_CGIF1 | DMA_IFCR_CTCIF1 | DMA_IFCR_CTEIF1 | DMA_IFCR_CHTIF1;
 }
 
 void bsp_metrology_adc_stop(void)
 {
+#if WTK_ENABLE_BENCH_SUPPLY
+    if (g_capture_active)
+    {
+        g_trace = (bsp_metrology_adc_trace_t){
+            .valid = true, .captured_ms = bsp_time_now_ms(),
+            .adc1_sr = ADC1->SR, .adc1_cr1 = ADC1->CR1, .adc1_cr2 = ADC1->CR2,
+            .adc2_sr = ADC2->SR, .adc2_cr2 = ADC2->CR2,
+            .dma_isr = DMA1->ISR, .dma_ccr = DMA1_Channel1->CCR,
+            .dma_remaining = DMA1_Channel1->CNDTR,
+            .tim2_cr1 = TIM2->CR1, .tim2_sr = TIM2->SR, .tim2_cnt = TIM2->CNT,
+            .tim2_arr = TIM2->ARR, .tim2_ccr2 = TIM2->CCR2, .primask = __get_PRIMASK(),
+            .tim2_ccer = TIM2->CCER, .gpioa_crl = GPIOA->CRL, .afio_mapr = AFIO->MAPR,
+            .dma_complete = g_dma_complete, .dma_error = g_dma_error,
+        };
+        g_capture_active = false;
+    }
+#endif
     stop_tim2();
     disable_adc_dma();
 }
@@ -131,10 +163,10 @@ bsp_status_t bsp_metrology_adc_acquire(uint32_t now_ms)
     gpio_config_analog(GPIOA, 2u);
     gpio_config_analog(GPIOA, 3u);
 
-    ADC1->CR1 = 0u;
     ADC1->CR2 = 0u;
-    ADC2->CR1 = 0u;
     ADC2->CR2 = 0u;
+    ADC1->CR1 = 0u;
+    ADC2->CR1 = 0u;
 
     bsp_status_t status = calibrate_adc(ADC1, now_ms);
     if (status != BSP_STATUS_OK)
@@ -147,6 +179,12 @@ bsp_status_t bsp_metrology_adc_acquire(uint32_t now_ms)
         ADC1->CR2 = 0u;
         return status;
     }
+
+    /* Calibration leaves ADON set. The STM32F1 multimode configuration
+     * contract requires BOTH ADCs disabled before changing DUALMOD/sequence.
+     * Do not configure the pair in the powered calibration state. */
+    ADC1->CR2 = 0u;
+    ADC2->CR2 = 0u;
 
     const uint32_t smp_7p5 = (METROLOGY_SAMPLE_SMP_7P5 << ADC_SMPR2_SMP0_Pos) |
                              (METROLOGY_SAMPLE_SMP_7P5 << ADC_SMPR2_SMP1_Pos) |
@@ -171,7 +209,10 @@ bsp_status_t bsp_metrology_adc_acquire(uint32_t now_ms)
 
     /* TIM2_CC2 external trigger, 12-bit right aligned, dual DMA from ADC1->DR */
     ADC1->CR2 = ADC_CR2_ADON | ADC_CR2_EXTTRIG | ADC_CR2_EXTSEL_0 | ADC_CR2_EXTSEL_1;
-    ADC2->CR2 = ADC_CR2_ADON;
+    /* RM0008 dual mode: enable EXTTRIG on both ADCs; the slave selects
+     * SWSTART (111) but is started by the master, never by a SWSTART write.
+     * The ST HAL MultiModeStart_DMA contract requires this slave setup. */
+    ADC2->CR2 = ADC_CR2_ADON | ADC_CR2_EXTTRIG | ADC_CR2_EXTSEL;
     delay_adc_stabilization();
 
     NVIC_SetPriority(DMA1_Channel1_IRQn, 1u);
@@ -191,6 +232,13 @@ bsp_status_t bsp_metrology_adc_start_capture(uint32_t *raw_words,
     {
         return BSP_STATUS_INVALID_ARG;
     }
+    /* Channel enable is internal only: reject any GPIO mode/remap that could
+     * connect TIM2_CH2 to an output pad. PA1 must stay analog ADC_VMID. */
+    if (((GPIOA->CRL & (GPIO_CRL_MODE1 | GPIO_CRL_CNF1)) != 0u) ||
+        ((AFIO->MAPR & AFIO_MAPR_TIM2_REMAP) != 0u))
+    {
+        return BSP_STATUS_ERROR;
+    }
 
     g_dma_complete = false;
     g_dma_error = false;
@@ -209,7 +257,8 @@ bsp_status_t bsp_metrology_adc_start_capture(uint32_t *raw_words,
 
     /*
      * TIM2_CH2 default pin is PA1 (ADC_VMID). CC2 is used only as an internal
-     * compare event. CC2E stays 0 and TIM2 is not remapped.
+     * compare channel, enabled like HAL_TIM_OC_Start. The GPIO remains analog,
+     * so the timer does not drive the PA1 pad; TIM2 is not remapped.
      */
     TIM2->CR1 = 0u;
     TIM2->DIER = 0u;
@@ -217,20 +266,24 @@ bsp_status_t bsp_metrology_adc_start_capture(uint32_t *raw_words,
     TIM2->ARR = tim2_arr;
     TIM2->CCR2 = tim2_ccr2;
     TIM2->CCMR1 = TIM_CCMR1_OC2M_1 | TIM_CCMR1_OC2M_2 | TIM_CCMR1_OC2PE;
-    TIM2->CCER = 0u;
+    TIM2->CCER = TIM_CCER_CC2E;
     TIM2->CNT = 0u;
     TIM2->EGR = TIM_EGR_UG;
     TIM2->CR1 = TIM_CR1_ARPE | TIM_CR1_CEN;
+#if WTK_ENABLE_BENCH_SUPPLY
+    g_trace.valid = false;
+    g_capture_active = true;
+#endif
     return BSP_STATUS_OK;
 }
 
 bsp_status_t bsp_metrology_adc_restore(uint32_t now_ms)
 {
     bsp_metrology_adc_stop();
-    ADC1->CR1 = 0u;
     ADC1->CR2 = 0u;
-    ADC2->CR1 = 0u;
     ADC2->CR2 = 0u;
+    ADC1->CR1 = 0u;
+    ADC2->CR1 = 0u;
     g_acquired = false;
 
     gpio_config_analog(GPIOA, 1u);

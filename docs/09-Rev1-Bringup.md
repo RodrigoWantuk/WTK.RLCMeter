@@ -1,5 +1,11 @@
 # Rev.1 Bring-up
 
+## October24 integration baseline
+
+The first board has completed bounded basic R/C/L and peripheral observations; the historical pre-assembly gates below are not a current blank-board status. All RGS were reworked gate-toGND and current CAD reflects it; display-flat repair restored rendering. Battery/charger, calibration and broader electrical/metrology gates remain pending.
+
+See [current evidence, input limits and release status](review/bringup-2026-10-24/README.md).
+
 The objective is to discover faults while energizing the smallest possible portion of the circuit at each step.
 
 **Current pre-assembly gate:** follow the [A05 physical checklist](review/a05/bringup-checklist.md)

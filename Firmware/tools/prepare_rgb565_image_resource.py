@@ -29,6 +29,8 @@ def read_png_rgb(path: Path) -> tuple[int, int, list[tuple[int, int, int]]]:
     pos = 8
     width = height = bit_depth = color_type = interlace = None
     payload = bytearray()
+    palette: list[tuple[int, int, int]] = []
+    transparency = b""
     while pos < len(data):
         if pos + 8 > len(data):
             raise ValueError("truncated PNG chunk")
@@ -40,16 +42,26 @@ def read_png_rgb(path: Path) -> tuple[int, int, list[tuple[int, int, int]]]:
             width, height, bit_depth, color_type, _, _, interlace = struct.unpack(">IIBBBBB", chunk)
         elif kind == b"IDAT":
             payload.extend(chunk)
+        elif kind == b"PLTE":
+            if not chunk or len(chunk) % 3 or len(chunk) > 768:
+                raise ValueError("invalid PNG palette")
+            palette = [tuple(chunk[i:i+3]) for i in range(0, len(chunk), 3)]
+        elif kind == b"tRNS":
+            transparency = chunk
         elif kind == b"IEND":
             break
     if None in (width, height, bit_depth, color_type, interlace):
         raise ValueError("missing PNG IHDR")
-    if bit_depth != 8 or color_type not in (2, 6) or interlace != 0:
-        raise ValueError("only non-interlaced 8-bit RGB/RGBA PNG input is supported")
+    if bit_depth != 8 or color_type not in (2, 3, 6) or interlace != 0:
+        raise ValueError("only non-interlaced 8-bit RGB/RGBA/indexed PNG input is supported")
+    if color_type == 3 and (not palette or len(transparency) > len(palette)):
+        raise ValueError("indexed PNG requires a valid palette/transparency table")
 
-    channels = 3 if color_type == 2 else 4
+    channels = {2: 3, 3: 1, 6: 4}[color_type]
     stride = int(width) * channels
     raw = zlib.decompress(bytes(payload))
+    if len(raw) != (stride + 1) * int(height):
+        raise ValueError("PNG decoded row size mismatch")
     rows: list[bytes] = []
     previous = bytearray(stride)
     src = 0
@@ -80,9 +92,19 @@ def read_png_rgb(path: Path) -> tuple[int, int, list[tuple[int, int, int]]]:
     for row in rows:
         for x in range(int(width)):
             offset = x * channels
-            r, g, b = row[offset], row[offset + 1], row[offset + 2]
-            if channels == 4:
-                alpha = row[offset + 3]
+            alpha = 255
+            if color_type == 3:
+                index = row[offset]
+                if index >= len(palette):
+                    raise ValueError("PNG palette index out of range")
+                r, g, b = palette[index]
+                if index < len(transparency):
+                    alpha = transparency[index]
+            else:
+                r, g, b = row[offset], row[offset + 1], row[offset + 2]
+                if channels == 4:
+                    alpha = row[offset + 3]
+            if alpha != 255:
                 r = ((r * alpha) + (4 * (255 - alpha))) // 255
                 g = ((g * alpha) + (10 * (255 - alpha))) // 255
                 b = ((b * alpha) + (19 * (255 - alpha))) // 255

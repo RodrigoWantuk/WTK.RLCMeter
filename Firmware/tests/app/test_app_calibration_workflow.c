@@ -45,6 +45,8 @@ typedef struct
     bool abort_called;
     bool start_error;
     bool fail_capture;
+    bool abort_finishes_idle;
+    bool hold_abort_active;
     hw_metrology_measure_error_t error;
 } fake_phase05_t;
 
@@ -453,6 +455,120 @@ static int test_clean_short_completes(void)
     failures += expect_u32((uint32_t)app_calibration_workflow_result(&workflow),
                            (uint32_t)APP_CAL_WORKFLOW_RESULT_OK,
                            "short evidence should complete");
+    return failures;
+}
+
+static int test_raw_zero_return_short_only(void)
+{
+    int failures = 0;
+    const app_cal_standard_type_t types[] = {APP_CAL_STANDARD_SHORT, APP_CAL_STANDARD_OPEN, APP_CAL_STANDARD_LOAD};
+    static hw_metrology_block_t block;
+    static uint32_t raw[HW_METROLOGY_RAW_WORD_COUNT];
+    for (size_t i = 0u; i < sizeof(types) / sizeof(types[0]); i++)
+    {
+        const app_cal_workflow_request_t request = request_for(types[i]);
+        make_block(&block, raw, &request, measurement_complex(0.100f, 0.0f),
+            measurement_complex(0.0f, 0.0f), measurement_complex(0.100f, 0.0f),
+            measurement_complex(0.0f, 0.0f));
+        app_cal_capture_sample_t sample;
+        failures += expect_true(app_calibration_workflow_sample_from_block(&block, &request, &sample) == BSP_STATUS_OK,
+            "zero-return raw block extracts");
+        failures += expect_true(!sample.hg_overlap_valid, "zero return cannot observe HG gain");
+        app_calibration_workflow_t workflow;
+        app_calibration_workflow_init(&workflow);
+        (void)app_calibration_workflow_start(&workflow, &request, 12u);
+        if (types[i] == APP_CAL_STANDARD_SHORT)
+        {
+            failures += expect_true(sample.ret_1x_usable && sample.ret_hg_usable,
+                "known SHORT observes zero on unclipped channels");
+            for (uint8_t repeat = 0u; repeat < APP_CAL_WORKFLOW_REQUIRED_ACCEPTED; repeat++)
+                failures += feed_sample(&workflow, &sample);
+            failures += expect_u32((uint32_t)app_calibration_workflow_result(&workflow),
+                (uint32_t)APP_CAL_WORKFLOW_RESULT_OK, "zero SHORT completes with real source");
+        }
+        else
+        {
+            failures += feed_sample(&workflow, &sample);
+            failures += expect_true((app_calibration_workflow_last_reject_flags(&workflow) &
+                APP_CAL_REJECT_NO_USABLE_CHANNEL) != 0u, "OPEN/LOAD retain return-SNR gate");
+        }
+    }
+    const app_cal_workflow_request_t request = request_for(APP_CAL_STANDARD_SHORT);
+    make_block(&block, raw, &request, measurement_complex(0.0f, 0.0f),
+        measurement_complex(0.0f, 0.0f), measurement_complex(0.0f, 0.0f), measurement_complex(0.0f, 0.0f));
+    app_cal_capture_sample_t sample;
+    (void)app_calibration_workflow_sample_from_block(&block, &request, &sample);
+    app_calibration_workflow_t workflow;
+    app_calibration_workflow_init(&workflow);
+    (void)app_calibration_workflow_start(&workflow, &request, 13u);
+    failures += feed_sample(&workflow, &sample);
+    failures += expect_true((app_calibration_workflow_last_reject_flags(&workflow) &
+        APP_CAL_REJECT_SOURCE_TOO_SMALL) != 0u, "zero SHORT still requires observable excitation");
+    make_block(&block, raw, &request, measurement_complex(1.750f, 0.0f),
+        measurement_complex(0.0f, 0.0f), measurement_complex(1.750f, 0.0f), measurement_complex(0.0f, 0.0f));
+    (void)app_calibration_workflow_sample_from_block(&block, &request, &sample);
+    failures += expect_true(!sample.ret_1x_usable && !sample.ret_hg_usable,
+        "SHORT does not admit clipped source channels");
+    return failures;
+}
+
+static int test_endpoint_stability_scale(app_cal_standard_type_t type, float spread, bool stable)
+{
+    int failures = 0;
+    app_calibration_workflow_t workflow;
+    app_calibration_workflow_init(&workflow);
+    const app_cal_workflow_request_t request = request_for(type);
+    (void)app_calibration_workflow_start(&workflow, &request, 10u);
+    const uint8_t count = stable ? APP_CAL_WORKFLOW_REQUIRED_ACCEPTED : APP_CAL_WORKFLOW_MAX_ATTEMPTS;
+    for (uint8_t i = 0u; i < count; i++)
+    {
+        const float value = ((i % 2u) == 0u) ? spread : -spread;
+        app_cal_capture_sample_t sample = sample_for(&request,
+            measurement_complex(value, 0.0f), APP_CAL_REJECT_NONE);
+        if (type == APP_CAL_STANDARD_OPEN)
+        {
+            sample.open_y_1x = measurement_complex(value, 0.0f);
+            sample.open_y_hg = sample.open_y_1x;
+        }
+        failures += feed_sample(&workflow, &sample);
+    }
+    failures += expect_u32((uint32_t)app_calibration_workflow_result(&workflow),
+        (uint32_t)(stable ? APP_CAL_WORKFLOW_RESULT_OK : APP_CAL_WORKFLOW_RESULT_UNSTABLE),
+        "endpoint noise uses declared scale while excessive dispersion remains rejected");
+    return failures;
+}
+
+static int test_raw_common_phase_origin(bool changing_return)
+{
+    int failures = 0;
+    app_calibration_workflow_t workflow;
+    app_calibration_workflow_init(&workflow);
+    const app_cal_workflow_request_t request = request_for(APP_CAL_STANDARD_OPEN);
+    (void)app_calibration_workflow_start(&workflow, &request, 11u);
+    const measurement_complex_t phases[] = {{1.0f, 0.0f}, {0.0f, 1.0f}, {-1.0f, 0.0f},
+        {0.0f, -1.0f}, {0.70710678f, 0.70710678f}, {-0.70710678f, -0.70710678f}};
+    const uint8_t count = changing_return ? APP_CAL_WORKFLOW_MAX_ATTEMPTS : APP_CAL_WORKFLOW_REQUIRED_ACCEPTED;
+    static hw_metrology_block_t block;
+    static uint32_t raw[HW_METROLOGY_RAW_WORD_COUNT];
+    for (uint8_t i = 0u; i < count; i++)
+    {
+        const measurement_complex_t source = measurement_complex_mul(phases[i % 6u],
+            measurement_complex(0.100f, 0.0f));
+        const float relative_phase = changing_return ? (((i % 2u) == 0u) ? 0.1f : -0.1f) : 0.0f;
+        const measurement_complex_t returned = measurement_complex_mul(source,
+            measurement_complex(1.0f, relative_phase));
+        make_block(&block, raw, &request, source, returned, source,
+            measurement_complex_mul(returned, measurement_complex(TEST_HG_NOMINAL, 0.0f)));
+        app_cal_capture_sample_t sample;
+        failures += expect_true(app_calibration_workflow_sample_from_block(&block, &request, &sample) == BSP_STATUS_OK,
+            "phase-rotated raw block extracts normally");
+        failures += expect_complex_near(sample.vexc_1_v, source, 0.001f,
+            "raw sample retains its block phase while workflow tests relative observables");
+        failures += feed_sample(&workflow, &sample);
+    }
+    failures += expect_u32((uint32_t)app_calibration_workflow_result(&workflow),
+        (uint32_t)(changing_return ? APP_CAL_WORKFLOW_RESULT_UNSTABLE : APP_CAL_WORKFLOW_RESULT_OK),
+        "common phase cancels but true relative return variation stays observable");
     return failures;
 }
 
@@ -914,8 +1030,12 @@ static bsp_status_t fake_phase05_step(uint32_t now_ms, void *user)
         return BSP_STATUS_INVALID_ARG;
     }
     fake->step_count++;
+    if (fake->abort_called && fake->hold_abort_active)
+    {
+        return BSP_STATUS_BUSY;
+    }
     fake->active = false;
-    fake->done = true;
+    fake->done = !fake->abort_finishes_idle;
     if (fake->abort_called)
     {
         fake->dumpable = false;
@@ -1073,7 +1193,7 @@ static int test_session_runs_open_capture_end_to_end(void)
     return failures;
 }
 
-static int test_session_phase05_safety_abort_fails_safely(void)
+static int test_session_phase05_safety_abort_fails_safely(bool finishes_idle)
 {
     int failures = 0;
     app_calibration_service_t service;
@@ -1095,6 +1215,7 @@ static int test_session_phase05_safety_abort_fails_safely(void)
     fake.blocks[0] = &block;
     fake.block_count = 1u;
     fake.fail_capture = true;
+    fake.abort_finishes_idle = finishes_idle;
     fake.error = HW_METROLOGY_MEASURE_ERR_PERMIT;
     const bsp_clock_summary_t clock = good_clock();
     failures += expect_true(app_calibration_session_start(&session, &request, &clock, BSP_STATUS_OK, 0u) ==
@@ -1146,7 +1267,13 @@ static int test_session_cancel_waits_for_phase05_abort(void)
     failures += expect_true(app_calibration_session_cancel(&session) == BSP_STATUS_BUSY,
                             "cancel during Phase05 waits");
     failures += expect_true(fake.abort_called, "Phase05 abort requested");
+    fake.hold_abort_active = true;
     failures += expect_u32((uint32_t)app_calibration_session_step(&session, 2u),
+                           (uint32_t)APP_CAL_SESSION_EVENT_NONE,
+                           "cancel keeps hardware ownership until abort drains");
+    failures += expect_true(app_calibration_session_active(&session), "cancel still draining");
+    fake.hold_abort_active = false;
+    failures += expect_u32((uint32_t)app_calibration_session_step(&session, 3u),
                            (uint32_t)APP_CAL_SESSION_EVENT_CANCELED,
                            "cancel terminal event");
     failures += expect_true(!app_calibration_session_active(&session), "canceled session inactive");
@@ -1609,6 +1736,65 @@ static int test_campaign_solves_condition_and_inserts_candidate_record(void)
     return failures;
 }
 
+static int test_coherent_integration(void)
+{
+    int failures = 0;
+    const app_cal_workflow_request_t request = {
+        .key = {.hardware_revision = MEASUREMENT_CAL_HARDWARE_REV1,
+                .model_version = MEASUREMENT_CAL_MODEL_VERSION_CURRENT,
+                .range_id = HW_RANGE_ID_1K, .frequency = HW_EXCITATION_FREQ_10KHZ,
+                .amplitude = HW_EXCITATION_AMP_100MVRMS},
+        .standard = {.type = APP_CAL_STANDARD_LOAD, .z_valid = true, .z_ohms = {1000.0f,0.0f}}};
+    const measurement_complex_t phases[4] = {{1.0f,0.0f},{0.0f,1.0f},{-1.0f,0.0f},{0.0f,-1.0f}};
+    const measurement_complex_t skew = {0.98f,0.1f};
+    for (unsigned clipped = 0u; clipped < 3u; clipped++)
+    {
+        app_cal_integration_t integration = {0};
+        app_cal_capture_sample_t sample = {0};
+        for (unsigned i = 0u; i < 4u; i++)
+        {
+            const float source = i % 2u == 0u ? 0.1f : 0.2f;
+            const float transfer = i % 2u == 0u ? 0.2f : 0.3f;
+            const measurement_complex_t vmid = measurement_complex_mul(phases[i],measurement_complex(0.001f,0.0f));
+            const measurement_complex_t vs1 = measurement_complex_mul(phases[i],measurement_complex(source,0.0f));
+            const measurement_complex_t vx = measurement_complex_mul(vs1,measurement_complex(transfer,0.0f));
+            const measurement_complex_t vhg = measurement_complex_mul(measurement_complex_mul(vx,skew),measurement_complex(15.0f,0.0f));
+            measurement_complex_t reconstructed;
+            const measurement_dsp_config_t config = measurement_dsp_config_ideal(HW_RANGE_ID_1K);
+            (void)measurement_complex_div(vhg,config.ret_hg_transfer,&reconstructed);
+            const measurement_phasor_set_t phasors = {.valid = true,
+                .vmid = vmid, .vmid_adc1 = vmid, .vmid_adc2 = vmid,
+                .vexc_1 = measurement_complex_add(vs1,vmid),
+                .vexc_2 = measurement_complex_add(measurement_complex_mul(vs1,skew),vmid),
+                .ret_1x = measurement_complex_add(vx,vmid),
+                .ret_hg = measurement_complex_add(vhg,vmid),
+                .ret_hg_reconstructed = measurement_complex_add(reconstructed,vmid)};
+            hw_metrology_block_t metadata = {.valid = true};
+            if (i == 1u && clipped != 0u)
+            {
+                metadata.clipped = true;
+                metadata.streams[clipped == 1u ? HW_METROLOGY_STREAM_RET_HG : HW_METROLOGY_STREAM_VMID_ADC1].hard_clipped = true;
+            }
+            failures += expect_true(app_calibration_workflow_sample_from_phasors(
+                &metadata,&request,&phasors,&sample) == BSP_STATUS_OK,"physical phasor test input");
+            const bsp_status_t status = app_cal_integration_push(&integration,4u,&metadata,&request,&sample);
+            failures += expect_true(status == (i == 3u ? BSP_STATUS_OK : BSP_STATUS_BUSY),
+                                    "coherent group remains partial until all physical blocks arrive");
+        }
+        failures += expect_near(sample.vexc_1_v.re,0.15f,1.0e-6f,"four timer quadrants align source");
+        failures += expect_near(sample.vexc_1_v.im,0.0f,1.0e-6f,"source phase alignment");
+        failures += expect_near(sample.ret_1x_v.re/sample.vexc_1_v.re,0.26666667f,1.0e-6f,
+                                "derive ratio from phasor means, not mean of per-block ratios");
+        failures += expect_near(sample.hg_observed_transfer.re,15.0f,1.0e-4f,
+                                "observed gain retains independently skewed source path");
+        failures += expect_true(sample.ret_hg_usable == (clipped == 0u),"one clipped HG block stays unusable");
+        failures += expect_true(sample.ret_1x_usable == (clipped != 2u),"VMID clipping cannot be averaged away");
+        if (clipped != 0u)
+            failures += expect_true(!sample.hg_overlap_valid,"clipping cannot manufacture overlap");
+    }
+    return failures;
+}
+
 int main(int argc, char **argv)
 {
     if ((argc > 1) && (strcmp(argv[1], "--print-sizes") == 0))
@@ -1633,6 +1819,7 @@ int main(int argc, char **argv)
     }
 
     int failures = 0;
+    failures += test_coherent_integration();
     failures += test_clean_load_completes();
     failures += test_open_accepts_phasor_evidence_without_forced_z();
     failures += test_raw_open_block_accepts_denominator_singularity();
@@ -1640,6 +1827,13 @@ int main(int argc, char **argv)
     failures += test_raw_hg_observed_transfer_preserves_nonideal_gain();
     failures += test_clipped_hg_does_not_reject_good_1x_path();
     failures += test_clean_short_completes();
+    failures += test_raw_zero_return_short_only();
+    failures += test_endpoint_stability_scale(APP_CAL_STANDARD_OPEN, 0.001f, true);
+    failures += test_endpoint_stability_scale(APP_CAL_STANDARD_OPEN, 0.05f, false);
+    failures += test_endpoint_stability_scale(APP_CAL_STANDARD_SHORT, 0.5f, true);
+    failures += test_endpoint_stability_scale(APP_CAL_STANDARD_SHORT, 100.0f, false);
+    failures += test_raw_common_phase_origin(false);
+    failures += test_raw_common_phase_origin(true);
     failures += test_unsupported_condition_rejected();
     failures += test_clipping_rejected_until_bounded_failure();
     failures += test_unstable_evidence_fails_after_max_attempts();
@@ -1656,7 +1850,8 @@ int main(int argc, char **argv)
     failures += test_second_recalibration_alternates_slots_without_aliasing();
     failures += test_campaign_solves_condition_and_inserts_candidate_record();
     failures += test_session_runs_open_capture_end_to_end();
-    failures += test_session_phase05_safety_abort_fails_safely();
+    failures += test_session_phase05_safety_abort_fails_safely(false);
+    failures += test_session_phase05_safety_abort_fails_safely(true);
     failures += test_session_cancel_waits_for_phase05_abort();
     return failures == 0 ? 0 : 1;
 }

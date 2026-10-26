@@ -1,0 +1,120 @@
+{
+  "recorded_utc": "2026-10-25T13:25:38.332302+00:00",
+  "SIMULATED": false,
+  "firmware_source": "063c7378319f293640d6d19d5fadcb3fa3ad686f",
+  "status": "SHORT_33_ACCEPTED_THREE_PRELOAD_PATH_CONFLICTS",
+  "identity": {
+    "hardware_revision": 65538,
+    "model": 5,
+    "profile": 1,
+    "capabilities": 31,
+    "protocol_version": 1,
+    "timeout_ms": 20000,
+    "adc_provenance": "NOMINAL_3V3_NOT_CALIBRATED",
+    "synthetic": false,
+    "uid": "54ff70068370525760380567",
+    "git": "063c7378",
+    "firmware_version": "0.1.0"
+  },
+  "short_conditions": 33,
+  "open_conditions": 33,
+  "candidate_generated": false,
+  "calibration_installed": false,
+  "physically_qualified": false,
+  "short_fixture": "Owner-installed jumper at direct terminals; length not supplied",
+  "final_status": {
+    "capture_id": 947873224,
+    "calibration_sequence": 0,
+    "safety_faults": 0,
+    "safety_blocks": 8,
+    "protocol_errors": 1,
+    "temperature_mC": 25892,
+    "capture_status": 0,
+    "busy": false,
+    "result_valid": true,
+    "calibrated": false,
+    "transfer_safe": true
+  },
+  "protocol_errors_baseline": 1,
+  "no_new_protocol_errors": true,
+  "conflicts": [
+    {
+      "condition": {
+        "rref_ohms": 1000,
+        "frequency_hz": 10000,
+        "amplitude_mvrms": 500
+      },
+      "open_quality": {
+        "ret_1x_valid": true,
+        "ret_hg_valid": false,
+        "hg_observed": false
+      },
+      "short_quality": {
+        "ret_1x_valid": false,
+        "ret_hg_valid": true,
+        "hg_observed": false
+      },
+      "common_paths": []
+    },
+    {
+      "condition": {
+        "rref_ohms": 1000000,
+        "frequency_hz": 10000,
+        "amplitude_mvrms": 100
+      },
+      "open_quality": {
+        "ret_1x_valid": false,
+        "ret_hg_valid": true,
+        "hg_observed": false
+      },
+      "short_quality": {
+        "ret_1x_valid": true,
+        "ret_hg_valid": false,
+        "hg_observed": false
+      },
+      "common_paths": []
+    },
+    {
+      "condition": {
+        "rref_ohms": 1000000,
+        "frequency_hz": 10000,
+        "amplitude_mvrms": 500
+      },
+      "open_quality": {
+        "ret_1x_valid": false,
+        "ret_hg_valid": true,
+        "hg_observed": false
+      },
+      "short_quality": {
+        "ret_1x_valid": true,
+        "ret_hg_valid": false,
+        "hg_observed": false
+      },
+      "common_paths": []
+    }
+  ],
+  "diagnostic": {
+    "recorded_utc": "2026-10-25T13:20:42.409331+00:00",
+    "condition": {
+      "rref_ohms": 1000000,
+      "frequency_hz": 10000,
+      "amplitude_mvrms": 500
+    },
+    "values": {
+      "ret_1x_peak_v": 0.00015908540808595717,
+      "ret_hg_reconstructed_peak_v": 5.506576781044714e-05,
+      "ret_hg_usable": 1,
+      "ret_hg_clipped": 0,
+      "clip_mask": 0
+    },
+    "scale": "Nominal ADC; last accepted SHORT sample diagnostic",
+    "configured_return_min_v_peak": 5e-05
+  },
+  "raw_short_sha256": "1f49a2a9b43d5ec0c25d0ae0b89b2ab680edaac6d8484caab32e50a4e11e4cef",
+  "artifact": {
+    "path": "Firmware/releases/2026-10-25/osl-short-checkpoint/physical-evidence.zip",
+    "bytes": 97393,
+    "sha256": "559df27d9c33bba7ef4bd448763543a90e9a30aa2fcc169f69a64b276f6b87b5"
+  },
+  "next_stage": "Fix zero-return SHORT observability; reacquire OPEN and SHORT under one new firmware identity before LOAD"
+}

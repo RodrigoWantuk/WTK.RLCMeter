@@ -1,4 +1,7 @@
 #include "app/app_shell.h"
+#include "app/app_boot_splash.h"
+#include "app/app_product_scheduling.h"
+#include "app/app_cal_install_safety.h"
 
 #include "app/app_bringup_console.h"
 #include "app/app_calibration_service.h"
@@ -43,6 +46,18 @@
 #include "ui/ui_fallback_renderer.h"
 #include "ui/ui_product.h"
 #include "wtk_build_config.h"
+#if WTK_ENABLE_PERIPHERAL_TEST
+#include "ui/ui_peripheral_test.h"
+static ui_peripheral_test_t g_peripheral_ui;
+/* Retained for SWD inspection when the display connector prevents UART use.
+ * Raw bytes deliberately retain dummy/padding bits; no presence claim is made. */
+static volatile struct
+{
+    uint8_t raw[7][5];
+    uint8_t status[7];
+    uint8_t completed;
+} g_display_readback;
+#endif
 #if !WTK_ENABLE_BRINGUP_CONSOLE
 #include "storage/app_settings_w25q_adapter.h"
 #endif
@@ -95,7 +110,9 @@ static hw_safety_result_t g_safety_result;
 static app_calibration_service_t g_calibration_service;
 static app_io_workspace_t g_io_workspace;
 #if WTK_ENABLE_BRINGUP_CONSOLE
+#if !WTK_ENABLE_PERIPHERAL_TEST
 static app_bringup_console_t g_bringup_console;
+#endif
 static bool g_display_ready_reported = false;
 #else
 static app_settings_service_t g_settings_service;
@@ -453,6 +470,15 @@ static APP_NOINLINE app_resource_update_status_t product_pc_link_process_frame(c
     {
         g_pc_link_pending_protocol_status = APP_PC_LINK_STATUS_INVALID_ARG;
         return APP_RESOURCE_UPDATE_STATUS_INVALID_ARG;
+    }
+    if (frame->type == APP_PC_LINK_FRAME_RESOURCE_BEGIN &&
+        app_safety_fault_mask(&g_safety_faults) == 0u &&
+        hw_k1_commanded_state(&g_k1) == HW_K1_STATE_SAFE &&
+        hw_range_get_state(&g_range) == HW_RANGE_FSM_DISABLED &&
+        bsp_excitation_mode() == BSP_EXCITATION_MODE_OFF &&
+        !hw_peripherals_quiet_requested())
+    {
+        (void)app_product_request_resource_upload(&g_product);
     }
     if (g_product.view.state != UI_PRODUCT_STATE_PC_LINK_STATUS)
     {
@@ -935,19 +961,28 @@ static bsp_status_t product_init_metrology_measure(void)
                                      HW_METROLOGY_RAW_WORD_COUNT);
 }
 
+static uint32_t g_product_permit_refresh_deadline_ms;
+
 static bsp_status_t product_auto_start_attempt(const hw_metrology_measure_request_t *request,
                                                uint32_t now_ms,
                                                void *user)
 {
     (void)user;
+    bool continuing = false;
+#if WTK_ENABLE_MEASURE_SESSION_HOLD
+    continuing = hw_metrology_measure_state(&g_product_measure) == HW_METROLOGY_MEASURE_SESSION_HOLD;
+#endif
     const bsp_status_t workspace_status =
-        app_io_workspace_acquire(&g_io_workspace, APP_IO_WORKSPACE_OWNER_METROLOGY);
+        app_product_measurement_workspace_prepare(&g_io_workspace, continuing);
     if (workspace_status != BSP_STATUS_OK)
     {
-        return workspace_status;
+        if (continuing) (void)hw_metrology_measure_abort(&g_product_measure);
+        return BSP_STATUS_ERROR;
     }
     const bsp_status_t status = hw_metrology_measure_start(&g_product_measure, request, now_ms);
-    if ((status != BSP_STATUS_OK) && (status != BSP_STATUS_BUSY))
+    g_product_permit_refresh_deadline_ms = now_ms + 1000u;
+    if ((status != BSP_STATUS_OK) && (status != BSP_STATUS_BUSY) &&
+        !hw_metrology_measure_active(&g_product_measure))
     {
         (void)app_io_workspace_release(&g_io_workspace, APP_IO_WORKSPACE_OWNER_METROLOGY);
     }
@@ -957,6 +992,13 @@ static bsp_status_t product_auto_start_attempt(const hw_metrology_measure_reques
 static bsp_status_t product_auto_step_attempt(uint32_t now_ms, void *user)
 {
     (void)user;
+    if (hw_metrology_measure_state(&g_product_measure) == HW_METROLOGY_MEASURE_PERMIT_ISSUE)
+    {
+        hw_measure_permit_issue_input_t input;
+        if (product_permit_issue_input(&input, NULL) == BSP_STATUS_OK &&
+            app_product_permit_refresh_pending(&input, now_ms, g_product_permit_refresh_deadline_ms))
+            return BSP_STATUS_BUSY;
+    }
     return hw_metrology_measure_step(&g_product_measure, now_ms);
 }
 
@@ -969,13 +1011,21 @@ static bool product_auto_attempt_active(void *user)
 static bool product_auto_attempt_done(void *user)
 {
     (void)user;
+#if WTK_ENABLE_MEASURE_SESSION_HOLD
+    return hw_metrology_measure_result_ready(&g_product_measure);
+#else
     return hw_metrology_measure_state(&g_product_measure) == HW_METROLOGY_MEASURE_DONE;
+#endif
 }
 
 static bool product_auto_attempt_dumpable(void *user)
 {
     (void)user;
+#if WTK_ENABLE_MEASURE_SESSION_HOLD
+    return hw_metrology_measure_result_ready(&g_product_measure);
+#else
     return hw_metrology_measure_dumpable(&g_product_measure);
+#endif
 }
 
 static const hw_metrology_block_t *product_auto_attempt_block(void *user)
@@ -994,7 +1044,8 @@ static void product_auto_attempt_acknowledge(void *user)
 {
     (void)user;
     hw_metrology_measure_acknowledge(&g_product_measure);
-    if (app_io_workspace_owner(&g_io_workspace) == APP_IO_WORKSPACE_OWNER_METROLOGY)
+    if (!hw_metrology_measure_active(&g_product_measure) &&
+        app_io_workspace_owner(&g_io_workspace) == APP_IO_WORKSPACE_OWNER_METROLOGY)
     {
         (void)app_io_workspace_release(&g_io_workspace, APP_IO_WORKSPACE_OWNER_METROLOGY);
     }
@@ -1005,6 +1056,14 @@ static bsp_status_t product_auto_attempt_abort(void *user)
     (void)user;
     return hw_metrology_measure_abort(&g_product_measure);
 }
+
+#if WTK_ENABLE_MEASURE_SESSION_HOLD
+static bsp_status_t product_auto_finish_session(void *user)
+{
+    (void)user;
+    return hw_metrology_measure_finish_session(&g_product_measure);
+}
+#endif
 
 static bsp_status_t product_auto_process_block(const hw_metrology_block_t *block,
                                                const measurement_attempt_config_t *attempt,
@@ -1070,6 +1129,9 @@ static const app_measurement_session_io_t g_product_session_io = {
     .attempt_error = product_auto_attempt_error,
     .attempt_acknowledge = product_auto_attempt_acknowledge,
     .attempt_abort = product_auto_attempt_abort,
+#if WTK_ENABLE_MEASURE_SESSION_HOLD
+    .finish_session = product_auto_finish_session,
+#endif
     .process_block = product_auto_process_block,
     .user = NULL,
 };
@@ -1248,6 +1310,9 @@ static void app_update_safety_state(void)
         .battery = hw_aux_sensors_battery_state(&g_aux_sensors, now_ms),
         .range = hw_range_safety_state(&g_range),
         .application_fault = app_safety_fault_any(&g_safety_faults),
+#if WTK_ENABLE_BENCH_SUPPLY && WTK_ENABLE_BRINGUP_CONSOLE
+        .bench_supply_confirmed = g_bringup_console.bench_supply_confirmed,
+#endif
     };
 
     g_safety_result = hw_safety_evaluate(&safety_input);
@@ -1260,7 +1325,11 @@ static void app_update_safety_state(void)
         g_safety_state = APP_SAFETY_WAIT_SAFE;
     }
 
-    if (!hw_metrology_measure_k1_owned())
+    if (!hw_metrology_measure_k1_owned()
+#if WTK_ENABLE_K1_BENCH_TEST && WTK_ENABLE_BRINGUP_CONSOLE
+        && !app_bringup_console_k1_test_owned(&g_bringup_console)
+#endif
+       )
     {
         const bsp_status_t k1_safe_status = hw_k1_force_safe(&g_k1);
         app_record_status_fault(k1_safe_status, APP_SAFETY_FAULT_K1_IO);
@@ -1316,7 +1385,23 @@ static void app_step(void)
     }
 #endif
 #endif
+#if WTK_ENABLE_K1_BENCH_TEST && WTK_ENABLE_BRINGUP_CONSOLE
+    app_bringup_console_k1_test_step(&g_bringup_console, now_ms);
+#endif
     app_update_safety_state();
+
+#if WTK_ENABLE_K1_BENCH_TEST && WTK_ENABLE_BRINGUP_CONSOLE
+    if (!app_bringup_console_k1_test_owned(&g_bringup_console))
+#endif
+    {
+        (void)ili9341_init_step(&g_display, now_ms);
+    }
+    if (app_boot_splash_step(&g_display, now_ms,
+            app_safety_fault_any(&g_safety_faults) || hw_peripherals_quiet_requested()))
+    {
+        hw_buzzer_step(now_ms);
+        return;
+    }
 
     buttons_update(&g_buttons, app_read_button_mask(), now_ms);
 
@@ -1324,12 +1409,21 @@ static void app_step(void)
     while (buttons_pop_event(&g_buttons, &event))
     {
         app_log_button_event(&event);
+#if WTK_ENABLE_PERIPHERAL_TEST
+        ui_peripheral_test_button(&g_peripheral_ui, &event);
+        if (event.type == BUTTON_EVENT_PRESS && (unsigned)event.button < BUTTON_ID_COUNT &&
+            !hw_peripherals_quiet_requested() && app_safety_fault_mask(&g_safety_faults) == 0u)
+        {
+            static const uint16_t tones[] = {660u, 1000u, 1500u};
+            hw_buzzer_mute();
+            (void)hw_buzzer_play_tone(tones[(unsigned)event.button], 120u, now_ms);
+        }
+#endif
 #if !WTK_ENABLE_BRINGUP_CONSOLE
         app_product_handle_button_event(&g_product, &event);
 #endif
     }
 
-    (void)ili9341_init_step(&g_display, now_ms);
 #if WTK_ENABLE_BRINGUP_CONSOLE
     if (g_display.ready && !g_display_ready_reported)
     {
@@ -1337,8 +1431,12 @@ static void app_step(void)
         g_display_ready_reported = true;
     }
 #endif
-#if WTK_ENABLE_BRINGUP_CONSOLE
-    if (g_display.ready && !g_flash.detected && !g_flash_fallback_drawn)
+#if WTK_ENABLE_BRINGUP_CONSOLE && !WTK_ENABLE_PERIPHERAL_TEST
+    if (g_display.ready && !g_flash.detected && !g_flash_fallback_drawn
+#if WTK_ENABLE_K1_BENCH_TEST
+        && !app_bringup_console_k1_test_owned(&g_bringup_console)
+#endif
+       )
     {
         if (ui_fallback_draw_text(&g_display, 8u, 8u, "FLASH ERROR", 0xFFFFu, 0x0000u) == BSP_STATUS_OK)
         {
@@ -1349,6 +1447,26 @@ static void app_step(void)
 #endif
 
 #if WTK_ENABLE_BRINGUP_CONSOLE
+#if WTK_ENABLE_PERIPHERAL_TEST
+    if (g_display.ready && !hw_peripherals_quiet_requested() && g_display_readback.completed < 7u)
+    {
+        static const uint8_t commands[] = {0x04u, 0xD3u, 0x09u, 0x0Au, 0x0Bu, 0x0Cu, 0x0Fu};
+        const uint8_t index = g_display_readback.completed;
+        uint8_t raw[5] = {0u};
+        const bsp_status_t status = ili9341_read_diagnostic_raw(commands[index], raw, sizeof(raw));
+        if (status != BSP_STATUS_BUSY)
+        {
+            for (unsigned byte = 0u; byte < sizeof(raw); byte++)
+                g_display_readback.raw[index][byte] = raw[byte];
+            g_display_readback.status[index] = (uint8_t)status;
+            g_display_readback.completed = (uint8_t)(index + 1u);
+        }
+    }
+    /* Complete register commands before RAMWR streaming begins. */
+    if (g_display_readback.completed >= 7u)
+        (void)ui_peripheral_test_step(&g_peripheral_ui, &g_display,
+            "FW " WTK_PROJECT_VERSION, "GIT " WTK_GIT_COMMIT, hw_peripherals_quiet_requested());
+#else
     app_bringup_console_step(&g_bringup_console,
                          &g_flash,
                          &g_display,
@@ -1363,6 +1481,7 @@ static void app_step(void)
     {
         (void)w25q_device_poll(&g_flash, now_ms);
     }
+#endif
 #else
     hw_aux_sensors_snapshot_t product_sensor_snapshot;
     hw_aux_sensors_snapshot(&g_aux_sensors, now_ms, &product_sensor_snapshot);
@@ -1377,6 +1496,8 @@ static void app_step(void)
         .temperature_mC = ntc_temperature_mC,
         .temperature_valid = product_sensor_snapshot.ntc_temperature_valid,
         .safety_result = g_safety_result,
+        .range_disabled = hw_range_get_state(&g_range) == HW_RANGE_FSM_DISABLED,
+        .residual_refresh_pending = app_cal_install_aux_refresh_pending(&product_sensor_snapshot),
         .safety_fault_mask = app_safety_fault_mask(&g_safety_faults),
         .display_fault = g_product_display_fault || (g_display.init_state == ILI9341_INIT_ERROR),
         .settings_storage_busy =
@@ -1392,8 +1513,19 @@ static void app_step(void)
     app_product_make_view(&g_product, &product_view);
     product_apply_outputs();
     ui_product_request(&g_product_ui, &product_view);
-    const bsp_status_t ui_status =
-        ui_product_step(&g_product_ui, &g_display, hw_peripherals_quiet_requested());
+    /* Keep polled UART responsive while the resource receiver owns Flash. */
+    bool defer_resource_ui = false;
+#if WTK_ENABLE_PRODUCT_RESOURCE_UPDATE
+    defer_resource_ui = g_resource_update_configured;
+#endif
+    /* Polled auxiliary conversions must finish their group before slow TFT
+       work. After a long text draw, reacquire all real safe sweeps first.
+       Actual unsafe/invalid fresh evidence still permits warning rendering. */
+    const bool defer_sensor_ui = !hw_aux_sensors_is_idle(&g_aux_sensors) ||
+        product_inputs.residual_refresh_pending;
+    const bsp_status_t ui_status = defer_resource_ui ? BSP_STATUS_BUSY :
+        ui_product_step(&g_product_ui, &g_display,
+            hw_peripherals_quiet_requested() || defer_sensor_ui);
     if ((ui_status != BSP_STATUS_OK) && (ui_status != BSP_STATUS_BUSY))
     {
         g_product_display_fault = true;
@@ -1488,9 +1620,14 @@ void app_shell_run(void)
     g_reported_safety_state = APP_SAFETY_SAFE_CHECK;
     g_reported_primary_blocker = HW_SAFETY_BLOCKED_SENSOR_INVALID;
 #if WTK_ENABLE_BRINGUP_CONSOLE
+#if WTK_ENABLE_PERIPHERAL_TEST
+    ui_peripheral_test_init(&g_peripheral_ui);
+    APP_VERBOSE_DIAG_TEXT("peripheral_test", "DISPLAY_BUTTONS_BUZZER_NO_MEASUREMENT");
+#else
     app_bringup_console_init(&g_bringup_console);
     app_bringup_console_attach_calibration_service(&g_bringup_console, &g_calibration_service);
     app_bringup_console_attach_workspace(&g_bringup_console, &g_io_workspace);
+#endif
     g_display_ready_reported = false;
 #else
     app_settings_service_use_defaults(&g_settings_service);
@@ -1533,6 +1670,7 @@ void app_shell_run(void)
     APP_VERBOSE_DIAG_TEXT("w25q", w25q_status_string(flash_status));
     if (flash_status == W25Q_STATUS_OK)
     {
+#if !WTK_ENABLE_PERIPHERAL_TEST
         const measurement_cal_store_io_t cal_io = measurement_cal_w25q_store_io(&g_flash);
         const bsp_status_t cal_status =
             app_calibration_service_load(&g_calibration_service, &cal_io, g_flash.part.capacity_bytes);
@@ -1541,6 +1679,7 @@ void app_shell_run(void)
         APP_VERBOSE_DIAG_TEXT("calibration_state",
                               app_calibration_service_status_string(
                                   app_calibration_service_status(&g_calibration_service)));
+#endif
         const unsigned int jedec = ((unsigned int)g_flash.part.jedec.manufacturer_id << 16u) |
                                    ((unsigned int)g_flash.part.jedec.memory_type << 8u) |
                                    (unsigned int)g_flash.part.jedec.capacity_code;
@@ -1582,6 +1721,7 @@ void app_shell_run(void)
     }
 
     ili9341_init_start(&g_display, bsp_time_now_ms());
+    app_boot_splash_start(&g_flash, bsp_time_now_ms());
 #if !WTK_ENABLE_BRINGUP_CONSOLE
     product_apply_outputs();
 #endif

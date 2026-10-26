@@ -61,10 +61,11 @@ static app_cal_capture_snapshot_t snapshot(const app_cal_capture_service_t *serv
 
 static void abort_capture(app_cal_capture_service_t *service, app_cal_capture_error_t reason)
 {
-    if (app_calibration_session_active(&service->session))
+    if (app_calibration_session_active(&service->session) || service->completion_pending)
     {
         service->cancel_requested = true;
         service->capture_status = reason;
+        service->completion_pending = false;
         (void)app_calibration_session_cancel(&service->session);
     }
     service->result_valid = false;
@@ -101,6 +102,20 @@ static void reply(app_cal_capture_service_t *service, uint8_t command, uint32_t 
     service->tx_count++;
 }
 
+static uint16_t observation_bytes(const app_cal_capture_service_t *service)
+{
+    return service->io.coherent_integration_supported ? APP_CAL_CAPTURE_INTEGRATED_BYTES :
+                                                       APP_CAL_CAPTURE_OBSERVATION_BYTES;
+}
+
+static uint16_t integration_blocks(const measurement_cal_key_t *key)
+{
+    if (key->frequency != HW_EXCITATION_FREQ_10KHZ) return 1u;
+    if (key->range_id == HW_RANGE_ID_1M)
+        return key->amplitude == HW_EXCITATION_AMP_100MVRMS ? 96u : 16u;
+    return key->range_id == HW_RANGE_ID_100K && key->amplitude == HW_EXCITATION_AMP_100MVRMS ? 16u : 1u;
+}
+
 static void identify(app_cal_capture_service_t *service, uint32_t id)
 {
     uint8_t body[60] = {0};
@@ -108,10 +123,13 @@ static void identify(app_cal_capture_service_t *service, uint32_t id)
     put32(body, MEASUREMENT_CAL_HARDWARE_REV1);
     put16(body+4, MEASUREMENT_CAL_MODEL_VERSION_CURRENT);
     put16(body+6, 1u); /* BRINGUP_CAL service profile */
-    put32(body+8, 0x0fu | (WTK_ENABLE_CAL_INSTALL_SERVICE && service->io.installation_supported ? 0x10u : 0u));
+    put32(body+8, 0x0fu | (WTK_ENABLE_CAL_INSTALL_SERVICE && service->io.installation_supported ? 0x10u : 0u) |
+                  (service->io.battery_telemetry_supported ? APP_CAL_CAPTURE_CAP_BATTERY_MV : 0u) |
+                  (service->io.coherent_integration_supported ? APP_CAL_CAPTURE_CAP_INTEGRATED : 0u));
     put16(body+12, MEASUREMENT_CONDITION_REV1_MAX_SUPPORTED);
-    put16(body+14, APP_CAL_CAPTURE_OBSERVATION_BYTES);
-    put32(body+16, APP_CAL_CAPTURE_TIMEOUT_MS);
+    put16(body+14, observation_bytes(service));
+    put32(body+16, service->io.coherent_integration_supported ?
+        APP_CAL_CAPTURE_INTEGRATED_TIMEOUT_MS : APP_CAL_CAPTURE_TIMEOUT_MS);
     put16(body+20, APP_CAL_CAPTURE_ADC_NOMINAL_3V3);
     body[22] = service->io.synthetic ? 1u : 0u;
     (void)memcpy(body+24, service->io.device_uid, 12u);
@@ -131,11 +149,12 @@ static void status_reply(app_cal_capture_service_t *service, uint32_t id)
     put32(body+16, service->protocol_errors);
     put32(body+20, (uint32_t)state.temperature_mC);
     body[24] = (uint8_t)service->capture_status;
-    body[25] = app_calibration_session_active(&service->session) ? 1u : 0u;
+    body[25] = (app_calibration_session_active(&service->session) || service->completion_pending) ? 1u : 0u;
     body[26] = service->result_valid ? 1u : 0u;
     body[27] = app_calibration_service_active_valid(service->session.service) ? 1u : 0u;
     body[28] = state.transfer_safe ? 1u : 0u;
     body[29] = state.temperature_valid ? 1u : 0u;
+    if (service->io.battery_telemetry_supported) put16(body+30, state.battery_mv);
     reply(service, APP_CAL_CAPTURE_STATUS, id, APP_CAL_CAPTURE_OK, body, sizeof(body));
 }
 
@@ -155,7 +174,7 @@ static void start(app_cal_capture_service_t *service, uint32_t id,
     request.standard = (app_cal_standard_t){.type = (app_cal_standard_type_t)body[3],
         .z_ohms = {get_float(body+4), get_float(body+8)}, .z_valid = body[3] == APP_CAL_STANDARD_LOAD};
     const app_cal_capture_snapshot_t state = snapshot(service);
-    if (app_calibration_session_active(&service->session) || app_calibration_service_busy(service->session.service) ||
+    if (app_calibration_session_active(&service->session) || service->completion_pending || app_calibration_service_busy(service->session.service) ||
         service->session.service->store_workspace_held)
         error = APP_CAL_CAPTURE_BUSY;
     else if (!measurement_condition_supported(request.key.range_id, request.key.frequency, request.key.amplitude))
@@ -174,14 +193,21 @@ static void start(app_cal_capture_service_t *service, uint32_t id,
     {
         request.temperature_mC = state.temperature_mC;
         request.temperature_valid = state.temperature_valid;
+        const uint16_t blocks = service->io.coherent_integration_supported ? integration_blocks(&request.key) : 1u;
+        if (app_calibration_session_set_integration(&service->session, blocks) != BSP_STATUS_OK)
+        {
+            reply(service, APP_CAL_CAPTURE_START, id, APP_CAL_CAPTURE_BUSY, NULL, 0u);
+            return;
+        }
         if (app_calibration_session_start(&service->session, &request, service->clock,
                                           service->clock_status, now_ms) == BSP_STATUS_BUSY)
         {
             service->capture_id = id;
             service->capture_status = APP_CAL_CAPTURE_BUSY;
-            service->capture_deadline = now_ms+APP_CAL_CAPTURE_TIMEOUT_MS;
+            service->capture_deadline = now_ms+(blocks > 1u ? APP_CAL_CAPTURE_INTEGRATED_TIMEOUT_MS : APP_CAL_CAPTURE_TIMEOUT_MS);
             service->result_valid = false;
             service->cancel_requested = false;
+            service->completion_pending = false;
             service->mean_count = 0u;
             service->clip_mask = 0u;
             (void)memset(service->mean, 0, sizeof(service->mean));
@@ -198,20 +224,21 @@ static void result_reply(app_cal_capture_service_t *service, uint32_t id,
     app_cal_capture_error_t error = APP_CAL_CAPTURE_BAD_PAYLOAD;
     uint8_t result[108] = {0};
     uint16_t written = 0u;
+    const uint16_t size = observation_bytes(service);
     if (length == 8u && get32(body) == service->capture_id && body[7] == 0u)
     {
         const uint16_t offset = get16(body+4);
         const uint16_t count = body[6];
         if (!service->result_valid) error = APP_CAL_CAPTURE_NOT_READY;
         else if (count == 0u || count > APP_CAL_CAPTURE_CHUNK_BYTES ||
-                 offset >= APP_CAL_CAPTURE_OBSERVATION_BYTES || count > APP_CAL_CAPTURE_OBSERVATION_BYTES-offset)
+                 offset >= size || count > size-offset)
             error = APP_CAL_CAPTURE_BAD_PAYLOAD;
         else
         {
             put32(result, service->capture_id);
             put16(result+4, offset);
-            put16(result+6, APP_CAL_CAPTURE_OBSERVATION_BYTES);
-            put32(result+8, get32(service->observation+184));
+            put16(result+6, size);
+            put32(result+8, get32(service->observation+size-4u));
             (void)memcpy(result+12, service->observation+offset, count);
             written = (uint16_t)(12u+count);
             error = APP_CAL_CAPTURE_OK;
@@ -308,7 +335,7 @@ static void install_dispatch(app_cal_capture_service_t *s, uint8_t cmd, uint32_t
     }
     else if (cmd == APP_CAL_INSTALL_BEGIN && length == 12u)
     {
-        if (installing(s) || app_calibration_service_busy(cal) ||
+        if (installing(s) || s->completion_pending || app_calibration_service_busy(cal) ||
             app_io_workspace_owner(cal->workspace) != APP_IO_WORKSPACE_OWNER_FREE) error = APP_CAL_CAPTURE_BUSY;
         else if (!safe.factory_allowed || !safe.transfer_safe) error = APP_CAL_CAPTURE_SAFETY_BLOCKED;
         else if (!cal->storage_available) error = APP_CAL_CAPTURE_STORAGE_ERROR;
@@ -329,7 +356,7 @@ static void install_dispatch(app_cal_capture_service_t *s, uint8_t cmd, uint32_t
     else if (cmd == APP_CAL_INSTALL_READBACK && length == 8u)
     {
         const uint16_t offset = get16(body+4); const uint8_t amount = body[6];
-        if (installing(s) || app_calibration_service_busy(cal)) error = APP_CAL_CAPTURE_BUSY;
+        if (installing(s) || s->completion_pending || app_calibration_service_busy(cal)) error = APP_CAL_CAPTURE_BUSY;
         else if (!safe.transfer_safe || !safe.factory_allowed) error = APP_CAL_CAPTURE_SAFETY_BLOCKED;
         else if (!cal->runtime.active_valid || get32(body) != app_calibration_service_active_sequence(cal))
             error = APP_CAL_CAPTURE_SEQUENCE_ERROR;
@@ -392,6 +419,15 @@ static void install_step(app_cal_capture_service_t *s, uint32_t now)
     if (!installing(s)) return;
     app_calibration_service_t *cal = s->session.service;
     const app_cal_capture_snapshot_t safe = snapshot(s);
+    /* Synchronous validation may outlast the residual sample age. Keep SAFE
+       and leave the writer untouched until the auxiliary service publishes
+       actual fresh evidence; hard blockers and the original deadline still win. */
+    const uint32_t refresh_flags = HW_SAFETY_BLOCK_SENSOR_INVALID | HW_SAFETY_BLOCK_RANGE;
+    if (!expired(now,s->install_deadline) && !safe.factory_allowed &&
+        safe.aux_refresh_pending && safe.transfer_safe && safe.safety_faults == 0u &&
+        (safe.safety_blocks & HW_SAFETY_BLOCK_SENSOR_INVALID) != 0u &&
+        (safe.safety_blocks & ~refresh_flags) == 0u)
+        return;
     if (expired(now,s->install_deadline) || !safe.factory_allowed || !safe.transfer_safe)
     {
         if (s->install_error == APP_CAL_CAPTURE_OK)
@@ -541,11 +577,24 @@ static void accumulate(app_cal_capture_service_t *service)
         measurement_complex_add(sample->ret_1x_v, vmid),
         measurement_complex_add(sample->vexc_2_v, vmid),
         measurement_complex_add(sample->ret_hg_raw_v, vmid), sample->vmid_adc1_v, sample->vmid_adc2_v};
+    /* Rotate all channels together before averaging independent blocks. Ratios
+       and interchannel phase survive; arbitrary timer-start phase cannot cancel
+       the mean excitation. VMID is a fundamental phasor, not its DC voltage. */
+    const bool first = sample->vexc_1_peak_v > 1.0e-6f;
+    const measurement_complex_t source = first ? sample->vexc_1_v : sample->vexc_2_v;
+    const float magnitude = first ? sample->vexc_1_peak_v : sample->vexc_2_peak_v;
+    measurement_complex_t rotation = {1.0f, 0.0f};
+    if (magnitude > 1.0e-6f)
+    {
+        const float inverse = 1.0f / magnitude;
+        rotation = measurement_complex(source.re * inverse, -source.im * inverse);
+    }
     service->mean_count++;
     for (size_t i = 0u; i < 6u; i++)
     {
+        const measurement_complex_t aligned = measurement_complex_mul(values[i], rotation);
         service->mean[i] = measurement_complex_add(service->mean[i], scale(
-            measurement_complex_sub(values[i], service->mean[i]), 1.0f/(float)service->mean_count));
+            measurement_complex_sub(aligned, service->mean[i]), 1.0f/(float)service->mean_count));
     }
     const hw_metrology_block_t *block = service->session.io->capture_block(service->session.io->user);
     if (block != NULL)
@@ -554,6 +603,8 @@ static void accumulate(app_cal_capture_service_t *service)
         service->permit_validate_ms = block->permit_validate_ms;
         for (uint32_t i = 0u; i < 6u; i++)
             if (block->streams[i].hard_clipped) service->clip_mask |= 1u << i;
+        if (service->session.integration_blocks > 1u)
+            service->clip_mask |= service->session.integration_last_clip_mask;
     }
 }
 
@@ -562,10 +613,12 @@ static void serialize_observation(app_cal_capture_service_t *service)
     const app_cal_evidence_t *evidence = app_calibration_session_evidence(&service->session);
     const app_cal_capture_snapshot_t state = snapshot(service);
     uint8_t *p = service->observation;
-    (void)memset(p, 0, APP_CAL_CAPTURE_OBSERVATION_BYTES);
-    put32(p, 0x314f4343u); /* CCO1 */
-    put16(p+4, APP_CAL_CAPTURE_API);
-    put16(p+6, APP_CAL_CAPTURE_OBSERVATION_BYTES);
+    const bool integrated = service->io.coherent_integration_supported;
+    const uint16_t size = observation_bytes(service);
+    (void)memset(p, 0, size);
+    put32(p, integrated ? 0x324f4343u : 0x314f4343u); /* CCO2 or legacy CCO1 */
+    put16(p+4, integrated ? 2u : APP_CAL_CAPTURE_API);
+    put16(p+6, size);
     put32(p+8, service->capture_id);
     put32(p+12, evidence->key.hardware_revision);
     put16(p+16, evidence->key.model_version);
@@ -609,7 +662,13 @@ static void serialize_observation(app_cal_capture_service_t *service)
     put32(p+172, service->permit_issue_ms);
     put32(p+176, service->permit_validate_ms);
     put32(p+180, service->clip_mask);
-    put32(p+184, storage_crc32(p, 184u));
+    if (integrated)
+    {
+        put16(p+184, service->session.integration_blocks);
+        put16(p+186, service->session.integration_attempts);
+        put16(p+188, (uint16_t)((uint16_t)evidence->accepted * service->session.integration_blocks));
+    }
+    put32(p+size-4u, storage_crc32(p, (size_t)size-4u));
     service->result_valid = true;
 }
 
@@ -629,18 +688,23 @@ void app_cal_capture_step(app_cal_capture_service_t *service, uint32_t now_ms)
         if (!service->cancel_requested && expired(now_ms, service->capture_deadline))
             abort_capture(service, APP_CAL_CAPTURE_TIMEOUT);
         /* START acknowledgement leaves USART before the first hardware attempt. */
-        if (!(service->tx_count != 0u && service->mean_count == 0u &&
+        if (!(service->tx_count != 0u && !service->session.started_capture &&
               service->session.state == APP_CAL_SESSION_START_CAPTURE && !service->cancel_requested))
         {
+            /* Long groups must not reuse a start-of-request temperature. The
+               auxiliary service decides freshness; unavailable stays invalid. */
+            if (service->session.state == APP_CAL_SESSION_START_CAPTURE)
+            {
+                const app_cal_capture_snapshot_t fresh = snapshot(service);
+                service->session.service->workflow.request.temperature_mC = fresh.temperature_mC;
+                service->session.service->workflow.request.temperature_valid = fresh.temperature_valid;
+            }
             const app_cal_session_event_t event = app_calibration_session_step(&service->session, now_ms);
             if (event == APP_CAL_SESSION_EVENT_CAPTURE_ACCEPTED) accumulate(service);
             if (event == APP_CAL_SESSION_EVENT_COMPLETE)
             {
-                service->capture_status = APP_CAL_CAPTURE_OK;
-                if (snapshot(service).transfer_safe && snapshot(service).factory_allowed &&
-                    service->mean_count >= APP_CAL_WORKFLOW_REQUIRED_ACCEPTED)
-                    serialize_observation(service);
-                else service->capture_status = APP_CAL_CAPTURE_SAFETY_BLOCKED;
+                service->completion_pending = service->mean_count >= APP_CAL_WORKFLOW_REQUIRED_ACCEPTED;
+                if (!service->completion_pending) service->capture_status = APP_CAL_CAPTURE_ACQUISITION_ERROR;
             }
             else if (event == APP_CAL_SESSION_EVENT_FAILED || event == APP_CAL_SESSION_EVENT_ERROR)
                 service->capture_status = APP_CAL_CAPTURE_ACQUISITION_ERROR;
@@ -648,7 +712,25 @@ void app_cal_capture_step(app_cal_capture_service_t *service, uint32_t now_ms)
                 service->capture_status = APP_CAL_CAPTURE_CANCELED;
         }
     }
+    if (service->completion_pending)
+    {
+        const app_cal_capture_snapshot_t safe = snapshot(service);
+        if (expired(now_ms, service->capture_deadline)) abort_capture(service, APP_CAL_CAPTURE_TIMEOUT);
+        else if (safe.safety_faults != 0u ||
+                 (safe.safety_blocks & (HW_SAFETY_BLOCK_CHARGER | HW_SAFETY_BLOCK_SUPPLY | HW_SAFETY_BLOCK_FAULT)) != 0u)
+            abort_capture(service, APP_CAL_CAPTURE_SAFETY_BLOCKED);
+        else if (safe.transfer_safe && safe.factory_allowed)
+        {
+            serialize_observation(service);
+            service->completion_pending = false;
+            service->capture_status = APP_CAL_CAPTURE_OK;
+        }
+    }
     if (!snapshot(service).transfer_safe) return;
+    /* Hold replies until the whole repeat workflow drains. Replying between
+       blocks invites another host request during synchronous DSP processing. */
+    if (service->completion_pending ||
+        (app_calibration_session_active(&service->session) && service->session.started_capture)) return;
     for (uint8_t n = 0u; n < 16u && service->tx_count != 0u; n++)
     {
         if (service->io.try_write_byte(service->tx[service->tx_head][service->tx_offset], service->io.user) != BSP_STATUS_OK)

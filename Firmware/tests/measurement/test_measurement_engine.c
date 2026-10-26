@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <math.h>
 
 static int expect_true(bool condition, const char *message)
 {
@@ -440,6 +441,66 @@ static int test_classification_vectors(void)
     return failures;
 }
 
+static int test_classification_admits_usable_evidence_only(void)
+{
+    int failures = 0;
+    measurement_attempt_result_t history[4];
+    const float r[] = {-3.3833668f, 0.16279896f, 0.32200742f, 0.24547035f};
+    const float x[] = {-1.1537869f, -0.14074898f, -0.0071538f, 0.021325944f};
+    const float peak[] = {0.000124494f, 0.00109149f, 0.009305f, 0.00587513f};
+    const hw_range_id_t ranges[] = {HW_RANGE_ID_1K, HW_RANGE_ID_100R, HW_RANGE_ID_10R, HW_RANGE_ID_10R};
+    for (uint8_t i = 0u; i < 4u; i++)
+    {
+        const measurement_attempt_config_t attempt = {
+            .range_id = ranges[i], .frequency = (i == 3u) ? HW_EXCITATION_FREQ_10KHZ : HW_EXCITATION_FREQ_1KHZ,
+            .amplitude = HW_EXCITATION_AMP_100MVRMS,
+        };
+        history[i] = make_result_for_attempt(&attempt, measurement_complex(r[i], x[i]),
+                                             (i < 2u) ? MEASUREMENT_INTERPRET_CAPACITIVE : MEASUREMENT_INTERPRET_RESISTIVE);
+        history[i].selected_channel = MEASUREMENT_RETURN_HG;
+        history[i].ret_hg_quality.signal_peak_v = peak[i];
+    }
+    measurement_session_classification_t c = measurement_auto_classify_session(history, 4u);
+    failures += expect_true(c.interpretation == MEASUREMENT_INTERPRET_RESISTIVE,
+                            "captured weak rerange candidates do not outvote usable resistive evidence");
+    failures += expect_u32(c.supporting_attempts, 2u, "only usable captures vote");
+    failures += expect_near(history[0].z_ohms.re, r[0], 0.00001f, "rejected raw evidence is retained");
+    history[0].ret_hg_quality.signal_peak_v = 0.002f;
+    c = measurement_auto_classify_session(history, 4u);
+    failures += expect_true(c.interpretation == MEASUREMENT_INTERPRET_MIXED_OR_UNKNOWN,
+                            "usable contrary evidence at threshold must not be hidden");
+    history[0].ret_hg_quality.clipped = true;
+    history[1].ret_hg_quality.usable = false;
+    history[1].ret_hg_quality.signal_peak_v = 0.02f;
+    c = measurement_auto_classify_session(history, 4u);
+    failures += expect_true(c.interpretation == MEASUREMENT_INTERPRET_RESISTIVE,
+                            "selected clipped and unusable paths cannot vote");
+    history[0].ret_hg_quality.clipped = false;
+    history[0].ret_hg_quality.signal_peak_v = INFINITY;
+    c = measurement_auto_classify_session(history, 4u);
+    failures += expect_true(c.interpretation == MEASUREMENT_INTERPRET_RESISTIVE,
+                            "nonfinite signal evidence cannot vote");
+    history[2].ret_1x_quality.clipped = true;
+    c = measurement_auto_classify_session(&history[2], 2u);
+    failures += expect_u32(c.supporting_attempts, 2u, "unused path clipping does not discard usable HG");
+    for (uint8_t i = 0u; i < 4u; i++) history[i].ret_hg_quality.usable = false;
+    c = measurement_auto_classify_session(history, 4u);
+    failures += expect_true(c.interpretation == MEASUREMENT_INTERPRET_MIXED_OR_UNKNOWN && c.supporting_attempts == 0u,
+                            "all weak or unusable evidence remains unknown");
+    history[0] = make_result(measurement_complex(20.0f, -1000.0f), MEASUREMENT_INTERPRET_CAPACITIVE);
+    history[0].config.frequency = HW_EXCITATION_FREQ_1KHZ;
+    history[1] = make_result(measurement_complex(20.0f, -9000.0f), MEASUREMENT_INTERPRET_CAPACITIVE);
+    history[1].config.frequency = HW_EXCITATION_FREQ_10KHZ;
+    history[1].ret_1x_quality.signal_peak_v = 0.0001f;
+    history[2] = make_result(measurement_complex(20.0f, -100.0f), MEASUREMENT_INTERPRET_CAPACITIVE);
+    history[2].config.frequency = HW_EXCITATION_FREQ_10KHZ;
+    c = measurement_auto_classify_session(history, 3u);
+    failures += expect_true(c.interpretation == MEASUREMENT_INTERPRET_CAPACITIVE &&
+                               (c.reason_flags & MEASUREMENT_AUTO_REASON_FREQUENCY_TREND_INCONSISTENT) == 0u,
+                            "weak captures cannot poison frequency-trend evidence either");
+    return failures;
+}
+
 static int test_terminal_and_cancellation(void)
 {
     int failures = 0;
@@ -617,6 +678,137 @@ static int test_synthetic_sequence_harness(void)
     return failures;
 }
 
+static int start_low_impedance_hint(measurement_auto_session_t *session,
+                                    measurement_attempt_config_t *attempt,
+                                    hw_range_id_t range,
+                                    hw_excitation_freq_t frequency)
+{
+    measurement_auto_start_t start = default_start();
+    start.hint = (measurement_auto_hint_t){
+        .valid = true,
+        .range_id = range,
+        .frequency = frequency,
+        .amplitude = HW_EXCITATION_AMP_100MVRMS,
+        .ret_channel = MEASUREMENT_RETURN_HG,
+    };
+    int failures = expect_true(measurement_auto_start_session(session, &start), "low-Z hinted start");
+    failures += expect_true(measurement_auto_next_attempt(session, attempt), "low-Z hinted attempt");
+    return failures;
+}
+
+static int test_low_impedance_frequency_exploration(void)
+{
+    int failures = 0;
+    for (uint8_t variant = 0u; variant < 4u; variant++)
+    {
+        measurement_auto_session_t session;
+        measurement_attempt_config_t attempt;
+        failures += start_low_impedance_hint(&session, &attempt, HW_RANGE_ID_10R,
+                                             HW_EXCITATION_FREQ_1KHZ);
+        /* Replay the observed nominal 0.47-uH result, then a real resistor,
+         * conflicting evidence and unresolved negative estimated resistance. */
+        measurement_attempt_result_t result = make_result_for_attempt(
+            &attempt, measurement_complex((variant == 3u) ? -0.235328108f : 0.235328108f,
+                                           (variant == 1u) ? 0.0f : -0.010098783f),
+            MEASUREMENT_INTERPRET_RESISTIVE);
+        result.selected_channel = MEASUREMENT_RETURN_HG;
+        result.ret_hg_quality.signal_peak_v = 0.008261145f;
+        failures += expect_true(measurement_auto_submit_result(&session, &result) ==
+                                    MEASUREMENT_AUTO_EVENT_PARTIAL_RESULT,
+                                "low-Z resistance gets supporting frequency check");
+        failures += expect_true(measurement_auto_next_attempt(&session, &attempt), "get low-Z 10k check");
+        failures += expect_freq(attempt.frequency, HW_EXCITATION_FREQ_10KHZ, "low-Z check at 10k");
+        failures += expect_range(attempt.range_id, HW_RANGE_ID_10R, "low-Z check keeps RREF");
+        failures += expect_amp(attempt.amplitude, HW_EXCITATION_AMP_100MVRMS, "low-Z check keeps safe amplitude");
+        failures += expect_true(attempt.reason == MEASUREMENT_ATTEMPT_CHECK_SECOND_FREQUENCY,
+                                "low-Z history has explicit frequency reason");
+        result = make_result_for_attempt(&attempt,
+                                          measurement_complex(0.235f, (variant == 2u) ? 0.1f : 0.0f),
+                                          (variant == 2u) ? MEASUREMENT_INTERPRET_INDUCTIVE :
+                                                            MEASUREMENT_INTERPRET_RESISTIVE);
+        result.selected_channel = MEASUREMENT_RETURN_HG;
+        result.ret_hg_quality.signal_peak_v = 0.008261145f;
+        failures += expect_true(measurement_auto_submit_result(&session, &result) ==
+                                    MEASUREMENT_AUTO_EVENT_FINAL_RESULT,
+                                "low-Z exploration stops after second frequency");
+        const measurement_session_result_t *final = measurement_auto_last_result(&session);
+        failures += expect_u32(final->attempt_count, 2u, "low-Z two attempts only");
+        failures += expect_u32(final->primary_attempt_index, 0u, "supporting frequency does not silently replace primary");
+        failures += expect_true(final->classification.interpretation ==
+                                    ((variant == 2u) ? MEASUREMENT_INTERPRET_MIXED_OR_UNKNOWN :
+                                                       MEASUREMENT_INTERPRET_RESISTIVE),
+                                "no inductance invented from resistance or disagreement");
+        failures += expect_true(!measurement_auto_next_attempt(&session, &attempt), "no low-Z frequency loop");
+    }
+    return failures;
+}
+
+static int test_low_impedance_search_exclusions(void)
+{
+    int failures = 0;
+    for (uint8_t variant = 0u; variant < 8u; variant++)
+    {
+        measurement_auto_session_t session;
+        measurement_attempt_config_t attempt;
+        failures += start_low_impedance_hint(&session, &attempt,
+                                             (variant == 0u) ? HW_RANGE_ID_1K : HW_RANGE_ID_10R,
+                                             (variant == 1u) ? HW_EXCITATION_FREQ_10KHZ :
+                                                                HW_EXCITATION_FREQ_1KHZ);
+        measurement_attempt_result_t result = make_result_for_attempt(
+            &attempt, measurement_complex((variant == 0u) ? 1000.0f : 1.0f, 0.0f),
+            MEASUREMENT_INTERPRET_RESISTIVE);
+        if (variant == 2u) { result.dsp_status = MEASUREMENT_STATUS_NONFINITE; }
+        if (variant == 3u) { result.ret_1x_quality.usable = false; }
+        if (variant == 4u) { result.ret_1x_quality.clipped = true; }
+        if (variant == 5u) { result.safety_abort = true; }
+        if (variant == 6u) { result.canceled = true; }
+        if (variant == 7u) { result.short_like = true; }
+        failures += expect_true(measurement_auto_submit_result(&session, &result) ==
+                                    MEASUREMENT_AUTO_EVENT_FINAL_RESULT,
+                                "excluded or terminal result does not launch low-Z exploration");
+        failures += expect_true(!measurement_auto_next_attempt(&session, &attempt), "excluded check stays terminal");
+        const measurement_auto_status_t expected = (variant == 2u) ? MEASUREMENT_AUTO_STATUS_NO_VALID_CONDITION :
+                                                   (variant == 5u) ? MEASUREMENT_AUTO_STATUS_SAFETY_ABORT :
+                                                   (variant == 6u) ? MEASUREMENT_AUTO_STATUS_CANCELED :
+                                                   (variant == 7u) ? MEASUREMENT_AUTO_STATUS_SHORT_LIKE :
+                                                                      MEASUREMENT_AUTO_STATUS_FINAL_OK;
+        failures += expect_true(measurement_auto_last_result(&session)->status == expected,
+                                "low-Z exploration preserves terminal priorities");
+    }
+    return failures;
+}
+
+static int test_low_impedance_search_budget(void)
+{
+    int failures = 0;
+    measurement_auto_session_t session;
+    measurement_attempt_config_t attempt;
+    failures += start_low_impedance_hint(&session, &attempt, HW_RANGE_ID_1M,
+                                         HW_EXCITATION_FREQ_1KHZ);
+    for (uint8_t i = 0u; i < MEASUREMENT_AUTO_MAX_ATTEMPTS; i++)
+    {
+        failures += expect_true(measurement_auto_next_attempt(&session, &attempt), "bounded search next");
+        for (uint8_t j = 0u; j < i; j++)
+        {
+            const measurement_attempt_config_t *old = &session.history[j].config;
+            failures += expect_true((attempt.range_id != old->range_id) ||
+                                        (attempt.frequency != old->frequency) ||
+                                        (attempt.amplitude != old->amplitude), "bounded search never repeats condition");
+        }
+        measurement_attempt_result_t result = make_result_for_attempt(
+            &attempt, measurement_complex(0.235f, 0.0f), MEASUREMENT_INTERPRET_RESISTIVE);
+        (void)measurement_auto_submit_result(&session, &result);
+    }
+    failures += expect_u32(session.attempt_count, 6u, "global six-attempt budget unchanged");
+    failures += expect_u32(session.range_transition_count, 4u, "global four-range budget unchanged");
+    failures += expect_u32(session.frequency_refinement_count, 1u, "one frequency check on final available attempt");
+    failures += expect_true(session.history[5].config.range_id == HW_RANGE_ID_100R &&
+                               session.history[5].config.frequency == HW_EXCITATION_FREQ_10KHZ,
+                            "search includes 100-ohm low-impedance range");
+    failures += expect_true(!measurement_auto_next_attempt(&session, &attempt), "global budget stays terminal");
+    return failures;
+}
+
 int main(void)
 {
     int failures = 0;
@@ -627,8 +819,12 @@ int main(void)
     failures += test_ret_policy();
     failures += test_frequency_refinement_and_final();
     failures += test_classification_vectors();
+    failures += test_classification_admits_usable_evidence_only();
     failures += test_terminal_and_cancellation();
     failures += test_confidence_and_live_hint();
     failures += test_synthetic_sequence_harness();
+    failures += test_low_impedance_frequency_exploration();
+    failures += test_low_impedance_search_exclusions();
+    failures += test_low_impedance_search_budget();
     return (failures == 0) ? 0 : 1;
 }

@@ -66,7 +66,8 @@ def validate_dut_capture(text: str) -> RawCapture:
     if (not 0 <= issued <= 0xFFFFFFFF or not 0 <= validated <= 0xFFFFFFFF or
             ((validated - issued) & 0xFFFFFFFF) > 5):
         raise ValueError("permit validation is outside its 5 ms window")
-    if int(metadata["k1op"]) != 10 or int(metadata["k1rel"]) != 8:
+    # Preserve old captures with the original guard; current firmware uses 30 ms.
+    if int(metadata["k1op"]) not in (10, 30) or int(metadata["k1rel"]) != 8:
         raise ValueError("K1 guard metadata does not match Rev.1")
     if int(metadata["calibration_sequence"]) < 0:
         raise ValueError("invalid active calibration sequence")

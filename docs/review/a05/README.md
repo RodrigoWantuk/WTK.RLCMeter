@@ -1,5 +1,7 @@
 # A05 — Rev.1 pre-assembly audit
 
+Current source/fabrication baseline is October24, including six RGS gate-toGND. Current matrices/audit track those exports; the hashes/findings discussed below are the historical pre-assembly snapshot. See [consolidated evidence and unresolved qualification](../bringup-2026-10-24/README.md).
+
 **Disposition: assembly approval is withheld.** Six RED items require resolution
 before the affected component is soldered or the corresponding interface is
 powered. Several are documentation or module-selection errors, rather than proven
@@ -17,18 +19,18 @@ No new STM32 build or Flash/RAM change is attributed to this documentation task.
 
 The requested `Rev1 0` directory is absent. These actual files were inspected:
 
-- [EasyEDA source](../../../PCB/source/ProPrj_WTK%20RLC%20Meter_2026-08-19.epro2):
+- [EasyEDA source](https://github.com/RodrigoWantuk/WTK.RLCMeter/blob/16633dc/PCB/source/ProPrj_WTK%20RLC%20Meter_2026-08-19.epro2):
   ZIP containing `WTK RLC Meter.epru`, a readable JSON record stream. All 219
   documents are decoded, including five schematic sheets, PCB, device, symbol and
   footprint libraries. Null/deleted records are excluded and updated IDs resolved.
-- [Schematic PDF](../../../PCB/fabrication/Rev1/SCH_WTK-RLC-Meter_2026-08-19.pdf):
+- [Schematic PDF](https://github.com/RodrigoWantuk/WTK.RLCMeter/blob/16633dc/PCB/fabrication/Rev1/SCH_WTK-RLC-Meter_2026-08-19.pdf):
   five sheets, visually reviewed for power, analog, range, relay and MCU wiring.
-- [PCB PDF](../../../PCB/fabrication/Rev1/PCB_RLC_2026-08-19.pdf): ten pages
+- [PCB PDF](https://github.com/RodrigoWantuk/WTK.RLCMeter/blob/16633dc/PCB/fabrication/Rev1/PCB_RLC_2026-08-19.pdf): ten pages
   rendered; top/bottom copper, assembly and mirrored bottom views inspected.
-- [Fabrication BOM](../../../PCB/fabrication/Rev1/BOM_RLC-PCB_2026-08-23.csv):
+- [Fabrication BOM](https://github.com/RodrigoWantuk/WTK.RLCMeter/blob/16633dc/PCB/fabrication/Rev1/BOM_RLC-PCB_2026-08-23.csv):
   UTF-16 tab-separated, 51 groups / 149 references. Every value, manufacturer part,
   footprint title and quantity agrees with the live source; no missing/duplicate ref.
-- [Gerber ZIP](../../../PCB/fabrication/Rev1/Gerber_RLC-1_2026-08-23.zip): both
+- [Gerber ZIP](https://github.com/RodrigoWantuk/WTK.RLCMeter/blob/16633dc/PCB/fabrication/Rev1/Gerber_RLC-1_2026-08-23.zip): both
   copper layers, outline, masks, paste, silkscreen, drill outputs and
   `FlyingProbeTesting.json`. The outline is 100 × 100 mm. All 434 actual component
   pads have matching top copper flashes and all 84 component hole centers/diameters
@@ -133,6 +135,14 @@ BC807 emitter is +5V_A, collector drives the gate through 100 Ω; 47 kΩ base-em
 pull-up turns it off when not selected. This double inversion agrees with firmware.
 U3.9 COM is unused because these outputs drive bases, not relay coils; unused U3
 input/output and U2 Y6/Y7 are not additional active ranges.
+
+**2026-10-24 bench finding:** the selected driver also supplies DC through RGS
+into the common-source analog node. Equal nominal RGS4/RREF4 values predict the
+owner-reported 2.5 V offset with VEXC at zero. This is an unresolved metrology
+blocker, not evidence of a solder bridge. See
+[RGS DC bias finding](RGS-DC-Bias-Bench-Finding.md) for readings, assumptions and
+the matching 1K comparison. Earlier logical-polarity checks do not qualify this
+analog loading path; no circuit correction is defined here.
 
 `hw_range_request()` disables enable before writing address, then waits the existing
 dead/settling times before READY. Logical correctness does not prove physical

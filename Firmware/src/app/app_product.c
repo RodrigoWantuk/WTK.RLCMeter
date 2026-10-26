@@ -1,4 +1,5 @@
 #include "app/app_product.h"
+#include "app/app_product_scheduling.h"
 
 #include <stddef.h>
 #include "wtk_build_config.h"
@@ -414,6 +415,25 @@ static bool runtime_active(const app_product_t *product)
     return false;
 }
 
+bool app_product_request_resource_upload(app_product_t *product)
+{
+    if (product == NULL || !product->initialized || runtime_active(product) ||
+        product->runtime_teardown_kind != APP_PRODUCT_RUNTIME_TEARDOWN_NONE ||
+        product->settings_save_requested) return false;
+    switch (product->view.state)
+    {
+    case UI_PRODUCT_STATE_CALIBRATION_REQUIRED:
+    case UI_PRODUCT_STATE_READY:
+    case UI_PRODUCT_STATE_MAINTENANCE:
+    case UI_PRODUCT_STATE_PC_LINK_STATUS:
+        clear_requests(product);
+        set_state(product, UI_PRODUCT_STATE_PC_LINK_STATUS);
+        return true;
+    default:
+        return false;
+    }
+}
+
 static void begin_runtime_teardown(app_product_t *product, ui_product_state_t target_state)
 {
     if ((product == NULL) || (product->runtime_teardown_kind != APP_PRODUCT_RUNTIME_TEARDOWN_NONE))
@@ -532,6 +552,12 @@ static ui_product_measurement_t ui_measurement_from_result(const measurement_ses
     out.return_channel = (uint8_t)attempt->selected_channel;
     out.confidence = (uint8_t)result->confidence.publication_confidence;
     out.attempt_count = result->attempt_count;
+    /* Unresolved phase/loss can put estimated R below zero while a dominant
+       reactance still supports C/L. Preserve R; never turn it into valid loss. */
+    const bool reactive_dominant =
+        (result->classification.interpretation == MEASUREMENT_INTERPRET_CAPACITIVE ||
+         result->classification.interpretation == MEASUREMENT_INTERPRET_INDUCTIVE) &&
+        fabsf(derived->reactance_ohms) > fabsf(derived->resistance_ohms);
     /* Reuse DSP derivation/guards and the session classifier. A clipped unused HG
        path does not invalidate an unclipped usable selected 1X path. */
     out.derived_valid = out.derived_valid &&
@@ -542,7 +568,8 @@ static ui_product_measurement_t ui_measurement_from_result(const measurement_ses
         selected->usable && selected->calibration_valid && !selected->clipped &&
         result->confidence.measurement_quality != MEASUREMENT_QUALITY_INVALID &&
         measurement_complex_is_finite(attempt->z_ohms) &&
-        isfinite(derived->resistance_ohms) && derived->resistance_ohms >= 0.0f &&
+        isfinite(derived->resistance_ohms) &&
+        (derived->resistance_ohms >= 0.0f || reactive_dominant) &&
         isfinite(derived->reactance_ohms) && isfinite(derived->magnitude_ohms) &&
         derived->magnitude_ohms >= 0.0f && isfinite(derived->phase_rad) &&
         measurement_auto_condition_allowed(attempt->config.range_id,
@@ -559,7 +586,7 @@ static ui_product_measurement_t ui_measurement_from_result(const measurement_ses
         result->classification.interpretation == MEASUREMENT_INTERPRET_INDUCTIVE &&
         derived->reactance_ohms > 0.0f && isfinite(derived->inductance_h) && derived->inductance_h > 0.0f;
     const bool reactive_model = out.capacitance_valid || out.inductance_valid;
-    out.esr_valid = out.capacitance_valid;
+    out.esr_valid = out.capacitance_valid && derived->resistance_ohms >= 0.0f;
     out.q = derived->q;
     out.d = derived->d;
     out.q_valid = reactive_model && derived->q_valid && derived->resistance_ohms > 0.0f &&
@@ -1053,13 +1080,18 @@ void app_product_step(app_product_t *product,
 
     const ui_product_calibration_state_t next_cal =
         ui_cal_state(inputs->calibration_status, inputs->calibration_active_valid);
-    const ui_product_blocker_t next_blocker = ui_blocker(inputs->safety_result.primary_blocker);
+    const bool measurement_active = product->runtime_kind == APP_PRODUCT_RUNTIME_MEASUREMENT &&
+        runtime_active(product);
+    const bool schedule_allowed = app_product_schedule_allowed(&inputs->safety_result,
+        inputs->range_disabled, inputs->residual_refresh_pending, measurement_active);
+    const ui_product_blocker_t next_blocker = schedule_allowed ? UI_PRODUCT_BLOCK_NONE :
+        ui_blocker(inputs->safety_result.primary_blocker);
     const bool next_storage_unavailable = inputs->calibration_status == APP_CAL_SERVICE_STORAGE_UNAVAILABLE;
 #if WTK_PRODUCT_FACTORY_PROVISIONED
     const bool calibration_changed = product->view.calibration_active_valid &&
         (!inputs->calibration_active_valid ||
          product->view.calibration_sequence != inputs->calibration_active_sequence);
-    if (calibration_changed || !inputs->safety_result.measure_allowed ||
+    if (calibration_changed || !schedule_allowed ||
         inputs->safety_fault_mask != 0u || inputs->display_fault ||
         resource_status_requires_upload(inputs->resource_status))
     {
@@ -1130,9 +1162,9 @@ void app_product_step(app_product_t *product,
     /* Revoke presentation immediately, then drain the existing hardware owner.
        A changed valid OSL sequence also cannot finish an old capture as new. */
     if (product->runtime_kind == APP_PRODUCT_RUNTIME_MEASUREMENT && runtime_active(product) &&
-        (calibration_changed || !inputs->safety_result.measure_allowed))
+        (calibration_changed || !schedule_allowed))
     {
-        const ui_product_state_t target = !inputs->safety_result.measure_allowed ?
+        const ui_product_state_t target = !schedule_allowed ?
             UI_PRODUCT_STATE_SAFETY_BLOCKED : inputs->calibration_active_valid ?
             UI_PRODUCT_STATE_READY : UI_PRODUCT_STATE_CALIBRATION_REQUIRED;
         set_state(product, target);
@@ -1515,7 +1547,7 @@ void app_product_step(app_product_t *product,
         return;
     }
 
-    if (!inputs->safety_result.measure_allowed)
+    if (!schedule_allowed)
     {
         set_state(product, UI_PRODUCT_STATE_SAFETY_BLOCKED);
         product->request_click = false;

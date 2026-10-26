@@ -1,0 +1,1201 @@
+{
+  "status": "SOURCE_AND_CONDITION_COMPATIBILITY_AUDIT_PASS_PENDING_12_HIGH_Z_LOADS",
+  "old_ref": "7017e5e0bc6e7188de3c6b270d49267f322c096d",
+  "target_ref": "a52dba35c74e0643a8b15d916eb29c427d917f77",
+  "uid": "54ff70068370525760380567",
+  "hardware_revision": 65538,
+  "model": 5,
+  "adc": {
+    "values": [
+      0.0008058607927523553,
+      0.0,
+      0.0008058607927523553,
+      0.0,
+      0.0008058607927523553,
+      0.0,
+      0.0008058607927523553,
+      0.0,
+      0.0008058607927523553,
+      0.0,
+      0.0008058607927523553,
+      0.0
+    ],
+    "provenance": "NOMINAL_3V3_NOT_CALIBRATED"
+  },
+  "critical_unchanged_files": [
+    {
+      "path": "Firmware/src/bsp/README.md",
+      "unchanged_git_blob": "53eaa5521454325335559257e43e32c111effe7b"
+    },
+    {
+      "path": "Firmware/src/bsp/bsp_adc.c",
+      "unchanged_git_blob": "402497e41f864b380e6df4a5e6867c570d21db85"
+    },
+    {
+      "path": "Firmware/src/bsp/bsp_adc.h",
+      "unchanged_git_blob": "a8e211a8e25418a02b573651638ab30b2f3e00d8"
+    },
+    {
+      "path": "Firmware/src/bsp/bsp_adc_common.c",
+      "unchanged_git_blob": "50abb22e9645bca29ae694402ee1dccd525e6119"
+    },
+    {
+      "path": "Firmware/src/bsp/bsp_adc_core.c",
+      "unchanged_git_blob": "25b8616a02866a65d77f7af6eb1a2b65181e64fb"
+    },
+    {
+      "path": "Firmware/src/bsp/bsp_adc_core.h",
+      "unchanged_git_blob": "5c92480a697bcd21ade5a7b6caf24bab99f710f2"
+    },
+    {
+      "path": "Firmware/src/bsp/bsp_clock.c",
+      "unchanged_git_blob": "2b3e7fd61366899297f2ee853c106d97be6ce528"
+    },
+    {
+      "path": "Firmware/src/bsp/bsp_clock.h",
+      "unchanged_git_blob": "b6a0899bfe9a54df51e09e9de23bad1452bdcc25"
+    },
+    {
+      "path": "Firmware/src/bsp/bsp_diagnostics.c",
+      "unchanged_git_blob": "7c7c9cef8f27efba0f0652f97c460b74aebb504c"
+    },
+    {
+      "path": "Firmware/src/bsp/bsp_diagnostics.h",
+      "unchanged_git_blob": "a82b3ff86f8a52a8a1fb9cc7957f92058e152fc0"
+    },
+    {
+      "path": "Firmware/src/bsp/bsp_excitation.c",
+      "unchanged_git_blob": "4bbcb03449fda69b698e3639fa1d08084797b8d5"
+    },
+    {
+      "path": "Firmware/src/bsp/bsp_excitation.h",
+      "unchanged_git_blob": "234f3f7c0fb28bff865aa6e327b3a035e8b7f301"
+    },
+    {
+      "path": "Firmware/src/bsp/bsp_gpio.c",
+      "unchanged_git_blob": "4f6f9c21abc3f6a6dfc5f0a0ab38f5de9f6cfb7a"
+    },
+    {
+      "path": "Firmware/src/bsp/bsp_gpio.h",
+      "unchanged_git_blob": "8899f215c5fdc194b1c9f11af9809ba60d504a28"
+    },
+    {
+      "path": "Firmware/src/bsp/bsp_metrology_adc.c",
+      "unchanged_git_blob": "5acaa12d26210e25f2eb501347d1d264c0591967"
+    },
+    {
+      "path": "Firmware/src/bsp/bsp_metrology_adc.h",
+      "unchanged_git_blob": "8e2592cc44fd66156eb3d6801728fa4f0db134b7"
+    },
+    {
+      "path": "Firmware/src/bsp/bsp_quiet.c",
+      "unchanged_git_blob": "618eccae9a6b7ae38204509bbd3c7594ca054d46"
+    },
+    {
+      "path": "Firmware/src/bsp/bsp_quiet.h",
+      "unchanged_git_blob": "ae1003cede91d2e7c3e8f4aa987b21bb354aacf5"
+    },
+    {
+      "path": "Firmware/src/bsp/bsp_reset.c",
+      "unchanged_git_blob": "d8b8c942724df414c300ada1d5f855aee67c31ae"
+    },
+    {
+      "path": "Firmware/src/bsp/bsp_reset.h",
+      "unchanged_git_blob": "10af54b68b6b3993f680da6078e982054960dd3e"
+    },
+    {
+      "path": "Firmware/src/bsp/bsp_spi.c",
+      "unchanged_git_blob": "f908169f3e644d49acd95f17032803c7ebeea991"
+    },
+    {
+      "path": "Firmware/src/bsp/bsp_spi.h",
+      "unchanged_git_blob": "331d7f36ebdfad3b339a54a06b93becc437aa05e"
+    },
+    {
+      "path": "Firmware/src/bsp/bsp_status.c",
+      "unchanged_git_blob": "9873d62279a2b54437010fb265fa74c94edd296e"
+    },
+    {
+      "path": "Firmware/src/bsp/bsp_status.h",
+      "unchanged_git_blob": "22337b42de746ac281e1fab758cdd5a893b3d0ed"
+    },
+    {
+      "path": "Firmware/src/bsp/bsp_time.c",
+      "unchanged_git_blob": "32de5f5bf21b917337b17fe88b9f25af45d9b7e4"
+    },
+    {
+      "path": "Firmware/src/bsp/bsp_time.h",
+      "unchanged_git_blob": "2ccf2d2f3cc43b6ec0db514ae28b323bc44accb9"
+    },
+    {
+      "path": "Firmware/src/bsp/bsp_timers.c",
+      "unchanged_git_blob": "5d19c5c1bb15d78e42b5cc2ba7830cb84c3f89c6"
+    },
+    {
+      "path": "Firmware/src/bsp/bsp_timers.h",
+      "unchanged_git_blob": "0a11622ddde43fc117fb798cd91d6611540993ae"
+    },
+    {
+      "path": "Firmware/src/bsp/bsp_uart.c",
+      "unchanged_git_blob": "e02dbcc2c57ab01738fb5bb3f698fd258fed3d32"
+    },
+    {
+      "path": "Firmware/src/bsp/bsp_uart.h",
+      "unchanged_git_blob": "3701fdec5ff8b271b0b6a047910c7b96d0417305"
+    },
+    {
+      "path": "Firmware/src/bsp/bsp_watchdog.c",
+      "unchanged_git_blob": "dd5400ebe0a185ddd396703b268cafb778cccd6e"
+    },
+    {
+      "path": "Firmware/src/bsp/bsp_watchdog.h",
+      "unchanged_git_blob": "072b7943208da0c92c244d1f6b13f885feb13f6b"
+    },
+    {
+      "path": "Firmware/src/bsp/startup_stm32f103c8tx.c",
+      "unchanged_git_blob": "3cc09a2f23b05a5c4309d2ca6c0b4f751b8a29ad"
+    },
+    {
+      "path": "Firmware/src/bsp/system_stm32f1xx.c",
+      "unchanged_git_blob": "4954adfac98124edf45525aa67e6732530a9be65"
+    },
+    {
+      "path": "Firmware/src/hardware/README.md",
+      "unchanged_git_blob": "d46e14dfb78b9edce1297cf7040179c3fe721086"
+    },
+    {
+      "path": "Firmware/src/hardware/hw_aux_sensors.c",
+      "unchanged_git_blob": "6acb1e153c60812742d879766bb1816d36ac9418"
+    },
+    {
+      "path": "Firmware/src/hardware/hw_aux_sensors.h",
+      "unchanged_git_blob": "84bd8252b87767fe781c05666746c90df39c4c6c"
+    },
+    {
+      "path": "Firmware/src/hardware/hw_backlight.c",
+      "unchanged_git_blob": "6626696121706a99ecc4e6ff3e6f193031a8661a"
+    },
+    {
+      "path": "Firmware/src/hardware/hw_backlight.h",
+      "unchanged_git_blob": "eb49b08eb8d6d236e6579c44344828262a7f00f7"
+    },
+    {
+      "path": "Firmware/src/hardware/hw_buzzer.c",
+      "unchanged_git_blob": "889c2a51e33c239ca78d0e9387d67f9306ea03c6"
+    },
+    {
+      "path": "Firmware/src/hardware/hw_buzzer.h",
+      "unchanged_git_blob": "9f1c52458f904b8aa596809b9beccfc54ab589cc"
+    },
+    {
+      "path": "Firmware/src/hardware/hw_buzzer_policy.c",
+      "unchanged_git_blob": "c0ba78fff27df0e1830ed3712952f11abde0a000"
+    },
+    {
+      "path": "Firmware/src/hardware/hw_buzzer_policy.h",
+      "unchanged_git_blob": "dceb3a1dbc809c48a0c90e774dcf27f349e396ce"
+    },
+    {
+      "path": "Firmware/src/hardware/hw_charger.c",
+      "unchanged_git_blob": "61178bdb349b2a58b49594ccfc7d3f402b774a1e"
+    },
+    {
+      "path": "Firmware/src/hardware/hw_charger.h",
+      "unchanged_git_blob": "e36a24b073dd955a1941f0b1846f579d33c882cc"
+    },
+    {
+      "path": "Firmware/src/hardware/hw_excitation.c",
+      "unchanged_git_blob": "2e39f240fd88b188dcd73c50630b2920a8d1e48b"
+    },
+    {
+      "path": "Firmware/src/hardware/hw_excitation.h",
+      "unchanged_git_blob": "61bc94dfe9ca3b8f675c3de73a891a59aeaac6b8"
+    },
+    {
+      "path": "Firmware/src/hardware/hw_k1.c",
+      "unchanged_git_blob": "194de19d570781ac4489e4e9efb06270ec03c6c0"
+    },
+    {
+      "path": "Firmware/src/hardware/hw_k1.h",
+      "unchanged_git_blob": "7e17642dce1bf60b86072a177fe48d1bff1d8807"
+    },
+    {
+      "path": "Firmware/src/hardware/hw_k1_bench.h",
+      "unchanged_git_blob": "f2a09e59fe3e5dc91cb97af145dac3723c6bac81"
+    },
+    {
+      "path": "Firmware/src/hardware/hw_k2.c",
+      "unchanged_git_blob": "8eef0959e11a2385c543f35a401b09fe42151218"
+    },
+    {
+      "path": "Firmware/src/hardware/hw_k2.h",
+      "unchanged_git_blob": "9a26f8c5b83f703ac4b2d8335197bd25d9d65180"
+    },
+    {
+      "path": "Firmware/src/hardware/hw_measure_permit.c",
+      "unchanged_git_blob": "a9f7c5594773cacb5983dba6aae75d45b6ee519c"
+    },
+    {
+      "path": "Firmware/src/hardware/hw_measure_permit.h",
+      "unchanged_git_blob": "c642e3d27a12ea679b24e23776303cdf9244f4df"
+    },
+    {
+      "path": "Firmware/src/hardware/hw_metrology_clock.c",
+      "unchanged_git_blob": "106d8f1b30edac80761c292e623bc040f9ef9523"
+    },
+    {
+      "path": "Firmware/src/hardware/hw_metrology_clock.h",
+      "unchanged_git_blob": "a2e1092c9cc0d5962d61d2a874ca644ebc1c57b4"
+    },
+    {
+      "path": "Firmware/src/hardware/hw_metrology_measure.c",
+      "unchanged_git_blob": "99972cdd9c21e95dab0d4aab8c1983c88f046a5b"
+    },
+    {
+      "path": "Firmware/src/hardware/hw_metrology_measure.h",
+      "unchanged_git_blob": "ec5283baf8de067d66d60a4973c751f1a4712630"
+    },
+    {
+      "path": "Firmware/src/hardware/hw_metrology_raw.c",
+      "unchanged_git_blob": "2e608ddd8845d30fa66f2bebcae72a5ba6b71c9a"
+    },
+    {
+      "path": "Firmware/src/hardware/hw_metrology_raw.h",
+      "unchanged_git_blob": "1e8ca094bc7b95808d1797fafd00aa4fd7630d99"
+    },
+    {
+      "path": "Firmware/src/hardware/hw_metrology_session.c",
+      "unchanged_git_blob": "55eb8d87933d3da650ccc23b7d40203b1131732d"
+    },
+    {
+      "path": "Firmware/src/hardware/hw_metrology_session.h",
+      "unchanged_git_blob": "63dc6a2ad2c6ee6a1d46886efdc3cd5290480778"
+    },
+    {
+      "path": "Firmware/src/hardware/hw_peripherals.c",
+      "unchanged_git_blob": "99c05b164afafd047986507d47199ed8524e9f70"
+    },
+    {
+      "path": "Firmware/src/hardware/hw_peripherals.h",
+      "unchanged_git_blob": "ffe16320c5e6034bef492fbb48dd8cf27524aeb3"
+    },
+    {
+      "path": "Firmware/src/hardware/hw_range.c",
+      "unchanged_git_blob": "f91d40caa2ebb56796f7e116a4cf757a93045f55"
+    },
+    {
+      "path": "Firmware/src/hardware/hw_range.h",
+      "unchanged_git_blob": "bc59e894e4760c34f242cc847a490256966a1450"
+    },
+    {
+      "path": "Firmware/src/hardware/hw_residual.c",
+      "unchanged_git_blob": "1b5a8a2a1ac2a97bee60de0ea23ff6a2bef2b25c"
+    },
+    {
+      "path": "Firmware/src/hardware/hw_residual.h",
+      "unchanged_git_blob": "a3b5489c7317f5c04dda82949bb7d8aab438540e"
+    },
+    {
+      "path": "Firmware/src/hardware/hw_safety.c",
+      "unchanged_git_blob": "ec776ee2e1bb489610b2614b15916af4f86639ca"
+    },
+    {
+      "path": "Firmware/src/hardware/hw_safety.h",
+      "unchanged_git_blob": "0550ba60ac5817bf82444ab39d40167f36f92a5e"
+    },
+    {
+      "path": "Firmware/src/measurement/README.md",
+      "unchanged_git_blob": "8d9a2e869b5ab02d4802d740ff1694adf20ec5c3"
+    },
+    {
+      "path": "Firmware/src/measurement/measurement_cal_curve.c",
+      "unchanged_git_blob": "de7c275c852da90d1421be4da82d09273232f2ef"
+    },
+    {
+      "path": "Firmware/src/measurement/measurement_cal_curve.h",
+      "unchanged_git_blob": "88179d32810e39e3841ecec16c745262f1b1e209"
+    },
+    {
+      "path": "Firmware/src/measurement/measurement_cal_curve_frame.c",
+      "unchanged_git_blob": "ec5a8aa84b710d130450d708a622ef6866075887"
+    },
+    {
+      "path": "Firmware/src/measurement/measurement_cal_curve_frame.h",
+      "unchanged_git_blob": "66a5ead8bdb838700d3599968220f86f1d9fb3cc"
+    },
+    {
+      "path": "Firmware/src/measurement/measurement_cal_curve_store.c",
+      "unchanged_git_blob": "3a6b52f89ffd71015caef72e90cb1b3861eb1e23"
+    },
+    {
+      "path": "Firmware/src/measurement/measurement_cal_curve_store.h",
+      "unchanged_git_blob": "ffc38d620157411d9e56b9eb23ebc47946e90094"
+    },
+    {
+      "path": "Firmware/src/measurement/measurement_calibration.c",
+      "unchanged_git_blob": "5d9d45c129b08755e8f1b096529cc6015665918a"
+    },
+    {
+      "path": "Firmware/src/measurement/measurement_calibration.h",
+      "unchanged_git_blob": "6eb7a2fe8ee7fb0d359b456fa74227ae22def66c"
+    },
+    {
+      "path": "Firmware/src/measurement/measurement_calibration_solver.c",
+      "unchanged_git_blob": "a29dbfb6d09e28a7a9f61addea91183836e812ff"
+    },
+    {
+      "path": "Firmware/src/measurement/measurement_calibration_solver.h",
+      "unchanged_git_blob": "20ce42a9a7054bb8a76a915bde281a75e7a09b95"
+    },
+    {
+      "path": "Firmware/src/measurement/measurement_calibration_store.c",
+      "unchanged_git_blob": "bf6cbab1fc59d84902fdefd30545abb31f514870"
+    },
+    {
+      "path": "Firmware/src/measurement/measurement_calibration_store.h",
+      "unchanged_git_blob": "c49efab9d97712d8c4ba3e14161a129fe38da007"
+    },
+    {
+      "path": "Firmware/src/measurement/measurement_condition.c",
+      "unchanged_git_blob": "518ecd1bba74f4c800ef1562cd9390b71878bb3a"
+    },
+    {
+      "path": "Firmware/src/measurement/measurement_condition.h",
+      "unchanged_git_blob": "5ffafdff39afdeb4464c6c87fc3a6720897abdfd"
+    },
+    {
+      "path": "Firmware/src/measurement/measurement_dc.c",
+      "unchanged_git_blob": "65246a3bb79dec3ab14ad35331e60d421d055d9e"
+    },
+    {
+      "path": "Firmware/src/measurement/measurement_dc.h",
+      "unchanged_git_blob": "392067ad49bcf967c50e78340f5d0cd1ca09e010"
+    },
+    {
+      "path": "Firmware/src/measurement/measurement_dsp.c",
+      "unchanged_git_blob": "8dc191a19a302b30f36ef8c7d7705eb8a0639476"
+    },
+    {
+      "path": "Firmware/src/measurement/measurement_dsp.h",
+      "unchanged_git_blob": "4afdbd881af79a980eea6548f59f525bee90adf2"
+    },
+    {
+      "path": "Firmware/src/measurement/measurement_engine.c",
+      "unchanged_git_blob": "c714ca714fcb7852294bd0ec9cbcb024ba60ac47"
+    },
+    {
+      "path": "Firmware/src/measurement/measurement_engine.h",
+      "unchanged_git_blob": "c983da1da88df7835d5960fb3fd1d9fc8a68deb9"
+    }
+  ],
+  "critical_unchanged_functions": [
+    {
+      "path": "Firmware/src/app/app_calibration_workflow.c",
+      "function": "stats_stable_scaled",
+      "unchanged_body_sha256": "795e5e495fb1757c4487f63a4e83d06992d6c20dd984a7b01e840cb9ac160d3b"
+    },
+    {
+      "path": "Firmware/src/app/app_calibration_workflow.c",
+      "function": "sample_reject_flags",
+      "unchanged_body_sha256": "1b40386da56e0e4ca34ae9b171ba812456357a7265454afdf0d576aab1a41d78"
+    },
+    {
+      "path": "Firmware/src/app/app_calibration_workflow.c",
+      "function": "evaluate_completion",
+      "unchanged_body_sha256": "7379829d1406e17cd411f945bfc33cb9be06fecf09de84470059412e1af7c9d3"
+    },
+    {
+      "path": "Firmware/src/app/app_calibration_workflow.c",
+      "function": "make_sample_from_phasors",
+      "unchanged_body_sha256": "a0fa8cc9278f4eb62876aa2fe03e900216c3bc79c8645af3af4b9691ce5b0d36"
+    },
+    {
+      "path": "Firmware/src/app/app_calibration_workflow.c",
+      "function": "app_calibration_workflow_sample_from_block",
+      "unchanged_body_sha256": "5079b1af7ade74cc670cfa32957d77ddf083e6f6e70f4141f817e9431cef11f9"
+    },
+    {
+      "path": "Firmware/src/hardware/hw_power.c",
+      "function": "hw_battery_vbat_from_adc_voltage",
+      "unchanged_body_sha256": "e0c87370b2c1e89d46b3daa62fe69ced9500d38655e44e1ad37f6c84e72b18c0"
+    },
+    {
+      "path": "Firmware/src/hardware/hw_power.c",
+      "function": "hw_battery_state_from_voltage",
+      "unchanged_body_sha256": "8ec6ec30503d1f781ef480e46f8e4f60594c9976302889dfbdf5a4fdc8b9d643"
+    }
+  ],
+  "explicit_build_changes": [
+    "WTK_ENABLE_CAL_INTEGRATION",
+    "WTK_GIT_COMMIT",
+    "WTK_NTC_FACTORY_CALIBRATION",
+    "WTK_NTC_FACTORY_UID",
+    "WTK_NTC_PROFILE_SHA256"
+  ],
+  "reused_complete_triplets": [
+    {
+      "condition": {
+        "rref_ohms": 100,
+        "frequency_hz": 10,
+        "amplitude_mvrms": 100
+      },
+      "source_git": "7017e5e0",
+      "triplet_sha256": {
+        "OPEN": "2f8fafc57b1d72730ffe236069dfa657582b94c62ef25882fd3eea38e36f6c46",
+        "SHORT": "529fc5d7eec66567d26f261a02aec61d32cbbd791bdfedea4367f7bfe202f406",
+        "LOAD": "ac1fed1c6b9cd07c36fb2992b09a68e49c5dd361ce3765225447755bb17c3b71"
+      },
+      "fit_channel": "1X",
+      "hg_observed": true,
+      "serialized_float32_values": [
+        15.942102432250977,
+        0.05696004629135132,
+        100.0,
+        0.0,
+        0.005064572207629681,
+        -0.00035916242632083595,
+        0.9991154670715332,
+        0.0003654194588307291,
+        -103.83665466308594,
+        -0.2544041574001312,
+        0.0,
+        0.0
+      ],
+      "target_endpoint_check_sha256": {
+        "OPEN": "71ebf2c1a6e26a170767f9ba462e048334358961ee30a616cc8e5159df1ee1df",
+        "SHORT": "c78bbae15342ae373f55ca5268847d4003b6936e4cbf6b157fbead3a409facdb"
+      }
+    },
+    {
+      "condition": {
+        "rref_ohms": 100,
+        "frequency_hz": 10,
+        "amplitude_mvrms": 500
+      },
+      "source_git": "7017e5e0",
+      "triplet_sha256": {
+        "OPEN": "5955793d4a98a87fcd628a25fdef999fb861b1ff2b92fe21a11b6f323dc910f0",
+        "SHORT": "6edb1f6a0563d24460f0be1b66418b23219bd52bb1ef242f46d9468d8bc0b7e0",
+        "LOAD": "2ca7afd275e53f26e482f9f4bbe570b472dc58243db782b408358ddd9f274362"
+      },
+      "fit_channel": "1X",
+      "hg_observed": false,
+      "serialized_float32_values": [
+        15.468085289001465,
+        0.0,
+        100.0,
+        0.0,
+        0.0017538672545924783,
+        -0.00029520990210585296,
+        0.9998270869255066,
+        -0.00010191622277488932,
+        -102.45560455322266,
+        0.04747352376580238,
+        0.0,
+        0.0
+      ],
+      "target_endpoint_check_sha256": {
+        "OPEN": "4db173880096eed1c5fd877cc3aa0ffadc4cd21ac75286829ba68653b575799c",
+        "SHORT": "c4cc4b3426836054120adbeb7c69690a03c61e1a9e6c471f4f51e9372fd1cc30"
+      }
+    },
+    {
+      "condition": {
+        "rref_ohms": 100,
+        "frequency_hz": 1000,
+        "amplitude_mvrms": 100
+      },
+      "source_git": "7017e5e0",
+      "triplet_sha256": {
+        "OPEN": "19103f66a8a069baa90cdb5897aa980246f3f582e7c8b915804d3cfe3712812c",
+        "SHORT": "7ece166a243fb5dc93def9245751e5dd9772ca8e9e5c595215592f1e44cceeb3",
+        "LOAD": "49bf34b5579c3ddb3c6f757a24e6822d3b9ce2c62fb066cd02e0eb694d4660b5"
+      },
+      "fit_channel": "1X",
+      "hg_observed": true,
+      "serialized_float32_values": [
+        15.921250343322754,
+        -0.1177898421883583,
+        100.0,
+        0.0,
+        0.006238455884158611,
+        0.0013426808873191476,
+        0.999051034450531,
+        -0.0022428210359066725,
+        -103.62580108642578,
+        -0.2389593869447708,
+        0.0,
+        0.0
+      ],
+      "target_endpoint_check_sha256": {
+        "OPEN": "8ce4c8970722dec1a94d0d0b99e8b6729bdfd4555a0c0c6dd7fbd0d16e737cdc",
+        "SHORT": "65fc929caba4494863e4939183f9f19733d7b301e136697c92c21672a3fef511"
+      }
+    },
+    {
+      "condition": {
+        "rref_ohms": 100,
+        "frequency_hz": 1000,
+        "amplitude_mvrms": 500
+      },
+      "source_git": "7017e5e0",
+      "triplet_sha256": {
+        "OPEN": "f92bc870731486cbc198840d53dac6ff0805d86f509b2897c50003cc6d03b56b",
+        "SHORT": "ac4cf414ece9cdb68bea01539fdf8a0d0ffe42b100bbf63beedaf4440ea6c39e",
+        "LOAD": "3665cbb3a2be9727cf7f38e453150fba73b7d4925449ce736c5c1132bea60e19"
+      },
+      "fit_channel": "1X",
+      "hg_observed": false,
+      "serialized_float32_values": [
+        15.468085289001465,
+        0.0,
+        100.0,
+        0.0,
+        0.0014171459479257464,
+        -0.00010259902046527714,
+        0.9996302723884583,
+        -0.0027159694582223892,
+        -102.34451293945312,
+        0.3260434567928314,
+        0.0,
+        0.0
+      ],
+      "target_endpoint_check_sha256": {
+        "OPEN": "34c6ba2d4939edbbe47e88c12011c366e7233a9f384c985f7b9dc6a746ad5bc8",
+        "SHORT": "7af91e087a96184f1dff9d32c3d61a9f0168f78bf6833c2f0e2d3f95306eafee"
+      }
+    },
+    {
+      "condition": {
+        "rref_ohms": 100,
+        "frequency_hz": 10000,
+        "amplitude_mvrms": 100
+      },
+      "source_git": "7017e5e0",
+      "triplet_sha256": {
+        "OPEN": "8dc8691e722500f74fecab6715e329135e8b3ffd04bc4bc60a0fadff9313b1e8",
+        "SHORT": "6d0417e5daa477817cf71c8a9febea64c758809a0c9c919d09ffb69ede5047d7",
+        "LOAD": "f6f5643a0447336465c63f71db08d92ac60ea287805be16827b985f5c4c23ddd"
+      },
+      "fit_channel": "HG",
+      "hg_observed": true,
+      "serialized_float32_values": [
+        16.03270721435547,
+        -1.2464990615844727,
+        100.0,
+        0.0,
+        0.0026845401152968407,
+        0.00010601450776448473,
+        0.9997496604919434,
+        -0.02503121830523014,
+        -106.02787017822266,
+        3.2877683639526367,
+        0.0,
+        0.0
+      ],
+      "target_endpoint_check_sha256": {
+        "OPEN": "38d8211cfb811477838b2454e8b3c12c7e8f4b5fbe2bc649d85219344ad5063e",
+        "SHORT": "c0de76af1f08981989f5d18fe107934b0308b4cac9facaf825acf2a904b57aca"
+      }
+    },
+    {
+      "condition": {
+        "rref_ohms": 100,
+        "frequency_hz": 10000,
+        "amplitude_mvrms": 500
+      },
+      "source_git": "7017e5e0",
+      "triplet_sha256": {
+        "OPEN": "ad06b4a900b8b7d8773601d362cca7157f2d822348d5acc33edf78e9a96dc153",
+        "SHORT": "4653dec2ca78c2afb45b62984b95f6c5c809e832971a26477ed71872d3e326f1",
+        "LOAD": "3024159de672cdec5ec624b080b0480cb1a5bfdc48a82a0e527a9c79dfe11f80"
+      },
+      "fit_channel": "1X",
+      "hg_observed": false,
+      "serialized_float32_values": [
+        15.468085289001465,
+        0.0,
+        100.0,
+        0.0,
+        0.0031921816989779472,
+        -0.0004935585893690586,
+        0.9992074370384216,
+        -0.02664361521601677,
+        -103.57411193847656,
+        1.6789058446884155,
+        0.0,
+        0.0
+      ],
+      "target_endpoint_check_sha256": {
+        "OPEN": "74dda7559335aafa0e468136d4778913aab0d0cf7306618383d32859e8c3dd35",
+        "SHORT": "06bd8666bd8f1c01cc2adeb911103d43a1cf022b83fdb97e3814de31cc7029ab"
+      }
+    },
+    {
+      "condition": {
+        "rref_ohms": 1000,
+        "frequency_hz": 10,
+        "amplitude_mvrms": 100
+      },
+      "source_git": "7017e5e0",
+      "triplet_sha256": {
+        "OPEN": "311f46c5f99a1bb2ba34db3d2a5d9a1422e7d2b06a10db17a0e5f6006bc2f3ee",
+        "SHORT": "32d2eec627113d2574153be059ec4e162355d6f9cbf29b95d1e1a2a99099b13e",
+        "LOAD": "99f42a974c4e11b0651c739b3a16092e8309ccdba1a6a50b21d8e108236926e7"
+      },
+      "fit_channel": "1X",
+      "hg_observed": true,
+      "serialized_float32_values": [
+        15.931780815124512,
+        0.002762931166216731,
+        1000.0,
+        0.0,
+        0.003204185049980879,
+        -0.002805459313094616,
+        0.999836266040802,
+        0.00013827916700392962,
+        -1046.7833251953125,
+        5.183972358703613,
+        0.0,
+        0.0
+      ],
+      "target_endpoint_check_sha256": {
+        "OPEN": "eedcd75b87b90d6f71e5e244948d110e8c5a3878f6739a2708ed64ff38c7f3d0",
+        "SHORT": "fd1157bbda0f247aed30eb1795e75fd5e3cea03308ed8c278169a3221b678c84"
+      }
+    },
+    {
+      "condition": {
+        "rref_ohms": 1000,
+        "frequency_hz": 10,
+        "amplitude_mvrms": 500
+      },
+      "source_git": "7017e5e0",
+      "triplet_sha256": {
+        "OPEN": "31b0c199a0268130185d83993ca4f64e0da9db7a39c38d9002cae841a26b1c94",
+        "SHORT": "accf3d43a9f9e4d4639c0ebc217989d0df14c2c04fe92ac768f33f210e3f0b79",
+        "LOAD": "e83596cd1d1aabea259cd889e6bba5a0728e040e56b1b40df5d80268405d3704"
+      },
+      "fit_channel": "1X",
+      "hg_observed": false,
+      "serialized_float32_values": [
+        15.468085289001465,
+        0.0,
+        1000.0,
+        0.0,
+        -0.001299408613704145,
+        -7.36393776605837e-05,
+        1.000136137008667,
+        -0.00021375824871938676,
+        -1032.703125,
+        0.7733216881752014,
+        0.0,
+        0.0
+      ],
+      "target_endpoint_check_sha256": {
+        "OPEN": "075897ce1e4aac4fc6a1298b11697460a821366c5b99b94e2416d9b35151e4f7",
+        "SHORT": "25a63df2fc0f71529998eb6facb57fa0838480d47f462699af316129e434d242"
+      }
+    },
+    {
+      "condition": {
+        "rref_ohms": 1000,
+        "frequency_hz": 1000,
+        "amplitude_mvrms": 100
+      },
+      "source_git": "7017e5e0",
+      "triplet_sha256": {
+        "OPEN": "7b3267dbd1e6b3890717d895ac82363214338f240ba812c6495683b3fd9b3b03",
+        "SHORT": "9c17d97f66d3e62d860aac7f8b9ae5a00a6fe4fdbff07cdeca6869ac2f6d584a",
+        "LOAD": "0bf4f4f07907ea804c19fb39cca8066fe0332610614647083aaf9ba6a230aa76"
+      },
+      "fit_channel": "1X",
+      "hg_observed": true,
+      "serialized_float32_values": [
+        15.912456512451172,
+        -0.07815315574407578,
+        1000.0,
+        0.0,
+        0.004129163455218077,
+        0.0010395345743745565,
+        0.999381422996521,
+        -0.022642791271209717,
+        -1046.1988525390625,
+        19.031156539916992,
+        0.0,
+        0.0
+      ],
+      "target_endpoint_check_sha256": {
+        "OPEN": "d5a4260c86ed40304094d306a0d8f8aeccb44007525194a179d5a17a6b444654",
+        "SHORT": "cce2606f023280a9f5dd4d7e4913d86ca099ccb64c3cb7667c05a05b594fd1e5"
+      }
+    },
+    {
+      "condition": {
+        "rref_ohms": 1000,
+        "frequency_hz": 1000,
+        "amplitude_mvrms": 500
+      },
+      "source_git": "7017e5e0",
+      "triplet_sha256": {
+        "OPEN": "f4834c70d74537e690dffe3f2fdd963caf0370ea84d2aa0a3435e4fc09bc563c",
+        "SHORT": "8e4923845f4ba74edeb6453a0a8b8139f1eac5b5a1e2819ed76635e0517858e2",
+        "LOAD": "8a549b80ae505dd4e3d62e47472085deb23ca8ee0106867ca8383d2fc3793807"
+      },
+      "fit_channel": "1X",
+      "hg_observed": false,
+      "serialized_float32_values": [
+        15.468085289001465,
+        0.0,
+        1000.0,
+        0.0,
+        -0.0012944209156557918,
+        -1.2047151358274277e-05,
+        0.9995846748352051,
+        -0.021742071956396103,
+        -1031.7685546875,
+        22.23253059387207,
+        0.0,
+        0.0
+      ],
+      "target_endpoint_check_sha256": {
+        "OPEN": "5a5413716d0201110eee30ded4cce6c8663a2317e8f44df52d29835b0abf4c7c",
+        "SHORT": "07b48b514860caee6e7b09935ae8955005a5bf3b3b1e1a0c1e1311f961fe67f9"
+      }
+    },
+    {
+      "condition": {
+        "rref_ohms": 1000,
+        "frequency_hz": 10000,
+        "amplitude_mvrms": 100
+      },
+      "source_git": "7017e5e0",
+      "triplet_sha256": {
+        "OPEN": "aa3739f81a9ccc7bd604d5df73fa86699282ee9f8ea435571b0b60501c791f37",
+        "SHORT": "70faae8aba7913ba76838c7519518e7448dac977ad75d89f81fd162e71af091c",
+        "LOAD": "f47b8980da9d5d4fd12373c87ab01b5c480663ec4f9e2b9150e59798bbda8d1b"
+      },
+      "fit_channel": "1X",
+      "hg_observed": true,
+      "serialized_float32_values": [
+        15.826177597045898,
+        -1.2006595134735107,
+        1000.0,
+        0.0,
+        0.008888985961675644,
+        -0.002204512245953083,
+        0.9500098824501038,
+        -0.20868046581745148,
+        -984.5057983398438,
+        209.6581268310547,
+        0.0,
+        0.0
+      ],
+      "target_endpoint_check_sha256": {
+        "OPEN": "1dd80a1073bf62049ab3336831ca91e84b1da954d93d7ea490303c5791d0b3da",
+        "SHORT": "608bccdecee3d6c89fce41a03ce625711a616d6a426a86f3ee89683289d35c64"
+      }
+    },
+    {
+      "condition": {
+        "rref_ohms": 1000,
+        "frequency_hz": 10000,
+        "amplitude_mvrms": 500
+      },
+      "source_git": "7017e5e0",
+      "triplet_sha256": {
+        "OPEN": "f73c89a67570b0d872b3120770e5d9bfde8260dfdf37413a33f75cde34978136",
+        "SHORT": "59bb25b39153ac9dc728a307606f45297f4129a5d9d3aa3b98653eaa49f2c177",
+        "LOAD": "a67b155071eadea708227c1e7c3bc03ceaa5f2148a056c1425a276d13a608f3e"
+      },
+      "fit_channel": "1X",
+      "hg_observed": false,
+      "serialized_float32_values": [
+        15.468085289001465,
+        0.0,
+        1000.0,
+        0.0,
+        0.0011327305110171437,
+        -0.0009686029516160488,
+        0.9504082798957825,
+        -0.20683223009109497,
+        -996.3106689453125,
+        210.95166015625,
+        0.0,
+        0.0
+      ],
+      "target_endpoint_check_sha256": {
+        "OPEN": "0f42e2e10b5a1ada837fee9fdfc28c98e80db5deeb56b07c5a3532181ad34cb3",
+        "SHORT": "a0f0b5041cd9ff71f3e4d6f8609226a81ed83fa050fd8a3dfdda4044894e1525"
+      }
+    },
+    {
+      "condition": {
+        "rref_ohms": 10000,
+        "frequency_hz": 10,
+        "amplitude_mvrms": 100
+      },
+      "source_git": "7017e5e0",
+      "triplet_sha256": {
+        "OPEN": "6849c6ac3e8ade43bad124d7c745666435b66cc3efd55c2e7abf28b4f06dfc6a",
+        "SHORT": "b11c94be6ca1135b0de2076e38c023c956c2679c680d916f14cdbc7be2bfb347",
+        "LOAD": "446eb7d39c8e6bf8d4a1f54fdfbe5247e82ac2f0a4630b2bc8b7b81b9188f549"
+      },
+      "fit_channel": "1X",
+      "hg_observed": true,
+      "serialized_float32_values": [
+        15.93758487701416,
+        0.06637685000896454,
+        10000.0,
+        0.0,
+        0.0034713861532509327,
+        0.0002473416971042752,
+        0.9994938969612122,
+        0.00042906918679364026,
+        -10345.142578125,
+        -81.01458740234375,
+        0.0,
+        0.0
+      ],
+      "target_endpoint_check_sha256": {
+        "OPEN": "d0e1826589be68e75831b66f644883900e70f5a7d83e829254d5ed75e16ca60f",
+        "SHORT": "96b78227d3578096082666e740548e6f1e74b8a2249326a9a90880e931504b31"
+      }
+    },
+    {
+      "condition": {
+        "rref_ohms": 10000,
+        "frequency_hz": 10,
+        "amplitude_mvrms": 500
+      },
+      "source_git": "7017e5e0",
+      "triplet_sha256": {
+        "OPEN": "b5baa8b960176ddc8bfbcca3247cc5950c7e9d6c8db5adf091db0b69e5152e72",
+        "SHORT": "14aebbb02c03b43f6c21ba492b62788255339cfa15ddbc6242e12e337b2a0c39",
+        "LOAD": "58a09638798b592e9b5f595549e40de4cb31cb7a54975f3e71c9a94391ba72d8"
+      },
+      "fit_channel": "1X",
+      "hg_observed": false,
+      "serialized_float32_values": [
+        15.468085289001465,
+        0.0,
+        10000.0,
+        0.0,
+        -0.001660955953411758,
+        0.000144540928886272,
+        0.9999310970306396,
+        -0.0003459607542026788,
+        -10201.00390625,
+        -1.2427539825439453,
+        0.0,
+        0.0
+      ],
+      "target_endpoint_check_sha256": {
+        "OPEN": "92426edcd3679bf0c5d50f8b0592ee7a9b6d7426fe8277481bd1731781abf66d",
+        "SHORT": "ba278f7c125c733ae56741f39750802f96a538a92e86abd6be646d6a6983d8c9"
+      }
+    },
+    {
+      "condition": {
+        "rref_ohms": 10000,
+        "frequency_hz": 1000,
+        "amplitude_mvrms": 100
+      },
+      "source_git": "7017e5e0",
+      "triplet_sha256": {
+        "OPEN": "745c4c77480025381025de6b105d83e4bc424ec79396ead73de37206a985a826",
+        "SHORT": "5ab6707a6ab8033c8516f53372fc0e9e33d511f73ff3137df56fee9dba6ce4b5",
+        "LOAD": "b60a577b13562099d64ea2fe6002db5f854b34764c90c127853e811f20a3f22f"
+      },
+      "fit_channel": "1X",
+      "hg_observed": true,
+      "serialized_float32_values": [
+        15.922294616699219,
+        -0.1276966631412506,
+        10000.0,
+        0.0,
+        0.005567721091210842,
+        0.000858066079672426,
+        0.9972249269485474,
+        -0.033481135964393616,
+        -10344.6982421875,
+        345.5913391113281,
+        0.0,
+        0.0
+      ],
+      "target_endpoint_check_sha256": {
+        "OPEN": "ff4ce519f3b7c5c8a39976c79f093bfaf45323769213a0af4be55eb2034ea437",
+        "SHORT": "d3f27a7712a246d3cde9066f698aecc782c6af740e4963fdda831172cbc70292"
+      }
+    },
+    {
+      "condition": {
+        "rref_ohms": 10000,
+        "frequency_hz": 1000,
+        "amplitude_mvrms": 500
+      },
+      "source_git": "7017e5e0",
+      "triplet_sha256": {
+        "OPEN": "bf8d292977d0f18a65bb8d91a6c7653511706a71e0af07530de09706d191038f",
+        "SHORT": "dc5f9e3459e1517766dd36fe360a1e9d67dc47d1068b67533890a8adf106664e",
+        "LOAD": "901b5e09724024834bfc06089872c56a6f25de223ecbd842d2327c5ba625e8fc"
+      },
+      "fit_channel": "1X",
+      "hg_observed": false,
+      "serialized_float32_values": [
+        15.468085289001465,
+        0.0,
+        10000.0,
+        0.0,
+        -0.0016910850536078215,
+        -0.00012610736303031445,
+        0.9981093406677246,
+        -0.03374630957841873,
+        -10182.4658203125,
+        351.6594543457031,
+        0.0,
+        0.0
+      ],
+      "target_endpoint_check_sha256": {
+        "OPEN": "2d8a89d013f956538bf2113e0457232bfc3e97d706be3e74cb112ab7b949b148",
+        "SHORT": "66e5a674832a4fec828ea36500a881320eec8d4f96478e2131953b45791163b5"
+      }
+    },
+    {
+      "condition": {
+        "rref_ohms": 10000,
+        "frequency_hz": 10000,
+        "amplitude_mvrms": 100
+      },
+      "source_git": "7017e5e0",
+      "triplet_sha256": {
+        "OPEN": "263f3430cd036777b3104fd0528a2f75eccb06f918aaac1c47dd77fa83dd5826",
+        "SHORT": "45913f58bed77d3520518dabcbede23e1b28602a1b5d2620da0e1ae74694ab17",
+        "LOAD": "55aec22d6f0d2c88142341d2d463a9925f37ea160efacf25cf73925869d81f89"
+      },
+      "fit_channel": "1X",
+      "hg_observed": true,
+      "serialized_float32_values": [
+        15.81944465637207,
+        -1.1908748149871826,
+        10000.0,
+        0.0,
+        0.009921116754412651,
+        -0.0009576251613907516,
+        0.8699718713760376,
+        -0.28114330768585205,
+        -9085.8896484375,
+        2913.46630859375,
+        0.0,
+        0.0
+      ],
+      "target_endpoint_check_sha256": {
+        "OPEN": "d4994cf97fd3bb7cde3465ff90ecf10966b83f2919b5f39e38eb5da8eae3abf3",
+        "SHORT": "94eab2860af6423a8cf2f4b42698884294631b3cc6a6a6eee664416a3600ea41"
+      }
+    },
+    {
+      "condition": {
+        "rref_ohms": 10000,
+        "frequency_hz": 10000,
+        "amplitude_mvrms": 500
+      },
+      "source_git": "7017e5e0",
+      "triplet_sha256": {
+        "OPEN": "f113097d904699bde6b236cc11f26ca8d0db3c7a1ba2450a5ab493e623892896",
+        "SHORT": "410b189242161985639afe85680b2c24802c7d4ea04127d02e9b71c7de154763",
+        "LOAD": "663179cbc23a34906b47c084315929fc0901aedf2264b1a7fc2651f79962a5e9"
+      },
+      "fit_channel": "1X",
+      "hg_observed": false,
+      "serialized_float32_values": [
+        15.468085289001465,
+        0.0,
+        10000.0,
+        0.0,
+        0.0003608536208048463,
+        -0.0003152277786284685,
+        0.8692178130149841,
+        -0.2807499170303345,
+        -9190.0205078125,
+        2961.351318359375,
+        0.0,
+        0.0
+      ],
+      "target_endpoint_check_sha256": {
+        "OPEN": "0539de652a7d9980439701f34172e011385f3bab63ad8134e58caef4a7707bac",
+        "SHORT": "00eff83daa3a7fce6faf35d0b25c553020d69148dfeae270eece4045795c2b4a"
+      }
+    }
+  ],
+  "current_complete_triplets": [
+    {
+      "condition": {
+        "rref_ohms": 10,
+        "frequency_hz": 10,
+        "amplitude_mvrms": 100
+      },
+      "source_git": "a52dba35",
+      "triplet_sha256": {
+        "OPEN": "4ff6fc89b81e17694c5c0d26676e09bd80acd72a84c6a77b4c5f3b140856fe26",
+        "SHORT": "240b2c4bda697e3acf17173b2f6edc5d3f067e78d6d96cdacbce0dcdd32eef45",
+        "LOAD": "7f57f1b3580471021728d9a304d38c0822e8ebe8ad612a6ae1fad7bb9825c164"
+      },
+      "fit_channel": "1X",
+      "hg_observed": true,
+      "serialized_float32_values": [
+        15.949472427368164,
+        0.008493827655911446,
+        10.0,
+        0.0,
+        0.03339884802699089,
+        -0.0014850074658170342,
+        0.9987378120422363,
+        -0.00014204648323357105,
+        -10.955877304077148,
+        0.018105562776327133,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "condition": {
+        "rref_ohms": 10,
+        "frequency_hz": 1000,
+        "amplitude_mvrms": 100
+      },
+      "source_git": "a52dba35",
+      "triplet_sha256": {
+        "OPEN": "62189b3751bd8a566ccc4c6e7ef213f987fe756b3eebe9e01883fa9372159d05",
+        "SHORT": "6674df6f2cbb7e0a80c0dd2be9743e219f33c964ea6aca5c2769983c68449cd0",
+        "LOAD": "1ec9158f4cae145864fdfc2acc1789562b59cd810a688f3cfe005f88cd6547ff"
+      },
+      "fit_channel": "1X",
+      "hg_observed": true,
+      "serialized_float32_values": [
+        15.9043550491333,
+        -0.18349437415599823,
+        10.0,
+        0.0,
+        0.03920750319957733,
+        0.0011314827715978026,
+        0.9994574785232544,
+        -0.0003982728230766952,
+        -11.069634437561035,
+        0.016590528190135956,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "condition": {
+        "rref_ohms": 10,
+        "frequency_hz": 10000,
+        "amplitude_mvrms": 100
+      },
+      "source_git": "a52dba35",
+      "triplet_sha256": {
+        "OPEN": "62bdf48805b54d0ac41ecd21b224ff4fae949cd99e5d4be30299a99799828dfd",
+        "SHORT": "af165d3b123d69b68ac6b2896ed887d8a269159867db8fa4829768fdfa397541",
+        "LOAD": "80bf353d1b6c8646dd2f6f580c882425156400e1eb93b342d7ad667a9a021339"
+      },
+      "fit_channel": "1X",
+      "hg_observed": true,
+      "serialized_float32_values": [
+        15.659309387207031,
+        -1.1837519407272339,
+        10.0,
+        0.0,
+        0.05906467139720917,
+        0.0007843929342925549,
+        1.0012202262878418,
+        -0.006548475474119186,
+        -10.959467887878418,
+        -0.09386873245239258,
+        0.0,
+        0.0
+      ]
+    }
+  ],
+  "pending_current_conditions": [
+    {
+      "rref_ohms": 100000,
+      "frequency_hz": 10,
+      "amplitude_mvrms": 100
+    },
+    {
+      "rref_ohms": 100000,
+      "frequency_hz": 10,
+      "amplitude_mvrms": 500
+    },
+    {
+      "rref_ohms": 100000,
+      "frequency_hz": 1000,
+      "amplitude_mvrms": 100
+    },
+    {
+      "rref_ohms": 100000,
+      "frequency_hz": 1000,
+      "amplitude_mvrms": 500
+    },
+    {
+      "rref_ohms": 100000,
+      "frequency_hz": 10000,
+      "amplitude_mvrms": 100
+    },
+    {
+      "rref_ohms": 100000,
+      "frequency_hz": 10000,
+      "amplitude_mvrms": 500
+    },
+    {
+      "rref_ohms": 1000000,
+      "frequency_hz": 10,
+      "amplitude_mvrms": 100
+    },
+    {
+      "rref_ohms": 1000000,
+      "frequency_hz": 10,
+      "amplitude_mvrms": 500
+    },
+    {
+      "rref_ohms": 1000000,
+      "frequency_hz": 1000,
+      "amplitude_mvrms": 100
+    },
+    {
+      "rref_ohms": 1000000,
+      "frequency_hz": 1000,
+      "amplitude_mvrms": 500
+    },
+    {
+      "rref_ohms": 1000000,
+      "frequency_hz": 10000,
+      "amplitude_mvrms": 100
+    },
+    {
+      "rref_ohms": 1000000,
+      "frequency_hz": 10000,
+      "amplitude_mvrms": 500
+    }
+  ],
+  "remaining_fixture_nominal_ohms": [
+    100000,
+    1000000
+  ],
+  "cohort_policy": "Compose complete per-condition OSL fits; each triplet stays within its original verified firmware cohort. Never relabel or rewrite captured identity/flags.",
+  "temperature_policy": "Original per-condition reported temperatures retained with original nominal/experimental NTC source provenance. Scales are not directly comparable; no thermal qualification or compensation claimed. Base model5 runtime is unchanged; supplementary curves disabled.",
+  "candidate_generated": false,
+  "installed": false,
+  "physically_qualified": false,
+  "source_files": {
+    "old": {
+      "path": "C:\\Users\\rodri\\source\\repos\\WTK.RLCMeter\\Firmware\\build\\calibration-20261025\\same-image-all-99.json",
+      "sha256": "87106a11d610670170fc27ee5186787a64916132b612043a2a97af0110b81d84"
+    },
+    "current": {
+      "path": "C:\\Users\\rodri\\source\\repos\\WTK.RLCMeter\\Firmware\\build\\calibration-20261025\\coherent-through-load-10-001.json",
+      "sha256": "88996f5eb8df55f059efde822088053222bfff88d4981f0b0b5e29af9d5fc835"
+    }
+  }
+}

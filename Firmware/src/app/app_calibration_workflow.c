@@ -71,16 +71,21 @@ static float stats_variance_mag2(const app_cal_complex_stats_t *stats)
     return (stats->m2_re + stats->m2_im) / (float)(stats->count - 1u);
 }
 
-static bool stats_stable(const app_cal_complex_stats_t *stats)
+static bool stats_stable_scaled(const app_cal_complex_stats_t *stats, float reference_scale)
 {
     if ((stats == NULL) || (stats->count < APP_CAL_WORKFLOW_REQUIRED_ACCEPTED))
     {
         return false;
     }
-    const float mean_mag = measurement_complex_mag(stats->mean);
+    const float mean_mag = max_float(reference_scale, measurement_complex_mag(stats->mean));
     const float limit = max_float(1.0e-9f,
                                   mean_mag * ((float)APP_CAL_WORKFLOW_STABILITY_LIMIT_PPM / 1000000.0f));
     return stats_variance_mag2(stats) <= (limit * limit);
+}
+
+static bool stats_stable(const app_cal_complex_stats_t *stats)
+{
+    return stats_stable_scaled(stats, 0.0f);
 }
 
 static void temperature_push(app_cal_temperature_evidence_t *stats, int32_t temperature_mC)
@@ -227,10 +232,16 @@ static void evaluate_completion(app_calibration_workflow_t *workflow)
     }
 
     const bool open = workflow->request.standard.type == APP_CAL_STANDARD_OPEN;
-    const bool ret_1x_stable = open ? stats_stable(&workflow->evidence.open_y_1x) :
-                                      stats_stable(&workflow->evidence.z_1x);
-    const bool ret_hg_stable = open ? stats_stable(&workflow->evidence.open_y_hg) :
-                                     stats_stable(&workflow->evidence.z_hg);
+    /* OPEN y=(Vs-Vx)/Vx and SHORT Z approach zero. Relative error about zero
+       cannot define endpoint repeatability. Use the unit transfer / RREF scale;
+       LOAD, source and HG transfer retain their existing relative criteria. */
+    float endpoint_scale = open ? 1.0f : 0.0f;
+    if (workflow->request.standard.type == APP_CAL_STANDARD_SHORT)
+        endpoint_scale = measurement_dsp_config_ideal(workflow->request.key.range_id).zref_ohms.re;
+    const bool ret_1x_stable = stats_stable_scaled(open ? &workflow->evidence.open_y_1x :
+        &workflow->evidence.z_1x, endpoint_scale);
+    const bool ret_hg_stable = stats_stable_scaled(open ? &workflow->evidence.open_y_hg :
+        &workflow->evidence.z_hg, endpoint_scale);
     const bool source_1_stable = stats_stable(&workflow->evidence.source_1);
     const bool source_2_stable = stats_stable(&workflow->evidence.source_2);
 
@@ -395,9 +406,11 @@ bsp_status_t app_calibration_workflow_submit_sample(app_calibration_workflow_t *
     {
         temperature_push(&workflow->evidence.temperature, sample->temperature_mC);
     }
-    stats_push(&workflow->evidence.source, sample->source_v);
-    stats_push(&workflow->evidence.source_1, sample->vexc_1_v);
-    stats_push(&workflow->evidence.source_2, sample->vexc_2_v);
+    /* Independent blocks have arbitrary common phase. Source repeatability is
+       amplitude repeatability; complex return ratios still test relative phase. */
+    stats_push(&workflow->evidence.source, measurement_complex(sample->vexc_1_peak_v, 0.0f));
+    stats_push(&workflow->evidence.source_1, measurement_complex(sample->vexc_1_peak_v, 0.0f));
+    stats_push(&workflow->evidence.source_2, measurement_complex(sample->vexc_2_peak_v, 0.0f));
     if (sample->ret_1x_usable)
     {
         workflow->evidence.ret_1x_path.sample_count++;
@@ -693,14 +706,20 @@ static app_cal_capture_sample_t make_sample_from_phasors(const hw_metrology_bloc
     const bool ret_hg_clipped = stream_clipped(block, HW_METROLOGY_STREAM_RET_HG) ||
                                 stream_clipped(block, HW_METROLOGY_STREAM_VEXC_2) ||
                                 vmid_clipped;
+    /* A known SHORT measures the zero-return offset/noise. Requiring a nonzero
+       DUT signal would discard exactly that endpoint. Source, denominator,
+       finiteness, clipping and endpoint-repeatability checks still apply. */
+    const float return_min = request->standard.type == APP_CAL_STANDARD_SHORT ? 0.0f : config->return_min_v_peak;
     const measurement_channel_quality_t ret_1x_quality =
-        measurement_channel_quality(&ret_1x, ret_1x_clipped, true, config->return_min_v_peak);
+        measurement_channel_quality(&ret_1x, ret_1x_clipped, true, return_min);
     const measurement_channel_quality_t ret_hg_quality =
         measurement_channel_quality(&ret_hg_reconstructed,
                                     ret_hg_clipped,
                                     !measurement_complex_near_zero(config->ret_hg_transfer, 1.0e-6f),
-                                    config->return_min_v_peak);
-    const bool hg_overlap_valid = raw_hg_ratio_valid && ret_1x_quality.usable && ret_hg_quality.usable;
+                                    return_min);
+    const bool hg_overlap_valid = raw_hg_ratio_valid && ret_1x_quality.usable && ret_hg_quality.usable &&
+        ret_1x_quality.signal_peak_v >= config->return_min_v_peak &&
+        ret_hg_quality.signal_peak_v >= config->return_min_v_peak;
 
     app_cal_capture_sample_t sample = {
         .key = request->key,
@@ -781,6 +800,18 @@ bsp_status_t app_calibration_workflow_sample_from_block(const hw_metrology_block
         return status;
     }
     *sample = make_sample_from_phasors(block, request, &phasors, &config);
+    return BSP_STATUS_OK;
+}
+
+bsp_status_t app_calibration_workflow_sample_from_phasors(const hw_metrology_block_t *block,
+    const app_cal_workflow_request_t *request, const measurement_phasor_set_t *phasors,
+    app_cal_capture_sample_t *sample)
+{
+    if (block == NULL || request == NULL || phasors == NULL || sample == NULL ||
+        !block->valid || block->dma_error || block->timeout || !phasors->valid)
+        return BSP_STATUS_INVALID_ARG;
+    const measurement_dsp_config_t config = measurement_dsp_config_ideal(request->key.range_id);
+    *sample = make_sample_from_phasors(block, request, phasors, &config);
     return BSP_STATUS_OK;
 }
 

@@ -17,7 +17,7 @@ Host-side tools that support firmware, assets, calibration, and diagnostics.
   replay/reference helper for Phase 06 tests.
 - `calibration_campaign.py`: host-only, standard-library interval-fit prototype for
   supplementary R/C/L standards. Input is a JSON object with `schema_version=1`,
-  `hardware_revision=65537`, all 33 `osl_conditions`, and per-condition groups with
+  `hardware_revision=65538`, all 33 `osl_conditions`, and per-condition groups with
   optional `prior_curve` (12 matrix coefficients at 0.1/1/10 times RREF) and
   `standards`. For a real BRINGUP capture, each standard provides `id`,
   `capture_file`, the SHA-256 `capture_id` printed by `pc_capture.py`, `type`
@@ -105,7 +105,7 @@ Host-side tools that support firmware, assets, calibration, and diagnostics.
   candidate on the instrument.
 - `build_resource_pack.py`: builds the deterministic Resource Pack v2/API v4 binary
   from `assets/resource_manifest.json`, including EN/PT-BR text resources and the
-  SMALL/MEDIUM/LARGE external A1 font roles plus optional READY art.
+  SMALL/MEDIUM/LARGE external A1 font roles plus optional READY art and the personalized boot splash.
 - `generate_plex_bitmap_sources.py`: offline Pillow-based rasterization of the pinned
   IBM Plex sources into the three deterministic A1 font source files; normal pack
   builds and firmware do not require Pillow.
@@ -128,3 +128,9 @@ reference tolerance reports and an offline sampled blank-to-calibrated simulatio
 See [input contract and commands](PC_OSL.md). Provisioning is simulated only; the
 embedded full wizard and boot gate remain intact. `pc_osl_flash_probe.py` builds
 isolated, non-deployable linker experiments for the future migration budget.
+
+Resource provisioning uses `resource_pack_tool.py upload` with per-byte pacing,
+DTR/RTS inactive before opening, bounded ACK validation and optional `--report`.
+Default pacing is10ms per BEGIN byte,2ms per later byte and250ms post-BEGIN. Legacy receiver images may need
+`--inter-byte-delay-ms 10 --settle-after-begin-ms 10000`. No ambiguous frame is
+replayed automatically. See [the complete asset procedure](../assets/README.md).

@@ -18,6 +18,9 @@ typedef enum
     APP_MEASUREMENT_SESSION_PROCESS_DSP,
     APP_MEASUREMENT_SESSION_DONE,
     APP_MEASUREMENT_SESSION_CANCELING,
+#if WTK_ENABLE_MEASURE_SESSION_HOLD
+    APP_MEASUREMENT_SESSION_FINISHING,
+#endif
 } app_measurement_session_state_t;
 
 typedef enum
@@ -43,6 +46,9 @@ typedef struct
     hw_metrology_measure_error_t (*attempt_error)(void *user);
     void (*attempt_acknowledge)(void *user);
     bsp_status_t (*attempt_abort)(void *user);
+#if WTK_ENABLE_MEASURE_SESSION_HOLD
+    bsp_status_t (*finish_session)(void *user);
+#endif
     bsp_status_t (*process_block)(const hw_metrology_block_t *block,
                                   const measurement_attempt_config_t *attempt,
                                   measurement_calibrated_result_t *result,

@@ -8,6 +8,8 @@
 #define HW_BATTERY_CRITICAL_V (3.25f)
 #define HW_BATTERY_MAX_PLAUSIBLE_V (4.35f)
 
+/* Nominal resistance scale. An optional UID-bound factory build replaces the
+ * temperature LUT with an experimental effective divider-ratio calibration. */
 #define HW_NTC_FIXED_TOP_OHM (100000.0f)
 #define HW_NTC_R0_OHM (100000.0f)
 #define HW_NTC_T0_K (298.15f)
@@ -15,6 +17,8 @@
 
 float hw_battery_vbat_from_adc_voltage(float adc_bat_v);
 hw_battery_state_t hw_battery_state_from_voltage(float vbat_v, bool valid);
+/* Zero is unavailable. Pass the freshness-qualified auxiliary battery state. */
+uint16_t hw_battery_telemetry_mv(float vbat_v, hw_battery_state_t state);
 float hw_ntc_resistance_from_voltage(float adc_ntc_v, float vdd_v, bool *valid);
 bool hw_ntc_temperature_from_resistance(float resistance_ohm, float *temperature_c);
 

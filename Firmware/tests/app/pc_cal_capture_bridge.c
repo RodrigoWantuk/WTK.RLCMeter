@@ -15,9 +15,12 @@ static app_io_workspace_t workspace;
 static hw_metrology_block_t block;
 static uint8_t output[4096];
 static size_t output_size;
-static uint32_t now, injection;
+static uint32_t now, injection, refresh_until;
+static uint32_t refresh_delay_ms=20u;
+static uint32_t install_refresh_arm_ms, install_refresh_until;
 static bool active, done, aborted;
 static unsigned ticks;
+static uint16_t battery_mv;
 static uint32_t product_attempts;
 static measurement_calibrated_result_t product_result;
 static const bsp_clock_summary_t clock_info = {.source=BSP_CLOCK_SOURCE_HSE_PLL,
@@ -126,7 +129,11 @@ static bsp_status_t start_capture(const hw_metrology_measure_request_t *request,
     measurement_complex_t returned=measurement_complex_mul(source,t);
     measurement_complex_t channels[4]={source,returned,source,
         measurement_complex_mul(returned,measurement_complex(15.31f,0.03f))};
-    float c=1.0f,s=0.0f;
+    /* Independent coherent blocks need not share a timer-start phase. Exercising
+       four quadrants prevents raw cross-block phasor cancellation from hiding. */
+    const float phase_c[4]={1.0f,0.0f,-1.0f,0.0f};
+    const float phase_s[4]={0.0f,1.0f,0.0f,-1.0f};
+    float c=phase_c[product_attempts%4u],s=phase_s[product_attempts%4u];
     const float dc=profile.samples_per_cycle==64u?0.9951847267f:0.9238795325f;
     const float ds=profile.samples_per_cycle==64u?0.0980171403f:0.3826834324f;
     for(uint32_t n=0;n<HW_METROLOGY_SAMPLES_PER_BLOCK;n++)
@@ -155,7 +162,13 @@ static bool dumpable(void *u){(void)u;return done&&!aborted&&!(injection&4u);}
 static const hw_metrology_block_t *get_block(void *u){(void)u;return &block;}
 static hw_metrology_measure_error_t error(void *u)
 {(void)u;return injection&4u ? HW_METROLOGY_MEASURE_ERR_DMA : HW_METROLOGY_MEASURE_OK;}
-static void ack(void *u){(void)u;done=false;active=false;}
+static void ack(void *u)
+{
+    (void)u;
+    if (done && !aborted && calibration.workflow.evidence.accepted >= APP_CAL_WORKFLOW_REQUIRED_ACCEPTED)
+        refresh_until=now+refresh_delay_ms;
+    done=false;active=false;
+}
 static bsp_status_t abort_capture(void *u){(void)u;aborted=true;return BSP_STATUS_BUSY;}
 static bsp_status_t product_process(const hw_metrology_block_t *raw_block,
                                      const measurement_attempt_config_t *attempt,
@@ -214,9 +227,17 @@ static void product_boot(uint8_t resources, uint8_t safety, bool click,
 static void snapshot(app_cal_capture_snapshot_t *state,void *u)
 {
     (void)u;
-    *state=(app_cal_capture_snapshot_t){.factory_allowed=(injection&3u)==0u,
-        .transfer_safe=!active,.safety_blocks=(injection&3u)|(!active?HW_SAFETY_BLOCK_RANGE:0u),
-        .temperature_valid=true,.temperature_mC=25000};
+    if (install_refresh_arm_ms != 0u && capture.install_state == APP_CAL_INSTALL_WRITING)
+    {
+        install_refresh_until = now + install_refresh_arm_ms;
+        install_refresh_arm_ms = 0u;
+    }
+    const bool install_refresh_pending = now < install_refresh_until;
+    const bool fresh=now>=refresh_until;
+    *state=(app_cal_capture_snapshot_t){.factory_allowed=(injection&3u)==0u && fresh && !install_refresh_pending,
+        .transfer_safe=!active,.safety_blocks=(injection&3u)|(!fresh||install_refresh_pending?HW_SAFETY_BLOCK_SENSOR_INVALID:0u)|(!active?HW_SAFETY_BLOCK_RANGE:0u),
+        .temperature_valid=true,.temperature_mC=25000,.battery_mv=fresh ? battery_mv : (uint16_t)0u,
+        .aux_refresh_pending=install_refresh_pending};
 }
 static bsp_status_t write_byte(uint8_t value,void *u)
 {
@@ -258,7 +279,8 @@ int main(void)
         else if(header[0]==4u && count==2u)
         {
             apply_pending((size_t)data[0]+((size_t)data[1]<<8u));
-            injection=0u;active=false;done=false;now=0u;
+            injection=0u;active=false;done=false;now=0u;refresh_until=0u;
+            install_refresh_arm_ms=0u;install_refresh_until=0u;
             app_io_workspace_init(&workspace);app_calibration_service_init(&calibration);
             app_calibration_service_attach_workspace(&calibration,&workspace);
             (void)app_calibration_service_load(&calibration,&flash_io,CAPACITY);
@@ -296,6 +318,27 @@ int main(void)
             memcpy(output+16,&result.result.impedance.z_ohms,sizeof(measurement_complex_t));output_size=24u;
         }
         else if(header[0]==9u && count==3u) product_boot(data[0],data[1],data[2]!=0u,&session);
+        /* Host-fixture control only: no such command exists on target UART. */
+        else if(header[0]==10u && count==2u)
+            refresh_delay_ms=(uint32_t)data[0]+((uint32_t)data[1]<<8u);
+        /* Host-fixture telemetry injection; never a target-UART command. */
+        else if(header[0]==11u && count==3u)
+        {
+            capture.io.battery_telemetry_supported=data[0]!=0u;
+            battery_mv=(uint16_t)((uint16_t)data[1] | ((uint16_t)data[2]<<8u));
+        }
+        /* Host-only coherent mode selection; never a target UART command. */
+        else if(header[0]==12u && count==1u)
+            capture.io.coherent_integration_supported=data[0]!=0u;
+        else if(header[0]==13u && count==0u)
+        {
+            const uint16_t values[4]={capture.session.integration.count,capture.session.integration_attempts,
+                calibration.workflow.evidence.accepted,calibration.workflow.evidence.attempts};
+            memcpy(output,values,sizeof(values));output_size=sizeof(values);
+        }
+        /* Host-only simulation of a commit validation delay beyond residual age. */
+        else if(header[0]==14u && count==2u)
+            install_refresh_arm_ms=(uint32_t)data[0]+((uint32_t)data[1]<<8u);
         else return 4;
         uint8_t size[2]={(uint8_t)output_size,(uint8_t)(output_size>>8u)};
         (void)fwrite(size,1u,2u,stdout);(void)fwrite(output,1u,output_size,stdout);(void)fflush(stdout);

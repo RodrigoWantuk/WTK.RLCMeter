@@ -21,11 +21,15 @@ enum
     APP_CAL_INSTALL_ABORT = 0x5bu,
     APP_CAL_CAPTURE_RESPONSE = 0x80u,
     APP_CAL_CAPTURE_OBSERVATION_BYTES = 188u,
+    APP_CAL_CAPTURE_INTEGRATED_BYTES = 196u,
+    APP_CAL_CAPTURE_INTEGRATED_TIMEOUT_MS = 90000u,
     APP_CAL_CAPTURE_CHUNK_BYTES = 96u,
     APP_CAL_CAPTURE_FRAME_BYTES = APP_PC_LINK_HEADER_SIZE + APP_PC_LINK_MAX_PAYLOAD_BYTES,
     APP_CAL_CAPTURE_RX_TIMEOUT_MS = 250u,
     APP_CAL_CAPTURE_TIMEOUT_MS = 20000u,
     APP_CAL_CAPTURE_ADC_NOMINAL_3V3 = 1u,
+    APP_CAL_CAPTURE_CAP_BATTERY_MV = 1u << 5,
+    APP_CAL_CAPTURE_CAP_INTEGRATED = 1u << 6,
 };
 
 typedef enum
@@ -63,6 +67,8 @@ typedef struct
     bool temperature_valid;
     bool factory_allowed; /* Preflight only: hardware still issues/validates its permit. */
     bool transfer_safe;   /* SAFE, excitation OFF, range disabled, quiet released. */
+    uint16_t battery_mv; /* 1..4350 nominal ADC mV; zero when unknown/stale. */
+    bool aux_refresh_pending; /* Expired/requalifying residual; never authorizes a write. */
 } app_cal_capture_snapshot_t;
 
 typedef struct
@@ -73,6 +79,8 @@ typedef struct
     uint8_t device_uid[12];
     bool synthetic;
     bool installation_supported;
+    bool battery_telemetry_supported;
+    bool coherent_integration_supported;
 } app_cal_capture_io_t;
 
 typedef struct
@@ -83,7 +91,7 @@ typedef struct
     bsp_status_t clock_status;
     uint8_t rx[APP_CAL_CAPTURE_FRAME_BYTES];
     uint8_t tx[2][APP_CAL_CAPTURE_FRAME_BYTES]; /* Two bounded replies allow emergency CANCEL. */
-    uint8_t observation[APP_CAL_CAPTURE_OBSERVATION_BYTES];
+    uint8_t observation[APP_CAL_CAPTURE_INTEGRATED_BYTES];
     measurement_complex_t mean[6];
     uint16_t rx_size;
     uint16_t rx_expected;
@@ -110,6 +118,7 @@ typedef struct
     uint32_t install_crc;
     uint32_t install_deadline;
     uint16_t install_received;
+    bool completion_pending; /* Await fresh post-capture safety before publishing. */
 } app_cal_capture_service_t;
 
 bsp_status_t app_cal_capture_init(app_cal_capture_service_t *service,

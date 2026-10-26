@@ -1,6 +1,33 @@
 # Technical Documentation
 
+Latest first-unit checkpoint: [calibrated PRODUCT READY handoff](../Firmware/releases/2026-10-25/calibrated-product-ready/README.md).
+The 33-condition engineering OSL is installed and persistent. PRODUCT now loads
+it and reaches READY with SAFE outputs. The owner confirms splash and READY;
+independent metrology qualification remains pending. The linked handoff also records current
+C/L, polarized-capacitor, small-inductor, Click/Live and frequency-search limits.
+Chronological checkpoints below retain their original historical status and are
+superseded where the latest handoff provides newer evidence.
+
+Subsequent owner feedback: [display speed/redraw/brightness delivery](../Firmware/releases/2026-10-25/display-feedback/README.md)
+is installed and visibly improved. [Reactive result publication](../Firmware/releases/2026-10-25/reactive-publication/README.md)
+fixes intermittent capacitor n/a caused by a blanket nonnegative-R presentation
+guard; actual post-fix readings are 9.55/9.68 nF on the unchanged 103J100. Negative
+estimated R never becomes valid ESR/Q/D. Unknown small-choke observations still
+need a marked inductor; calibrated value availability is not an accuracy certificate.
+
+[Known 470-uH follow-up](../Firmware/releases/2026-10-25/inductor-470-check/README.md)
+now records two actual INDUCTIVE results (461.4/472.2 uH) and SAFE teardown.
+The full frequency/range spread is preserved; 0.15/2.2-uH sensitivity and
+independent accuracy remain unvalidated.
+
+Current October24 CAD/firmware, CHG_VBUS5.5V analysis, calibration identity and bench status: [consolidation report](review/bringup-2026-10-24/README.md).
+
 This directory contains the living technical specification for WTK.RLCMeter.
+
+October 25 continuation: [serial battery telemetry](../Firmware/releases/2026-10-25/battery-serial-telemetry/README.md)
+is deployed and reports 3.949 V after charging, using COM4 only. The separate
+[high-Z OPEN pilot](../Firmware/releases/2026-10-25/osl-integration-pilot/README.md)
+records repeatability evidence; the three high-Z/10-kHz OSL fits remain pending.
 
 The documentation deliberately separates **existing Rev.1 hardware**, **planned firmware architecture**, **unqualified engineering targets**, **experimental/DNP options**, and **future-revision concepts**. Measured prototype behavior takes precedence over theoretical expectations.
 
@@ -79,3 +106,89 @@ When hardware changes affect analog response or safety:
 4. update the `hardware_revision` identity used by calibration;
 5. review bring-up and qualification procedures;
 6. update affected agent execution plans if implementation assumptions changed.
+
+[Personalized boot splash delivery, October 25](review/bringup-2026-10-25/Boot-Splash.md)
+records all nine builds, physical pack readback, preserved mutable data and final
+SAFE BRINGUP. The owner will inspect visible TFT appearance later.
+
+[First physical OSL OPEN checkpoint, October 25](review/bringup-2026-10-25/OSL-Open.md)
+records 33 accepted OPEN conditions, corrected capture/client behavior and the
+current nine-image bundle. SHORT/LOAD and calibration installation remain pending.
+
+[The first SHORT checkpoint and path audit](review/bringup-2026-10-25/OSL-Short.md)
+preserve 33 accepted SHORT observations and three OPEN/SHORT path conflicts.
+Zero-return SHORT handling is corrected before a same-image recapture; no
+calibration is installed or physically qualified.
+
+[Corrected SHORT checkpoint](review/bringup-2026-10-25/OSL-Zero-Short.md)
+records 33/33 accepted conditions with both return paths on source `7017e5e0`.
+The source-bound nine-image bundle and deployment readback are preserved.
+Same-image OPEN/LOAD, installation and independent qualification remain pending.
+
+[Same-image OPEN/SHORT completion](review/bringup-2026-10-25/OSL-Same-Image-Endpoints.md)
+records 66 accepted captures on source `7017e5e0`, with common return paths at all
+33 keys. LOAD, solver validation, installation and independent qualification
+remain pending; earlier endpoint checkpoints retain their historical status.
+
+[First 10-ohm LOAD group](review/bringup-2026-10-25/OSL-Load-10.md) records three
+accepted same-image triplets (69/99 observations), their strict float32 fit
+checks and the owner's battery check requirement before every new resistor.
+Five LOAD groups, independent validation and installation remain pending.
+
+[100-ohm LOAD completion](review/bringup-2026-10-25/OSL-Load-100.md) records six
+more accepted captures and fit checks: 75/99 observations, 9/33 complete
+conditions. Battery remains OK; four LOAD groups and independent validation remain.
+
+[1-kohm LOAD completion](review/bringup-2026-10-25/OSL-Load-1000.md) records six
+more accepted captures: 81/99 observations, 15/33 complete fit checks. Fresh
+battery is OK; the 10-kohm, 100-kohm and 1-Mohm LOAD groups remain pending.
+
+[10-kohm LOAD completion](review/bringup-2026-10-25/OSL-Load-10000.md) records
+87/99 observations and 21/33 complete fit checks. Battery remains OK; the
+100-kohm and 1-Mohm LOAD groups, independent validation and installation remain.
+
+[100-kohm capture and unresolved fit](review/bringup-2026-10-25/OSL-Load-100000.md)
+records 93/99 observations, 26 accepted fits and one blocked fit at 100 kohm /
+10 kHz / 100 mVrms because actual HG overlap is absent. All six raw 100-kohm
+captures are preserved. The 1-Mohm LOAD group and resolution of that fit remain
+pending; no full candidate or calibration installation exists.
+
+[Complete 99-capture campaign and diagnostic](review/bringup-2026-10-25/OSL-All-99.md)
+records 30 valid fits and three blocked high-Z 10-kHz conditions. Three separate
+OPEN repeats reproduce the missing HG-overlap evidence; compiler-derived RAM
+statistics explain the final LOAD rejection. The candidate builder remains
+blocked. A one-point NTC comparison using an owner-provided contact thermometer
+is next; no calibration has been installed or physically qualified.
+
+[NTC cold comparison](review/bringup-2026-10-25/NTC-Comparison.md) preserves the
+external 23.5-degC bead-contact reference against firmware 27.27030 degC. The
+purchased NTC is listed only as 100 kohm; Beta is unknown. A warm reference is
+pending before fitting an effective divider ratio and Beta. No trim is applied.
+
+[Experimental NTC factory profile delivery](review/bringup-2026-10-25/NTC-Factory-Profile.md)
+supersedes that cold-comparison checkpoint: the owner-authorized two-point model
+is compiled into all nine UID-bound unit images and verified on the board.
+Independent thermal accuracy is not qualified. The three RLC fit blocks remain.
+
+The [nominal 0.47-uH follow-up](../Firmware/releases/2026-10-25/inductor-047-limit-check/README.md) was resistance-like at 1 kHz
+and did not publish L. Automatic frequency search and sub-microhenry
+capability remain unvalidated; this is not a proven hardware lower limit.
+
+[Bounded low-impedance search](../Firmware/releases/2026-10-25/low-impedance-search/README.md)
+is deployed and software-tested across both host profiles and nine embedded
+profiles. It adds a supporting 10-kHz check for usable low-RREF resistive
+results without changing classification thresholds or calibration. Actual
+four-attempt search now includes 10 kHz but leaves the nominal 0.47-uH result
+inconclusive, with no published L; K1 remains SAFE between attempts.
+
+[Session/evidence/menu improvements](../plans/24-Measurement-Evidence-Session-and-UI.md)
+add reliable classification evidence admission, bounded continuous K1 ownership
+and exact row updates in PC-provisioned PRODUCT. Fixed/legacy capture paths and
+engineering calibration are preserved. Unattended validation records software
+and passive boot separately from pending physical relay/display qualification.
+
+[Session/menu delivery](../Firmware/releases/2026-10-26/session-and-menu/README.md)
+now records nine passing strict profiles and verified factory PRODUCT deployment:
+56,260 B Flash / 16,040 B accounted RAM, actual READY/SAFE boot with OSL sequence 1
+and all 33 records preserved. No unattended DUT capture was triggered; physical
+relay-session and menu appearance checks remain pending.

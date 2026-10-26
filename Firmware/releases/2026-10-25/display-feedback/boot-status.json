@@ -1,0 +1,182 @@
+{
+  "utc": "2026-10-25T22:53:01.792058+00:00",
+  "operation": "CONTROLLED_PRODUCT_BOOT_PASSIVE_UART_AND_METADATA",
+  "SIMULATED": false,
+  "capture_started": false,
+  "measurement_commanded": false,
+  "battery_read_over_swd": false,
+  "image_sha256": "7ba619e752084e377de02019ae3f0d561755c13e9f9d6bd0aaa399aa44df0e2c",
+  "error": null,
+  "visual_check": "PENDING_OWNER_DISPLAY_CONNECTION",
+  "target": {
+    "device_id": 537093136,
+    "cpuid": 1092600369,
+    "flash_kib": 64,
+    "obr": 67108860,
+    "wrpr": 4294967295,
+    "uid": "54ff70068370525760380567",
+    "flash_base": 134217728,
+    "flash_bytes": 65536,
+    "driver": "stm32f1x",
+    "state": "halted",
+    "target_voltage_v": 3.294997
+  },
+  "uart_text": "NOT_CAPTURED: owner replaced TTL with connected display",
+  "metadata": {
+    "product_state": 4,
+    "measurement_session_sequence": 0,
+    "product_initialized": 1,
+    "calibration_sequence": 1,
+    "calibration_record_count": 33,
+    "calibration_active_valid": 1,
+    "calibration_storage_available": 1,
+    "k1_commanded_state": 1,
+    "range_fsm_state": 0,
+    "range_enabled": 0,
+    "safety_fault_mask": 0,
+    "display_fault": 0,
+    "resource_status": 0,
+    "excitation_mode": 0,
+    "safety_blocker_flags": 8,
+    "display_slow_mode": 0,
+    "backlight_percent": 75,
+    "saved_brightness_percent": 75,
+    "quiet_requested": 0
+  },
+  "layout": [
+    {
+      "name": "product_state",
+      "symbol": "g_product.lto_priv.0",
+      "offset": 1464,
+      "address": 536876656,
+      "size": 1
+    },
+    {
+      "name": "measurement_session_sequence",
+      "symbol": "g_product.lto_priv.0",
+      "offset": 1564,
+      "address": 536876756,
+      "size": 4
+    },
+    {
+      "name": "product_initialized",
+      "symbol": "g_product.lto_priv.0",
+      "offset": 1598,
+      "address": 536876790,
+      "size": 1
+    },
+    {
+      "name": "calibration_sequence",
+      "symbol": "g_calibration_service.lto_priv.0",
+      "offset": 0,
+      "address": 536878248,
+      "size": 4
+    },
+    {
+      "name": "calibration_record_count",
+      "symbol": "g_calibration_service.lto_priv.0",
+      "offset": 64,
+      "address": 536878312,
+      "size": 1
+    },
+    {
+      "name": "calibration_active_valid",
+      "symbol": "g_calibration_service.lto_priv.0",
+      "offset": 2683,
+      "address": 536880931,
+      "size": 1
+    },
+    {
+      "name": "calibration_storage_available",
+      "symbol": "g_calibration_service.lto_priv.0",
+      "offset": 5769,
+      "address": 536884017,
+      "size": 1
+    },
+    {
+      "name": "k1_commanded_state",
+      "symbol": "g_k1.lto_priv.0",
+      "offset": 8,
+      "address": 536870984,
+      "size": 1
+    },
+    {
+      "name": "range_fsm_state",
+      "symbol": "g_range.lto_priv.0",
+      "offset": 12,
+      "address": 536871000,
+      "size": 1
+    },
+    {
+      "name": "range_enabled",
+      "symbol": "g_range.lto_priv.0",
+      "offset": 21,
+      "address": 536871009,
+      "size": 1
+    },
+    {
+      "name": "safety_fault_mask",
+      "symbol": "g_safety_faults.lto_priv.0",
+      "offset": 0,
+      "address": 536871016,
+      "size": 4
+    },
+    {
+      "name": "display_fault",
+      "symbol": "g_product_display_fault",
+      "offset": 0,
+      "address": 536877836,
+      "size": 1
+    },
+    {
+      "name": "resource_status",
+      "symbol": "g_resource_status.lto_priv.0",
+      "offset": 0,
+      "address": 536870954,
+      "size": 1
+    },
+    {
+      "name": "excitation_mode",
+      "symbol": "g_mode.lto_priv.0",
+      "offset": 0,
+      "address": 536871014,
+      "size": 1
+    },
+    {
+      "name": "safety_blocker_flags",
+      "symbol": "g_safety_result",
+      "offset": 4,
+      "address": 536877360,
+      "size": 4
+    },
+    {
+      "name": "display_slow_mode",
+      "symbol": "g_display_slow",
+      "offset": 0,
+      "address": 536876802,
+      "size": 1
+    },
+    {
+      "name": "backlight_percent",
+      "symbol": "g_product_output_backlight_percent",
+      "offset": 0,
+      "address": 536870952,
+      "size": 1
+    },
+    {
+      "name": "saved_brightness_percent",
+      "symbol": "g_settings_service",
+      "offset": 44,
+      "address": 536871752,
+      "size": 1
+    },
+    {
+      "name": "quiet_requested",
+      "symbol": "g_quiet_requested.lto_priv.0",
+      "offset": 0,
+      "address": 536871698,
+      "size": 1
+    }
+  ],
+  "outcome": "DISPLAY_NORMAL_CLOCK_PRODUCT_READY_SAFE_OWNER_VISUAL_PENDING"
+}

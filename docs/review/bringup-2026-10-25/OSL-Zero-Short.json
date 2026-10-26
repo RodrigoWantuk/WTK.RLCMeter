@@ -1,0 +1,125 @@
+{
+  "recorded_utc": "2026-10-25T13:47:04.762534+00:00",
+  "SIMULATED": false,
+  "status": "CORRECTED_SHORT_COMPLETE_SAME_IMAGE_OPEN_PENDING",
+  "firmware_source": "7017e5e0bc6e7188de3c6b270d49267f322c096d",
+  "identity": {
+    "hardware_revision": 65538,
+    "model": 5,
+    "profile": 1,
+    "capabilities": 31,
+    "protocol_version": 1,
+    "timeout_ms": 20000,
+    "adc_provenance": "NOMINAL_3V3_NOT_CALIBRATED",
+    "synthetic": false,
+    "uid": "54ff70068370525760380567",
+    "git": "7017e5e0",
+    "firmware_version": "0.1.0"
+  },
+  "short_conditions": 33,
+  "conditions_with_both_paths": 33,
+  "open_conditions_current_cohort": 0,
+  "prior_source_063c7378": "Historical only; do not mix",
+  "calibration_installed": false,
+  "candidate_generated": false,
+  "physically_qualified": false,
+  "final_status": {
+    "capture_id": 894146721,
+    "calibration_sequence": 0,
+    "safety_faults": 0,
+    "safety_blocks": 8,
+    "protocol_errors": 0,
+    "temperature_mC": 26344,
+    "capture_status": 0,
+    "busy": false,
+    "result_valid": true,
+    "calibrated": false,
+    "transfer_safe": true
+  },
+  "installation_status": {
+    "transaction": 0,
+    "sequence": 0,
+    "received": 0,
+    "size": 2760,
+    "active_sequence": 0,
+    "crc": 0,
+    "state": 0,
+    "error": 0,
+    "store_state": 0,
+    "storage_available": true,
+    "next_sequence": 1,
+    "slot": 0,
+    "active_valid": false
+  },
+  "protocol_errors_baseline": 0,
+  "scope_checks": "NOT_TESTED; owner-directed engineering scope",
+  "host_tests": "44/44 CTest PASS, including raw zero SHORT and negative controls",
+  "embedded_builds": "9/9 PASS",
+  "artifact_sha256": "422f125f677142946fc700be78e63a863b1c70627303899219912828dbc17396",
+  "artifacts": {
+    "firmware.zip": {
+      "bytes": 2461851,
+      "sha256": "2ddea0b9bcb9e915ad46dd91d1ef5d323af545d795cad7d5186f39cf9e8a5d33"
+    },
+    "physical-evidence.zip": {
+      "bytes": 289820,
+      "sha256": "8c7c21623cc866a3654dd4bd2c24e2738ba66ff8d780b06d2f71f690c588a123"
+    }
+  },
+  "battery_after_short": {
+    "recorded_utc": "2026-10-25T13:48:10.117792+00:00",
+    "operation": "NO_RESET_BATTERY_RAM_HALT_RESUME",
+    "firmware_identity": {
+      "hardware_revision": 65538,
+      "model": 5,
+      "profile": 1,
+      "capabilities": 31,
+      "protocol_version": 1,
+      "timeout_ms": 20000,
+      "adc_provenance": "NOMINAL_3V3_NOT_CALIBRATED",
+      "synthetic": false,
+      "uid": "54ff70068370525760380567",
+      "git": "7017e5e0",
+      "firmware_version": "0.1.0"
+    },
+    "scale": "Nominal ADC 3.3V; not independently calibrated",
+    "values": {
+      "battery_v": 3.7263004779815674,
+      "battery_raw": 2312,
+      "battery_state": 0,
+      "battery_timestamp_ms": 1001232,
+      "battery_published": 1,
+      "aux_paused": 0,
+      "vmid_v": 1.6552380323410034,
+      "fault_mask": 0,
+      "age_ms": 265
+    },
+    "before_status": {
+      "capture_id": 894146721,
+      "calibration_sequence": 0,
+      "safety_faults": 0,
+      "safety_blocks": 8,
+      "protocol_errors": 0,
+      "temperature_mC": 26155,
+      "capture_status": 0,
+      "busy": false,
+      "result_valid": true,
+      "calibrated": false,
+      "transfer_safe": true
+    },
+    "after_status": {
+      "capture_id": 894146721,
+      "calibration_sequence": 0,
+      "safety_faults": 0,
+      "safety_blocks": 8,
+      "protocol_errors": 0,
+      "temperature_mC": 26249,
+      "capture_status": 0,
+      "busy": false,
+      "result_valid": true,
+      "calibrated": false,
+      "transfer_safe": true
+    },
+    "ram_sha256": "410265f89e0703cb4ec8049cc51b275764a7143f3a147395b80b0dc1b5d4666d"
+  }
+}

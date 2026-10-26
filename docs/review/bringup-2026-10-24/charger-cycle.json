@@ -1,0 +1,744 @@
+{
+  "schema": "WTK_CHARGER_ENDPOINT_CYCLE_1",
+  "simulated": false,
+  "owner_report": {
+    "source": "OWNER_MESSAGES",
+    "dut_terminals": "EMPTY",
+    "correction": "Owner acknowledged setup error and requested retry; exact physical correction not specified",
+    "charger_input": "Connected for charger-on-002; disconnected for charger-off-001",
+    "on_state_CHG_VBUS_voltage": "NOT_MEASURED"
+  },
+  "outcome": "ABSENT_PRESENT_ABSENT_AND_SOFTWARE_BLOCK_OBSERVED",
+  "stages": [
+    {
+      "stage": {
+        "recorded_utc": "2026-10-25T00:11:58.908281+00:00",
+        "simulated": false,
+        "operation": "PASSIVE_POWER_NO_RESET",
+        "port": "COM4",
+        "stage": "off-dmm-001",
+        "expected_charger": "ABSENT",
+        "image_sha256": "e4af20eff8f4e06de291fd2c06e5de1437517ad0f0364da253a736f6f244876a",
+        "preceding_boot_identity": {
+          "firmware": "0.1.0",
+          "git": "0dd1f3fe40ce",
+          "build": "MinSizeRel",
+          "profile": "BRINGUP",
+          "hardware": "Rev1-STM32F103C8T6-BluePill",
+          "reset": "SOFTWARE",
+          "clock_status": "OK",
+          "clock_source": "HSE_PLL",
+          "sysclk_hz": "72000000",
+          "hclk_hz": "72000000",
+          "pclk1_hz": "36000000",
+          "pclk2_hz": "72000000",
+          "adc_hz": "12000000",
+          "swd": "PRESERVED",
+          "boot_state": "SAFE_BOOT",
+          "watchdog_policy": "IWDG_START_AFTER_UART_BANNER"
+        },
+        "error": null,
+        "checks": {
+          "charger_matches": true,
+          "no_faults": true,
+          "k1_safe": true,
+          "range_disabled": true,
+          "charger_block": null
+        },
+        "outcome": "EXPECTED_PASSIVE_STATE_OBSERVED",
+        "responses": [
+          {
+            "command": "lab charger status",
+            "lines": [
+              "charger: ABSENT"
+            ],
+            "values": {
+              "charger": "ABSENT"
+            }
+          },
+          {
+            "command": "lab fault status",
+            "lines": [
+              "lab fault: 0x00000000"
+            ],
+            "values": {
+              "fault_mask": 0
+            }
+          },
+          {
+            "command": "lab safety status",
+            "lines": [
+              "lab safety: BLOCKED_RANGE flags=8 allowed=0"
+            ],
+            "values": {
+              "blocker": "BLOCKED_RANGE",
+              "flags": 8,
+              "allowed": false
+            }
+          },
+          {
+            "command": "lab range status",
+            "lines": [
+              "lab range: DISABLED requested=INVALID current=INVALID"
+            ],
+            "values": {
+              "state": "DISABLED",
+              "requested": "INVALID",
+              "current": "INVALID"
+            }
+          },
+          {
+            "command": "lab sensors status",
+            "lines": [
+              "lab sensors vmid_raw: 2055 valid=1",
+              "lab sensors vmid: 1656mV",
+              "lab sensors ov_raw: hi=2056 lo=2054",
+              "lab sensors safe_hi: 1707mV",
+              "lab sensors safe_lo: 1605mV",
+              "lab sensors residual_diff: 102mV",
+              "lab sensors residual_state: SAFE safe_count=8 age_ms=1",
+              "lab sensors battery: 3878mV",
+              "lab sensors battery_state: OK raw=2406 age_ms=106",
+              "lab sensors ntc: raw=2030 mv=1636 resistance_ohm=98305 valid=1 ntc_temperature_mC=25432 ntc_temperature_valid=1 age_ms=106"
+            ],
+            "values": {
+              "vmid_raw": 2055,
+              "vmid_valid": true,
+              "source": "MCU_ADC_NOMINAL_3V3_SCALE",
+              "vmid_mv": 1656,
+              "safe_hi_mv": 1707,
+              "safe_lo_mv": 1605,
+              "residual_diff_mv": 102,
+              "battery_mv": 3878,
+              "ov_hi_raw": 2056,
+              "ov_lo_raw": 2054,
+              "residual": "SAFE",
+              "safe_count": 8,
+              "residual_age_ms": 1,
+              "battery": "OK",
+              "battery_raw": 2406,
+              "battery_age_ms": 106,
+              "ntc_raw": 2030,
+              "ntc_mv": 1636,
+              "ntc_resistance_ohm": 98305,
+              "ntc_valid": true,
+              "ntc_temperature_mc": 25432,
+              "ntc_temperature_valid": true,
+              "ntc_age_ms": 106
+            }
+          },
+          {
+            "command": "lab sensors status",
+            "lines": [
+              "lab sensors vmid_raw: 2055 valid=1",
+              "lab sensors vmid: 1656mV",
+              "lab sensors ov_raw: hi=2054 lo=2056",
+              "lab sensors safe_hi: 1605mV",
+              "lab sensors safe_lo: 1707mV",
+              "lab sensors residual_diff: -102mV",
+              "lab sensors residual_state: SAFE safe_count=8 age_ms=4",
+              "lab sensors battery: 3876mV",
+              "lab sensors battery_state: OK raw=2405 age_ms=399",
+              "lab sensors ntc: raw=2030 mv=1636 resistance_ohm=98305 valid=1 ntc_temperature_mC=25432 ntc_temperature_valid=1 age_ms=899"
+            ],
+            "values": {
+              "vmid_raw": 2055,
+              "vmid_valid": true,
+              "source": "MCU_ADC_NOMINAL_3V3_SCALE",
+              "vmid_mv": 1656,
+              "safe_hi_mv": 1605,
+              "safe_lo_mv": 1707,
+              "residual_diff_mv": -102,
+              "battery_mv": 3876,
+              "ov_hi_raw": 2054,
+              "ov_lo_raw": 2056,
+              "residual": "SAFE",
+              "safe_count": 8,
+              "residual_age_ms": 4,
+              "battery": "OK",
+              "battery_raw": 2405,
+              "battery_age_ms": 399,
+              "ntc_raw": 2030,
+              "ntc_mv": 1636,
+              "ntc_resistance_ohm": 98305,
+              "ntc_valid": true,
+              "ntc_temperature_mc": 25432,
+              "ntc_temperature_valid": true,
+              "ntc_age_ms": 899
+            }
+          },
+          {
+            "command": "lab sensors status",
+            "lines": [
+              "lab sensors vmid_raw: 2056 valid=1",
+              "lab sensors vmid: 1657mV",
+              "lab sensors ov_raw: hi=2056 lo=2056",
+              "lab sensors safe_hi: 1657mV",
+              "lab sensors safe_lo: 1657mV",
+              "lab sensors residual_diff: 0mV",
+              "lab sensors residual_state: SAFE safe_count=8 age_ms=3",
+              "lab sensors battery: 3870mV",
+              "lab sensors battery_state: OK raw=2401 age_ms=191",
+              "lab sensors ntc: raw=2029 mv=1635 resistance_ohm=98209 valid=1 ntc_temperature_mC=25456 ntc_temperature_valid=1 age_ms=691"
+            ],
+            "values": {
+              "vmid_raw": 2056,
+              "vmid_valid": true,
+              "source": "MCU_ADC_NOMINAL_3V3_SCALE",
+              "vmid_mv": 1657,
+              "safe_hi_mv": 1657,
+              "safe_lo_mv": 1657,
+              "residual_diff_mv": 0,
+              "battery_mv": 3870,
+              "ov_hi_raw": 2056,
+              "ov_lo_raw": 2056,
+              "residual": "SAFE",
+              "safe_count": 8,
+              "residual_age_ms": 3,
+              "battery": "OK",
+              "battery_raw": 2401,
+              "battery_age_ms": 191,
+              "ntc_raw": 2029,
+              "ntc_mv": 1635,
+              "ntc_resistance_ohm": 98209,
+              "ntc_valid": true,
+              "ntc_temperature_mc": 25456,
+              "ntc_temperature_valid": true,
+              "ntc_age_ms": 691
+            }
+          },
+          {
+            "command": "lab mvp status",
+            "lines": [
+              "MVP_BEGIN",
+              "clock=HSE_PLL sysclk_hz=72000000",
+              "flash=DETECTED jedec=0x00EF4016",
+              "display=READY",
+              "charger=ABSENT",
+              "safety=BLOCKED blocker=BLOCKED_RANGE faults=0x00000000",
+              "k1=SAFE",
+              "range_state=DISABLED current=INVALID safety=DISABLED",
+              "calibration=NO_VALID_CALIBRATION active=0 sequence=0",
+              "residual=SAFE battery=OK",
+              "resource=BRINGUP_NA",
+              "last_metrology=OK",
+              "MVP_END"
+            ],
+            "values": {
+              "clock.clock": "HSE_PLL",
+              "clock.sysclk_hz": "72000000",
+              "flash.flash": "DETECTED",
+              "flash.jedec": "0x00EF4016",
+              "display.display": "READY",
+              "charger.charger": "ABSENT",
+              "safety.safety": "BLOCKED",
+              "safety.blocker": "BLOCKED_RANGE",
+              "safety.faults": "0x00000000",
+              "k1.k1": "SAFE",
+              "range_state.range_state": "DISABLED",
+              "range_state.current": "INVALID",
+              "range_state.safety": "DISABLED",
+              "calibration.calibration": "NO_VALID_CALIBRATION",
+              "calibration.active": "0",
+              "calibration.sequence": "0",
+              "residual.residual": "SAFE",
+              "residual.battery": "OK",
+              "resource.resource": "BRINGUP_NA",
+              "last_metrology.last_metrology": "OK"
+            }
+          }
+        ]
+      },
+      "uart_file": "charger-cycle-off-dmm-001-uart.txt",
+      "uart_sha256": "405b6b6e4515a583e823fdda61a4b835cb88dba6233f31a3e592fee409ae555e"
+    },
+    {
+      "stage": {
+        "recorded_utc": "2026-10-25T00:15:03.382324+00:00",
+        "simulated": false,
+        "operation": "PASSIVE_POWER_NO_RESET",
+        "port": "COM4",
+        "stage": "charger-on-002",
+        "expected_charger": "PRESENT",
+        "image_sha256": "e4af20eff8f4e06de291fd2c06e5de1437517ad0f0364da253a736f6f244876a",
+        "preceding_boot_identity": {
+          "firmware": "0.1.0",
+          "git": "0dd1f3fe40ce",
+          "build": "MinSizeRel",
+          "profile": "BRINGUP",
+          "hardware": "Rev1-STM32F103C8T6-BluePill",
+          "reset": "SOFTWARE",
+          "clock_status": "OK",
+          "clock_source": "HSE_PLL",
+          "sysclk_hz": "72000000",
+          "hclk_hz": "72000000",
+          "pclk1_hz": "36000000",
+          "pclk2_hz": "72000000",
+          "adc_hz": "12000000",
+          "swd": "PRESERVED",
+          "boot_state": "SAFE_BOOT",
+          "watchdog_policy": "IWDG_START_AFTER_UART_BANNER"
+        },
+        "error": null,
+        "checks": {
+          "charger_matches": true,
+          "no_faults": true,
+          "k1_safe": true,
+          "range_disabled": true,
+          "charger_block": true
+        },
+        "outcome": "EXPECTED_PASSIVE_STATE_OBSERVED",
+        "responses": [
+          {
+            "command": "lab charger status",
+            "lines": [
+              "charger: PRESENT"
+            ],
+            "values": {
+              "charger": "PRESENT"
+            }
+          },
+          {
+            "command": "lab fault status",
+            "lines": [
+              "lab fault: 0x00000000"
+            ],
+            "values": {
+              "fault_mask": 0
+            }
+          },
+          {
+            "command": "lab safety status",
+            "lines": [
+              "lab safety: BLOCKED_CHARGER flags=9 allowed=0"
+            ],
+            "values": {
+              "blocker": "BLOCKED_CHARGER",
+              "flags": 9,
+              "allowed": false
+            }
+          },
+          {
+            "command": "lab range status",
+            "lines": [
+              "lab range: DISABLED requested=INVALID current=INVALID"
+            ],
+            "values": {
+              "state": "DISABLED",
+              "requested": "INVALID",
+              "current": "INVALID"
+            }
+          },
+          {
+            "command": "lab sensors status",
+            "lines": [
+              "lab sensors vmid_raw: 2055 valid=1",
+              "lab sensors vmid: 1656mV",
+              "lab sensors ov_raw: hi=2055 lo=2055",
+              "lab sensors safe_hi: 1656mV",
+              "lab sensors safe_lo: 1656mV",
+              "lab sensors residual_diff: 0mV",
+              "lab sensors residual_state: SAFE safe_count=8 age_ms=6",
+              "lab sensors battery: 4147mV",
+              "lab sensors battery_state: OK raw=2573 age_ms=295",
+              "lab sensors ntc: raw=2014 mv=1623 resistance_ohm=96780 valid=1 ntc_temperature_mC=25820 ntc_temperature_valid=1 age_ms=295"
+            ],
+            "values": {
+              "vmid_raw": 2055,
+              "vmid_valid": true,
+              "source": "MCU_ADC_NOMINAL_3V3_SCALE",
+              "vmid_mv": 1656,
+              "safe_hi_mv": 1656,
+              "safe_lo_mv": 1656,
+              "residual_diff_mv": 0,
+              "battery_mv": 4147,
+              "ov_hi_raw": 2055,
+              "ov_lo_raw": 2055,
+              "residual": "SAFE",
+              "safe_count": 8,
+              "residual_age_ms": 6,
+              "battery": "OK",
+              "battery_raw": 2573,
+              "battery_age_ms": 295,
+              "ntc_raw": 2014,
+              "ntc_mv": 1623,
+              "ntc_resistance_ohm": 96780,
+              "ntc_valid": true,
+              "ntc_temperature_mc": 25820,
+              "ntc_temperature_valid": true,
+              "ntc_age_ms": 295
+            }
+          },
+          {
+            "command": "lab sensors status",
+            "lines": [
+              "lab sensors vmid_raw: 2055 valid=1",
+              "lab sensors vmid: 1656mV",
+              "lab sensors ov_raw: hi=2054 lo=2055",
+              "lab sensors safe_hi: 1605mV",
+              "lab sensors safe_lo: 1656mV",
+              "lab sensors residual_diff: -51mV",
+              "lab sensors residual_state: SAFE safe_count=8 age_ms=7",
+              "lab sensors battery: 4145mV",
+              "lab sensors battery_state: OK raw=2572 age_ms=91",
+              "lab sensors ntc: raw=2014 mv=1623 resistance_ohm=96780 valid=1 ntc_temperature_mC=25820 ntc_temperature_valid=1 age_ms=91"
+            ],
+            "values": {
+              "vmid_raw": 2055,
+              "vmid_valid": true,
+              "source": "MCU_ADC_NOMINAL_3V3_SCALE",
+              "vmid_mv": 1656,
+              "safe_hi_mv": 1605,
+              "safe_lo_mv": 1656,
+              "residual_diff_mv": -51,
+              "battery_mv": 4145,
+              "ov_hi_raw": 2054,
+              "ov_lo_raw": 2055,
+              "residual": "SAFE",
+              "safe_count": 8,
+              "residual_age_ms": 7,
+              "battery": "OK",
+              "battery_raw": 2572,
+              "battery_age_ms": 91,
+              "ntc_raw": 2014,
+              "ntc_mv": 1623,
+              "ntc_resistance_ohm": 96780,
+              "ntc_valid": true,
+              "ntc_temperature_mc": 25820,
+              "ntc_temperature_valid": true,
+              "ntc_age_ms": 91
+            }
+          },
+          {
+            "command": "lab sensors status",
+            "lines": [
+              "lab sensors vmid_raw: 2058 valid=1",
+              "lab sensors vmid: 1658mV",
+              "lab sensors ov_raw: hi=2054 lo=2054",
+              "lab sensors safe_hi: 1455mV",
+              "lab sensors safe_lo: 1455mV",
+              "lab sensors residual_diff: 0mV",
+              "lab sensors residual_state: SAFE safe_count=8 age_ms=2",
+              "lab sensors battery: 4145mV",
+              "lab sensors battery_state: OK raw=2572 age_ms=381",
+              "lab sensors ntc: raw=2014 mv=1623 resistance_ohm=96780 valid=1 ntc_temperature_mC=25820 ntc_temperature_valid=1 age_ms=881"
+            ],
+            "values": {
+              "vmid_raw": 2058,
+              "vmid_valid": true,
+              "source": "MCU_ADC_NOMINAL_3V3_SCALE",
+              "vmid_mv": 1658,
+              "safe_hi_mv": 1455,
+              "safe_lo_mv": 1455,
+              "residual_diff_mv": 0,
+              "battery_mv": 4145,
+              "ov_hi_raw": 2054,
+              "ov_lo_raw": 2054,
+              "residual": "SAFE",
+              "safe_count": 8,
+              "residual_age_ms": 2,
+              "battery": "OK",
+              "battery_raw": 2572,
+              "battery_age_ms": 381,
+              "ntc_raw": 2014,
+              "ntc_mv": 1623,
+              "ntc_resistance_ohm": 96780,
+              "ntc_valid": true,
+              "ntc_temperature_mc": 25820,
+              "ntc_temperature_valid": true,
+              "ntc_age_ms": 881
+            }
+          },
+          {
+            "command": "lab mvp status",
+            "lines": [
+              "MVP_BEGIN",
+              "clock=HSE_PLL sysclk_hz=72000000",
+              "flash=DETECTED jedec=0x00EF4016",
+              "display=READY",
+              "charger=PRESENT",
+              "safety=BLOCKED blocker=BLOCKED_CHARGER faults=0x00000000",
+              "k1=SAFE",
+              "range_state=DISABLED current=INVALID safety=DISABLED",
+              "calibration=NO_VALID_CALIBRATION active=0 sequence=0",
+              "residual=SAFE battery=OK",
+              "resource=BRINGUP_NA",
+              "last_metrology=OK",
+              "MVP_END"
+            ],
+            "values": {
+              "clock.clock": "HSE_PLL",
+              "clock.sysclk_hz": "72000000",
+              "flash.flash": "DETECTED",
+              "flash.jedec": "0x00EF4016",
+              "display.display": "READY",
+              "charger.charger": "PRESENT",
+              "safety.safety": "BLOCKED",
+              "safety.blocker": "BLOCKED_CHARGER",
+              "safety.faults": "0x00000000",
+              "k1.k1": "SAFE",
+              "range_state.range_state": "DISABLED",
+              "range_state.current": "INVALID",
+              "range_state.safety": "DISABLED",
+              "calibration.calibration": "NO_VALID_CALIBRATION",
+              "calibration.active": "0",
+              "calibration.sequence": "0",
+              "residual.residual": "SAFE",
+              "residual.battery": "OK",
+              "resource.resource": "BRINGUP_NA",
+              "last_metrology.last_metrology": "OK"
+            }
+          }
+        ]
+      },
+      "uart_file": "charger-cycle-charger-on-002-uart.txt",
+      "uart_sha256": "80ea7c67f0f95577e123d7b694e7dab728f2fa30727b0679badbcf122b6e83b5"
+    },
+    {
+      "stage": {
+        "recorded_utc": "2026-10-25T00:15:35.759145+00:00",
+        "simulated": false,
+        "operation": "PASSIVE_POWER_NO_RESET",
+        "port": "COM4",
+        "stage": "charger-off-001",
+        "expected_charger": "ABSENT",
+        "image_sha256": "e4af20eff8f4e06de291fd2c06e5de1437517ad0f0364da253a736f6f244876a",
+        "preceding_boot_identity": {
+          "firmware": "0.1.0",
+          "git": "0dd1f3fe40ce",
+          "build": "MinSizeRel",
+          "profile": "BRINGUP",
+          "hardware": "Rev1-STM32F103C8T6-BluePill",
+          "reset": "SOFTWARE",
+          "clock_status": "OK",
+          "clock_source": "HSE_PLL",
+          "sysclk_hz": "72000000",
+          "hclk_hz": "72000000",
+          "pclk1_hz": "36000000",
+          "pclk2_hz": "72000000",
+          "adc_hz": "12000000",
+          "swd": "PRESERVED",
+          "boot_state": "SAFE_BOOT",
+          "watchdog_policy": "IWDG_START_AFTER_UART_BANNER"
+        },
+        "error": null,
+        "checks": {
+          "charger_matches": true,
+          "no_faults": true,
+          "k1_safe": true,
+          "range_disabled": true,
+          "charger_block": null
+        },
+        "outcome": "EXPECTED_PASSIVE_STATE_OBSERVED",
+        "responses": [
+          {
+            "command": "lab charger status",
+            "lines": [
+              "charger: ABSENT"
+            ],
+            "values": {
+              "charger": "ABSENT"
+            }
+          },
+          {
+            "command": "lab fault status",
+            "lines": [
+              "lab fault: 0x00000000"
+            ],
+            "values": {
+              "fault_mask": 0
+            }
+          },
+          {
+            "command": "lab safety status",
+            "lines": [
+              "lab safety: BLOCKED_RANGE flags=8 allowed=0"
+            ],
+            "values": {
+              "blocker": "BLOCKED_RANGE",
+              "flags": 8,
+              "allowed": false
+            }
+          },
+          {
+            "command": "lab range status",
+            "lines": [
+              "lab range: DISABLED requested=INVALID current=INVALID"
+            ],
+            "values": {
+              "state": "DISABLED",
+              "requested": "INVALID",
+              "current": "INVALID"
+            }
+          },
+          {
+            "command": "lab sensors status",
+            "lines": [
+              "lab sensors vmid_raw: 2055 valid=1",
+              "lab sensors vmid: 1656mV",
+              "lab sensors ov_raw: hi=2055 lo=2054",
+              "lab sensors safe_hi: 1656mV",
+              "lab sensors safe_lo: 1605mV",
+              "lab sensors residual_diff: 51mV",
+              "lab sensors residual_state: SAFE safe_count=8 age_ms=2",
+              "lab sensors battery: 3883mV",
+              "lab sensors battery_state: OK raw=2409 age_ms=170",
+              "lab sensors ntc: raw=2019 mv=1627 resistance_ohm=97254 valid=1 ntc_temperature_mC=25699 ntc_temperature_valid=1 age_ms=670"
+            ],
+            "values": {
+              "vmid_raw": 2055,
+              "vmid_valid": true,
+              "source": "MCU_ADC_NOMINAL_3V3_SCALE",
+              "vmid_mv": 1656,
+              "safe_hi_mv": 1656,
+              "safe_lo_mv": 1605,
+              "residual_diff_mv": 51,
+              "battery_mv": 3883,
+              "ov_hi_raw": 2055,
+              "ov_lo_raw": 2054,
+              "residual": "SAFE",
+              "safe_count": 8,
+              "residual_age_ms": 2,
+              "battery": "OK",
+              "battery_raw": 2409,
+              "battery_age_ms": 170,
+              "ntc_raw": 2019,
+              "ntc_mv": 1627,
+              "ntc_resistance_ohm": 97254,
+              "ntc_valid": true,
+              "ntc_temperature_mc": 25699,
+              "ntc_temperature_valid": true,
+              "ntc_age_ms": 670
+            }
+          },
+          {
+            "command": "lab sensors status",
+            "lines": [
+              "lab sensors vmid_raw: 2055 valid=1",
+              "lab sensors vmid: 1656mV",
+              "lab sensors ov_raw: hi=2055 lo=2055",
+              "lab sensors safe_hi: 1656mV",
+              "lab sensors safe_lo: 1656mV",
+              "lab sensors residual_diff: 0mV",
+              "lab sensors residual_state: SAFE safe_count=8 age_ms=4",
+              "lab sensors battery: 3884mV",
+              "lab sensors battery_state: OK raw=2410 age_ms=463",
+              "lab sensors ntc: raw=2021 mv=1629 resistance_ohm=97444 valid=1 ntc_temperature_mC=25651 ntc_temperature_valid=1 age_ms=463"
+            ],
+            "values": {
+              "vmid_raw": 2055,
+              "vmid_valid": true,
+              "source": "MCU_ADC_NOMINAL_3V3_SCALE",
+              "vmid_mv": 1656,
+              "safe_hi_mv": 1656,
+              "safe_lo_mv": 1656,
+              "residual_diff_mv": 0,
+              "battery_mv": 3884,
+              "ov_hi_raw": 2055,
+              "ov_lo_raw": 2055,
+              "residual": "SAFE",
+              "safe_count": 8,
+              "residual_age_ms": 4,
+              "battery": "OK",
+              "battery_raw": 2410,
+              "battery_age_ms": 463,
+              "ntc_raw": 2021,
+              "ntc_mv": 1629,
+              "ntc_resistance_ohm": 97444,
+              "ntc_valid": true,
+              "ntc_temperature_mc": 25651,
+              "ntc_temperature_valid": true,
+              "ntc_age_ms": 463
+            }
+          },
+          {
+            "command": "lab sensors status",
+            "lines": [
+              "lab sensors vmid_raw: 2056 valid=1",
+              "lab sensors vmid: 1657mV",
+              "lab sensors ov_raw: hi=2053 lo=2056",
+              "lab sensors safe_hi: 1504mV",
+              "lab sensors safe_lo: 1657mV",
+              "lab sensors residual_diff: -153mV",
+              "lab sensors residual_state: SAFE safe_count=8 age_ms=5",
+              "lab sensors battery: 3889mV",
+              "lab sensors battery_state: OK raw=2413 age_ms=255",
+              "lab sensors ntc: raw=2017 mv=1625 resistance_ohm=97064 valid=1 ntc_temperature_mC=25748 ntc_temperature_valid=1 age_ms=257"
+            ],
+            "values": {
+              "vmid_raw": 2056,
+              "vmid_valid": true,
+              "source": "MCU_ADC_NOMINAL_3V3_SCALE",
+              "vmid_mv": 1657,
+              "safe_hi_mv": 1504,
+              "safe_lo_mv": 1657,
+              "residual_diff_mv": -153,
+              "battery_mv": 3889,
+              "ov_hi_raw": 2053,
+              "ov_lo_raw": 2056,
+              "residual": "SAFE",
+              "safe_count": 8,
+              "residual_age_ms": 5,
+              "battery": "OK",
+              "battery_raw": 2413,
+              "battery_age_ms": 255,
+              "ntc_raw": 2017,
+              "ntc_mv": 1625,
+              "ntc_resistance_ohm": 97064,
+              "ntc_valid": true,
+              "ntc_temperature_mc": 25748,
+              "ntc_temperature_valid": true,
+              "ntc_age_ms": 257
+            }
+          },
+          {
+            "command": "lab mvp status",
+            "lines": [
+              "MVP_BEGIN",
+              "clock=HSE_PLL sysclk_hz=72000000",
+              "flash=DETECTED jedec=0x00EF4016",
+              "display=READY",
+              "charger=ABSENT",
+              "safety=BLOCKED blocker=BLOCKED_RANGE faults=0x00000000",
+              "k1=SAFE",
+              "range_state=DISABLED current=INVALID safety=DISABLED",
+              "calibration=NO_VALID_CALIBRATION active=0 sequence=0",
+              "residual=SAFE battery=OK",
+              "resource=BRINGUP_NA",
+              "last_metrology=OK",
+              "MVP_END"
+            ],
+            "values": {
+              "clock.clock": "HSE_PLL",
+              "clock.sysclk_hz": "72000000",
+              "flash.flash": "DETECTED",
+              "flash.jedec": "0x00EF4016",
+              "display.display": "READY",
+              "charger.charger": "ABSENT",
+              "safety.safety": "BLOCKED",
+              "safety.blocker": "BLOCKED_RANGE",
+              "safety.faults": "0x00000000",
+              "k1.k1": "SAFE",
+              "range_state.range_state": "DISABLED",
+              "range_state.current": "INVALID",
+              "range_state.safety": "DISABLED",
+              "calibration.calibration": "NO_VALID_CALIBRATION",
+              "calibration.active": "0",
+              "calibration.sequence": "0",
+              "residual.residual": "SAFE",
+              "residual.battery": "OK",
+              "resource.resource": "BRINGUP_NA",
+              "last_metrology.last_metrology": "OK"
+            }
+          }
+        ]
+      },
+      "uart_file": "charger-cycle-charger-off-001-uart.txt",
+      "uart_sha256": "0d9665fc88ca7bba4720c8586aa197c46be7254f213ddf384c7dfbafd43772dc"
+    }
+  ],
+  "uart_hash_encoding": "ASCII with canonical LF line endings",
+  "operations": "Passive UART status only; no resets commanded or firmware changes",
+  "independent_hardware_inhibit": "REQUIRES_BENCH_VALIDATION",
+  "limitation": "Endpoint observations, not transition timing, coil waveforms, power sequencing or charging-current qualification"
+}

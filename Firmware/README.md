@@ -1,5 +1,11 @@
 # Firmware
 
+Current shared display/acquisition baseline, calibration hardware0x00010002 and physical release boundary: [October24 integration](../docs/review/bringup-2026-10-24/README.md). Existing command-line presets remain canonical. No new production image is automatically deployed.
+
+The first unit's optional [experimental NTC factory profile](tools/NTC_FACTORY_PROFILE.md)
+must be explicitly selected on rebuild. Generic builds retain the nominal table.
+The profile is UID-bound, unqualified, and independent of unfinished OSL calibration.
+
 For reproducible linked Flash attribution, profile/commit comparisons and the
 current completion budget, see the [A01 report](../docs/review/a01/README.md) and
 [tool commands](../docs/review/a01/tooling.md). `WTK_FLASH_FORENSICS=ON` is an
@@ -134,6 +140,12 @@ Host tests currently use CTest with small C executables. No C++ test framework i
 Warnings for project-owned C code are centralized in `cmake/modules/CompilerWarnings.cmake`. Host targets treat warnings as errors by default. STM32 warning-as-error is available through `WTK_WARNINGS_AS_ERRORS_STM32` but is off initially so vendor/header boundaries can be validated before enforcing it.
 
 ## Phase 02 platform BSP
+
+An optional first-board BRINGUP image exposes one empty-fixture 250 ms K1 pulse
+per boot via `lab k1 pulse empty`. Build with `-DWTK_BRINGUP_K1_TEST=ON`; this
+explicit variant excludes the experimental DC pilot for Flash space. The default
+is OFF, and PRODUCT/BRINGUP_CAL do not contain the diagnostic. See the
+[safety contract, build commands and bench procedure](tools/K1_BENCH_TEST.md).
 
 The STM32 build now boots through a minimal BSP/application shell. The first application action is safe GPIO initialization before clocks, UART diagnostics, or watchdog start.
 
@@ -567,3 +579,27 @@ See also:
 - [`../docs/04-Firmware-Architecture.md`](../docs/04-Firmware-Architecture.md)
 - [`../docs/13-Detailed-Firmware-Design.md`](../docs/13-Detailed-Firmware-Design.md)
 - [`../plans/README.md`](../plans/README.md)
+
+## Personalized boot presentation
+
+All STM32 presets show the optional W25Q personalized splash for three seconds
+following its complete render. See [assets/README.md](assets/README.md) for source
+regeneration and paced, ACK-verified provisioning. Missing optional art never
+bypasses safety or calibration. Wait for boot presentation to complete before UART
+commands, including the BRINGUP_CAL binary handshake.
+
+`WTK_BRINGUP_DC_PILOT` now defaults OFF. The experimental DC command is a separate
+explicit opt-in; all ordinary AC, calibration and safety diagnostics remain.
+The first splash-enabled BRINGUP with DC exceeded guaranteed Flash by 2268 bytes;
+DC separation plus deterministic whole-console initialization permits the default
+image to fit without increasing the 64 KiB silicon limit. A feature-rich DC opt-in
+may still fail the hard size gate; it is not a qualified default image.
+Current size tooling enforces PRODUCT 64512-byte Flash/17408-byte accounted RAM and
+BRINGUP 65536-byte Flash/18432-byte accounted RAM; historical stage budgets above
+are retained for traceability. See plan 19 for source-bound final build evidence.
+
+Bench-supply and empty-fixture K1 variants retain their full command sets but use
+log level3 and the minimal SAFE_BOOT banner instead of unsolicited verbose boot,
+button and safety-transition messages. Standard BRINGUP keeps its detailed banner
+and logs. This bounds those splash-enabled diagnostic images without removing
+measurement/calibration commands or changing safety policy.

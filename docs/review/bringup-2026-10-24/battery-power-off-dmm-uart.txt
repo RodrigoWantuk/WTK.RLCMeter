@@ -1,0 +1,47 @@
+charger: ABSENT
+lab fault: 0x00000000
+lab safety: BLOCKED_RANGE flags=8 allowed=0
+lab range: DISABLED requested=INVALID current=INVALID
+lab sensors vmid_raw: 2055 valid=1
+lab sensors vmid: 1656mV
+lab sensors ov_raw: hi=2056 lo=2054
+lab sensors safe_hi: 1707mV
+lab sensors safe_lo: 1605mV
+lab sensors residual_diff: 102mV
+lab sensors residual_state: SAFE safe_count=8 age_ms=1
+lab sensors battery: 3878mV
+lab sensors battery_state: OK raw=2406 age_ms=106
+lab sensors ntc: raw=2030 mv=1636 resistance_ohm=98305 valid=1 ntc_temperature_mC=25432 ntc_temperature_valid=1 age_ms=106
+lab sensors vmid_raw: 2055 valid=1
+lab sensors vmid: 1656mV
+lab sensors ov_raw: hi=2054 lo=2056
+lab sensors safe_hi: 1605mV
+lab sensors safe_lo: 1707mV
+lab sensors residual_diff: -102mV
+lab sensors residual_state: SAFE safe_count=8 age_ms=4
+lab sensors battery: 3876mV
+lab sensors battery_state: OK raw=2405 age_ms=399
+lab sensors ntc: raw=2030 mv=1636 resistance_ohm=98305 valid=1 ntc_temperature_mC=25432 ntc_temperature_valid=1 age_ms=899
+lab sensors vmid_raw: 2056 valid=1
+lab sensors vmid: 1657mV
+lab sensors ov_raw: hi=2056 lo=2056
+lab sensors safe_hi: 1657mV
+lab sensors safe_lo: 1657mV
+lab sensors residual_diff: 0mV
+lab sensors residual_state: SAFE safe_count=8 age_ms=3
+lab sensors battery: 3870mV
+lab sensors battery_state: OK raw=2401 age_ms=191
+lab sensors ntc: raw=2029 mv=1635 resistance_ohm=98209 valid=1 ntc_temperature_mC=25456 ntc_temperature_valid=1 age_ms=691
+MVP_BEGIN
+clock=HSE_PLL sysclk_hz=72000000
+flash=DETECTED jedec=0x00EF4016
+display=READY
+charger=ABSENT
+safety=BLOCKED blocker=BLOCKED_RANGE faults=0x00000000
+k1=SAFE
+range_state=DISABLED current=INVALID safety=DISABLED
+calibration=NO_VALID_CALIBRATION active=0 sequence=0
+residual=SAFE battery=OK
+resource=BRINGUP_NA
+last_metrology=OK
+MVP_END

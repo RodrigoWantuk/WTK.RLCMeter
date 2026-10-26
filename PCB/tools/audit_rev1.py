@@ -19,10 +19,10 @@ from urllib.parse import unquote
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[2]
-SOURCE = Path("PCB/source/ProPrj_WTK RLC Meter_2026-08-19.epro2")
+SOURCE = Path("PCB/source/ProPrj_WTK RLC Meter_2026-10-24.epro2")
 FAB = Path("PCB/fabrication/Rev1")
-BOM = FAB / "BOM_RLC-PCB_2026-08-23.csv"
-GERBER = FAB / "Gerber_RLC-1_2026-08-23.zip"
+BOM = FAB / "BOM_WTK RLC PCB_RLC_2026-10-24.csv"
+GERBER = FAB / "Gerber_RLC_2026-10-24.zip"
 
 
 class AuditError(ValueError):
@@ -318,6 +318,29 @@ def check_review(root, components, pins, bom):
             "findings": counts, "local_document_links_verified": links}
 
 
+def check_current_topology(components, pins):
+    gates = ("10R", "100R", "1K", "10K", "100K", "1M")
+    for index, gate in enumerate(gates, 1):
+        ref = f"RGS{index}"
+        require(pins[(ref, "1")]["net"] == "GND" and
+                pins[(ref, "2")]["net"] == f"GATE_{gate}", f"RGS-to-GND topology drift: {ref}")
+        require(components[ref]["value"] == "10kΩ", f"RGS value drift: {ref}")
+    expected = {("J_PWR", "4"): "CHG_VBUS", ("RCHG_H", "1"): "CHG_VBUS",
+                ("RCHG_H", "2"): "CHG_DETIO", ("RCHG_L", "1"): "CHG_DETIO",
+                ("RCHG_L", "2"): "GND", ("USTM32", "10"): "CHG_DETIO",
+                ("RUSB_B", "1"): "CHG_VBUS", ("QUSB_INH", "2"): "GND",
+                ("QUSB_INH", "3"): "K1_BASE"}
+    for key, net in expected.items():
+        require(pins[key]["net"] == net, f"CHG input topology drift: {key}")
+    require(components["RCHG_H"]["value"] == "10kΩ" and
+            components["RCHG_L"]["value"] == "12kΩ" and
+            components["RUSB_B"]["value"] == "10kΩ", "CHG input resistor value drift")
+    require(pins[("RUSB_B", "2")]["net"] == pins[("QUSB_INH", "1")]["net"], "CHG base path drift")
+    return {"rgs_gate_to_ground": 6, "chg_vbus_divider_ohms": [10000, 12000],
+            "chg_at_5_5v_nominal_pa15_v": 3.0,
+            "chg_at_5_5v_pa15_v_assuming_both_resistors_5_percent": 5.5*12600/(9500+12600)}
+
+
 def audit(root=ROOT, check=False):
     with zipfile.ZipFile(root / SOURCE) as archive:
         members = [n for n in archive.namelist() if n.endswith(".epru")]
@@ -339,10 +362,8 @@ def audit(root=ROOT, check=False):
         copper_pads = check_top_copper(archive.read("Gerber_TopLayer.GTL").decode("utf-8-sig"), fabrication)
         drill_pads = check_drills(archive.read("Drill_PTH_Through.DRL").decode("utf-8-sig"), fabrication)
         members = archive.namelist()
-    # Both RSCK pads moved +5 mil in the later fabrication export. Connectivity
-    # is identical; explicitly record this revision delta, never hide it with
-    # a widened tolerance for all 434 pads (finding A05-Y01).
-    position_exceptions = {("RSCK", n): (0, 5, 0) for n in ("1", "2")}
+    # October24 source and fabrication must match without the historical RSCK exception.
+    position_exceptions = {}
     aliases = reconcile_pins(pins, fabrication, position_exceptions)
     report = {"source_documents": len(documents), "schematic_pages": sum(d["head"]["docType"] == "SCH_PAGE" for d in documents),
               "bom_groups": len(rows), "components": len(components), "pads": len(pins),
@@ -352,9 +373,10 @@ def audit(root=ROOT, check=False):
               "top_copper_pad_flashes_verified": copper_pads,
               "component_drills_verified": drill_pads,
               "firmware": check_firmware(root, components, pins),
+              "current_topology": check_current_topology(components, pins),
               "gerber_members": members,
               "sha256": {p.as_posix(): hashlib.sha256((root / p).read_bytes()).hexdigest() for p in
-                         (SOURCE, BOM, GERBER, FAB / "SCH_WTK-RLC-Meter_2026-08-19.pdf", FAB / "PCB_RLC_2026-08-19.pdf")}}
+                         (SOURCE, BOM, GERBER, FAB / "SCH_WTK RLC Meter_2026-10-24.pdf", FAB / "PCB_RLC_2026-10-24.pdf")}}
     if check:
         report["review"] = check_review(root, components, pins, bom)
     return report

@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Any
 
 from pc_capture import MAX_CAPTURE_LINES, MAX_LINE_BYTES, validate_dut_capture
-from inspect_calibration_record import OslFrameSummary, SLOT_BYTES, decode_full_rev1_frame
+from inspect_calibration_record import OslFrameSummary, SLOT_BYTES, decode_full_rev1_frame, REV1_HARDWARE
 
 
 RANGES = (10, 100, 1000, 10000, 100000, 1000000)
@@ -56,7 +56,7 @@ def all_osl_conditions() -> set[tuple[int, int, int]]:
 def campaign_template() -> dict[str, Any]:
     return {
         "schema_version": 1,
-        "hardware_revision": 0x00010001,
+        "hardware_revision": REV1_HARDWARE,
         "osl_conditions": [
             {"range_ohms": r, "frequency_hz": f, "amplitude_mv_rms": a}
             for r, f, a in sorted(all_osl_conditions())
@@ -388,7 +388,7 @@ def constraint_rank(constraints: list[tuple[list[float], float]]) -> int:
 
 
 def solve_campaign(data: dict[str, Any]) -> dict[str, Any]:
-    if data.get("schema_version") != 1 or data.get("hardware_revision") != 0x00010001:
+    if data.get("schema_version") != 1 or data.get("hardware_revision") != REV1_HARDWARE:
         raise CampaignError("unsupported campaign schema or hardware revision")
     require_complete_osl(data["osl_conditions"])
     outputs = []

@@ -1,0 +1,387 @@
+{
+  "recorded_utc": "2026-10-25T03:14:10.246486+00:00",
+  "simulated": false,
+  "board_uid": "54ff70068370525760380567",
+  "outcome": "PACK_READBACK_AND_UPDATED_BRINGUP_ACCEPTED_VISUAL_PENDING",
+  "source_png": {
+    "path": "Firmware/assets/source/screens/wtk-rlcmeter-boot-splash-rodrigo-wantuk-240x320.png",
+    "sha256": "cf44af77da5ffd6e65e2a20e98bde5f1f5091ca7eb879dd95f7093d809274cc6"
+  },
+  "firmware_source": {
+    "git_sha": "adfce3c59aac085a95b7fa487fed5f836dca21ec",
+    "dirty": false,
+    "git_status": "",
+    "input_sha256": "3021ef935e74d9331f9bb69b0b208b61aa9a36171dcaba1bf4afe7d59bc87b7f"
+  },
+  "uploader_source_commit": "4bbaa2b",
+  "temporary_receiver_source": {
+    "git_sha": "52df01cdd3417d6fa55c0fb54a59d82f9958d675",
+    "dirty": false,
+    "git_status": "",
+    "input_sha256": "ee37431394024e1874c40c995c7734fb0996403fedc6954273bb6c77f36d4f9a"
+  },
+  "pack": {
+    "bytes": 104499,
+    "sha256": "d5e6f558173a67f3a30212f4951be11db7893121e12fc210d3b06df30c2cd78f",
+    "entries": 7,
+    "api": 4,
+    "schema": 2
+  },
+  "erase_span": {
+    "start": 0,
+    "bytes": 106496,
+    "before_sha256": "0e9bd842c4bcb223e5f70c0d48d027777958f320888c29ca25279c0d45840eba",
+    "after_sha256": "bd6b0a6b15ae8702411ef9eb122ec83d24f5478f2e1036d45c218fc6626bae90"
+  },
+  "mutable_tail": {
+    "start": 4161536,
+    "bytes": 32768,
+    "preserved": true,
+    "sha256": "2d864c0b789a43214eee8524d3182075125e5ca2cd527f3582ec87ffd94076bc"
+  },
+  "upload": {
+    "frames": 873,
+    "outcome": "ALL_FRAMES_ACKNOWLEDGED",
+    "elapsed_s": 300.06200000000536,
+    "begin_byte_delay_s": 0.01,
+    "inter_byte_delay_s": 0.002,
+    "first_attempt": "BAD_MAGIC on BEGIN at1ms; no erase/program; stopped, live inspected and separately reset"
+  },
+  "timing": {
+    "simulated": false,
+    "recorded_utc": "2026-10-25T03:12:51.958806+00:00",
+    "observation_origin": "Existing complete physical running-core OpenOCD trace",
+    "parser_note": "Identity limited to watchdog_policy; later repeated safety logs are not duplicate boot banners",
+    "sample_period_ms": 25,
+    "checks": {
+      "full_image_before_hold": true,
+      "hold_at_least_3000ms": true,
+      "completed": true,
+      "safe_output_commands": true,
+      "monotonic_no_reset": true,
+      "matching_identity": true
+    },
+    "identity": {
+      "firmware": "0.1.0",
+      "git": "adfce3c59aac",
+      "build": "MinSizeRel",
+      "profile": "BRINGUP",
+      "hardware": "Rev1-STM32F103C8T6-BluePill",
+      "reset": "SOFTWARE",
+      "clock_status": "OK",
+      "clock_source": "HSE_PLL",
+      "sysclk_hz": "72000000",
+      "hclk_hz": "72000000",
+      "pclk1_hz": "36000000",
+      "pclk2_hz": "72000000",
+      "adc_hz": "12000000",
+      "swd": "PRESERVED",
+      "boot_state": "SAFE_BOOT",
+      "watchdog_policy": "IWDG_START_AFTER_UART_BANNER"
+    },
+    "visible_timestamp_ms": 4381,
+    "first_observed_clear_ms": 7393,
+    "hold_observed_ms": 3012,
+    "limitation": "Software/SPI completion and commanded GPIO states only; actual visible TFT pixels/timing remain unobserved",
+    "image_sha256": "3b4c30b82f1ff9d61a479a215f54e5d4c96721deb0b0c682e8e842f976876247",
+    "outcome": "BOOT_CONTROLLER_TIMING_OBSERVED"
+  },
+  "final_firmware": {
+    "profile": "BRINGUP",
+    "binary_sha256": "3b4c30b82f1ff9d61a479a215f54e5d4c96721deb0b0c682e8e842f976876247",
+    "full_flash_sha256": "3b4c30b82f1ff9d61a479a215f54e5d4c96721deb0b0c682e8e842f976876247",
+    "boot": "PASSIVE_STATUS_COLLECTED",
+    "values": {
+      "clock.clock": "HSE_PLL",
+      "clock.sysclk_hz": "72000000",
+      "flash.flash": "DETECTED",
+      "flash.jedec": "0x00EF4016",
+      "display.display": "READY",
+      "charger.charger": "ABSENT",
+      "safety.safety": "BLOCKED",
+      "safety.blocker": "BLOCKED_RANGE",
+      "safety.faults": "0x00000000",
+      "k1.k1": "SAFE",
+      "range_state.range_state": "DISABLED",
+      "range_state.current": "INVALID",
+      "range_state.safety": "DISABLED",
+      "calibration.calibration": "NO_VALID_CALIBRATION",
+      "calibration.active": "0",
+      "calibration.sequence": "0",
+      "residual.residual": "SAFE",
+      "residual.battery": "OK",
+      "resource.resource": "BRINGUP_NA",
+      "last_metrology.last_metrology": "OK"
+    }
+  },
+  "builds": [
+    {
+      "name": "product-release",
+      "preset": "stm32-release",
+      "options": [],
+      "profile": "PRODUCT",
+      "factory": "0u",
+      "flash_bytes": 63276,
+      "ram_accounted_bytes": 15512,
+      "status": "PASS",
+      "files": {
+        "WTK.RLCMeter.bin": {
+          "bytes": 63276,
+          "sha256": "a7d6dae2c63d96fc33292e484bb1e38fc2ce69819f21d16b36870f37888e99fb"
+        },
+        "WTK.RLCMeter.elf": {
+          "bytes": 100132,
+          "sha256": "e7e81fe089d69994494e6146b452dbb99f188dc62afde1596e8a4c6b98100da8"
+        },
+        "WTK.RLCMeter.hex": {
+          "bytes": 178044,
+          "sha256": "3807f4a17f30970b4165be9ade08269291207bbaa34ea53f47d1e6d267fd66c5"
+        },
+        "WTK.RLCMeter.map": {
+          "bytes": 50878,
+          "sha256": "1e808b6ae1a851b33f4cfc5855c8819c23589c5b2b4cfc4b4a1cee7d237a5555"
+        }
+      }
+    },
+    {
+      "name": "bringup",
+      "preset": "stm32-bringup",
+      "options": [],
+      "profile": "BRINGUP",
+      "factory": "0u",
+      "flash_bytes": 65536,
+      "ram_accounted_bytes": 15380,
+      "status": "PASS",
+      "files": {
+        "WTK.RLCMeter.bin": {
+          "bytes": 65536,
+          "sha256": "3b4c30b82f1ff9d61a479a215f54e5d4c96721deb0b0c682e8e842f976876247"
+        },
+        "WTK.RLCMeter.elf": {
+          "bytes": 95264,
+          "sha256": "ba986a2ae674a2d6899ab2bc5b042ca896943352c327e1fe7df94896c3361880"
+        },
+        "WTK.RLCMeter.hex": {
+          "bytes": 184397,
+          "sha256": "f1b406464683565c05e9df91455ee57d8c544f699af37ce632a690a94aa82031"
+        },
+        "WTK.RLCMeter.map": {
+          "bytes": 47022,
+          "sha256": "948ec6637e5aa1cd39e789d92551bbff1dcd6aa8e492b61f5b9c57bdc1b74fdc"
+        }
+      }
+    },
+    {
+      "name": "product-debug",
+      "preset": "stm32-debug",
+      "options": [],
+      "profile": "PRODUCT",
+      "factory": "0u",
+      "flash_bytes": 60424,
+      "ram_accounted_bytes": 15192,
+      "status": "PASS",
+      "files": {
+        "WTK.RLCMeter.bin": {
+          "bytes": 60424,
+          "sha256": "c8be1351232d00523981139e4cb40e2ddc856c27c3419e281e4704dd9128935c"
+        },
+        "WTK.RLCMeter.elf": {
+          "bytes": 1484096,
+          "sha256": "cbdf4b99324213932599a9a2eb6c22a39452262e08361f01f9135cb20af9adc9"
+        },
+        "WTK.RLCMeter.hex": {
+          "bytes": 170013,
+          "sha256": "e7e500aadb935e7a3103ff21437cf93aadbec78c5ed2cb4dcd815ebc9203e87e"
+        },
+        "WTK.RLCMeter.map": {
+          "bytes": 362467,
+          "sha256": "31aef0b2d0976ab15d1b153b9a5838aaf28ba916a26a6b33f92f3712760708e0"
+        }
+      }
+    },
+    {
+      "name": "factory-release",
+      "preset": "stm32-factory-release",
+      "options": [],
+      "profile": "PRODUCT",
+      "factory": "1u",
+      "flash_bytes": 53968,
+      "ram_accounted_bytes": 15568,
+      "status": "PASS",
+      "files": {
+        "WTK.RLCMeter.bin": {
+          "bytes": 53968,
+          "sha256": "2f2d7bf938df730d887531063c0bb73a11e4c2469f5082f4d6c852801c032ea3"
+        },
+        "WTK.RLCMeter.elf": {
+          "bytes": 89124,
+          "sha256": "d523bbc49e293a86efdf0c6a54666531aea489f665335cce704c6d7588fefce2"
+        },
+        "WTK.RLCMeter.hex": {
+          "bytes": 151849,
+          "sha256": "9d02769c9e041b17cab3673062f4716959db96c7dbe5fdf9b5363c1d947a80f8"
+        },
+        "WTK.RLCMeter.map": {
+          "bytes": 50229,
+          "sha256": "8e2e2b7c07023607d648647454bb35a1a9b6b494d37749d3eb161790adc039e2"
+        }
+      }
+    },
+    {
+      "name": "factory-debug",
+      "preset": "stm32-factory-debug",
+      "options": [],
+      "profile": "PRODUCT",
+      "factory": "1u",
+      "flash_bytes": 53556,
+      "ram_accounted_bytes": 15488,
+      "status": "PASS",
+      "files": {
+        "WTK.RLCMeter.bin": {
+          "bytes": 53556,
+          "sha256": "4fabdc40c458be71a7fa8f0db4d4a86b43ca4681d90199043b8446c2b95242e7"
+        },
+        "WTK.RLCMeter.elf": {
+          "bytes": 1426656,
+          "sha256": "029990b11c23bfc1abeb69f146f1822c6ae09951d2cdc67bd4712c42c0fddfa2"
+        },
+        "WTK.RLCMeter.hex": {
+          "bytes": 150687,
+          "sha256": "bc1aeba9312026d21a268e3e67a1d043838f830ab48b187146b03f1ab17e7a96"
+        },
+        "WTK.RLCMeter.map": {
+          "bytes": 363674,
+          "sha256": "902346a899c8aa5d10f91d2d2f977c14db0343f358c219e1fcc070bc974450a7"
+        }
+      }
+    },
+    {
+      "name": "bringup-cal",
+      "preset": "stm32-bringup-cal",
+      "options": [],
+      "profile": "BRINGUP_CAL",
+      "factory": "0u",
+      "flash_bytes": 35364,
+      "ram_accounted_bytes": 13668,
+      "status": "PASS",
+      "files": {
+        "WTK.RLCMeter.bin": {
+          "bytes": 35364,
+          "sha256": "c664e3f59193f77cd68295ef53043c54111a13878575e88ce7af9b3171991bf2"
+        },
+        "WTK.RLCMeter.elf": {
+          "bytes": 58232,
+          "sha256": "d98c094dd17c032b7cfd85c47c52b27a357217314d632d5cdc6cf0214f1775f9"
+        },
+        "WTK.RLCMeter.hex": {
+          "bytes": 99535,
+          "sha256": "dba7cf8f7d64400eca1b76bc3b56b5f6f161d9fdfd93cd2d9d92f5835cdaf693"
+        },
+        "WTK.RLCMeter.map": {
+          "bytes": 28393,
+          "sha256": "7573ad31add0912bf59c30e618879dfcf75cd1bbfccd700b7aa2bb1b8fb5713f"
+        }
+      }
+    },
+    {
+      "name": "bench-supply",
+      "preset": "stm32-bringup",
+      "options": [
+        "-DWTK_BRINGUP_BENCH_SUPPLY=ON"
+      ],
+      "profile": "BRINGUP",
+      "factory": "0u",
+      "flash_bytes": 64952,
+      "ram_accounted_bytes": 15460,
+      "status": "PASS",
+      "files": {
+        "WTK.RLCMeter.bin": {
+          "bytes": 64952,
+          "sha256": "e7e1ba77aad825646565bb9e56c6c00a780cc51c525d59314e3b8d3eece50eaf"
+        },
+        "WTK.RLCMeter.elf": {
+          "bytes": 94988,
+          "sha256": "92259dd1bf6cd476829ee4ab9a57e3ff3a42fbc45a5a4ad4c4295d51152fab5a"
+        },
+        "WTK.RLCMeter.hex": {
+          "bytes": 182748,
+          "sha256": "0c4865c1a43830ea095062d4dc6d542967db5fc667acf966fd28802e1b01f4c2"
+        },
+        "WTK.RLCMeter.map": {
+          "bytes": 46717,
+          "sha256": "b88b318edda831f5774e83e25bab66f6b6c9d2534014a01330196c2a936d8913"
+        }
+      }
+    },
+    {
+      "name": "k1-test",
+      "preset": "stm32-bringup",
+      "options": [
+        "-DWTK_BRINGUP_K1_TEST=ON"
+      ],
+      "profile": "BRINGUP",
+      "factory": "0u",
+      "flash_bytes": 65048,
+      "ram_accounted_bytes": 15396,
+      "status": "PASS",
+      "files": {
+        "WTK.RLCMeter.bin": {
+          "bytes": 65048,
+          "sha256": "8be7134e39ed0fd3cdfa3c905033d920cefe43e7218de9cc6c2a8e20837fbe89"
+        },
+        "WTK.RLCMeter.elf": {
+          "bytes": 95132,
+          "sha256": "70e349bd4d57a35a3bdc423cb1bc460ea94aa0b861976bd626251bb6c7ab996d"
+        },
+        "WTK.RLCMeter.hex": {
+          "bytes": 183018,
+          "sha256": "742b2f46d4d53233d7b2fccaabb854be7b1de6e2e946f989a627f42860426ad7"
+        },
+        "WTK.RLCMeter.map": {
+          "bytes": 47074,
+          "sha256": "728327976d6ad8e8d64ab1ac0335fd2a31f07e42a22a5d24c41d8a3743917264"
+        }
+      }
+    },
+    {
+      "name": "peripheral",
+      "preset": "stm32-bringup",
+      "options": [
+        "-DWTK_BRINGUP_PERIPHERAL_TEST=ON"
+      ],
+      "profile": "BRINGUP",
+      "factory": "0u",
+      "flash_bytes": 17020,
+      "ram_accounted_bytes": 12252,
+      "status": "PASS",
+      "files": {
+        "WTK.RLCMeter.bin": {
+          "bytes": 17020,
+          "sha256": "8fcd8100b212553de00689d67749cba4eb03f10c49002fd2c9f268eb3b281651"
+        },
+        "WTK.RLCMeter.elf": {
+          "bytes": 36172,
+          "sha256": "b5cf1a9a277d2ad0c969eca1355f0fa8a91cbfdda336f9b439ff1139669d37f6"
+        },
+        "WTK.RLCMeter.hex": {
+          "bytes": 47949,
+          "sha256": "1fe06a19cdccd6cc975584774b3639d09ef847c610d05f344c411a874347e992"
+        },
+        "WTK.RLCMeter.map": {
+          "bytes": 30668,
+          "sha256": "cd70f075da7a1362eeaa66ceb3c101b8b697edc200c31fc9a1b2658fa4c5f1c8"
+        }
+      }
+    }
+  ],
+  "software_tests": {
+    "host_ctest": "44/44 PASS",
+    "python": "490 run:391 passed,99 skipped; transport8/8 and resource17/17 passed; deployment metadata55 run:50 passed,5 skipped"
+  },
+  "remaining": [
+    "REQUIRES_BENCH_VALIDATION: actual visible TFT splash and timing",
+    "No valid OSL; calibration and metrology/electrical release gates remain pending",
+    "Only the temporary factory PRODUCT and standard BRINGUP were physically booted in this task; other variants are build-tested"
+  ],
+  "visible_validation": "Owner explicitly chose to inspect later; no visual pass inferred"
+}

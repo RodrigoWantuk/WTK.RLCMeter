@@ -3,6 +3,239 @@
 STATUS: IN_PROGRESS — OSL CLI AND DESKTOP MVP IMPLEMENTED_TESTED_HOST / REQUIRES_BENCH_VALIDATION
 PRIORITY: P1. A usable Windows PC utility is the standard calibration UX; Python CLI remains testable backend.
 
+## First-board OSL execution — October 25, 2026
+
+The owner requested engineering OSL using earlier DC checks while the Hantek is
+unavailable. Scope-dependent qualification remains NOT_TESTED; the desktop B01
+gate is unchanged and is not approved. The supported capture backend retains
+all embedded permissions. No release qualification or energized-DUT scope is added.
+
+Six nominal 1% LOAD candidates were inventoried at the direct DUT terminals;
+three band identifications remain provisional. The owner requires a fresh DMM
+reading before each LOAD attachment. Final test leads require a new calibration.
+The owner additionally requires a fresh battery check before proceeding to each
+new resistor value. Read only while SAFE/idle, preserve the measured voltage and
+state, and request charging instead of starting that group if battery is LOW
+(nominal threshold 3.50 V), CRITICAL or otherwise not ready. Never estimate charge
+percentage or remaining runtime from this uncalibrated voltage. Charger interlock
+continues to prohibit capture while charging. A stale/missing check must be repeated.
+The verified BRINGUP_CAL boot reports hardware 0x10002/model 5 and blank storage.
+
+The first authorized OPEN sweep stopped at its first condition (10 ohm, 10 Hz,
+100 mVrms) after the independent 20-second deadline. No complete observation was
+accepted or installed. A no-reset RAM snapshot showed one accepted block followed
+by a second transaction with PERMIT error, hardware IDLE, and session cancellation.
+The firmware returned to SAFE with zero latched faults. The historical deployment
+and failed attempt remain preserved under Firmware/build/calibration-20261025.
+
+Bounded corrective scope: app_cal_capture_shell.c waits cooperatively for real
+auxiliary ADC freshness before issuing the next permit, under the existing service
+deadline. app_calibration_session.c recognizes a drained inactive hardware abort
+without treating it as a successful block. Regression belongs in
+test_app_calibration_workflow.c. Validate host tests and affected embedded builds
+before deployment; preserve W25Q and re-identify the exact binary before resuming.
+Physical OPEN/SHORT/LOAD capture and independent holdouts remain incomplete.
+
+The corrected runtime then completed ten hardware blocks without permit/runtime
+errors but rejected OPEN stability. RAM statistics exposed relative-to-zero
+endpoint testing and comparison of unaligned common source phase. A later UART
+request was also lost during synchronous processing. The next bounded correction
+is documented in docs/07-Calibration-and-Validation.md: nonzero endpoint scales,
+source-amplitude repeatability, common-phase-aligned exported means, and replies
+held until the repeat workflow drains. Add near-zero/excessive-dispersion controls
+and independent-block phase rotation to the real C-backed capture fixture.
+Validate all affected images and preserve each rejected physical attempt. Do not
+reinterpret software acceptance as metrology qualification or mark scope checks PASS.
+
+The next physical OPEN attempt reached six accepted blocks / workflow COMPLETE
+with zero hardware errors, but immediate publication was blocked because the
+auxiliary sensors had not finished refreshing. The service must retain BUSY
+and defer publication under the original capture deadline, with fresh safety
+required and explicit cancellation/timeout coverage. No pending result is valid
+or installable before that gate passes.
+
+After that correction, the first physical OPEN artifact was accepted with six
+stable repeats. A following request still collided with synchronous DSP, so the
+real PC client now observes the advertised capture deadline plus a one-second
+quiet margin before polling, with a cancellation checkpoint and pre-START timeout
+validation. Synthetic fixtures skip wall-clock waiting. The first accepted frame
+is preserved byte-for-byte; resumption uses the unchanged owner-confirmed fixture.
+
+OPEN is now complete at all 33 conditions, with six accepted repeats per key,
+SAFE teardown and no new protocol errors in the quiet-window resumption.
+See [physical checkpoint and current nine-image bundle](../docs/review/bringup-2026-10-25/OSL-Open.md).
+SHORT/LOAD, reference confirmation at attachment, candidate generation,
+installation and independent holdouts remain pending. This does not complete P14
+or any electrical/accuracy qualification gate.
+
+The first SHORT sweep also accepted 33/33, but the OPEN/SHORT path intersection
+was empty for three keys. Preserve [the first SHORT/path audit](../docs/review/bringup-2026-10-25/OSL-Short.md).
+A raw zero-return regression reproduced the ordinary return-SNR gate rejecting
+known SHORT. The bounded correction exempts only SHORT from a nonzero return
+minimum, retaining clipping, source, denominator, repeatability and all permits.
+HG gain overlap retains its nonzero SNR gate. Validate the raw zero/negative
+controls and embedded budgets, deploy the new identity, and reacquire both
+standards under that same image before LOAD. Do not mix the prior identities.
+
+The corrected source `7017e5e0` passed all 44 CTests and nine embedded builds.
+Its verified BRINGUP_CAL deployment completed a new 33/33 SHORT sweep with both
+return paths accepted at every key, six stable repeats, SAFE teardown and no new
+protocol errors. See [corrected SHORT checkpoint](../docs/review/bringup-2026-10-25/OSL-Zero-Short.md).
+This cohort still requires OPEN and LOAD under the same image; the earlier
+source-063c7378 observations remain historical only. No candidate is generated
+or installed, and physical qualification remains incomplete.
+
+The subsequent same-image OPEN sweep is complete: 33/33 accepted conditions,
+six stable repeats per key, SAFE teardown and unchanged zero protocol errors.
+The [66-capture endpoint checkpoint](../docs/review/bringup-2026-10-25/OSL-Same-Image-Endpoints.md)
+verifies matching identity, canonical CCO1 metadata/CRC/SHA and a common return
+path at all 33 OPEN/SHORT pairs. This is necessary acquisition compatibility,
+not a completed OSL fit: HG-only triplets still need actual same-key overlap.
+LOAD captures and serialized solver checks remain pending, followed by separate
+installation and independent holdouts. The owner has been asked for the fresh
+10-ohm DMM reading before the first LOAD attachment. No qualification gate changed.
+
+The owner repeated 10.5 ohm on the Minipa 200-ohm range and explicitly confirmed
+the nominal 10-ohm resistor attached alone. All three 100-mVrms LOAD keys passed
+six repeats, both return paths, clipping zero, observed HG overlap and the strict
+same-image OSL/float32 fit checks. See [first LOAD checkpoint](../docs/review/bringup-2026-10-25/OSL-Load-10.md).
+Progress is 69/99 observations, 3/33 complete conditions. Nominal 10 ohm +/-1%
+remains an uncertain fit anchor, not an exact lead-corrected DMM reading. Fresh
+pre-group battery readings were 3.71824 V before 10 ohm and 3.71663 V before
+100 ohm, both OK. A post-capture read-only STATUS timeout increased the protocol
+counter to 1; a paced read-only recovery confirmed SAFE/idle and zero faults.
+It did not replay START or change accepted artifacts. The owner was asked for
+the fresh 100-ohm reading/attachment. No complete candidate or installation yet.
+
+The owner reported "100R exatos, está conectado". All six 100-ohm LOAD keys
+passed acquisition and strict same-image OSL/float32 checks; progress is now
+75/99 observations and 9/33 complete conditions. Saturated HG paths were rejected;
+the 10-kHz/100-mVrms fit used valid HG with actual same-key overlap evidence.
+Fresh batteries were 3.71341 V before this group and 3.71502 V before requesting
+the 1-kohm reading/attachment, both OK. No faults or protocol-counter increase
+occurred during the group. See [100-ohm checkpoint](../docs/review/bringup-2026-10-25/OSL-Load-100.md).
+Four reference groups, independent validation, candidate generation and
+installation remain pending. Printed nominal/tolerance remains the uncertain
+fit anchor; the fresh DMM display does not establish traceable accuracy.
+
+The owner repeated 992 ohm and confirmed the 1-kohm reference attached alone.
+All six LOAD keys passed acquisition and strict same-image float32 OSL checks,
+with 1X selected for every fit and clipped HG rejected at 500 mVrms. The
+[1-kohm checkpoint](../docs/review/bringup-2026-10-25/OSL-Load-1000.md) preserves
+81/99 observations and 15/33 complete triplets. Fresh batteries were 3.71502 V
+before this group and 3.71179 V before requesting the 10-kohm reference, both OK.
+Protocol counter stayed at 1 and fault mask at zero. Nominal 1 kohm +/-1% remains
+the uncertain reference anchor; no exact lead correction or DMM uncertainty is
+invented. Three LOAD groups, independent validation and installation remain pending.
+
+The owner repeated 9.99 kohm and confirmed the 10-kohm reference attached alone.
+All six LOAD keys passed acquisition and strict same-image float32 OSL checks.
+The [10-kohm checkpoint](../docs/review/bringup-2026-10-25/OSL-Load-10000.md)
+preserves 87/99 observations and 21/33 complete triplets with explicit path and
+clipping evidence. Fresh batteries were 3.70857 V before this group and 3.70696 V
+before requesting the 100-kohm reading/attachment, both OK. Protocol counter
+stayed at 1 and fault mask at zero. Nominal 10 kohm +/-1% remains the uncertain
+fit anchor. The 100-kohm and 1-Mohm LOAD groups, independent validation,
+candidate generation and installation remain pending.
+
+The owner repeated 99.8 kohm and confirmed the 100-kohm reference attached alone.
+All six raw LOAD observations are preserved, but only five fit checks pass.
+At 100 kohm / 10 kHz / 100 mVrms, OPEN and LOAD are HG-only, SHORT has both paths,
+and no standard has observed HG overlap. The strict solver rejects this triplet;
+do not substitute nominal gain, invalid 1X ratios or changed quality flags.
+The first sweep stopped after preserving that raw observation and rejection.
+Only the previously unattempted 10-kHz/500-mVrms key was then captured separately
+under the unchanged confirmed fixture; it passed with observed same-key overlap.
+No rejected START was replayed. The [100-kohm checkpoint](../docs/review/bringup-2026-10-25/OSL-Load-100000.md)
+records 93/99 raw observations, 27 complete triplets, 26 solvable fits and one
+blocked fit. This disproves the bench assumption that a common OPEN/SHORT path
+alone is sufficient to finish every OSL key. It does not establish a component
+fault. Investigate gain observability/coverage within the current metrology
+contracts; keep the blocked key incomplete rather than asserting qualification.
+Fresh batteries were 3.70696 V before this group and 3.70374 V before asking for
+the 1-Mohm reference, both OK. Protocol counter stayed at 1; safety faults zero,
+SAFE/idle confirmed. Six 1-Mohm LOADs, blocked-key resolution, independent
+validation, candidate generation and installation remain pending.
+
+The owner freshly measured the 1-Mohm reference as 996 kohm and confirmed direct
+attachment. All six raw captures passed acquisition; four fits passed and both
+10-kHz fits remain blocked by absent observed HG overlap. The same-image campaign
+now has all 99 observations, 33 triplets, 30 solvable fits and three blocked keys:
+100 kohm/10 kHz/100 mVrms and 1 Mohm/10 kHz at both amplitudes. The full candidate
+builder rejects this coverage; no candidate or installation is produced.
+
+After explicit owner confirmation of empty terminals, exactly those three OPEN
+keys were captured again once, with the same HG-only/no-overlap result. Keep the
+original 99 artifacts unchanged and the diagnostic frames separate. A SAFE/idle
+no-reset snapshot of the final 1-Mohm/10-kHz/500-mVrms LOAD measured relative
+complex standard deviations: 1X Z 8.3275%, HG Z 0.9996%, HG transfer 7.5451%,
+against the unchanged 2% workflow criterion. The source amplitudes vary only
+0.1929%/0.1544%. These observations explain rejection but do not identify a
+component fault or qualify accuracy. See [complete capture/diagnostic checkpoint](../docs/review/bringup-2026-10-25/OSL-All-99.md).
+Battery was 3.70535 V before the 1-Mohm group and 3.70374 V afterward, OK. Safety
+faults remain zero and protocol counter unchanged at 1. Investigate raw DMA,
+timing/noise and path observability before selecting a corrective implementation;
+do not invent gain, silently mix paths or relax the full-set installation contract.
+
+The owner additionally requested an NTC comparison using a contact culinary
+thermometer, with its model intentionally not requested or recorded. The owner
+will hold it at the same thermal point as the NTC and report a stable reading.
+One-point comparison/trim does not determine Beta or certify the full curve.
+Reference temperature, paired raw NTC evidence and persistent correction are
+pending. The current lookup table has no existing runtime NTC trim interface;
+design any required versioned storage explicitly before changing firmware.
+
+The first external reading was 23.8 degC at the owner-described PCB thermal point.
+A paired SAFE/idle no-reset snapshot reported NTC raw 1958, 1.577875 V,
+91623.76 ohm and 27.13364 degC (sample age 664 ms). This is a 3.33364-degC
+comparison difference, not yet a justified correction: thermal contact may differ
+between the probe, PCB and bead. The owner was asked for direct isolated-bead
+contact, approximately 60 seconds of stabilization, and another reference reading.
+No NTC correction has been applied and no thermometer model is recorded.
+
+Direct isolated-bead contact gave a corrected external reference of 23.5 degC.
+The paired firmware reading was 27.27030 degC, raw 1952, 91087.27 nominal ohm,
+age 236 ms, difference 3.77030 degC. The owner could not read a resistor marking;
+the purchased thermistor listing says only "NTC 3mm 100k", so B3950 is not
+confirmed. Do not fit Beta from the two different-contact cold comparisons or
+silently install a fixed offset as a full-curve calibration.
+See [cold NTC evidence](../docs/review/bringup-2026-10-25/NTC-Comparison.md).
+The owner was asked to gently warm the bead and contacting probe together to
+approximately 30–35 degC, stabilize, and report the next reference. Two actual
+temperature points can fit effective R25/Rtop and Beta from raw divider ratios;
+this avoids pretending Rtop or R25 was independently measured. Reference
+uncertainty and broader curve qualification remain unresolved. Persistent
+runtime calibration still requires an explicit versioned storage/API design.
+
+The owner explicitly authorized using 30.1 degC despite possible pad/finger
+interference. The sustained warm reference was captured at raw1856, nominal
+29.35729 degC; raw1877 was an earlier transient and is not a fit anchor. The
+[isolated factory-profile phase 14A](14A-Unit-NTC-Factory-Profile.md) implemented
+a versioned per-unit build-time LUT instead of inventing mutable storage. All
+nine unit images passed strict builds, all 46 host CTests passed, and schema2
+manifests bind the LUT and UID before programming. Source 0da88bfd was flashed,
+read back and re-identified. The adjusted conversion is active, explicitly
+experimental/unqualified; no independent third temperature is claimed.
+See [NTC delivery](../docs/review/bringup-2026-10-25/NTC-Factory-Profile.md).
+
+At the pre-telemetry checkpoint the owner disconnected ST-Link to connect the
+charger, retaining TTL; COM4 confirmed charger present, SAFE/idle and zero faults,
+but the old STATUS had no voltage. [Phase 14B](14B-Calibration-Battery-Telemetry.md)
+subsequently deployed f86b7f4e and read 3.949 V over COM4 after charging, versus
+3.54740 V before charging. Fresh voltage now uses serial only; ST-Link is no
+longer required for battery checks. These are nominal ADC readings, not state
+of charge. Keep charging and DUT acquisition separate and confirm fresh
+supply/SAFE state. The next
+RLC work is a bounded investigation of longer coherent integration with explicit
+sample provenance, unchanged real permits and stability criteria. Do not simply
+flip invalid 1X/HG flags. Any acquisition change needs its own plan, host/target
+tests and a pilot before deciding how to reacquire calibration evidence.
+[Phase 14C](14C-High-Z-Integration-Investigation.md) preserves six separate OPEN
+diagnostic artifacts at 1 Mohm/10 kHz/100 mVrms: dispersion of effective HG
+transfer across exported means is 6.83089%, without promoting any validity flag.
+The final battery is 3.942 V, SAFE/idle, zero faults/protocol errors. A fresh
+owner-measured 1-Mohm LOAD fixture is requested for the matching diagnostic.
+
 A04.1 delivers the [guided OSL campaign](../Firmware/tools/PC_OSL_CAMPAIGN.md):
 six-reference inventory, explicit passive-fixture confirmations, atomic resumable
 CCO1 evidence, real C-backed 99-observation workflow, existing 33-key solver and

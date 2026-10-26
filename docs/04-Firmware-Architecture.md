@@ -1,5 +1,11 @@
 # Firmware Architecture
 
+## October24 integration baseline
+
+The shared acquisition/DSP/30ms relay fixes apply to all metrology profiles. All TFT profiles use the working common DCS initialization, portrait180 and slower TFT clock. BRINGUP_CAL has only the shared optional boot splash, then returns to its binary serial service; PRODUCT retains real safety and valid-calibration gates.
+
+See [current evidence, input limits and release status](review/bringup-2026-10-24/README.md).
+
 ## Principles
 
 The firmware is organized as instrument firmware, not as a microcontroller demo:
@@ -75,6 +81,17 @@ The DUT should remain connected to the measurement AFE only for the time require
 11. `SAFE_CHECK`.
 
 A display or external-Flash failure must not bypass safety policy.
+
+PRODUCT application scheduling is separate from hardware permission. An actual
+disabled idle range can schedule preparation; it is not relabeled READY for
+`hw_safety_evaluate` or the relay. Expected residual refresh and an owned
+transaction's ADC/range transitions do not self-cancel that hardware FSM. Hard
+charger/residual/supply/fault blockers remain. At PERMIT_ISSUE only, an attempt
+can wait cooperatively for real refreshed evidence for at most 1,000 ms from
+its start, then falls through to the unchanged strict permit check. Normal TFT
+steps yield while the polled auxiliary group is active or residual safety is
+requalifying; fresh actual fault/unsafe evidence still allows warning rendering.
+See [the physical READY checkpoint](../Firmware/releases/2026-10-25/calibrated-product-ready/README.md).
 
 ## BSP
 
@@ -315,3 +332,32 @@ or equivalent documented CMake commands.
 Visual Studio Code integrates through the checked-in workspace and CMake Tools, but no VS Code-specific metadata may become required for non-editor builds.
 
 Detailed module contracts are documented in [`13-Detailed-Firmware-Design.md`](13-Detailed-Firmware-Design.md), while the execution sequence is defined in [`../plans/`](../plans/).
+
+
+## PC-provisioned session and menu ownership (2026-10-26)
+
+The earlier per-capture main-state diagram remains the fixed-condition/legacy
+path. PC-provisioned PRODUCT additionally supports:
+
+```text
+fresh SAFE checks -> consume initial permit -> K1 MEASURE / 30-ms guard
+  -> guarded range + excitation settling -> acquire -> stop DMA -> neutral
+  -> supervised HOLD -> bounded DSP/policy -> another guarded range/capture
+  -> FINISHING -> K1 SAFE / release guard -> ADC restore -> final result
+```
+
+hw_metrology_measure owns the continuous session, six-capture/500-ms deadline
+and original battery-evidence expiry. No application/UI code writes relay or
+range GPIOs. App FINISHING defers final-result availability until cleanup; late
+cleanup faults/cancellation invalidate provisional policy success. Quiet and the
+same exclusive metrology workspace lease span held captures. A lost lease cannot
+be silently reacquired; it aborts the session. The consumed initial permit is
+retained for traceability, not revalidated as a new range permit. Fixed captures,
+BRINGUP, BRINGUP_CAL and full embedded-wizard PRODUCT keep their former ownership.
+
+WTK_ENABLE_MEASURE_SESSION_HOLD and WTK_ENABLE_UI_ROW_CACHE are generated from
+the PC-provisioned PRODUCT profile. The legacy full-wizard PRODUCT keeps its
+existing footprint gate and bounded renderer; its common language/error recovery
+and evidence-admission fixes still apply. Full BRINGUP now omits unsolicited
+verbose boot/button logs (INFO default), preserving commands and safety logs to
+make room for the common measurement policy within guaranteed C8 Flash.

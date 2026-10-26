@@ -29,12 +29,16 @@ typedef struct
     uint16_t wait_after_ms;
 } ili9341_init_command_t;
 
+/* ILI9341/ST7789 common DCS subset; no controller-specific analog settings. */
 static const ili9341_init_command_t g_init_commands[] = {
-    {ILI9341_CMD_SWRESET, {0u, 0u, 0u, 0u}, 0u, 120u},
-    {ILI9341_CMD_SLPOUT, {0u, 0u, 0u, 0u}, 0u, 120u},
-    {ILI9341_CMD_PIXFMT, {ILI9341_PIXFMT_RGB565, 0u, 0u, 0u}, 1u, 10u},
-    {ILI9341_CMD_MADCTL, {0x48u, 0u, 0u, 0u}, 1u, 10u},
-    {ILI9341_CMD_DISPON, {0u, 0u, 0u, 0u}, 0u, 20u},
+    {ILI9341_CMD_SWRESET, {0u}, 0u, 150u},
+    {0x28u, {0u}, 0u, 20u}, /* Display off while configuring. */
+    {ILI9341_CMD_SLPOUT, {0u}, 0u, 150u},
+    {ILI9341_CMD_PIXFMT, {ILI9341_PIXFMT_RGB565}, 1u, 10u},
+    {ILI9341_CMD_MADCTL, {0x88u}, 1u, 10u}, /* Owner mounting: portrait180. */
+    {0x20u, {0u}, 0u, 20u}, /* Inversion off. */
+    {0x13u, {0u}, 0u, 20u}, /* Normal/full display mode. */
+    {ILI9341_CMD_DISPON, {0u}, 0u, 150u},
 };
 
 static bsp_status_t ili9341_write_command(uint8_t command)
@@ -83,6 +87,29 @@ static bsp_status_t ili9341_write_command_data(uint8_t command, const uint8_t *d
     return ili9341_write_data(data, size);
 }
 
+bsp_status_t ili9341_read_diagnostic_raw(uint8_t command, uint8_t *response, size_t size)
+{
+    if (response == NULL || size == 0u || size > 5u ||
+        !(command == 0x04u || (command >= 0x09u && command <= 0x0Fu) || command == 0xD3u))
+    {
+        return BSP_STATUS_INVALID_ARG;
+    }
+    bsp_status_t status = spi_bus_acquire(SPI_BUS_DEVICE_ILI9341);
+    if (status != BSP_STATUS_OK)
+    {
+        return status;
+    }
+    status = bsp_gpio_write_output(BSP_GPIO_OUTPUT_TFT_DC, false);
+    if (status == BSP_STATUS_OK)
+        status = spi_bus_transfer(&command, NULL, 1u, ILI9341_SPI_TIMEOUT_MS);
+    if (status == BSP_STATUS_OK)
+        status = bsp_gpio_write_output(BSP_GPIO_OUTPUT_TFT_DC, true);
+    if (status == BSP_STATUS_OK)
+        status = spi_bus_transfer(NULL, response, size, ILI9341_SPI_TIMEOUT_MS);
+    const bsp_status_t release_status = spi_bus_release(SPI_BUS_DEVICE_ILI9341);
+    return status == BSP_STATUS_OK ? release_status : status;
+}
+
 void ili9341_init_context(ili9341_t *display)
 {
     if (display == NULL)
@@ -93,7 +120,7 @@ void ili9341_init_context(ili9341_t *display)
     display->init_state = ILI9341_INIT_IDLE;
     display->init_index = 0u;
     display->wait_until_ms = 0u;
-    display->rotation = 0u;
+    display->rotation = ILI9341_DEFAULT_ROTATION;
     display->ready = false;
 }
 
@@ -106,9 +133,10 @@ void ili9341_init_start(ili9341_t *display, uint32_t now_ms)
 
     display->init_state = ILI9341_INIT_RESET_ASSERTED;
     display->init_index = 0u;
-    display->wait_until_ms = now_ms + 10u;
+    display->wait_until_ms = now_ms + 50u;
     display->ready = false;
     (void)bsp_gpio_write_output(BSP_GPIO_OUTPUT_TFT_RST, false);
+    display->rotation = ILI9341_DEFAULT_ROTATION;
 }
 
 bsp_status_t ili9341_init_step(ili9341_t *display, uint32_t now_ms)
@@ -132,7 +160,7 @@ bsp_status_t ili9341_init_step(ili9341_t *display, uint32_t now_ms)
     {
     case ILI9341_INIT_RESET_ASSERTED:
         (void)bsp_gpio_write_output(BSP_GPIO_OUTPUT_TFT_RST, true);
-        display->wait_until_ms = now_ms + 120u;
+        display->wait_until_ms = now_ms + 250u;
         display->init_state = ILI9341_INIT_RESET_RELEASED;
         return BSP_STATUS_OK;
     case ILI9341_INIT_RESET_RELEASED:

@@ -1,5 +1,11 @@
 # UI, UX, and Diagnostics
 
+## October24 integration baseline
+
+The owner-confirmed mounting is portrait180 (240x320,MADCTL88,rotation2). All TFT-bearing profiles now share50ms reset/250ms release wait and PCLK1/64 TFT clock; Flash stays/8. White screen was a module flat solder fault, repaired by the owner. Rendering/buttons/tones are functionally confirmed; exact controller ID and full resource/storage/quiet bench qualification remain open.
+
+See [current evidence, input limits and release status](review/bringup-2026-10-24/README.md).
+
 ## Display
 
 Controller: ILI9341, 240×320, SPI.
@@ -525,3 +531,53 @@ application/measurement state
 Safety warnings and mandatory boot gates override ordinary navigation.
 
 The UI must never directly operate K1, K2, RANGE_EN, or excitation GPIOs. It emits user intent; application/hardware services decide whether the requested action is allowed.
+
+## Shared boot splash (2026-10-24)
+
+Every embedded profile, including BRINGUP_CAL and peripheral/relay/bench variants,
+uses the same optional owner-supplied 240x320 W25Q image at resource ID 0x00030006.
+The existing READY artwork remains separate. Initialization and incremental CRC/
+RLE validation precede streaming; each validation call reads at most 128 bytes and
+each TFT draw/clear call sends at most 64 pixels. No framebuffer or heap is added.
+The completed image is held for 3000 ms, measured from the following loop after the
+last pixel transfer; unsigned elapsed time handles millisecond wraparound.
+
+Sensors, watchdog and SAFE policy continue throughout presentation. Normal UI,
+serial commands, capture, relay pulses and persistent mutations wait. Failed or
+absent assets/display skip the optional phase; wait/validation/draw has a 15000 ms
+budget, hold is 3000 ms, and clear has its own 15000 ms budget. Safety faults or quiet
+requests abort immediately. Display orientation remains rotation 2. BRINGUP_CAL
+returns to its existing binary-only service after its boot-only graphics phase.
+See [asset provisioning](../Firmware/assets/README.md) for the updated procedure.
+Visual appearance and visible timing require observation on the connected TFT.
+
+
+## Incremental factory menus (2026-10-26)
+
+PC-provisioned PRODUCT enables exact completed-row caching for the main,
+display/brightness/timeout, sound, language and maintenance menus, plus normal
+diagnostic/status/about screens. Navigation repaints only
+the old/new highlighted rows; a numeric edit repaints its changed row. The
+cache stores text, color, position, extent and font mode for nine completed
+rows plus one in-flight row; there is no screen framebuffer. A shorter value
+or removed save-warning row is erased over its old full row extent.
+
+Generation updates during a glyph or row clear converge on the newest view.
+Only completed glyph rows enter the cache. Quiet suspends both clear and text
+steps. Font/resource mode changes repaint affected rows; language and screen
+transitions rebuild the baseline. A failed clear/glyph invalidates the cache
+and forces recovery from a full baseline. READY's fixed-background coalescing
+and other result/page transitions are preserved. Numeric redraws do not add
+settings writes; existing editor save/confirm/cancel policy remains in charge.
+
+The full embedded-wizard PRODUCT retains its prior bounded renderer to fit the
+existing Flash gate. Both profiles gain correct full language-change recovery,
+including the bottom READY hint, and invalidation after failed painting. Display
+transfer-count tests cover the incremental behavior; physical appearance and
+button responsiveness await owner validation because TTL occupies the display
+connection during unattended work. See
+[plan 24](../plans/24-Measurement-Evidence-Session-and-UI.md).
+
+A custom medium font taller than the 28-pixel minimum menu row pitch uses a
+full repaint so clearing one row cannot damage cached neighbors. Provider
+invalidation is honored even when the view generation has not changed.

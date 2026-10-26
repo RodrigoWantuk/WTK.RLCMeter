@@ -16,6 +16,7 @@ import math
 from pathlib import Path
 import re
 import time
+from inspect_calibration_record import REV1_HARDWARE
 
 COMMANDS = ("lab fault status", "lab charger status", "lab sensors status",
             "lab safety status", "lab range status", "lab adc status",
@@ -648,7 +649,7 @@ def diagnostic_checks(command, value):
             status = "WARNING"
         return result(status, "Commanded SAFE/disabled snapshot only; display and calibration may be absent on first boot")
     if command == COMMANDS[8]:
-        compatible = (value["sch"], value["model"], value["hw"]) == (2, 5, 0x00010001)
+        compatible = (value["sch"], value["model"], value["hw"]) == (2, 5, REV1_HARDWARE)
         status = "UNKNOWN" if not compatible else ("PASS" if value["act"] else "WARNING")
         if value["svc"] in ("ERROR", "STORE_BUSY", "WORKFLOW_ACTIVE", "CANDIDATE_DIRTY"):
             status = "STOP"

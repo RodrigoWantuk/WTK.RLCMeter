@@ -1,7 +1,9 @@
 /* Exclusive BRINGUP_CAL shell. Acquisition/permits are the existing hardware FSM. */
 #include "app/app_shell.h"
+#include "app/app_boot_splash.h"
 
 #include "app/app_cal_capture_service.h"
+#include "app/app_cal_install_safety.h"
 #include "app/app_io_workspace.h"
 #include "app/app_safety_fault.h"
 #include "bsp/bsp_adc.h"
@@ -34,6 +36,7 @@ static hw_metrology_measure_t measure;
 static app_calibration_service_t calibration;
 static app_cal_capture_service_t capture;
 static w25q_device_t flash;
+static ili9341_t boot_display;
 static uint16_t sine_table[HW_EXCITATION_LUT_MAX_POINTS];
 
 static void latch(bsp_status_t status, uint32_t mask)
@@ -187,7 +190,27 @@ static bsp_status_t capture_start(const hw_metrology_measure_request_t *request,
     return status;
 }
 static bsp_status_t capture_step(uint32_t now, void *user)
-{ (void)user; return hw_metrology_measure_step(&measure, now); }
+{
+    (void)user;
+    /* ADC ownership invalidates residual evidence. Let the real auxiliary ADC
+       refresh it between repeats while K1 is still SAFE. The service deadline
+       bounds this cooperative wait; the hardware FSM still issues its permit. */
+    if (hw_metrology_measure_state(&measure) == HW_METROLOGY_MEASURE_PERMIT_ISSUE)
+    {
+        hw_measure_permit_issue_input_t input;
+        if (permit_issue(&input, NULL) == BSP_STATUS_OK &&
+            input.charger == HW_CHARGER_ABSENT && input.safety_fault_mask == 0u &&
+            input.k1_state == HW_K1_STATE_SAFE && input.range == HW_RANGE_READY &&
+            (input.residual == HW_RESIDUAL_UNKNOWN || input.residual == HW_RESIDUAL_SAFE) &&
+            (input.battery == HW_BATTERY_UNKNOWN || input.battery == HW_BATTERY_OK ||
+             input.battery == HW_BATTERY_LOW) &&
+            (input.residual == HW_RESIDUAL_UNKNOWN || input.battery == HW_BATTERY_UNKNOWN ||
+             input.residual_age_ms > HW_MEASURE_PERMIT_RESIDUAL_MAX_AGE_MS ||
+             input.battery_age_ms > HW_MEASURE_PERMIT_BATTERY_MAX_AGE_MS))
+            return BSP_STATUS_BUSY;
+    }
+    return hw_metrology_measure_step(&measure, now);
+}
 static bool capture_active(void *user)
 { (void)user; return hw_metrology_measure_active(&measure); }
 static bool capture_done(void *user)
@@ -225,6 +248,8 @@ static void service_snapshot(app_cal_capture_snapshot_t *result, void *user)
         .safety_blocks = permission.blocker_flags,
         .temperature_valid = state.ntc_temperature_valid,
         .temperature_mC = state.ntc_temperature_valid ? (int32_t)(state.ntc_temperature_c*1000.0f) : 0,
+        .battery_mv = hw_battery_telemetry_mv(state.battery_v, state.battery_state),
+        .aux_refresh_pending = app_cal_install_aux_refresh_pending(&state),
         /* Disabled range is expected before preflight; the FSM selects it before issuing a permit. */
         .factory_allowed = (permission.blocker_flags & ~(uint32_t)HW_SAFETY_BLOCK_RANGE) == 0u,
         .transfer_safe = k1_state(NULL) == HW_K1_STATE_SAFE && exc_mode(NULL) == HW_EXCITATION_MODE_OFF &&
@@ -273,10 +298,14 @@ void app_shell_run(void)
     latch(hw_metrology_measure_init(&measure, &hardware_io,
         app_io_workspace_metrology_raw_words(&workspace), HW_METROLOGY_RAW_WORD_COUNT), APP_SAFETY_FAULT_METROLOGY_RUNTIME);
     app_cal_capture_io_t io = {.snapshot = service_snapshot, .try_write_byte = try_write,
-        .installation_supported = WTK_ENABLE_CAL_INSTALL_SERVICE != 0u};
+        .installation_supported = WTK_ENABLE_CAL_INSTALL_SERVICE != 0u,
+        .battery_telemetry_supported = true,
+        .coherent_integration_supported = true};
     bsp_reset_read_device_uid(io.device_uid);
     latch(app_cal_capture_init(&capture, &calibration, &capture_io, &io,
         bsp_clock_get_summary(), clock_status), APP_SAFETY_FAULT_METROLOGY_RUNTIME);
+    ili9341_init_start(&boot_display, bsp_time_now_ms());
+    app_boot_splash_start(&flash, bsp_time_now_ms());
     for (;;)
     {
         const uint32_t now = bsp_time_now_ms();
@@ -286,6 +315,13 @@ void app_shell_run(void)
         if (hw_aux_sensors_fault_mask(&sensors) != 0u) fault_adc(NULL);
         if (!hw_metrology_measure_k1_owned()) latch(hw_k1_force_safe(&k1), APP_SAFETY_FAULT_K1_IO);
         if (fault_mask(NULL) != 0u) latch(hw_range_force_disabled(&range), APP_SAFETY_FAULT_RANGE_IO);
+        (void)ili9341_init_step(&boot_display, now);
+        if (app_boot_splash_step(&boot_display, now,
+                fault_mask(NULL) != 0u || hw_peripherals_quiet_requested()))
+        {
+            bsp_watchdog_service();
+            continue;
+        }
         for (uint8_t n = 0u; n < 32u; n++)
         {
             uint8_t byte;

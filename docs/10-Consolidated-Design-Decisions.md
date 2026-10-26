@@ -1,5 +1,46 @@
 # Consolidated Design Decisions
 
+## October24 integration baseline
+
+October24 supersedes gate-to-source RGS: all six10k are gate-toGND, hardware calibration identity0x00010002. Common ADC/DMA/phase corrections and K1 operate30ms apply to every metrology profile. All TFT profiles use portrait180/MADCTL88,50ms reset/250ms release and TFT PCLK1/64, Flash/8. Bench-only source exceptions remain excluded from PRODUCT.
+
+See [current evidence, input limits and release status](review/bringup-2026-10-24/README.md).
+
+## Owner-requested external bench supply — 2026-10-24
+
+Phase 09A now includes a separate opt-in BRINGUP bench-supply image. The operator
+can explicitly select verified external 5 V power without a battery. Boot/reset
+requires battery again; the RAM-only selection changes the battery-state/age gate
+without synthesizing ADC evidence. Permits bind the source, revocation aborts
+active transactions, and nominal excitation is restricted to 100 mVrms. Charger,
+fresh residual, VMID, clock, faults, range sequencing and ADC/DMA teardown remain
+mandatory. Existing BRINGUP ideal-calibration fallback remains UNQUALIFIED.
+PRODUCT/BRINGUP_CAL/default BRINGUP have no bench-source selection. This separate
+C8 image excludes DC pilot and the K1 pulse diagnostic for Flash space.
+See [the full contract](../Firmware/tools/BENCH_SUPPLY.md). Physical analog/supply/
+contact/timing/accuracy qualification remains REQUIRES_BENCH_VALIDATION.
+
+## Owner-requested empty-fixture K1 bench pulse — 2026-10-24
+
+The first assembled board boots BRINGUP from an external 5 V bench supply while
+VBAT_PROT is intentionally floating. The owner requested a single relay cycle
+for physical validation. A separate, opt-in BRINGUP diagnostic may command K1 for
+250 ms with an explicit empty-fixture confirmation, disabled range/excitation,
+fresh real residual SAFE/VMID, absent charger, no fault and no competing work.
+It is one-shot per boot, cancellable and cooperative, with the existing 8 ms
+release guard and IWDG/reset fallback. It does not issue or forge measurement
+permission, change ADC evidence or weaken normal battery/calibration gates.
+
+Hardware impact: none; use the reviewed external current-limited supply and
+existing K1 driver/interlock. Firmware impact: a restricted hardware-service
+state machine and BRINGUP console ownership, excluded from PRODUCT/BRINGUP_CAL.
+The build option defaults OFF and trades the experimental DC pilot for this
+diagnostic to fit C8 Flash. Calibration/model/storage identity is unchanged;
+this performs no acquisition, persistence or calibration migration. Physical
+relay/contact/current/timing/interlock evidence remains pending. Details and
+affected procedures are in [K1_BENCH_TEST.md](../Firmware/tools/K1_BENCH_TEST.md),
+Phase 09A and the detailed firmware/safety documents.
+
 This document records decisions that have already been discussed so they are not reopened without new technical evidence.
 
 ## MCU
@@ -702,7 +743,7 @@ The current goal is to detect/tolerate residual voltage in the approximate ±100
 ### Rev.1 Stage 2 K1 guards and permit (Phase 05)
 
 ```text
-K1_OPERATE_GUARD_MS = 10   (REQUIRES_BENCH_VALIDATION)
+K1_OPERATE_GUARD_MS = 30   (owner-requested conservative margin, REQUIRES_BENCH_VALIDATION)
 K1_RELEASE_GUARD_MS = 8    (REQUIRES_BENCH_VALIDATION)
 HW_MEASURE_PERMIT_TTL_MS = 5
 ```
@@ -1020,3 +1061,36 @@ Residual thresholds apply to both terminal-to-measured-VMID departures and their
 difference; absolute terminal diagnostics remain available. Thresholds, saturation,
 freshness and eight SAFE evaluations remain. This is not earth-referenced isolation.
 See [B02.2 evidence and electrical limits](review/b02/B02.2-report.md).
+
+
+## 2026-10-26 — Evidence admission, continuous K1 ownership and menu patches
+
+Owner-authorized successor: [plan 24](../plans/24-Measurement-Evidence-Session-and-UI.md).
+
+Classification/trend evidence now requires a successful finite capture and a
+usable, unclipped selected RET with finite peak at least the existing 2 mV
+weak-return policy threshold. Rejected attempts remain in diagnostics. This
+prevents the observed weak, reranged candidates from deciding the component
+class; it does not lower R/C/L thresholds or qualify sub-microhenry measurements.
+
+PC-provisioned PRODUCT alone enables a continuous hardware-owned automatic
+session (six captures, 500-ms cooperative deadline, original battery-evidence
+expiry), starting from the unchanged fresh consumed initial permit. New range
+conditions are allowed only inside this live bounded authorization, with neutral
+excitation, controlled RANGE_EN transitions and settling. No token reissue,
+synthetic residual reading or UI-owned GPIO path is introduced. Live hard blockers
+and failures revoke ownership; final publication waits for SAFE and ADC restore.
+Actual release latency and analog behavior remain REQUIRES_BENCH_VALIDATION.
+
+The same profile enables an exact nine-row menu cache plus one in-flight row,
+without a framebuffer. Completed-row geometry/text/color/font-mode comparison
+skips unchanged rows; full-width row erasure handles shorter values and removed
+warnings. Language/screen/resource changes and failed paints establish a new
+full baseline. Quiet suspends row clears and glyphs. The full legacy-wizard
+image exceeded its existing Flash gate with the new UI path; it keeps the prior
+renderer instead of increasing that gate or removing legacy features.
+
+Calibration schema/model/hardware revision and stored OSL/NTC coefficients are
+unchanged. The unit's calibration remains engineering data, without a new
+accuracy or metrology qualification claim. No new resistor campaign is required
+for this policy/lifecycle change.

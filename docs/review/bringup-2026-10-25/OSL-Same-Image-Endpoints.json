@@ -1,0 +1,780 @@
+{
+  "recorded_utc": "2026-10-25T14:07:05.610838+00:00",
+  "SIMULATED": false,
+  "status": "OPEN_SHORT_COMPLETE_LOAD_PENDING",
+  "identity": {
+    "hardware_revision": 65538,
+    "model": 5,
+    "profile": 1,
+    "capabilities": 31,
+    "protocol_version": 1,
+    "timeout_ms": 20000,
+    "adc_provenance": "NOMINAL_3V3_NOT_CALIBRATED",
+    "synthetic": false,
+    "uid": "54ff70068370525760380567",
+    "git": "7017e5e0",
+    "firmware_version": "0.1.0"
+  },
+  "open_conditions": 33,
+  "short_conditions": 33,
+  "conditions_with_common_path": 33,
+  "path_audit": {
+    "recorded_utc": "2026-10-25T14:07:03.048364+00:00",
+    "identity": {
+      "hardware_revision": 65538,
+      "model": 5,
+      "profile": 1,
+      "capabilities": 31,
+      "protocol_version": 1,
+      "timeout_ms": 20000,
+      "adc_provenance": "NOMINAL_3V3_NOT_CALIBRATED",
+      "synthetic": false,
+      "uid": "54ff70068370525760380567",
+      "git": "7017e5e0",
+      "firmware_version": "0.1.0"
+    },
+    "captures": 66,
+    "installed": false,
+    "physically_qualified": false,
+    "empty_path_intersections": [],
+    "rows": [
+      {
+        "condition": {
+          "rref_ohms": 10,
+          "frequency_hz": 10,
+          "amplitude_mvrms": 100
+        },
+        "open_quality": {
+          "ret_1x_valid": true,
+          "ret_hg_valid": false,
+          "hg_observed": false
+        },
+        "short_quality": {
+          "ret_1x_valid": true,
+          "ret_hg_valid": true,
+          "hg_observed": false
+        },
+        "common_paths": [
+          "1X"
+        ],
+        "hg_overlap_observed": false
+      },
+      {
+        "condition": {
+          "rref_ohms": 10,
+          "frequency_hz": 1000,
+          "amplitude_mvrms": 100
+        },
+        "open_quality": {
+          "ret_1x_valid": true,
+          "ret_hg_valid": false,
+          "hg_observed": false
+        },
+        "short_quality": {
+          "ret_1x_valid": true,
+          "ret_hg_valid": true,
+          "hg_observed": false
+        },
+        "common_paths": [
+          "1X"
+        ],
+        "hg_overlap_observed": false
+      },
+      {
+        "condition": {
+          "rref_ohms": 10,
+          "frequency_hz": 10000,
+          "amplitude_mvrms": 100
+        },
+        "open_quality": {
+          "ret_1x_valid": true,
+          "ret_hg_valid": true,
+          "hg_observed": true
+        },
+        "short_quality": {
+          "ret_1x_valid": true,
+          "ret_hg_valid": true,
+          "hg_observed": false
+        },
+        "common_paths": [
+          "1X",
+          "HG"
+        ],
+        "hg_overlap_observed": true
+      },
+      {
+        "condition": {
+          "rref_ohms": 100,
+          "frequency_hz": 10,
+          "amplitude_mvrms": 100
+        },
+        "open_quality": {
+          "ret_1x_valid": true,
+          "ret_hg_valid": false,
+          "hg_observed": false
+        },
+        "short_quality": {
+          "ret_1x_valid": true,
+          "ret_hg_valid": true,
+          "hg_observed": false
+        },
+        "common_paths": [
+          "1X"
+        ],
+        "hg_overlap_observed": false
+      },
+      {
+        "condition": {
+          "rref_ohms": 100,
+          "frequency_hz": 10,
+          "amplitude_mvrms": 500
+        },
+        "open_quality": {
+          "ret_1x_valid": true,
+          "ret_hg_valid": false,
+          "hg_observed": false
+        },
+        "short_quality": {
+          "ret_1x_valid": true,
+          "ret_hg_valid": true,
+          "hg_observed": false
+        },
+        "common_paths": [
+          "1X"
+        ],
+        "hg_overlap_observed": false
+      },
+      {
+        "condition": {
+          "rref_ohms": 100,
+          "frequency_hz": 1000,
+          "amplitude_mvrms": 100
+        },
+        "open_quality": {
+          "ret_1x_valid": true,
+          "ret_hg_valid": false,
+          "hg_observed": false
+        },
+        "short_quality": {
+          "ret_1x_valid": true,
+          "ret_hg_valid": true,
+          "hg_observed": false
+        },
+        "common_paths": [
+          "1X"
+        ],
+        "hg_overlap_observed": false
+      },
+      {
+        "condition": {
+          "rref_ohms": 100,
+          "frequency_hz": 1000,
+          "amplitude_mvrms": 500
+        },
+        "open_quality": {
+          "ret_1x_valid": true,
+          "ret_hg_valid": false,
+          "hg_observed": false
+        },
+        "short_quality": {
+          "ret_1x_valid": true,
+          "ret_hg_valid": true,
+          "hg_observed": false
+        },
+        "common_paths": [
+          "1X"
+        ],
+        "hg_overlap_observed": false
+      },
+      {
+        "condition": {
+          "rref_ohms": 100,
+          "frequency_hz": 10000,
+          "amplitude_mvrms": 100
+        },
+        "open_quality": {
+          "ret_1x_valid": true,
+          "ret_hg_valid": true,
+          "hg_observed": true
+        },
+        "short_quality": {
+          "ret_1x_valid": true,
+          "ret_hg_valid": true,
+          "hg_observed": false
+        },
+        "common_paths": [
+          "1X",
+          "HG"
+        ],
+        "hg_overlap_observed": true
+      },
+      {
+        "condition": {
+          "rref_ohms": 100,
+          "frequency_hz": 10000,
+          "amplitude_mvrms": 500
+        },
+        "open_quality": {
+          "ret_1x_valid": true,
+          "ret_hg_valid": false,
+          "hg_observed": false
+        },
+        "short_quality": {
+          "ret_1x_valid": true,
+          "ret_hg_valid": true,
+          "hg_observed": false
+        },
+        "common_paths": [
+          "1X"
+        ],
+        "hg_overlap_observed": false
+      },
+      {
+        "condition": {
+          "rref_ohms": 1000,
+          "frequency_hz": 10,
+          "amplitude_mvrms": 100
+        },
+        "open_quality": {
+          "ret_1x_valid": true,
+          "ret_hg_valid": false,
+          "hg_observed": false
+        },
+        "short_quality": {
+          "ret_1x_valid": true,
+          "ret_hg_valid": true,
+          "hg_observed": false
+        },
+        "common_paths": [
+          "1X"
+        ],
+        "hg_overlap_observed": false
+      },
+      {
+        "condition": {
+          "rref_ohms": 1000,
+          "frequency_hz": 10,
+          "amplitude_mvrms": 500
+        },
+        "open_quality": {
+          "ret_1x_valid": true,
+          "ret_hg_valid": false,
+          "hg_observed": false
+        },
+        "short_quality": {
+          "ret_1x_valid": true,
+          "ret_hg_valid": true,
+          "hg_observed": false
+        },
+        "common_paths": [
+          "1X"
+        ],
+        "hg_overlap_observed": false
+      },
+      {
+        "condition": {
+          "rref_ohms": 1000,
+          "frequency_hz": 1000,
+          "amplitude_mvrms": 100
+        },
+        "open_quality": {
+          "ret_1x_valid": true,
+          "ret_hg_valid": false,
+          "hg_observed": false
+        },
+        "short_quality": {
+          "ret_1x_valid": true,
+          "ret_hg_valid": true,
+          "hg_observed": false
+        },
+        "common_paths": [
+          "1X"
+        ],
+        "hg_overlap_observed": false
+      },
+      {
+        "condition": {
+          "rref_ohms": 1000,
+          "frequency_hz": 1000,
+          "amplitude_mvrms": 500
+        },
+        "open_quality": {
+          "ret_1x_valid": true,
+          "ret_hg_valid": false,
+          "hg_observed": false
+        },
+        "short_quality": {
+          "ret_1x_valid": true,
+          "ret_hg_valid": true,
+          "hg_observed": false
+        },
+        "common_paths": [
+          "1X"
+        ],
+        "hg_overlap_observed": false
+      },
+      {
+        "condition": {
+          "rref_ohms": 1000,
+          "frequency_hz": 10000,
+          "amplitude_mvrms": 100
+        },
+        "open_quality": {
+          "ret_1x_valid": true,
+          "ret_hg_valid": true,
+          "hg_observed": true
+        },
+        "short_quality": {
+          "ret_1x_valid": true,
+          "ret_hg_valid": true,
+          "hg_observed": false
+        },
+        "common_paths": [
+          "1X",
+          "HG"
+        ],
+        "hg_overlap_observed": true
+      },
+      {
+        "condition": {
+          "rref_ohms": 1000,
+          "frequency_hz": 10000,
+          "amplitude_mvrms": 500
+        },
+        "open_quality": {
+          "ret_1x_valid": true,
+          "ret_hg_valid": false,
+          "hg_observed": false
+        },
+        "short_quality": {
+          "ret_1x_valid": true,
+          "ret_hg_valid": true,
+          "hg_observed": false
+        },
+        "common_paths": [
+          "1X"
+        ],
+        "hg_overlap_observed": false
+      },
+      {
+        "condition": {
+          "rref_ohms": 10000,
+          "frequency_hz": 10,
+          "amplitude_mvrms": 100
+        },
+        "open_quality": {
+          "ret_1x_valid": true,
+          "ret_hg_valid": false,
+          "hg_observed": false
+        },
+        "short_quality": {
+          "ret_1x_valid": true,
+          "ret_hg_valid": true,
+          "hg_observed": false
+        },
+        "common_paths": [
+          "1X"
+        ],
+        "hg_overlap_observed": false
+      },
+      {
+        "condition": {
+          "rref_ohms": 10000,
+          "frequency_hz": 10,
+          "amplitude_mvrms": 500
+        },
+        "open_quality": {
+          "ret_1x_valid": true,
+          "ret_hg_valid": false,
+          "hg_observed": false
+        },
+        "short_quality": {
+          "ret_1x_valid": true,
+          "ret_hg_valid": true,
+          "hg_observed": false
+        },
+        "common_paths": [
+          "1X"
+        ],
+        "hg_overlap_observed": false
+      },
+      {
+        "condition": {
+          "rref_ohms": 10000,
+          "frequency_hz": 1000,
+          "amplitude_mvrms": 100
+        },
+        "open_quality": {
+          "ret_1x_valid": true,
+          "ret_hg_valid": false,
+          "hg_observed": false
+        },
+        "short_quality": {
+          "ret_1x_valid": true,
+          "ret_hg_valid": true,
+          "hg_observed": false
+        },
+        "common_paths": [
+          "1X"
+        ],
+        "hg_overlap_observed": false
+      },
+      {
+        "condition": {
+          "rref_ohms": 10000,
+          "frequency_hz": 1000,
+          "amplitude_mvrms": 500
+        },
+        "open_quality": {
+          "ret_1x_valid": true,
+          "ret_hg_valid": false,
+          "hg_observed": false
+        },
+        "short_quality": {
+          "ret_1x_valid": true,
+          "ret_hg_valid": true,
+          "hg_observed": false
+        },
+        "common_paths": [
+          "1X"
+        ],
+        "hg_overlap_observed": false
+      },
+      {
+        "condition": {
+          "rref_ohms": 10000,
+          "frequency_hz": 10000,
+          "amplitude_mvrms": 100
+        },
+        "open_quality": {
+          "ret_1x_valid": true,
+          "ret_hg_valid": true,
+          "hg_observed": true
+        },
+        "short_quality": {
+          "ret_1x_valid": true,
+          "ret_hg_valid": true,
+          "hg_observed": false
+        },
+        "common_paths": [
+          "1X",
+          "HG"
+        ],
+        "hg_overlap_observed": true
+      },
+      {
+        "condition": {
+          "rref_ohms": 10000,
+          "frequency_hz": 10000,
+          "amplitude_mvrms": 500
+        },
+        "open_quality": {
+          "ret_1x_valid": true,
+          "ret_hg_valid": false,
+          "hg_observed": false
+        },
+        "short_quality": {
+          "ret_1x_valid": true,
+          "ret_hg_valid": true,
+          "hg_observed": false
+        },
+        "common_paths": [
+          "1X"
+        ],
+        "hg_overlap_observed": false
+      },
+      {
+        "condition": {
+          "rref_ohms": 100000,
+          "frequency_hz": 10,
+          "amplitude_mvrms": 100
+        },
+        "open_quality": {
+          "ret_1x_valid": true,
+          "ret_hg_valid": false,
+          "hg_observed": false
+        },
+        "short_quality": {
+          "ret_1x_valid": true,
+          "ret_hg_valid": true,
+          "hg_observed": false
+        },
+        "common_paths": [
+          "1X"
+        ],
+        "hg_overlap_observed": false
+      },
+      {
+        "condition": {
+          "rref_ohms": 100000,
+          "frequency_hz": 10,
+          "amplitude_mvrms": 500
+        },
+        "open_quality": {
+          "ret_1x_valid": true,
+          "ret_hg_valid": false,
+          "hg_observed": false
+        },
+        "short_quality": {
+          "ret_1x_valid": true,
+          "ret_hg_valid": true,
+          "hg_observed": false
+        },
+        "common_paths": [
+          "1X"
+        ],
+        "hg_overlap_observed": false
+      },
+      {
+        "condition": {
+          "rref_ohms": 100000,
+          "frequency_hz": 1000,
+          "amplitude_mvrms": 100
+        },
+        "open_quality": {
+          "ret_1x_valid": true,
+          "ret_hg_valid": false,
+          "hg_observed": false
+        },
+        "short_quality": {
+          "ret_1x_valid": true,
+          "ret_hg_valid": true,
+          "hg_observed": false
+        },
+        "common_paths": [
+          "1X"
+        ],
+        "hg_overlap_observed": false
+      },
+      {
+        "condition": {
+          "rref_ohms": 100000,
+          "frequency_hz": 1000,
+          "amplitude_mvrms": 500
+        },
+        "open_quality": {
+          "ret_1x_valid": true,
+          "ret_hg_valid": false,
+          "hg_observed": false
+        },
+        "short_quality": {
+          "ret_1x_valid": true,
+          "ret_hg_valid": true,
+          "hg_observed": false
+        },
+        "common_paths": [
+          "1X"
+        ],
+        "hg_overlap_observed": false
+      },
+      {
+        "condition": {
+          "rref_ohms": 100000,
+          "frequency_hz": 10000,
+          "amplitude_mvrms": 100
+        },
+        "open_quality": {
+          "ret_1x_valid": false,
+          "ret_hg_valid": true,
+          "hg_observed": false
+        },
+        "short_quality": {
+          "ret_1x_valid": true,
+          "ret_hg_valid": true,
+          "hg_observed": false
+        },
+        "common_paths": [
+          "HG"
+        ],
+        "hg_overlap_observed": false
+      },
+      {
+        "condition": {
+          "rref_ohms": 100000,
+          "frequency_hz": 10000,
+          "amplitude_mvrms": 500
+        },
+        "open_quality": {
+          "ret_1x_valid": true,
+          "ret_hg_valid": true,
+          "hg_observed": true
+        },
+        "short_quality": {
+          "ret_1x_valid": true,
+          "ret_hg_valid": true,
+          "hg_observed": false
+        },
+        "common_paths": [
+          "1X",
+          "HG"
+        ],
+        "hg_overlap_observed": true
+      },
+      {
+        "condition": {
+          "rref_ohms": 1000000,
+          "frequency_hz": 10,
+          "amplitude_mvrms": 100
+        },
+        "open_quality": {
+          "ret_1x_valid": true,
+          "ret_hg_valid": false,
+          "hg_observed": false
+        },
+        "short_quality": {
+          "ret_1x_valid": true,
+          "ret_hg_valid": true,
+          "hg_observed": false
+        },
+        "common_paths": [
+          "1X"
+        ],
+        "hg_overlap_observed": false
+      },
+      {
+        "condition": {
+          "rref_ohms": 1000000,
+          "frequency_hz": 10,
+          "amplitude_mvrms": 500
+        },
+        "open_quality": {
+          "ret_1x_valid": true,
+          "ret_hg_valid": false,
+          "hg_observed": false
+        },
+        "short_quality": {
+          "ret_1x_valid": true,
+          "ret_hg_valid": true,
+          "hg_observed": false
+        },
+        "common_paths": [
+          "1X"
+        ],
+        "hg_overlap_observed": false
+      },
+      {
+        "condition": {
+          "rref_ohms": 1000000,
+          "frequency_hz": 1000,
+          "amplitude_mvrms": 100
+        },
+        "open_quality": {
+          "ret_1x_valid": true,
+          "ret_hg_valid": true,
+          "hg_observed": true
+        },
+        "short_quality": {
+          "ret_1x_valid": true,
+          "ret_hg_valid": true,
+          "hg_observed": false
+        },
+        "common_paths": [
+          "1X",
+          "HG"
+        ],
+        "hg_overlap_observed": true
+      },
+      {
+        "condition": {
+          "rref_ohms": 1000000,
+          "frequency_hz": 1000,
+          "amplitude_mvrms": 500
+        },
+        "open_quality": {
+          "ret_1x_valid": true,
+          "ret_hg_valid": false,
+          "hg_observed": false
+        },
+        "short_quality": {
+          "ret_1x_valid": true,
+          "ret_hg_valid": true,
+          "hg_observed": false
+        },
+        "common_paths": [
+          "1X"
+        ],
+        "hg_overlap_observed": false
+      },
+      {
+        "condition": {
+          "rref_ohms": 1000000,
+          "frequency_hz": 10000,
+          "amplitude_mvrms": 100
+        },
+        "open_quality": {
+          "ret_1x_valid": false,
+          "ret_hg_valid": true,
+          "hg_observed": false
+        },
+        "short_quality": {
+          "ret_1x_valid": true,
+          "ret_hg_valid": true,
+          "hg_observed": false
+        },
+        "common_paths": [
+          "HG"
+        ],
+        "hg_overlap_observed": false
+      },
+      {
+        "condition": {
+          "rref_ohms": 1000000,
+          "frequency_hz": 10000,
+          "amplitude_mvrms": 500
+        },
+        "open_quality": {
+          "ret_1x_valid": false,
+          "ret_hg_valid": true,
+          "hg_observed": false
+        },
+        "short_quality": {
+          "ret_1x_valid": true,
+          "ret_hg_valid": true,
+          "hg_observed": false
+        },
+        "common_paths": [
+          "HG"
+        ],
+        "hg_overlap_observed": false
+      }
+    ],
+    "warning": "HG-only triplets still require real same-key HG overlap from OPEN, SHORT or LOAD; LOAD remains pending"
+  },
+  "candidate_generated": false,
+  "calibration_installed": false,
+  "physically_qualified": false,
+  "scope_checks": "NOT_TESTED; owner-directed engineering campaign",
+  "final_status": {
+    "capture_id": 961116860,
+    "calibration_sequence": 0,
+    "safety_faults": 0,
+    "safety_blocks": 8,
+    "protocol_errors": 0,
+    "temperature_mC": 26131,
+    "capture_status": 0,
+    "busy": false,
+    "result_valid": true,
+    "calibrated": false,
+    "transfer_safe": true
+  },
+  "installation_status": {
+    "transaction": 0,
+    "sequence": 0,
+    "received": 0,
+    "size": 2760,
+    "active_sequence": 0,
+    "crc": 0,
+    "state": 0,
+    "error": 0,
+    "store_state": 0,
+    "storage_available": true,
+    "next_sequence": 1,
+    "slot": 0,
+    "active_valid": false
+  },
+  "capture_sha256": "0cba15ad2b17ce1626f24f08c5befe4e26db718399fce0ca69598b5e75bd0030",
+  "artifact": {
+    "bytes": 191095,
+    "sha256": "d3b4ab0361de3c3bdb8c55017ffc68ea2295324d66d5a7c47275db23547553e5"
+  }
+}

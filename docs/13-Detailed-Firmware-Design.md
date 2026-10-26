@@ -1,5 +1,79 @@
 # Detailed Firmware Design
 
+## October24 integration baseline
+
+The shared startup/stop ADC fixes, bounded atan2 and30ms K1 guard are retained across metrology profiles. Default TFT rotation is2/MADCTL88 and all TFT profiles use the confirmed common DCS timing/clock. Calibration hardware0x00010002 separates the RGS-toGND topology; old calibration remains incompatible. No PRODUCT safety/calibration bypass is introduced.
+
+See [current evidence, input limits and release status](review/bringup-2026-10-24/README.md).
+
+Post-rework ADC startup investigation (2026-10-24): calibration leaves ADON set.
+The BSP now disables both ADCs before changing the regular sequences and DUALMOD,
+matching the pinned ST HAL multimode configuration requirement. Restore/acquire
+also clear both CR2 registers before changing CR1. Rates, ranks, sample time,
+trigger source, buffer size and raw rows are unchanged. A first-sequence ADC2
+anomaly was observed physically; this configuration-order correction requires a
+new physical capture and does not by itself establish that the anomaly is fixed.
+See [the post-rework evidence](review/a05/RGS-Ground-Pulldown-Rework-Candidate.md).
+
+The disabled-state change alone did not remove the physical first-sequence ADC2
+anomaly. The stop path also now skips clearing ADC1 DMA if already clear: writing
+unchanged CR2 with ADON=1 can launch an unintended regular conversion on STM32F1.
+This avoids a pre-capture software conversion while waiting for TIM2; a separate
+physical raw regression is required, with every sample retained.
+
+Physical regression on image480aa310f557 (2026-10-24): two internal captures and
+three10K DUT captures at1kHz/nominal100mV completed with all256rows retained and
+normal first ADC2 VMID values. Internal processing selected unclipped RET_1X;
+the known-resistor DUT captures were unclipped on all channels and selected HG.
+This supports the redundant-stop-write diagnosis for the observed startup
+anomaly. Other conditions/MCUs and physical timing remain unqualified. See the
+post-rework evidence for actual indications and remaining scale/variation limits.
+
+TIM2_CC2 trigger enable correction: enable the internal compare channel with
+CC2E while leaving PA1 in analog mode (CRL MODE1/CNF1=0000) and TIM2 unremapped.
+The BSP checks both conditions before enabling DMA/capture and refuses an unsafe
+GPIO/remap configuration. It never configures PA1 as a timer output. Stop clears
+CC2E. This replaces the earlier assumption that a running timer with CC2E=0 was
+sufficient for recurring ADC compare triggers. The ST HAL OC start sequence also
+enables its selected compare channel. Physical trigger regression and analog-pad
+evidence remain required; UART compare flags alone were insufficient.
+
+First-board Phase 05 correction (2026-10-24): in regular simultaneous dual ADC
+mode, ADC1 selects TIM2_CC2 and both ADCs enable EXTTRIG. ADC2 selects the software
+trigger source (EXTSEL=111) but is triggered by ADC1; software does not write its
+SWSTART bit. This follows RM0008 section 11.9 and the pinned ST HAL
+`HAL_ADCEx_MultiModeStart_DMA` slave-configuration contract. A real failing trace
+had ADC2 EXTTRIG disabled and only 3/768 DMA words transferred; a full physical
+block is required before treating this correction as a hardware regression pass.
+
+The Phase 09A [external-supply BRINGUP variant](../Firmware/tools/BENCH_SUPPLY.md)
+adds a compile-time-isolated, explicit RAM-only source confirmation. It propagates
+through safety evaluation and permit issue/validation to the existing DUT capture
+FSM, without replacing ADC_BAT or calibration records. Default profiles retain
+battery gates; diagnostic external-source DUT attempts are limited to 100 mVrms
+and source revocation invokes existing fail-safe cleanup.
+
+## Optional BRINGUP K1 bench-test ownership
+
+`WTK_BRINGUP_K1_TEST=ON` builds an empty-fixture relay diagnostic with a distinct
+`hw_k1_bench_*` API, defined in the K1 hardware service only for this variant and
+host tests. It never constructs normal measurement permission. Its state machine
+owns K1 through PULSE and RELEASE, including repeated LOW attempts after an I/O
+error. The application schedules it after current auxiliary sampling and before
+its ordinary safety arbiter. That arbiter yields K1 ownership only to an active
+metrology transaction or this restricted diagnostic; all ordinary safety state
+and fault/range handling remain evaluated.
+
+The console admits an exact `lab k1 pulse empty` command, status and cancellation.
+No other console work is dispatched while the test owns K1. RX is bounded per
+loop, quiet mode mutes the buzzer, and TFT/background Flash work is deferred.
+The first scheduled step at/after 250 ms commands LOW, retains the 8 ms release
+guard, then invalidates residual evidence and resumes fresh qualification.
+Deadline arithmetic is wrap-safe. Tests cover every admission/interlock guard,
+duplicates, cancellation, late scheduling, wrap, failed HIGH/LOW and cleanup.
+See [K1_BENCH_TEST.md](../Firmware/tools/K1_BENCH_TEST.md) for operator obligations,
+the explicit battery-sense distinction and cooperative timing limitations.
+
 This document defines the planned firmware decomposition, module contracts, data flow, persistence model, and implementation order.
 
 ## Architectural objective
@@ -1023,3 +1097,54 @@ show/report fault when UI/diagnostics are available
 ## Implementation sequence
 
 The normative implementation sequence is maintained in [`../plans/`](../plans/). Agents must not treat the module list in this document as permission to implement later phases early.
+
+
+## Bounded factory session and result closure (2026-10-26)
+
+The generated WTK_ENABLE_MEASURE_SESSION_HOLD flag follows PC-provisioned
+PRODUCT. hw_metrology_measure_request_t.session_hold opts automatic captures
+into a continuous session; fixed captures leave it false. SESSION_HOLD is
+appended to the hardware enum, preserving the previous state numbers.
+
+After DMA stop/neutral settling, a held block is valid for in-memory DSP via
+hw_metrology_measure_result_ready(). It is deliberately not UART-dumpable.
+Acknowledging it invalidates that block while retaining K1/ADC/quiet ownership.
+A validated continuation through hw_metrology_measure_start() preserves the
+original consumed permit metadata, checks clocks/amplitude/domain/authorization,
+and prepares the new range through the existing service. The new range does
+not energize K1 again. ADC capture configuration/timing and DSP math are retained.
+
+Six captures and a 500-ms cooperative deadline bound the session, additionally
+limited by the original battery-evidence expiry. Only neutral, owner-controlled
+range transitions can tolerate DISABLED/TRANSITIONING; invalid/unexpected range,
+charger/unknown charger, DMA/fault, lost K1, timeout, invalid request or cancel
+enters normal emergency cleanup. Ten-Hz, DC and bench-supply captures retain
+individual SAFE transactions. Foreground deadline checks are not a measured
+hard-real-time release guarantee; watchdog behavior remains unchanged.
+
+App measurement IO has an optional finish_session callback. Its presence opts
+requests into holding. START/PROCESS/pending-event handoffs continue to step
+the hardware supervisor. FINISHING keeps final_ready false until the hardware
+owner is inactive and cleanup errors are checked. measurement_auto_stop_session()
+can revoke provisional final success with CANCELED/SAFETY_ABORT/FAILED, but cannot
+turn an error back into FINAL_OK. The exclusive I/O workspace stays leased until
+final cleanup; held continuation checks the existing lease instead of attempting
+a second acquire. Lost/stolen leases fail closed.
+
+Classification and frequency-trend traversal share the same evidence-admission
+predicate. All raw attempts and the explicit primary quality selection remain
+inspectable; selected-path evidence below 2 mV, nonfinite or clipped/unusable
+cannot vote. Contradictory usable evidence remains inconclusive.
+
+WTK_ENABLE_UI_ROW_CACHE follows the same profile boundary. Nine exact completed
+rows and one painting row are statically bounded (440 bytes of row storage on
+Arm, plus small control/alignment overhead). Cache commit follows successful
+text completion. Same-menu generations skip identical rows; changed or removed
+rows are fully erased by bounded ILI9341 chunks before repaint. Display-menu,
+brightness and timeout states share one layout family. Language/resource/screen
+changes or a failed draw invalidate the baseline. Result/page transitions retain
+their existing rendering behavior. No framebuffer, heap, ISR rendering or new
+persistent record format is introduced.
+
+Metrology IO initialization also requires the live charger callback; all board
+adapters provide it. Missing runtime charger supervision must fail closed.

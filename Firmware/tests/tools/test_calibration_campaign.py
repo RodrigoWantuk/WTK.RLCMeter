@@ -49,7 +49,7 @@ def standard(kind: str, nominal: float, real: float, imag: float,
 
 def campaign(standards, prior=None):
     return {
-        "schema_version": 1, "hardware_revision": 0x00010001,
+        "schema_version": 1, "hardware_revision": campaign_template()["hardware_revision"],
         "osl_conditions": [
             {"range_ohms": r, "frequency_hz": f, "amplitude_mv_rms": a}
             for r, f, a in sorted(all_osl_conditions())

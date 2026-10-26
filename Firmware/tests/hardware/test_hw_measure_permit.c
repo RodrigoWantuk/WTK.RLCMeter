@@ -203,6 +203,40 @@ static int test_validation_matrix(void)
 int main(void)
 {
     int failures = 0;
+#if WTK_ENABLE_BENCH_SUPPLY
+    hw_measure_permit_issue_input_t bench = valid_issue_input();
+    hw_measure_permit_validate_input_t validation = valid_validate_input();
+    hw_measure_permit_t permit;
+    hw_measure_permit_init(&permit);
+    bench.battery = HW_BATTERY_UNKNOWN;
+    bench.battery_age_ms = UINT32_MAX;
+    failures += expect_issue_denied(bench, HW_MEASURE_PERMIT_REJECT_BATTERY, "no implicit external supply");
+    bench.bench_supply_confirmed = true;
+    failures += expect_true(hw_measure_permit_issue(&permit, &bench, 0u).issued, "confirmed source does not require battery ADC/age");
+    failures += expect_true(!hw_measure_permit_validate(&permit, &validation, 0u).allowed, "source revocation invalidates permit");
+    validation.bench_supply_confirmed = true;
+    (void)hw_measure_permit_issue(&permit, &bench, 1u);
+    failures += expect_true(hw_measure_permit_validate(&permit, &validation, 1u).allowed, "matching source validates");
+    failures += expect_true(!hw_measure_permit_validate(&permit, &validation, 1u).allowed, "bench permit remains single use");
+    (void)hw_measure_permit_issue(&permit, &bench, 2u);
+    failures += expect_true(!hw_measure_permit_validate(&permit, &validation, 8u).allowed, "bench permit still expires");
+    bench.residual_age_ms = 21u;
+    failures += expect_issue_denied(bench, HW_MEASURE_PERMIT_REJECT_RESIDUAL_STALE, "bench requires fresh residual");
+    bench.residual_age_ms = 0u;
+    bench.residual = HW_RESIDUAL_UNSAFE;
+    failures += expect_issue_denied(bench, HW_MEASURE_PERMIT_REJECT_RESIDUAL, "bench rejects residual voltage");
+    bench.residual = HW_RESIDUAL_SAFE;
+    bench.charger = HW_CHARGER_PRESENT;
+    failures += expect_issue_denied(bench, HW_MEASURE_PERMIT_REJECT_CHARGER, "bench rejects charger");
+    bench.charger = HW_CHARGER_ABSENT;
+    bench.safety_fault_mask = 1u;
+    failures += expect_issue_denied(bench, HW_MEASURE_PERMIT_REJECT_FAULT, "bench rejects faults");
+    bench.safety_fault_mask = 0u;
+    bench.range = HW_RANGE_DISABLED;
+    failures += expect_issue_denied(bench, HW_MEASURE_PERMIT_REJECT_RANGE, "bench rejects disabled range");
+    hw_measure_permit_init(&permit);
+    failures += expect_true(!permit.bench_supply_confirmed && !permit.valid, "reset clears bench permit");
+#endif
     failures += test_issue_matrix();
     failures += test_validation_matrix();
     return (failures == 0) ? 0 : 1;

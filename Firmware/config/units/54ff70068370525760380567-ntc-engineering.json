@@ -1,0 +1,14 @@
+{
+  "format": "WTK_NTC_FACTORY_PROFILE_V1",
+  "uid": "54ff70068370525760380567",
+  "qualified": false,
+  "owner_authorized": true,
+  "thermal_contact_uncertain": true,
+  "reference_uncertainty_c": null,
+  "reference_method": "Owner-provided contact thermometer; direct isolated-bead contact, cold and sustained hand-warmed reference",
+  "points": [
+    {"temperature_c": 23.5, "adc_raw": 1952, "evidence": "ntc-reference-002, 2026-10-25T15:03:35Z"},
+    {"temperature_c": 30.1, "adc_raw": 1856, "evidence": "ntc-reference-004, 2026-10-25T15:24:26Z; owner explicitly requested use despite possible contact interference"}
+  ],
+  "scope": "Experimental effective model for this UID; intrinsic Beta and wider temperature accuracy are not qualified"
+}

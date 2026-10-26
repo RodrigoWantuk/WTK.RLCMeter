@@ -4,7 +4,37 @@ WTK.RLCMeter is a portable two-wire RLC meter based on the **STM32F103C8T6**, de
 
 The project combines a custom mixed-signal PCB, an **STM32 Blue Pill** module, an **ILI9341** TFT display, external **W25Q** SPI Flash, a 1-cell Li-ion power subsystem, and dedicated firmware for measurement, safety, user interface, storage, and diagnostics.
 
-> **Current status — August 2026:** the first hardware revision is entering fabrication, bring-up, and characterization. The electrical architecture is mature enough for the first prototype, but accuracy, practical range limits, parasitics, leakage, gain/phase response, and 10 kHz performance still require bench qualification. Firmware must not present unqualified targets as guaranteed specifications.
+> **Current status — October24,2026:** basic R/C/L and display/buttons/buzzer observations are recorded. Current CAD includes six RGS gate-toGND pull-downs; shared firmware includes acquisition/phase/relay fixes and mounted display orientation. Calibration and battery/charger/metrology qualification remain pending. See [bring-up consolidation](docs/review/bringup-2026-10-24/README.md).
+
+October 25 first-unit update: [all 99 OSL captures](docs/review/bringup-2026-10-25/OSL-All-99.md)
+are preserved, with 30 valid fits and three high-Z/10-kHz fits still blocked.
+An owner-authorized [experimental NTC factory profile](docs/review/bringup-2026-10-25/NTC-Factory-Profile.md)
+is deployed on the first UID and included in nine unit builds. It is unqualified;
+generic builds retain nominal NTC conversion. Independent metrology/power
+qualification remains unfinished.
+
+A subsequent [coherent calibration pilot](docs/review/bringup-2026-10-25/Coherent-Calibration.md)
+recovers actual1X/HG overlap for all three problematic OPEN keys without relaxing
+the stability criterion. All 33 engineering OSL fits now pass Python and C
+validation using 15 current and 18 explicitly audited complete original triplets.
+Sequence 1 is physically installed, with exact full W25Q readback before and
+after reboot. The subsequent [calibrated PRODUCT handoff](Firmware/releases/2026-10-25/calibrated-product-ready/README.md)
+now boots to READY with sequence 1, all 33 records, resources OK and SAFE outputs.
+No measurement is started at boot. The latest pre-PRODUCT battery read was
+3.873 V over UART. The owner confirms splash and READY; the subsequent display
+update improves rendering speed, duplicate painting and default brightness.
+Independent accuracy, scope and final-lead validation remain pending. See
+[installation evidence](Firmware/releases/2026-10-25/installation-residual-requalification/README.md).
+
+The subsequent [display update](Firmware/releases/2026-10-25/display-feedback/README.md)
+restores normal TFT speed, coalesces READY painting and improves default brightness.
+[Reactive publication recovery](Firmware/releases/2026-10-25/reactive-publication/README.md)
+separates dominant C/L reactance from unresolved negative estimated loss. Two
+actual 103J100 measurements publish 9.55/9.68 nF with SAFE teardown and unchanged
+calibration. A subsequent [nominal 470-uH check](Firmware/releases/2026-10-25/inductor-470-check/README.md)
+publishes 461.4/472.2 uH as INDUCTIVE with SAFE teardown. Very small inductors
+and independent accuracy/loss validation remain pending; no repeated resistor
+campaign is needed for these app fixes.
 
 ## Project goals
 
@@ -194,3 +224,39 @@ Personal use, study, research, evaluation, hobby use, and other noncommercial pu
 **Required Notice:** Copyright 2026 Rodrigo Wantuk.
 
 See [`LICENSE.md`](LICENSE.md) for the complete terms.
+
+## Boot splash and resource provisioning — October 25, 2026
+
+Every embedded firmware profile now streams the owner-supplied personalized image
+from W25Q and holds the completed image for three seconds. The updated seven-entry
+pack was installed and read back completely on the first board; calibration/settings
+storage is unchanged. All nine embedded builds and44 host tests pass;490 Python
+tests ran with391 passing and99 skipped. The board runs updated standard BRINGUP
+in SAFE. Visible TFT confirmation is deferred by the owner; metrology calibration
+and remaining electrical qualification are still separate release prerequisites.
+See [delivery evidence](docs/review/bringup-2026-10-25/Boot-Splash.md) and
+[the supported upload procedure](Firmware/assets/README.md).
+
+The [nominal 0.47-uH follow-up](Firmware/releases/2026-10-25/inductor-047-limit-check/README.md) was resistance-like at 1 kHz
+and did not publish L. Automatic frequency search and sub-microhenry
+capability remain unvalidated; this is not a proven hardware lower limit.
+
+[Bounded low-impedance search](Firmware/releases/2026-10-25/low-impedance-search/README.md)
+is now deployed: usable resistive 1-kHz results on RREF 10/100 ohm can request
+one supporting 10-kHz check after existing range/quality decisions. All 46/47
+host tests and nine strict unit-bound builds pass; calibration is preserved.
+Four actual attempts now include 10 kHz; the nominal 0.47-uH result remains
+inconclusive, with no published L. K1 still returns SAFE per attempt;
+session-wide relay ownership is a separate safety architecture change.
+
+[Session/evidence/menu improvements](plans/24-Measurement-Evidence-Session-and-UI.md)
+add reliable classification evidence admission, bounded continuous K1 ownership
+and exact row updates in PC-provisioned PRODUCT. Fixed/legacy capture paths and
+engineering calibration are preserved. Unattended validation records software
+and passive boot separately from pending physical relay/display qualification.
+
+[Session/menu delivery](Firmware/releases/2026-10-26/session-and-menu/README.md)
+now records nine passing strict profiles and verified factory PRODUCT deployment:
+56,260 B Flash / 16,040 B accounted RAM, actual READY/SAFE boot with OSL sequence 1
+and all 33 records preserved. No unattended DUT capture was triggered; physical
+relay-session and menu appearance checks remain pending.

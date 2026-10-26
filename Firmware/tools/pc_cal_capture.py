@@ -71,14 +71,39 @@ class FakeSerial:
 
 
 class Client:
-    def __init__(self, transport, first_id=None, timeout=25.0):
+    def __init__(self, transport, first_id=None, timeout=None):
         self.transport = transport
         # ID lifetime is one device boot. Reconnect may require --first-id > last ID.
         self.next_id = first_id if first_id is not None else secrets.randbelow(0x3fffffff)+1
         self.negotiate_id = first_id is None
-        self.timeout = timeout
+        self.default_timeout = timeout is None
+        self.timeout = 25.0 if timeout is None else timeout
+        self.artifact_size = 188
         self.buffer = bytearray()
         self.identity = None
+
+    def checkpoint(self):
+        """Optional UI cancellation hook; never performs transport I/O."""
+
+    def capture_quiet_seconds(self, key=None):
+        if isinstance(self.transport, FakeSerial):
+            return 0.0
+        milliseconds = pc_osl.integer(self.identity['timeout_ms'], 1, 90000)
+        if self.identity.get('capabilities', 0) & 64 and key is not None:
+            long_condition = key.frequency_hz == 10000 and (key.rref_ohms == 1000000 or
+                key.rref_ohms == 100000 and key.amplitude_mvrms == 100)
+            milliseconds = 90000 if long_condition else 20000
+        return milliseconds / 1000.0 + 1.0
+
+    def wait_capture_quiet(self, seconds):
+        """Polling USART cannot receive host frames during synchronous DSP."""
+        deadline = time.monotonic() + seconds
+        while True:
+            self.checkpoint()
+            remaining = deadline - time.monotonic()
+            if remaining <= 0.0:
+                return
+            time.sleep(min(0.05, remaining))
 
     def frame(self, deadline):
         while time.monotonic() < deadline:
@@ -135,8 +160,15 @@ class Client:
         if len(data) != 60:
             raise CaptureError("invalid identity length")
         hw, model, profile, capabilities, conditions, size, timeout, adc = struct.unpack_from("<IHHIHHIH", data)
-        if (hw, model, conditions, size, adc) != (0x00010001, wire.MODEL_CURRENT, 33, 188, 1):
+        integrated = bool(capabilities & 64)
+        if (hw, model, conditions, size, adc) != (wire.REV1_HARDWARE, wire.MODEL_CURRENT, 33,
+                                                196 if integrated else 188, 1):
             raise CaptureError("unsupported hardware/model/capture format")
+        if timeout != (90000 if integrated else 20000):
+            raise CaptureError("unsupported capture deadline")
+        self.artifact_size = size
+        if self.default_timeout:
+            self.timeout = timeout / 1000.0 + 5.0
         self.identity = dict(hardware_revision=hw, model=model, profile=profile,
                              capabilities=capabilities, protocol_version=1, timeout_ms=timeout,
                              adc_provenance="NOMINAL_3V3_NOT_CALIBRATED", synthetic=bool(data[22]),
@@ -149,10 +181,16 @@ class Client:
         if len(data) != 32:
             raise CaptureError("invalid status length")
         values = struct.unpack_from("<5Ii", data)
-        return dict(capture_id=values[0], calibration_sequence=values[1], safety_faults=values[2],
+        result = dict(capture_id=values[0], calibration_sequence=values[1], safety_faults=values[2],
                     safety_blocks=values[3], protocol_errors=values[4], temperature_mC=values[5],
                     capture_status=data[24], busy=bool(data[25]), result_valid=bool(data[26]),
                     calibrated=bool(data[27]), transfer_safe=bool(data[28]))
+        if self.identity is not None and self.identity["capabilities"] & 32:
+            millivolts = struct.unpack_from("<H", data, 30)[0]
+            if millivolts > 4350:
+                raise CaptureError("invalid nominal battery telemetry")
+            result["battery_voltage_v"] = millivolts / 1000 if millivolts else None
+        return result
 
     def begin(self, key, standard, load=0j):
         if standard not in STANDARDS:
@@ -175,9 +213,13 @@ class Client:
             tolerance = pc_osl.finite(reference["tolerance_pct"])
             if not 0 < tolerance < 100 or not isinstance(reference["id"],str) or not reference["id"].strip():
                 raise CaptureError("LOAD needs explicit tolerance and reference identity")
+        quiet_seconds = self.capture_quiet_seconds(key)
+        if quiet_seconds > 0.0 and self.timeout < quiet_seconds + 1.0:
+            raise CaptureError('capture timeout must include the device quiet window and response margin')
         capture_id = self.begin(key, standard, load)
         try:
             deadline = time.monotonic()+self.timeout
+            self.wait_capture_quiet(quiet_seconds)
             while True:
                 status = self.status()
                 if status["capture_id"] != capture_id:
@@ -192,18 +234,18 @@ class Client:
                 raise CaptureError(ERRORS[status["capture_status"]])
             artifact = bytearray()
             expected_crc = None
-            for offset in (0, 96):
-                count = min(96, 188-offset)
+            for offset in range(0, self.artifact_size, 96):
+                count = min(96, self.artifact_size-offset)
                 _, part = self.command(RESULT, struct.pack("<IHBB", capture_id, offset, count, 0))
                 if len(part) != 12+count:
                     raise CaptureError("invalid result chunk length")
                 identity, position, size, crc = struct.unpack_from("<IHHI", part)
-                if (identity, position, size) != (capture_id, offset, 188) or (
+                if (identity, position, size) != (capture_id, offset, self.artifact_size) or (
                         expected_crc is not None and expected_crc != crc):
                     raise CaptureError("result chunk identity mismatch")
                 expected_crc = crc
                 artifact.extend(part[12:])
-            if expected_crc != zlib.crc32(artifact[:184]):
+            if expected_crc != zlib.crc32(artifact[:-4]):
                 raise CaptureError("result CRC mismatch")
             return observation(bytes(artifact), self.identity, capture_id, key, standard, reference)
         except (ValueError, TimeoutError, OSError):
@@ -215,10 +257,13 @@ class Client:
 
 
 def observation(data, identity, capture_id, key, standard, reference=None):
-    if len(data) != 188 or zlib.crc32(data[:184]) != struct.unpack_from("<I", data, 184)[0]:
+    integrated = bool(identity['capabilities'] & 64)
+    expected_size = 196 if integrated else 188
+    if len(data) != expected_size or zlib.crc32(data[:-4]) != struct.unpack_from("<I", data, len(data)-4)[0]:
         raise CaptureError("observation length/CRC mismatch")
     magic, api, size, request, hw, model = struct.unpack_from("<IHHIIH", data)
-    if (magic, api, size, request, hw, model) != (0x314f4343, 1, 188, capture_id, 0x00010001, wire.MODEL_CURRENT):
+    if (magic, api, size, request, hw, model) != (0x324f4343 if integrated else 0x314f4343,
+            2 if integrated else 1, expected_size, capture_id, wire.REV1_HARDWARE, wire.MODEL_CURRENT):
         raise CaptureError("observation identity mismatch")
     if tuple(data[18:22]) != (*key.ids(), STANDARDS.index(standard)):
         raise CaptureError("observation condition mismatch")
@@ -252,6 +297,16 @@ def observation(data, identity, capture_id, key, standard, reference=None):
                 artifact_hex=data.hex(), sha256=hashlib.sha256(data).hexdigest())
     if standard == "LOAD":
         item["reference"] = reference
+    if integrated:
+        blocks, attempts, accepted, reserved = struct.unpack_from('<4H', data, 184)
+        expected_blocks = (96 if key.amplitude_mvrms == 100 else 16) if (
+            key.frequency_hz == 10000 and key.rref_ohms == 1000000) else (
+            16 if key.frequency_hz == 10000 and key.rref_ohms == 100000 and key.amplitude_mvrms == 100 else 1)
+        if (reserved or blocks != expected_blocks or accepted != data[40]*blocks or
+                not accepted <= attempts <= data[42]*blocks or data[42] > 10):
+            raise CaptureError('invalid coherent integration provenance')
+        item['acquisition'].update(format='CCO2', blocks_per_group=blocks,
+            physical_attempts=attempts, accepted_physical_blocks=accepted)
     pc_osl.standard_from_capture(item)
     return item
 

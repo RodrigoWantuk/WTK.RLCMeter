@@ -5,6 +5,36 @@
 #include <stdint.h>
 
 #include "bsp/bsp_status.h"
+#include "wtk_build_config.h"
+
+#if WTK_ENABLE_BENCH_SUPPLY
+/* Captured before stop/restore destroys timeout evidence. No ADC DR reads. */
+typedef struct
+{
+    bool valid;
+    uint32_t captured_ms;
+    uint32_t adc1_sr;
+    uint32_t adc1_cr1;
+    uint32_t adc1_cr2;
+    uint32_t adc2_sr;
+    uint32_t adc2_cr2;
+    uint32_t dma_isr;
+    uint32_t dma_ccr;
+    uint32_t dma_remaining;
+    uint32_t tim2_cr1;
+    uint32_t tim2_sr;
+    uint32_t tim2_cnt;
+    uint32_t tim2_arr;
+    uint32_t tim2_ccr2;
+    uint32_t tim2_ccer;
+    uint32_t gpioa_crl;
+    uint32_t afio_mapr;
+    uint32_t primask;
+    bool dma_complete;
+    bool dma_error;
+} bsp_metrology_adc_trace_t;
+void bsp_metrology_adc_trace(bsp_metrology_adc_trace_t *out);
+#endif
 
 enum
 {

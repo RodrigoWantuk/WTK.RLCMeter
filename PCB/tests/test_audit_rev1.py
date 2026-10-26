@@ -141,6 +141,15 @@ class RepositoryTests(unittest.TestCase):
                 self.assertEqual(self.pins[key]["net"], net)
         self.assertEqual(len(self.components["J_TFT"]["pads"]), 9)
 
+    def test_rgs_grounded_and_charger_input_contract(self):
+        result = audit.check_current_topology(self.components, self.pins)
+        self.assertEqual(result['rgs_gate_to_ground'], 6)
+        self.assertLess(result['chg_at_5_5v_pa15_v_assuming_both_resistors_5_percent'], 3.3)
+        changed = copy.deepcopy(self.pins)
+        changed[("RGS4", "1")]["net"] = "SRC_10K"
+        with self.assertRaisesRegex(audit.AuditError, "RGS-to-GND"):
+            audit.check_current_topology(self.components, changed)
+
     def test_firmware_pin_change_is_detected(self):
         changed = copy.deepcopy(self.pins)
         changed[("USTM32", "16")]["net"] = "WRONG_RANGE_ENABLE"

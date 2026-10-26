@@ -44,6 +44,9 @@ typedef struct
     hw_range_id_t range_id;
     hw_k1_state_t k1_state;
     uint32_t safety_fault_mask;
+#if WTK_ENABLE_BENCH_SUPPLY
+    bool bench_supply_confirmed;
+#endif
 } hw_measure_permit_issue_input_t;
 
 typedef struct
@@ -53,6 +56,9 @@ typedef struct
     hw_range_id_t range_id;
     hw_k1_state_t k1_state;
     uint32_t safety_fault_mask;
+#if WTK_ENABLE_BENCH_SUPPLY
+    bool bench_supply_confirmed;
+#endif
 } hw_measure_permit_validate_input_t;
 
 typedef struct
@@ -73,6 +79,9 @@ typedef struct
     bool consumed;
     uint32_t issued_at_ms;
     hw_range_id_t range_id;
+#if WTK_ENABLE_BENCH_SUPPLY
+    bool bench_supply_confirmed;
+#endif
 } hw_measure_permit_t;
 
 void hw_measure_permit_init(hw_measure_permit_t *permit);

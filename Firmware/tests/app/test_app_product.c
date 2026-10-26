@@ -1,4 +1,5 @@
 #include "app/app_product.h"
+#include "app/app_product_scheduling.h"
 #include "app/app_io_workspace.h"
 #include "storage/resource_store.h"
 #include "ui/ui_text_catalog.h"
@@ -597,6 +598,32 @@ static int test_boot_calibration_gate(void)
     return failures;
 }
 
+static int test_host_resource_maintenance_entry(void)
+{
+    int failures = 0;
+    fake_io_t fake = {0};
+    app_product_t product;
+    failures += expect_true(init_product(&product, &fake) == BSP_STATUS_OK, "resource entry init");
+    app_product_inputs_t inputs = inputs_ready();
+    boot_to_ready(&product, &inputs);
+    product.request_click = true;
+    failures += expect_true(app_product_request_resource_upload(&product), "idle host enters maintenance");
+    failures += expect_true(product.view.state == UI_PRODUCT_STATE_PC_LINK_STATUS && !product.request_click &&
+                            fake.start_count == 0u, "upload clears acquisition gestures");
+    const ui_product_state_t denied[] = {UI_PRODUCT_STATE_MEASURING, UI_PRODUCT_STATE_FAULT,
+        UI_PRODUCT_STATE_CALIBRATION_WIZARD, UI_PRODUCT_STATE_SAFETY_BLOCKED};
+    for (size_t i=0u; i<sizeof(denied)/sizeof(denied[0]); i++)
+    {
+        product.view.state = denied[i];
+        failures += expect_true(!app_product_request_resource_upload(&product), "busy/fault presentation denies host upload");
+    }
+    product.view.state = UI_PRODUCT_STATE_CALIBRATION_REQUIRED;
+    failures += expect_true(app_product_request_resource_upload(&product), "blank calibration allows asset maintenance only");
+    product.runtime_teardown_kind = 1u;
+    failures += expect_true(!app_product_request_resource_upload(&product), "teardown denies upload");
+    return failures;
+}
+
 static int test_ok_gestures_and_measurement_flow(void)
 {
     int failures = 0;
@@ -816,8 +843,8 @@ static int test_display_menu_brightness_preview_no_step_persist(void)
     app_product_make_outputs(&product, &outputs);
     app_product_make_view(&product, &view);
     failures += expect_true(view.state == UI_PRODUCT_STATE_BRIGHTNESS_EDIT, "brightness editor active");
-    failures += expect_u32(view.menu.brightness_percent, 30u, "brightness increments in 5 percent step");
-    failures += expect_u32(outputs.backlight_percent, 30u, "brightness preview updates output");
+    failures += expect_u32(view.menu.brightness_percent, 80u, "brightness increments in 5 percent step");
+    failures += expect_u32(outputs.backlight_percent, 80u, "brightness preview updates output");
     failures += expect_true(app_settings_service_dirty(&g_settings), "preview marks settings dirty");
     failures += expect_true(!app_settings_service_busy(&g_settings), "preview does not persist immediately");
     send_button(&product, BUTTON_ID_OK, BUTTON_EVENT_PRESS);
@@ -825,7 +852,7 @@ static int test_display_menu_brightness_preview_no_step_persist(void)
     send_button(&product, BUTTON_ID_OK, BUTTON_EVENT_RELEASE);
     app_product_step(&product, &inputs, &clock, BSP_STATUS_OK, 8u);
     app_product_make_outputs(&product, &outputs);
-    failures += expect_u32(outputs.backlight_percent, 25u, "long OK restores entry brightness");
+    failures += expect_u32(outputs.backlight_percent, 75u, "long OK restores entry brightness");
     return failures;
 }
 
@@ -852,7 +879,7 @@ static int test_backlight_timeout_wake_consumes_ok_gesture(void)
     ui_product_view_t view;
     app_product_make_view(&product, &view);
     app_product_make_outputs(&product, &outputs);
-    failures += expect_u32(outputs.backlight_percent, 25u, "wake restores configured brightness");
+    failures += expect_u32(outputs.backlight_percent, 75u, "wake restores configured brightness");
     failures += expect_true(view.state == UI_PRODUCT_STATE_READY, "wake gesture does not open menu");
     failures += expect_u32(fake.start_count, 0u, "wake gesture starts no measurement");
     return failures;
@@ -1222,6 +1249,99 @@ static int test_factory_ac_lifecycle(const char *directory)
 }
 #endif
 
+#if WTK_PRODUCT_FACTORY_PROVISIONED
+static int test_reactive_value_survives_unresolved_negative_loss(void)
+{
+    int failures = 0;
+    const fake_outcome_t cases[] = {
+        {.z={-20.685913f,0.0f},.interpretation=MEASUREMENT_INTERPRET_CAPACITIVE,
+         .electrical_model=1u,.reactive_value=9.607297e-9f},
+        {.z={-0.03f,0.0f},.interpretation=MEASUREMENT_INTERPRET_INDUCTIVE,
+         .electrical_model=2u,.reactive_value=470.0e-6f},
+        {.z={-0.5f,0.0f},.interpretation=MEASUREMENT_INTERPRET_RESISTIVE},
+        {.z={-1000.0f,-100.0f},.interpretation=MEASUREMENT_INTERPRET_CAPACITIVE},
+    };
+    app_product_inputs_t inputs = inputs_ready();
+    for (size_t i=0u; i<sizeof(cases)/sizeof(cases[0]); i++)
+    {
+        fake_io_t fake;
+        ac_fixture(&fake,cases[i]);
+        app_product_t product;
+        failures += expect_true(init_product(&product,&fake)==BSP_STATUS_OK,"negative-loss init");
+        boot_to_ready(&product,&inputs); ac_run(&product,&inputs);
+        const ui_product_measurement_t *result=&product.view.measurement_result;
+        failures += expect_true(result->derived_valid==(i<2u),
+            "dominant reactive value survives; negative resistive/dominant-R result stays invalid");
+        failures += expect_true(!result->esr_valid && !result->q_valid && !result->d_valid,
+            "negative estimated resistance never becomes a published ESR/Q/D");
+        if (i<2u)
+        {
+            failures += expect_true(i==0u ? result->capacitance_valid : result->inductance_valid,
+                "reactive model keeps its own valid value");
+            failures += expect_true(result->resistance_ohms==cases[i].z.re &&
+                result->max_error_status==MEASUREMENT_ERROR_NOT_CHARACTERIZED,
+                "raw negative R is preserved without a fabricated error bound");
+        }
+    }
+    return failures;
+}
+#endif
+
+static int test_actual_idle_and_owned_safety_scheduling(void)
+{
+    int failures = 0;
+    const bsp_clock_summary_t clock = {.source = BSP_CLOCK_SOURCE_HSE_PLL,
+        .sysclk_hz = 72000000u, .hse_ready = true};
+    fake_io_t fake = {0};
+    fake.outcome_count = 1u;
+    fake.outcomes[0] = good_outcome(measurement_complex(1000.0f, 0.0f), MEASUREMENT_INTERPRET_RESISTIVE);
+    app_product_t product;
+    failures += expect_true(init_product(&product, &fake) == BSP_STATUS_OK, "idle-range product init");
+    app_product_inputs_t inputs = inputs_ready();
+    hw_safety_input_t electrical = {.charger = HW_CHARGER_ABSENT,
+        .residual = HW_RESIDUAL_SAFE, .battery = HW_BATTERY_OK,
+        .range = HW_RANGE_DISABLED};
+    inputs.safety_result = hw_safety_evaluate(&electrical);
+    inputs.range_disabled = true;
+    boot_to_ready(&product, &inputs);
+    failures += expect_true(!inputs.safety_result.measure_allowed &&
+        product.view.state == UI_PRODUCT_STATE_READY && fake.start_count == 0u,
+        "actual disabled range allows scheduling READY but neither hardware permission nor automatic start");
+    click_ok(&product);
+    for (uint32_t now = 3u; now < 7u; now++) app_product_step(&product, &inputs, &clock, BSP_STATUS_OK, now);
+    failures += expect_true(fake.start_count == 1u, "OK schedules hardware transaction from disabled range");
+    electrical.residual = HW_RESIDUAL_UNKNOWN;
+    inputs.residual_refresh_pending = true;
+    inputs.safety_result = hw_safety_evaluate(&electrical);
+    for (uint32_t now = 7u; now < 30u; now++) app_product_step(&product, &inputs, &clock, BSP_STATUS_OK, now);
+    failures += expect_true(!fake.abort_called && product.view.state == UI_PRODUCT_STATE_RESULT &&
+        product.view.has_measurement_result, "owned ADC invalidation and post-capture refresh do not cancel valid work");
+    inputs.residual_refresh_pending = false;
+    app_product_step(&product, &inputs, &clock, BSP_STATUS_OK, 30u);
+    failures += expect_true(product.view.state == UI_PRODUCT_STATE_SAFETY_BLOCKED,
+        "unexplained invalid sensor evidence blocks new scheduling");
+    inputs.safety_result = hw_safety_evaluate(&(hw_safety_input_t){.charger=HW_CHARGER_ABSENT,
+        .residual=HW_RESIDUAL_SAFE, .battery=HW_BATTERY_OK, .range=HW_RANGE_INVALID});
+    inputs.range_disabled = false;
+    app_product_step(&product, &inputs, &clock, BSP_STATUS_OK, 31u);
+    failures += expect_true(product.view.state == UI_PRODUCT_STATE_SAFETY_BLOCKED,
+        "an invalid range is never treated as the expected idle state");
+    const hw_safety_input_t blocked[] = {
+        {.charger=HW_CHARGER_PRESENT,.residual=HW_RESIDUAL_SAFE,.battery=HW_BATTERY_OK,.range=HW_RANGE_DISABLED},
+        {.charger=HW_CHARGER_ABSENT,.residual=HW_RESIDUAL_UNSAFE,.battery=HW_BATTERY_OK,.range=HW_RANGE_DISABLED},
+        {.charger=HW_CHARGER_ABSENT,.residual=HW_RESIDUAL_SAFE,.battery=HW_BATTERY_CRITICAL,.range=HW_RANGE_DISABLED},
+        {.charger=HW_CHARGER_ABSENT,.residual=HW_RESIDUAL_SAFE,.battery=HW_BATTERY_UNKNOWN,.range=HW_RANGE_DISABLED},
+        {.charger=HW_CHARGER_ABSENT,.residual=HW_RESIDUAL_SAFE,.battery=HW_BATTERY_OK,.range=HW_RANGE_DISABLED,.application_fault=true},
+    };
+    for (size_t i=0u; i<sizeof(blocked)/sizeof(blocked[0]); i++)
+    {
+        const hw_safety_result_t result = hw_safety_evaluate(&blocked[i]);
+        failures += expect_true(!app_product_schedule_allowed(&result,true,true,true),
+            "charger, actual residual, critical/unknown battery and faults still preempt owned work");
+    }
+    return failures;
+}
+
 int main(int argc, char **argv)
 {
     if ((argc == 2) && (strcmp(argv[1], "--sizes") == 0))
@@ -1256,6 +1376,11 @@ int main(int argc, char **argv)
     failures += test_factory_ac_lifecycle(directory);
 #endif
     failures += test_boot_calibration_gate();
+    failures += test_actual_idle_and_owned_safety_scheduling();
+#if WTK_PRODUCT_FACTORY_PROVISIONED
+    failures += test_reactive_value_survives_unresolved_negative_loss();
+#endif
+    failures += test_host_resource_maintenance_entry();
     failures += test_ok_gestures_and_measurement_flow();
     failures += test_failed_refinement_hides_stale_primary();
     failures += test_menu_calibration_status_and_dirty_candidate();

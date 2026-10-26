@@ -1795,10 +1795,73 @@ static UI_COMPACT_CALL bool prepare_line(const ui_product_t *ui,
     }
 }
 
+static uint8_t screen_family(uint8_t state)
+{
+#if WTK_ENABLE_UI_ROW_CACHE
+    return (state == UI_PRODUCT_STATE_BRIGHTNESS_EDIT || state == UI_PRODUCT_STATE_TIMEOUT_EDIT) ?
+        (uint8_t)UI_PRODUCT_STATE_DISPLAY_MENU : state;
+#else
+    return state;
+#endif
+}
+
+#if WTK_ENABLE_UI_ROW_CACHE
+static bool cached_menu_state(uint8_t state)
+{
+    return state >= UI_PRODUCT_STATE_MENU && state <= UI_PRODUCT_STATE_CALIBRATION_STATUS &&
+        state != UI_PRODUCT_STATE_RESOURCE_ERROR;
+}
+
+static bool cached_menu(const ui_product_t *ui)
+{
+    const uint8_t state = ui->pending.state;
+    /* The narrowest menu row pitch is 28 px. A larger custom face needs a
+     * full repaint: a row erasure could otherwise damage a cached neighbor. */
+    return cached_menu_state(state) &&
+        (ui->font_catalog == NULL || !ui_font_catalog_ready(ui->font_catalog) ||
+         ui->font_catalog->faces[UI_FONT_ROLE_MEDIUM].line_height <= 28u);
+}
+#endif
+
+static void invalidate_rows(ui_product_t *ui)
+{
+#if WTK_ENABLE_UI_ROW_CACHE
+    memset(ui->rows, 0, sizeof(ui->rows));
+    ui->painting_row_pending = false;
+#else
+    (void)ui;
+#endif
+}
+
+static bsp_status_t render_failed(ui_product_t *ui, bsp_status_t status)
+{
+    invalidate_rows(ui);
+    ui->have_rendered = false;
+    ui->active = false;
+    ui->render_state = UI_PRODUCT_RENDER_IDLE;
+    return status;
+}
+
+static void complete_line(ui_product_t *ui)
+{
+#if WTK_ENABLE_UI_ROW_CACHE
+    if (ui->painting_row_pending && ui->line_index < UI_PRODUCT_CACHED_ROWS)
+    {
+        ui->rows[ui->line_index] = ui->painting_row;
+        ui->rows[ui->line_index].valid = true;
+    }
+    ui->painting_row_pending = false;
+#endif
+    ui->line_index++;
+}
+
 static bool requires_full_clear(const ui_product_t *ui)
 {
+#if WTK_ENABLE_UI_ROW_CACHE
+    if (ui != NULL && cached_menu_state(ui->pending.state) && !cached_menu(ui)) return true;
+#endif
     return (ui == NULL) || !ui->have_rendered ||
-           (ui->pending.state != ui->rendered_state) ||
+           (screen_family(ui->pending.state) != screen_family(ui->rendered_state)) ||
            (ui->pending.page != ui->rendered_page);
 }
 
@@ -1815,7 +1878,13 @@ static void start_render(ui_product_t *ui)
     ui->image_op.active = false;
     ui->clear_started = false;
     ui->image_started = false;
-    ui->render_state = UI_PRODUCT_RENDER_CLEAR;
+    bool patch_menu = false;
+#if WTK_ENABLE_UI_ROW_CACHE
+    ui->painting_row_pending = false;
+    patch_menu = cached_menu(ui) && !requires_full_clear(ui);
+#endif
+    if (!patch_menu) invalidate_rows(ui);
+    ui->render_state = patch_menu ? UI_PRODUCT_RENDER_TEXT : UI_PRODUCT_RENDER_CLEAR;
     ui->active = true;
 }
 
@@ -1853,6 +1922,48 @@ static void start_clear_region(ui_product_t *ui)
     ui->clear_started = true;
 }
 
+#if WTK_ENABLE_UI_ROW_CACHE
+static void clear_row(ui_product_t *ui, uint16_t top, uint16_t bottom)
+{
+    if (bottom > ILI9341_HEIGHT) bottom = ILI9341_HEIGHT;
+    ili9341_fill_start(&ui->clear_fill, 0u, top, ILI9341_WIDTH,
+                       (uint16_t)(bottom - top), UI_COLOR_BLACK);
+    ui->render_state = UI_PRODUCT_RENDER_ROW_CLEAR;
+}
+
+static bool prepare_cached_row(ui_product_t *ui, const ui_product_line_t *line, ui_font_role_t role)
+{
+    if (!cached_menu(ui) || ui->line_index >= UI_PRODUCT_CACHED_ROWS) return false;
+    ui_product_cached_row_t row = {0};
+    memcpy(row.text, line->text, sizeof(row.text));
+    row.x = line->x; row.y = line->y; row.color = line->color; row.scale = line->scale;
+    row.height = (uint16_t)(8u * line->scale);
+    row.external_font = !line->emergency && ui->font_catalog != NULL && ui_font_catalog_ready(ui->font_catalog);
+    if (row.external_font && ui->font_catalog->faces[(uint8_t)role].line_height > row.height)
+        row.height = ui->font_catalog->faces[(uint8_t)role].line_height;
+    ui_product_cached_row_t *old = &ui->rows[ui->line_index];
+    if (old->valid && old->x == row.x && old->y == row.y && old->height == row.height &&
+        old->color == row.color && old->scale == row.scale && old->external_font == row.external_font &&
+        strcmp(old->text, row.text) == 0)
+    {
+        ui->line_index++;
+        return true;
+    }
+    if (old->valid)
+    {
+        const uint16_t top = old->y < row.y ? old->y : row.y;
+        const uint16_t old_bottom = (uint16_t)(old->y + old->height);
+        const uint16_t new_bottom = (uint16_t)(row.y + row.height);
+        old->valid = false;
+        clear_row(ui, top, old_bottom > new_bottom ? old_bottom : new_bottom);
+        return true;
+    }
+    ui->painting_row = row;
+    ui->painting_row_pending = true;
+    return false;
+}
+#endif
+
 void ui_product_init(ui_product_t *ui)
 {
     if (ui != NULL)
@@ -1869,6 +1980,8 @@ void ui_product_set_text_provider(ui_product_t *ui,
     {
         ui->resolve_text = resolve;
         ui->resolve_text_context = context;
+        invalidate_rows(ui);
+        ui->have_rendered = false;
     }
 }
 
@@ -1877,6 +1990,8 @@ void ui_product_set_font_catalog(ui_product_t *ui, ui_font_catalog_t *catalog)
     if (ui != NULL)
     {
         ui->font_catalog = catalog;
+        invalidate_rows(ui);
+        ui->have_rendered = false;
     }
 }
 
@@ -1890,14 +2005,35 @@ void ui_product_set_image_catalog(ui_product_t *ui, ui_image_catalog_t *catalog)
 
 void ui_product_request(ui_product_t *ui, const ui_product_view_t *view)
 {
-    if ((ui == NULL) || (view == NULL) || (ui->rendered_generation == view->generation))
+    if ((ui == NULL) || (view == NULL) ||
+        (ui->have_rendered && ui->rendered_generation == view->generation))
     {
         return;
     }
+    const bool different_screen = screen_family(ui->pending.state) != screen_family(view->state) ||
+        ui->pending.page != view->page ||
+        ui->pending.menu.language_id != view->menu.language_id ||
+        ui->pending.resource_status != view->resource_status;
+    /* READY contains only its fixed background and two localized labels.
+       Calibration/status metadata changes must not repaint that same screen. */
+    const bool same_ready = !different_screen && view->state == UI_PRODUCT_STATE_READY &&
+        ui->pending.resource_status == view->resource_status;
     ui->pending = *view;
-    if (!ui->active)
+    if (different_screen) ui->have_rendered = false;
+    if (same_ready && ui->have_rendered && !ui->active)
+    {
+        ui->rendered_generation = view->generation;
+        return;
+    }
+    if (!ui->active || different_screen)
     {
         start_render(ui);
+    }
+    else if (same_ready || ui->render_state == UI_PRODUCT_RENDER_CLEAR ||
+             ui->render_state == UI_PRODUCT_RENDER_IMAGE)
+    {
+        /* Nothing from the previous generation's text has been painted yet. */
+        ui->rendering_generation = view->generation;
     }
 }
 
@@ -1915,6 +2051,18 @@ bsp_status_t ui_product_step(ui_product_t *ui, const ili9341_t *display, bool qu
     {
         return BSP_STATUS_BUSY;
     }
+#if WTK_ENABLE_UI_ROW_CACHE
+    if (ui->render_state == UI_PRODUCT_RENDER_ROW_CLEAR)
+    {
+        const bsp_status_t status = ili9341_fill_step(display, &ui->clear_fill, ILI9341_FILL_CHUNK_PIXELS);
+        if (status != BSP_STATUS_OK)
+        {
+            return render_failed(ui, status);
+        }
+        if (!ui->clear_fill.active) ui->render_state = UI_PRODUCT_RENDER_TEXT;
+        return BSP_STATUS_BUSY;
+    }
+#endif
     if (ui->render_state == UI_PRODUCT_RENDER_CLEAR)
     {
         if (!ui->clear_started)
@@ -1926,15 +2074,23 @@ bsp_status_t ui_product_step(ui_product_t *ui, const ili9341_t *display, bool qu
                                                             ILI9341_FILL_CHUNK_PIXELS);
         if (clear_status != BSP_STATUS_OK)
         {
-            ui->active = false;
-            ui->render_state = UI_PRODUCT_RENDER_IDLE;
-            return clear_status;
+            return render_failed(ui, clear_status);
         }
         if (ui->clear_fill.active)
         {
             return BSP_STATUS_BUSY;
         }
         ui->render_state = state_has_image(ui) ? UI_PRODUCT_RENDER_IMAGE : UI_PRODUCT_RENDER_TEXT;
+#if WTK_ENABLE_UI_ROW_CACHE
+        if (cached_menu(ui))
+        {
+            /* The blank screen is a valid baseline even if a new generation
+             * arrives before all initial menu rows finish. */
+            ui->rendered_state = ui->pending.state;
+            ui->rendered_page = ui->pending.page;
+            ui->have_rendered = true;
+        }
+#endif
         return BSP_STATUS_BUSY;
     }
 
@@ -1960,9 +2116,7 @@ bsp_status_t ui_product_step(ui_product_t *ui, const ili9341_t *display, bool qu
                                                             ILI9341_FILL_CHUNK_PIXELS);
         if ((image_status != BSP_STATUS_OK) && (image_status != BSP_STATUS_BUSY))
         {
-            ui->active = false;
-            ui->render_state = UI_PRODUCT_RENDER_IDLE;
-            return image_status;
+            return render_failed(ui, image_status);
         }
         if (ui->image_op.active || (image_status == BSP_STATUS_BUSY))
         {
@@ -1978,9 +2132,7 @@ bsp_status_t ui_product_step(ui_product_t *ui, const ili9341_t *display, bool qu
 
     if (ui->render_state != UI_PRODUCT_RENDER_TEXT)
     {
-        ui->active = false;
-        ui->render_state = UI_PRODUCT_RENDER_IDLE;
-        return BSP_STATUS_ERROR;
+        return render_failed(ui, BSP_STATUS_ERROR);
     }
 
     if (ui->text_op.active)
@@ -1988,15 +2140,13 @@ bsp_status_t ui_product_step(ui_product_t *ui, const ili9341_t *display, bool qu
         const bsp_status_t text_status = ui_fallback_text_scaled_step(display, &ui->text_op);
         if ((text_status != BSP_STATUS_OK) && (text_status != BSP_STATUS_BUSY))
         {
-            ui->active = false;
-            ui->render_state = UI_PRODUCT_RENDER_IDLE;
-            return text_status;
+            return render_failed(ui, text_status);
         }
         if (ui->text_op.active || (text_status == BSP_STATUS_BUSY))
         {
             return BSP_STATUS_BUSY;
         }
-        ui->line_index++;
+        complete_line(ui);
         return BSP_STATUS_BUSY;
     }
 
@@ -2005,15 +2155,13 @@ bsp_status_t ui_product_step(ui_product_t *ui, const ili9341_t *display, bool qu
         const bsp_status_t text_status = ui_font_text_step(display, &ui->font_text_op);
         if ((text_status != BSP_STATUS_OK) && (text_status != BSP_STATUS_BUSY))
         {
-            ui->active = false;
-            ui->render_state = UI_PRODUCT_RENDER_IDLE;
-            return text_status;
+            return render_failed(ui, text_status);
         }
         if (ui->font_text_op.active || (text_status == BSP_STATUS_BUSY))
         {
             return BSP_STATUS_BUSY;
         }
-        ui->line_index++;
+        complete_line(ui);
         return BSP_STATUS_BUSY;
     }
 
@@ -2026,6 +2174,21 @@ bsp_status_t ui_product_step(ui_product_t *ui, const ili9341_t *display, bool qu
     ui_product_line_t line;
     if (!prepare_line(ui, &ui->pending, ui->line_index, &line))
     {
+#if WTK_ENABLE_UI_ROW_CACHE
+        if (cached_menu(ui))
+        {
+            while (ui->line_index < UI_PRODUCT_CACHED_ROWS && !ui->rows[ui->line_index].valid)
+                ui->line_index++;
+            if (ui->line_index < UI_PRODUCT_CACHED_ROWS)
+            {
+                ui_product_cached_row_t *old = &ui->rows[ui->line_index];
+                old->valid = false;
+                clear_row(ui, old->y, (uint16_t)(old->y + old->height));
+                ui->line_index++;
+                return BSP_STATUS_BUSY;
+            }
+        }
+#endif
         ui->rendered_generation = ui->rendering_generation;
         ui->rendered_state = ui->pending.state;
         ui->rendered_page = ui->pending.page;
@@ -2056,6 +2219,9 @@ bsp_status_t ui_product_step(ui_product_t *ui, const ili9341_t *display, bool qu
     if ((ui->pending.state == UI_PRODUCT_STATE_RESULT || ui->pending.state == UI_PRODUCT_STATE_MEASURING) &&
         !fit_result_line(ui, &line, &role)) return BSP_STATUS_BUSY;
 #endif
+#if WTK_ENABLE_UI_ROW_CACHE
+    if (prepare_cached_row(ui, &line, role)) return BSP_STATUS_BUSY;
+#endif
     if (line.emergency || (ui->font_catalog == NULL) || !ui_font_catalog_ready(ui->font_catalog))
     {
         ui_fallback_text_scaled_start(&ui->text_op,
@@ -2067,7 +2233,7 @@ bsp_status_t ui_product_step(ui_product_t *ui, const ili9341_t *display, bool qu
                                       UI_COLOR_BLACK);
         if (!ui->text_op.active)
         {
-            ui->line_index++;
+            complete_line(ui);
         }
         return BSP_STATUS_BUSY;
     }
@@ -2088,7 +2254,7 @@ bsp_status_t ui_product_step(ui_product_t *ui, const ili9341_t *display, bool qu
                        UI_COLOR_BLACK);
     if (!ui->font_text_op.active)
     {
-        ui->line_index++;
+        complete_line(ui);
     }
     return BSP_STATUS_BUSY;
 }

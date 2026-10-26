@@ -2,6 +2,216 @@
 
 STATUS: IMPLEMENTED_REQUIRES_BENCH_VALIDATION
 
+## External-supply diagnostic — 2026-10-24
+
+Physical acquisition progress on `4127c73adb73`: after enabling the internal TIM2
+compare channel, one 10 kOhm DUT attempt and one internal K1-SAFE AFE capture each
+completed all 768 DMA words / 256 instants with complete=1/error=0, CNDTR=0,
+GPIOA CRL=0 and TIM2 unremapped (MAPR=0x02000000). Both returned K1 SAFE/range
+disabled/faults0 after capture, and external-source confirmation was revoked.
+This resolves the observed transfer timeout for these attempts, not general
+timing/ADC/analog qualification. Current image is 64520 B Flash / 14868 B accounted
+RAM; strict PRODUCT (62076 B) and default BRINGUP (65288 B) builds pass hard gates.
+
+No valid resistance was published: DSP reports CLIPPED. DUT capture nominal ADC
+DC means: VEXC ~1.648 V, RET_1X ~2.740 V, RET_HG ~3.298 V; HG has 255/256 clipped
+samples and VMID_ADC2 has one clipped first-row sample. Internal capture also
+clips RET/HG. These observations require analog/sequence investigation; do not
+discard the first sample or force an ideal resistance result to pass. Evidence:
+`physical-20261024-tim2-compare/load-10k-001/`, `internal-afe-001/` and
+`capture-comparison.json`. The original PC collection reported unsupported range
+after preserving the full RAW frame: firmware emits `r=10k`, while the old host
+parser expected uppercase. The parser now canonicalizes the six compact lowercase
+tokens without changing saved RAW evidence or relaxing forbidden 10R/500mV.
+Offline validation of that existing frame succeeds structurally with CLIPPED
+quality retained. Collector/reference tests: 9+4 pass; related campaign tests
+30+8 pass; calibration-capture tool 2 pass/10 environment-dependent skips.
+
+For owner DMM localization, a separate explicit DC setup now leaves the 10K branch
+READY, K1 SAFE, no excitation started (previous capture cleanup commands OFF),
+battery-required source and no latched faults. This intentionally selected branch
+is not a measurement permission. Requested GND-referenced DC points are U4.7 VEXC,
+U5.3 RET, U5.1 RET_1X and STM32 PA2 ADC_RET_1X. With the branch conducting and
+excitation off, RET and its unity buffer/ADC should approximately follow near-zero
+VEXC. Actual DMM values are pending. Evidence: `dc-10k-setup-001/`. Do not reset or
+change this setup before associating the operator readings; disable the range
+after that check. No physical resistor accuracy or analog acceptance is claimed.
+
+Follow-up on `efa09bbe3ad3`: corrected ADC2 CR2=0x001E0001 was confirmed by the
+trace, but DMA still stopped at 765 remaining. Thus the slave setup correction
+alone did not fix the physical timeout. Evidence: local
+`physical-20261024-adc-slave-trigger/load-10k-001/`. Boot was performed as a separate
+controlled reset/run under the owner's continuing-test instruction, with pinned
+UID/geometry/voltage preflight and UART already open; no debugger halt occurred
+during a DUT transaction.
+
+The next bounded trigger correction enables TIM2's internal compare channel
+(matching pinned `HAL_TIM_OC_Start`) while PA1 remains analog and TIM2 unremapped.
+Capture refuses non-analog PA1 or a remapped timer before enabling DMA; stop clears
+the channel. Trace now includes CCER/CRL/MAPR to retain this condition. This does
+not change pin allocation, sample timing, channel schedule or safety permits.
+It replaces the initial CC2E=0 assumption; hardware before/after capture and VMID
+evidence are still required. Do not infer analog qualification from compilation.
+
+The instrumented 30 ms attempt on `3ce13efa97dc` also timed out. Actual pre-stop
+trace: DMA CNDTR=765/768, no complete/error, TIM2 enabled with compare flags set,
+ADC1 CR2=0x00160101, ADC2 CR2=0x00000001. Evidence:
+`physical-20261024-relay-30ms/load-10k-001/`. This proves only three transferred
+words, not a valid block or resistor result. Cleanup was SAFE/disabled/faults0.
+Inspection against RM0008 section 11.9 and the pinned ST HAL
+`HAL_ADCEx_MultiModeStart_DMA` found the slave trigger setup violated the documented
+contract: both ADCs must enable EXTTRIG and the slave must select software trigger.
+ADC2 now uses ADON | EXTTRIG | EXTSEL (111), with no SWSTART write. Timer mapping,
+PA1 analog/CC2E=0, ADC schedule, sample rate, DMA width/count and safety sequencing
+are unchanged. This is a Phase 05 BSP configuration correction; the physical
+before/after capture is its required hardware regression, still pending here.
+
+Primary references: [ST RM0008 section 11.9](https://community.st.com/ysqtg83639/attachments/ysqtg83639/stm32-mcu-products-forum/80598/1/13902_STM32_ReferenceManual_11.pdf)
+and the pinned `Firmware/third_party/st/stm32f1xx_hal_driver/Src/stm32f1xx_hal_adc_ex.c`
+multimode start validation. ARM strict bench build/size/profile checks pass at
+64372 B Flash / 14852 B accounted RAM. The host FSM/RAW guard tests remain the
+previous 41 CTests + 8 collector tests; they do not emulate this hardware defect.
+
+First reference attempt: the owner attached an isolated nominal 10 kOhm 1%
+resistor, reporting a 10000 Ohm DMM indication (instrument uncertainty not
+provided). Actual boot `8c13549485fa` and source confirmation passed. The first
+documented command spelling was refused before capture; examples now use the
+actual compact `1k 100m 10k` tokens. A corrected single DUT attempt started,
+reached ADC/DMA TIMEOUT and returned K1 SAFE/range DISABLED with zero latched
+faults. No RAW frame/resistance result exists. Evidence is under the local
+`physical-20261024-bench-supply/load-10k-001/` and `load-10k-002/` directories.
+
+The owner subsequently requested 25–30 ms relay settling; the DUT operate guard
+is now 30 ms with excitation settling still separate and release guard unchanged.
+Host regression checks the deadline before/at expiry across uint32 wrap, and PC
+RAW validation accepts legacy 10 ms and current 30 ms metadata. An isolated bench
+ADC trace now captures status/control, DMA remaining count and TIM2 state before
+stop/restore on completion/timeout, then exposes it with `lab adc capture status`
+after cleanup. It reads no ADC data registers, performs no UART in ISRs, and is
+excluded from default/PRODUCT images. The timeout cause is unresolved; neither
+the timer change nor traces constitute physical timing/accuracy qualification.
+
+Software checks for this follow-up: six relevant host CTests and all eight RAW
+collector tests pass, including 30 ms/legacy 10 ms metadata validation. ARM bench
+warnings-as-errors build passes at 64368 B Flash / 14852 B accounted RAM including
+2048 B reserved stack. The trace adds 72 B static RAM, excluded from ordinary
+profiles. Physical timeout diagnosis remains pending the instrumented attempt.
+
+The owner explicitly requested bench measurements without a battery or valid
+calibration before connecting isolated 1% resistors. The bounded sub-phase adds
+an opt-in BRINGUP-only source policy with explicit RAM-only operator confirmation,
+reset-to-battery defaults, real unchanged ADC evidence, bound/revocable permits,
+nominal 100 mVrms limit and the existing complete DUT acquisition/abort sequence.
+No later UI, calibration model or DC feature is included. Expected files are
+CMake/build configuration, safety/permit/measurement services, BRINGUP console and
+shell integration, deployment identity, host regressions and this contract:
+[BENCH_SUPPLY.md](../Firmware/tools/BENCH_SUPPLY.md).
+Prerequisites are the existing Phase 04/05 safety/acquisition path and Phase 09A
+ideal/unqualified measurement fallback. This explicit owner request extends the
+earlier battery-only assumption; default and PRODUCT battery gates are retained.
+Acceptance requires host guard/revocation/cleanup tests, ARM build/size gates,
+profile isolation and traceable deployment preparation. Physical OPEN/SHORT/LOAD,
+supply integrity, waveforms and reference accuracy remain REQUIRES_BENCH_VALIDATION.
+
+Initial software verification passed: 41/41 host CTests (MSVC Release, project
+warnings as errors), five relevant tests repeated after final initialization
+changes, 49 deployment-tool tests passed with three environment-dependent skips,
+and eight profile-tool tests passed. ARM project warnings-as-errors builds pass:
+bench image 63748 B Flash / 14780 B accounted RAM including 2048 B stack;
+PRODUCT 62040 B Flash with bench flag OFF. Default BRINGUP is byte-identical to
+the earlier image after normalizing only the embedded Git label. LTO serial-job
+and existing soft Flash-target advisories remain; hard memory/profile gates pass.
+Physical reference captures and source-revocation/interlock checks remain pending.
+
+## Opt-in empty-fixture K1 pulse — 2026-10-24
+
+The owner requested a one-shot physical relay test after confirming that the
+single 1 kHz/200 ms buzzer command was audible. The
+[separate diagnostic contract](../Firmware/tools/K1_BENCH_TEST.md) permits a
+250 ms K1 pulse with no DUT under the reviewed bench supply, real fresh residual
+SAFE/VMID, no charger/fault, range disabled, excitation off and no competing work.
+Battery sensing remains unmodified and still blocks ordinary measurements.
+The diagnostic uses an explicit hardware-service state machine, one attempt per
+boot, cancellation, wrap-safe deadlines, LOW retries after I/O failure and the
+8 ms release guard; it never creates `measure_allowed` or bypasses normal permits.
+The application services its ownership before safety arbitration and slow work,
+bounds UART input, and requalifies residual sensing after release. This is a
+cooperative deadline with the existing IWDG/reset fallback, not a hardware cutoff.
+
+`WTK_BRINGUP_K1_TEST` defaults OFF, is allowed only for BRINGUP, and excludes the
+experimental DC pilot in that explicit variant. PRODUCT/BRINGUP_CAL exclude the
+API/commands; profile-symbol checks enforce this. Deployment tooling explicitly
+builds and seals the variant identity. Initial verification: all 41 host CTests
+pass, including the new guard/failure/wrap/cancel tests; default BRINGUP remains
+byte-identical to the original image at the same Git identity, and PRODUCT Release
+builds with no relay-test symbols. The new BRINGUP variant fits 64 KiB Flash and
+20 KiB RAM with the reserved stack preserved. Physical pulse/contact/current/
+reset/interlock acceptance remains REQUIRES_BENCH_VALIDATION until actual evidence.
+
+## First-board preparation — 2026-10-24
+
+The owner reports an assembled board, a repaired COUT solder bridge, stable supply
+rails, K1 off, BOOT0/BOOT1 at zero, TFT intentionally disconnected and a CH340 on
+COM3. These statements are not numeric rail/current measurements or completed
+physical acceptance. The actual ST-Link/V2 USB descriptor uses the legacy 26-byte
+serial representation already handled by the pinned OpenOCD alternate-serial
+callback. Its exact hexadecimal representation passes the existing deployment
+dry run and OpenOCD configuration without `init`; no programmer code change or
+serial-filter bypass is needed. The earlier assumption that this descriptor alone
+made the adapter unsupported was incorrect. Probe communication, MCU identity,
+program/readback and controlled boot remain REQUIRES_BENCH_VALIDATION; the physical
+evidence and authorization gates remain in force.
+
+The first attempted probe stopped before adapter/target initialization because
+the launcher selected `hla_swd` with the pinned native `st-link` interface. The
+launcher now selects the script's supported `dapdirect_swd` transport. A regression
+test first reproduced that failure, then checks the full actual interface/target
+configuration under the pinned OpenOCD with shutdown before `init`. This changes
+only PC deployment configuration; firmware and physical qualification are unchanged.
+The first actual target connection reported the expected Cortex-M3/64 KiB identity,
+but Windows CRLF output exposed a target-marker parser defect. Parsing now normalizes
+CRLF without changing retained transcript bytes or duplicate-marker rejection; a
+regression reproduces the actual format. Identification is not program/boot or
+analog qualification evidence.
+
+Physical programming then succeeded on the owner's board: BRINGUP 0.1.0 from clean
+commit `87339a054a6f2b82e1c3d16e93e6c3c7cd684664`, 65248 image bytes verified
+byte-for-byte against internal Flash. A complete 64 KiB backup of the previous
+PC13 LED test application was saved before erase; W25Q was not accessed. The
+unchanged page-by-page erase and UID/geometry/protection checks ran. Deployment
+proceeded on the owner's explicit setup attestation; numerical DMM readings and
+photographs were not transmitted, and no archival B01 PASS evidence was invented.
+Local evidence is under `Firmware/build/physical-20261024-bringup/`, especially
+`physical-program-001/deployment.json` and `PREPARATION.md`. The target was left
+halted with a passive COM3 listener prepared. Boot/UART identity, electrical SAFE
+behavior and metrology/calibration remain pending. The deployment tests with the
+pinned executable enabled pass: 45 passed, 3 skipped; phase status is unchanged.
+
+The owner then pressed RESET. Actual UART evidence confirms BRINGUP 0.1.0,
+Git `87339a054a6f`, PIN_RESET, HSE_PLL 72 MHz and ADC clock 12 MHz. Nine audited
+status-only commands report no latched faults, charger absent, K1 SAFE and range
+disabled. W25Q32 (JEDEC EF4016, 4 MiB) is detected; no valid calibration is present.
+Auxiliary ADC estimates report VMID 1658 mV, residual SAFE and valid NTC telemetry.
+Battery reports UNKNOWN at 10 mV (raw 6); the owner confirms J_PWR.1/VBAT_PROT is
+floating. Safety flags 28 therefore include SENSOR_INVALID, SUPPLY and the idle
+RANGE blocker. No acquisition, range enable or calibration operation was attempted.
+The missing battery input must be resolved through a reviewed power arrangement;
+do not spoof the ADC or bypass safety permits. UART status is commanded/reported
+evidence, not physical relay/contact, rail, waveform or accuracy qualification.
+The disconnected TFT still reports READY, which is not proof of physical display
+presence or rendering. Actual boot and status logs are in the same local evidence
+directory (`first-boot-passive-001/`, `first-status-001/`, `observed-boot.json`).
+
+At the owner's request, after the owner identified the fitted buzzer as passive
+5 V, one `lab buzzer 1000 200` command was accepted with `lab buzzer: OK`.
+Pre/post status reports K1 SAFE, range DISABLED and zero latched faults. Audible
+sound, waveform, current and transducer suitability remain owner/bench observations;
+command acceptance does not qualify them. `lab permit status` explicitly returned
+`eligible=0 reason=BATTERY`; K1 was not requested or forced. No standalone K1 pulse
+command exists in the deployed console. Resolve the real battery-sense/power setup
+before the existing permitted acquisition sequence can exercise K1. Evidence:
+`buzzer-physical-001/` in the local first-board directory.
+
 ## B01.1 SWD deployment toolkit — 2026-10-11
 
 [Safe image preparation and SWD handoff](../Firmware/tools/PC_FIRMWARE_DEPLOY.md)

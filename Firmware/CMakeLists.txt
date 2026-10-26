@@ -14,6 +14,7 @@ include(STM32CubeF1)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 find_package(Python3 COMPONENTS Interpreter QUIET)
+include(FactoryNtc)
 
 set(WTK_TARGET_PLATFORM "host" CACHE STRING "Build target platform: host or stm32")
 set_property(CACHE WTK_TARGET_PLATFORM PROPERTY STRINGS host stm32)
@@ -27,6 +28,36 @@ option(WTK_CAL_INSTALL_SERVICE "Include installation in the calibration service 
 option(WTK_PRODUCT_FACTORY_PROVISIONED
        "Experimental PRODUCT: require PC-provisioned OSL and exclude the embedded wizard" OFF)
 option(WTK_ENABLE_SUPPLEMENTARY_CURVES "Enable optional post-OSL WCRV calibration runtime" OFF)
+option(WTK_BRINGUP_K1_TEST "BRINGUP-only empty-fixture K1 pulse; excludes experimental DC pilot for Flash space" OFF)
+option(WTK_BRINGUP_BENCH_SUPPLY "BRINGUP-only operator-confirmed external 5V supply, without battery" OFF)
+option(WTK_BRINGUP_PERIPHERAL_TEST "BRINGUP-only standalone display/buttons/buzzer diagnostic; no active lab console" OFF)
+option(WTK_BRINGUP_DC_PILOT "Opt in to experimental DC diagnostics; subject to the 64KiB image limit" OFF)
+string(TOUPPER "${WTK_FIRMWARE_PROFILE}" WTK_FIRMWARE_PROFILE)
+set(WTK_ENABLE_PERIPHERAL_TEST_VALUE 0)
+if(WTK_BRINGUP_PERIPHERAL_TEST)
+    if(NOT WTK_FIRMWARE_PROFILE STREQUAL "BRINGUP" OR WTK_BRINGUP_K1_TEST OR WTK_BRINGUP_BENCH_SUPPLY)
+        message(FATAL_ERROR "Peripheral test requires a separate BRINGUP image")
+    endif()
+    set(WTK_ENABLE_PERIPHERAL_TEST_VALUE 1)
+endif()
+string(TOUPPER "${WTK_FIRMWARE_PROFILE}" WTK_FIRMWARE_PROFILE)
+if(WTK_BRINGUP_K1_TEST AND NOT WTK_FIRMWARE_PROFILE STREQUAL "BRINGUP")
+    message(FATAL_ERROR "WTK_BRINGUP_K1_TEST requires WTK_FIRMWARE_PROFILE=BRINGUP")
+endif()
+if(WTK_BRINGUP_BENCH_SUPPLY AND NOT WTK_FIRMWARE_PROFILE STREQUAL "BRINGUP")
+    message(FATAL_ERROR "WTK_BRINGUP_BENCH_SUPPLY requires WTK_FIRMWARE_PROFILE=BRINGUP")
+endif()
+if(WTK_BRINGUP_BENCH_SUPPLY AND WTK_BRINGUP_K1_TEST)
+    message(FATAL_ERROR "Use separate bench-supply and empty-fixture K1 images within C8 Flash")
+endif()
+set(WTK_ENABLE_BENCH_SUPPLY_VALUE 0)
+if(WTK_TARGET_PLATFORM STREQUAL "host" OR WTK_BRINGUP_BENCH_SUPPLY)
+    set(WTK_ENABLE_BENCH_SUPPLY_VALUE 1)
+endif()
+set(WTK_ENABLE_K1_BENCH_TEST_VALUE 0)
+if(WTK_TARGET_PLATFORM STREQUAL "host" OR WTK_BRINGUP_K1_TEST)
+    set(WTK_ENABLE_K1_BENCH_TEST_VALUE 1)
+endif()
 set(WTK_ENABLE_SUPPLEMENTARY_CURVES_VALUE 0)
 if(WTK_ENABLE_SUPPLEMENTARY_CURVES)
     set(WTK_ENABLE_SUPPLEMENTARY_CURVES_VALUE 1)
@@ -70,12 +101,18 @@ if(WTK_CAL_INSTALL_SERVICE AND (WTK_TARGET_PLATFORM STREQUAL "host" OR WTK_FIRMW
     set(WTK_ENABLE_CAL_INSTALL_SERVICE 1)
 endif()
 set(WTK_ENABLE_CAL_CAPTURE_SERVICE 0)
+set(WTK_ENABLE_CAL_INTEGRATION 0)
+if(WTK_TARGET_PLATFORM STREQUAL "host" OR WTK_FIRMWARE_PROFILE STREQUAL "BRINGUP_CAL")
+    set(WTK_ENABLE_CAL_INTEGRATION 1)
+endif()
 if(WTK_FIRMWARE_PROFILE STREQUAL "BRINGUP_CAL")
     set(WTK_ENABLE_CAL_CAPTURE_SERVICE 1)
     set(WTK_DIAGNOSTIC_LOG_LEVEL_DEFAULT 1)
     set(WTK_ENABLE_BRINGUP_CONSOLE 0)
 elseif(WTK_FIRMWARE_PROFILE STREQUAL "BRINGUP")
-    set(WTK_DIAGNOSTIC_LOG_LEVEL_DEFAULT 5)
+    # Keep every diagnostic command and safety message; omit unsolicited verbose
+    # boot/button logs to retain C8 space for the shared measurement policy.
+    set(WTK_DIAGNOSTIC_LOG_LEVEL_DEFAULT 3)
     set(WTK_ENABLE_BRINGUP_CONSOLE 1)
 elseif(WTK_BUILD_TYPE STREQUAL "Release")
     set(WTK_DIAGNOSTIC_LOG_LEVEL_DEFAULT 2)
@@ -86,7 +123,7 @@ else()
 endif()
 
 if((WTK_TARGET_PLATFORM STREQUAL "host") OR
-   (WTK_FIRMWARE_PROFILE STREQUAL "BRINGUP"))
+   (WTK_BRINGUP_DC_PILOT AND WTK_FIRMWARE_PROFILE STREQUAL "BRINGUP" AND NOT WTK_BRINGUP_K1_TEST AND NOT WTK_BRINGUP_BENCH_SUPPLY AND NOT WTK_BRINGUP_PERIPHERAL_TEST))
     set(WTK_ENABLE_DC_PILOT_VALUE 1)
 else()
     set(WTK_ENABLE_DC_PILOT_VALUE 0)
@@ -154,9 +191,11 @@ set(WTK_COMMON_SOURCES
     src/storage/storage_crc32.c
     src/storage/storage_layout.c
     src/ui/ui_fallback_font.c
+    src/ui/ui_peripheral_test.c
     src/ui/ui_font.c
     src/ui/ui_format.c
     src/ui/ui_image.c
+    src/ui/ui_boot_splash.c
     src/ui/ui_product.c
     src/ui/ui_text_catalog.c
     src/ui/ui_text.c
@@ -166,6 +205,7 @@ if(WTK_FIRMWARE_PROFILE STREQUAL "BRINGUP_CAL")
     # Exclusive calibration service image: no PRODUCT UI, lab/DC or write commands.
     set(WTK_COMMON_SOURCES
         src/app/app_safety_fault.c
+        src/app/app_flash_access.c
         src/app/app_calibration_runtime.c
         src/app/app_calibration_service.c
         src/app/app_calibration_session.c
@@ -177,6 +217,8 @@ if(WTK_FIRMWARE_PROFILE STREQUAL "BRINGUP_CAL")
         src/bsp/bsp_adc_core.c
         src/bsp/bsp_status.c
         src/drivers/w25q_core.c
+        src/drivers/ili9341_color.c
+        src/drivers/ili9341_geometry.c
         src/hardware/hw_aux_sensors.c
         src/hardware/hw_buzzer_policy.c
         src/hardware/hw_charger.c
@@ -199,6 +241,9 @@ if(WTK_FIRMWARE_PROFILE STREQUAL "BRINGUP_CAL")
         src/measurement/measurement_calibration_store.c
         src/storage/storage_crc32.c
         src/storage/storage_layout.c
+        src/storage/resource_store.c
+        src/ui/ui_image.c
+        src/ui/ui_boot_splash.c
     )
 endif()
 if(WTK_PRODUCT_FACTORY_PROVISIONED_VALUE AND WTK_TARGET_PLATFORM STREQUAL "stm32")
@@ -209,7 +254,8 @@ if(WTK_PRODUCT_FACTORY_PROVISIONED_VALUE AND WTK_TARGET_PLATFORM STREQUAL "stm32
 endif()
 add_library(wtk_firmware_common STATIC ${WTK_COMMON_SOURCES})
 if(WTK_TARGET_PLATFORM STREQUAL "host" OR WTK_FIRMWARE_PROFILE STREQUAL "BRINGUP_CAL")
-    target_sources(wtk_firmware_common PRIVATE src/app/app_cal_capture_service.c)
+    target_sources(wtk_firmware_common PRIVATE src/app/app_cal_capture_service.c
+        src/app/app_cal_integration.c)
 endif()
 if(WTK_ENABLE_SUPPLEMENTARY_CURVES)
     target_sources(wtk_firmware_common PRIVATE
@@ -262,6 +308,7 @@ elseif(WTK_TARGET_PLATFORM STREQUAL "stm32")
     endif()
     add_executable(wtk_rlcmeter
         ${WTK_SHELL_SOURCE}
+        src/app/app_boot_splash.c
         src/app/main.c
         src/bsp/bsp_clock.c
         src/bsp/bsp_adc.c
@@ -277,6 +324,8 @@ elseif(WTK_TARGET_PLATFORM STREQUAL "stm32")
         src/bsp/bsp_watchdog.c
         src/drivers/spi_bus.c
         src/drivers/w25q_device.c
+        src/drivers/ili9341.c
+        src/storage/resource_w25q_adapter.c
         src/storage/measurement_cal_w25q_adapter.c
         src/hardware/hw_backlight.c
         src/hardware/hw_buzzer.c
@@ -286,14 +335,13 @@ elseif(WTK_TARGET_PLATFORM STREQUAL "stm32")
     )
     if(NOT WTK_FIRMWARE_PROFILE STREQUAL "BRINGUP_CAL")
         target_sources(wtk_rlcmeter PRIVATE src/bsp/bsp_diagnostics.c
-            src/drivers/ili9341.c src/ui/ui_fallback_renderer.c)
+            src/ui/ui_fallback_renderer.c)
     endif()
     if(WTK_FIRMWARE_PROFILE STREQUAL "BRINGUP")
         target_sources(wtk_rlcmeter PRIVATE src/app/app_bringup_console.c)
     elseif(WTK_FIRMWARE_PROFILE STREQUAL "PRODUCT")
         target_sources(wtk_rlcmeter PRIVATE
             src/storage/app_settings_w25q_adapter.c
-            src/storage/resource_w25q_adapter.c
         )
     endif()
     set_target_properties(wtk_rlcmeter PROPERTIES
@@ -381,6 +429,7 @@ elseif(WTK_TARGET_PLATFORM STREQUAL "stm32")
                     $<TARGET_FILE:wtk_rlcmeter>
                     --profile ${WTK_FIRMWARE_PROFILE}
                     --factory-provisioned $<IF:$<BOOL:${WTK_PRODUCT_FACTORY_PROVISIONED_VALUE}>,ON,OFF>
+                    --peripheral-test $<IF:$<BOOL:${WTK_ENABLE_PERIPHERAL_TEST_VALUE}>,ON,OFF>
                     --supplementary-curves $<IF:$<BOOL:${WTK_ENABLE_SUPPLEMENTARY_CURVES}>,ON,OFF>
                     --compile-commands "${CMAKE_CURRENT_BINARY_DIR}/compile_commands.json"
                     --nm-tool ${CMAKE_NM}

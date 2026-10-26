@@ -140,6 +140,32 @@ Safe range transition:
 RANGE_EN=0 -> set A0/A1/A2 -> dead-time -> RANGE_EN=1 -> settling -> acquire
 ```
 
+### Bounded low-impedance exploration
+
+Automatic range selection first follows the existing DUT/reference ratio,
+clipping and weak-signal criteria. It does not sweep every RREF: a larger RREF
+can further reduce a small DUT's return signal. After these quality steps, a
+finite apparently resistive result at 1 kHz on RREF 10 or 100 ohm also requests
+one 10-kHz attempt at the same amplitude/RREF, provided the selected return path is usable and unclipped. Reactance can be zero or
+have either sign at this stage; the check investigates possible hidden
+reactance rather than presuming a component type. A finite negative estimated
+R may also be explored; unchanged publication guards still reject unsupported
+negative resistance/loss.
+
+The existing six-attempt/four-range/one-frequency limits and no-repeat rule
+still apply. Actual SHORT/OPEN, invalid data, safety abort and cancellation
+retain their priorities. No 10-ohm/500-mVrms condition is allowed. Higher-RREF
+and already-10-kHz resistive results do not trigger this additional check.
+Every requested condition uses the guarded hardware FSM. PC-provisioned PRODUCT
+may continue within an explicitly bounded continuous K1 authorization; fixed
+captures retain fresh individual permits (see plan 24).
+
+The second frequency is supporting evidence. Existing primary selection,
+classification thresholds and conservative disagreement handling remain
+unchanged: a resistive/reactive disagreement can finish MIXED/UNKNOWN, and
+an extra attempt is not proof of sub-microhenry capability or accuracy.
+See [plan 23](../plans/23-Bounded-Low-Impedance-Search.md).
+
 ## Confidence gates
 
 A reading may be rejected or marked `EXTENDED` / `LOW_CONFIDENCE` due to:
@@ -156,3 +182,14 @@ A reading may be rejected or marked `EXTENDED` / `LOW_CONFIDENCE` due to:
 - missing/incompatible calibration.
 
 The firmware should prefer an explicit low-confidence or rejected result over presenting accuracy that has not been established.
+
+## Classification evidence admission
+
+A mathematically finite candidate does not automatically qualify as classification
+or frequency-trend evidence. The selected return must be usable, unclipped and
+finite, with peak at least the existing 2-mV weak-return policy threshold; failed
+or clipped captures do not vote. Raw history remains complete. The same predicate
+is used for frequency-trend pairs, so weak rerange attempts cannot poison that
+trend either. Primary quality ordering and conservative handling of genuinely
+contradictory usable captures remain unchanged. This is an evidence policy,
+not a new calibrated accuracy bound. See plan 24.

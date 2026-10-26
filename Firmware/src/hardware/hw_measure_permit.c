@@ -24,6 +24,9 @@ void hw_measure_permit_init(hw_measure_permit_t *permit)
     permit->consumed = false;
     permit->issued_at_ms = 0u;
     permit->range_id = HW_RANGE_ID_INVALID;
+#if WTK_ENABLE_BENCH_SUPPLY
+    permit->bench_supply_confirmed = false;
+#endif
 }
 
 hw_measure_permit_issue_result_t hw_measure_permit_check_issue(const hw_measure_permit_issue_input_t *input)
@@ -49,6 +52,10 @@ hw_measure_permit_issue_result_t hw_measure_permit_check_issue(const hw_measure_
         return (hw_measure_permit_issue_result_t){.issued = false,
                                                   .reason = HW_MEASURE_PERMIT_REJECT_RESIDUAL_STALE};
     }
+#if WTK_ENABLE_BENCH_SUPPLY
+    if (!input->bench_supply_confirmed)
+    {
+#endif
     if ((input->battery != HW_BATTERY_OK) && (input->battery != HW_BATTERY_LOW))
     {
         return (hw_measure_permit_issue_result_t){.issued = false, .reason = HW_MEASURE_PERMIT_REJECT_BATTERY};
@@ -58,6 +65,9 @@ hw_measure_permit_issue_result_t hw_measure_permit_check_issue(const hw_measure_
         return (hw_measure_permit_issue_result_t){.issued = false,
                                                   .reason = HW_MEASURE_PERMIT_REJECT_BATTERY_STALE};
     }
+#if WTK_ENABLE_BENCH_SUPPLY
+    }
+#endif
     if (input->range != HW_RANGE_READY)
     {
         return (hw_measure_permit_issue_result_t){.issued = false, .reason = HW_MEASURE_PERMIT_REJECT_RANGE};
@@ -77,6 +87,9 @@ hw_measure_permit_issue_result_t hw_measure_permit_check_issue(const hw_measure_
         .battery = input->battery,
         .range = input->range,
         .application_fault = false,
+#if WTK_ENABLE_BENCH_SUPPLY
+        .bench_supply_confirmed = input->bench_supply_confirmed,
+#endif
     };
     const hw_safety_result_t safety = hw_safety_evaluate(&safety_input);
     if (!safety.measure_allowed)
@@ -106,6 +119,9 @@ hw_measure_permit_issue_result_t hw_measure_permit_issue(hw_measure_permit_t *pe
     permit->consumed = false;
     permit->issued_at_ms = now_ms;
     permit->range_id = input->range_id;
+#if WTK_ENABLE_BENCH_SUPPLY
+    permit->bench_supply_confirmed = input->bench_supply_confirmed;
+#endif
     return result;
 }
 
@@ -132,6 +148,13 @@ hw_measure_permit_validate_result_t hw_measure_permit_validate(hw_measure_permit
         return (hw_measure_permit_validate_result_t){.allowed = false,
                                                      .reason = HW_MEASURE_PERMIT_REJECT_INVALID};
     }
+#if WTK_ENABLE_BENCH_SUPPLY
+    if (permit->bench_supply_confirmed != input->bench_supply_confirmed)
+    {
+        return (hw_measure_permit_validate_result_t){.allowed = false,
+                                                     .reason = HW_MEASURE_PERMIT_REJECT_BATTERY};
+    }
+#endif
 
     if (deadline_reached(now_ms, permit->issued_at_ms + HW_MEASURE_PERMIT_TTL_MS + 1u))
     {

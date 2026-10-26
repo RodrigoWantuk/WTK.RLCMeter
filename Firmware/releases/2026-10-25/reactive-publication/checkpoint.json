@@ -1,0 +1,63 @@
+{
+  "status": "PUBLICATION_FIX_DEPLOYED_TWO_ACTUAL_CAPACITOR_READINGS_PASS",
+  "source": "3052bdde0b69c7d957cb70f4d150ec58843789f3",
+  "firmware_sha256": "41ca97913085eec8c6977310df83c5dc066eade529bfbb170ba617b894e2c5a6",
+  "flash_bytes": 54320,
+  "calibration_sequence": 1,
+  "calibration_records": 33,
+  "calibration_unchanged": true,
+  "host_standard_tests": "46/46 PASS",
+  "host_factory_tests": "47/47 PASS",
+  "embedded_builds": "9/9 PASS_STRICT",
+  "readings": [
+    {
+      "session": 1,
+      "capacitance_f": 9.548413615334539e-09,
+      "r_ohm": 31.913116455078125,
+      "x_ohm": -1666.82080078125,
+      "frequency_id": 2,
+      "range_id": 2,
+      "attempts": 4,
+      "esr_valid_flag": 1
+    },
+    {
+      "session": 2,
+      "capacitance_f": 9.684613111460294e-09,
+      "r_ohm": 29.002655029296875,
+      "x_ohm": -1643.37939453125,
+      "frequency_id": 2,
+      "range_id": 2,
+      "attempts": 3,
+      "esr_valid_flag": 1
+    }
+  ],
+  "final_metadata": {
+    "product_state": 20,
+    "measurement_session_sequence": 2,
+    "product_initialized": 1,
+    "calibration_sequence": 1,
+    "calibration_record_count": 33,
+    "calibration_active_valid": 1,
+    "calibration_storage_available": 1,
+    "k1_commanded_state": 1,
+    "range_fsm_state": 0,
+    "range_enabled": 0,
+    "safety_fault_mask": 0,
+    "display_fault": 0,
+    "resource_status": 0,
+    "excitation_mode": 0,
+    "safety_blocker_flags": 8,
+    "display_slow_mode": 0,
+    "backlight_percent": 75,
+    "saved_brightness_percent": 75,
+    "quiet_requested": 0
+  },
+  "method": "Two owner-triggered short OK measurements; SAFE no-reset SWD metadata/result/history reads, with exact firmware ABI verification; passive PRODUCT UART boot captured",
+  "battery_voltage_read_via_swd": false,
+  "reference_scope": "103J100 nominal 10nF +/-5% polyester; tolerance compatibility is not an independent accuracy certificate",
+  "negative_R_scope": "Original physical failed result is preserved and replayed by the controller regression; both new physical primaries have positive R, so no post-fix physical negative-R primary is claimed",
+  "inductor": "Owner deferred until a marked known component is available",
+  "physically_qualified": false,
+  "firmware_archive_sha256": "05dafbafc98d980d9591dac56086ec105507dfc1c102c0faeaa5d86e3955cf69",
+  "postfix_archive_sha256": "c9d6e6c0ffb6fca2b246aad909230a2c1ac1cd77551c3d0b2f7907df757c10dd"
+}

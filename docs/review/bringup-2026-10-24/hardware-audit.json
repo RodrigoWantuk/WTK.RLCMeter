@@ -1,0 +1,75 @@
+{
+  "source_documents": 219,
+  "schematic_pages": 5,
+  "bom_groups": 51,
+  "components": 149,
+  "pads": 434,
+  "connected_source_nets": 115,
+  "renamed_connected_nets": {
+    "K1_COIL_LOW": "NET_1",
+    "K2_COIL_LOW": "NET_2",
+    "RANGE_Y0_10R": "NET_14",
+    "RANGE_Y1_100R": "NET_13",
+    "RANGE_Y2_1K": "NET_12",
+    "RANGE_Y3_10K": "NET_11",
+    "RANGE_Y4_100K": "NET_10",
+    "RANGE_Y5_1M": "NET_9"
+  },
+  "unconnected_pads": 12,
+  "reviewed_position_deltas_mil": {},
+  "top_copper_pad_flashes_verified": 434,
+  "component_drills_verified": 84,
+  "firmware": {
+    "gpio_outputs": 12,
+    "gpio_inputs": 4,
+    "peripheral_files": 6
+  },
+  "current_topology": {
+    "rgs_gate_to_ground": 6,
+    "chg_vbus_divider_ohms": [
+      10000,
+      12000
+    ],
+    "chg_at_5_5v_nominal_pa15_v": 3.0,
+    "chg_at_5_5v_pa15_v_assuming_both_resistors_5_percent": 3.1357466063348416
+  },
+  "gerber_members": [
+    "Gerber_TopLayer.GTL",
+    "Gerber_BottomLayer.GBL",
+    "Gerber_TopSilkscreenLayer.GTO",
+    "Gerber_BottomSilkscreenLayer.GBO",
+    "Gerber_TopSolderMaskLayer.GTS",
+    "Gerber_BottomSolderMaskLayer.GBS",
+    "Gerber_TopPasteMaskLayer.GTP",
+    "Gerber_BoardOutlineLayer.GKO",
+    "Gerber_DocumentLayer.GDL",
+    "Gerber_DrillDrawingLayer.GDD",
+    "Drill_PTH_Through.DRL",
+    "Drill_PTH_Through_Via.DRL",
+    "FlyingProbeTesting.json",
+    "How-to-order-PCB.txt"
+  ],
+  "sha256": {
+    "PCB/source/ProPrj_WTK RLC Meter_2026-10-24.epro2": "3c622a7ba1b05241dd16236f86ffc3534bca0a846d28d5019937f76967d508c6",
+    "PCB/fabrication/Rev1/BOM_WTK RLC PCB_RLC_2026-10-24.csv": "066b46561a9aa232ce19a41912089794f29b1bf21e0fe1a3a22ff1ab94f33889",
+    "PCB/fabrication/Rev1/Gerber_RLC_2026-10-24.zip": "d5e696f0461de186aabdc50eb80963ea5c40e88617d25faa79e74f4f9ec494bb",
+    "PCB/fabrication/Rev1/SCH_WTK RLC Meter_2026-10-24.pdf": "4832e809b1e713a7339df7ddbbd96620d5cd53774b9c4127e75e18b88660f2e1",
+    "PCB/fabrication/Rev1/PCB_RLC_2026-10-24.pdf": "25d5ca6b690f2af533cb63c55b64cb6f0ba4ef1ed49f9c949c13b4da41bcb6ab"
+  },
+  "review": {
+    "matrix_rows": 51,
+    "carrier_mcu_pins_verified": 30,
+    "population": {
+      "DNP": 7,
+      "HOLD FOR REVIEW": 16,
+      "POPULATE": 126
+    },
+    "findings": {
+      "RED": 6,
+      "YELLOW": 11,
+      "GREEN": 7,
+      "UNKNOWN": 3
+    },
+    "local_document_links_verified": 66
+  }
+}

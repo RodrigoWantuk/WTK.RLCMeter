@@ -7,7 +7,8 @@ Build `cmake --preset stm32-bringup-cal` and `cmake --build --preset stm32-bring
 from Firmware. This development image runs an actual USART1 service at 115200 8N1.
 It has no product UI, ordinary measurement command or resource receiver. A06.2b
 adds the [installation service](PC_OSL_INSTALL.md) in the same development profile. PRODUCT and BRINGUP keep their existing wizard, boot gate and resource behavior.
-The PCB is unassembled: the binary is built, but physical operation requires bench validation.
+The first assembled unit has bench evidence under `docs/review/`; this does not
+qualify other units or establish measurement accuracy.
 
 Install `pyserial` on the PC for COM access. The backend and C-backed simulation do
 not require pyserial. Run from Firmware:
@@ -32,6 +33,18 @@ campaign. Capture JSON and ADC provenance feed the unchanged A06.1 backend.
 Capture evidence is never physically qualified. Nominal ADC scales are explicitly
 NOT calibrated; no previous OSL is needed or fabricated. LOAD tolerance describes
 an interval around the supplied value, not proof of an exact reference.
+
+Physical acquisition uses a conservative host quiet window: after START ACK the
+client sends no STATUS requests for the advertised device capture deadline plus
+one second (currently 21 seconds). Polling USART reception can lose a host frame
+while synchronous DSP runs, including immediately after the ACK. Read-only
+IDENTIFY/STATUS outside acquisition do not incur this wait. The GUI worker checks
+its cancellation flag during the wait; the embedded deadline still guarantees
+bounded teardown independently of the PC. Synthetic C fixtures advance their
+own clock and incur no wall-clock quiet delay. A custom real-client response
+timeout must cover this window plus a response margin; short timeouts are rejected
+before START. This favors robust first-board collection over acquisition speed;
+it is not a firmware timeout increase or a replacement for safe-state checks.
 
 ## Wire contract
 
@@ -65,17 +78,35 @@ are 0/1/2. 10 ohm/500 mVrms is forbidden; 33 keys remain. Non-LOAD impedance
 must be zero. LOAD must be finite, passive and nonzero. Reference ID/tolerance
 remain PC sidecar metadata; the device receives the requested complex center.
 
-Identity offsets: 0 hardware revision u32 (0x10001), 4 model u16 (5), 6 profile
+Identity offsets: 0 hardware revision u32 (0x10002, RGS-to-GND topology), 4 model u16 (5), 6 profile
 u16 (1=BRINGUP_CAL), 8 capability bitmap u32 (bits 0 identity, 1 status, 2 capture,
 3 cancel), 12 condition count u16, 14 artifact size u16, 16 timeout ms u32,
 20 ADC provenance u16 (1), 22 synthetic u8, 23 zero, 24 UID[12], 36 git[8],
 44 firmware version[16], NUL padded. Capability bit 4 now advertises the optional A06.2b installation handler.
+Capability bit 6 advertises the grouped-integration service: artifact size is
+196 instead of 188, and maximum capture deadline is 90000 instead of 20000 ms.
 Status offsets: 0 capture ID, 4 active OSL sequence, 8 faults, 12 safety blockers,
 16 protocol errors (all u32), 20 temperature mC i32; bytes 24 capture error,
 25 session busy, 26 result available, 27 active calibration valid, 28 transfer safe,
-29 temperature valid, 30..31 zero. An active valid record is not physical qualification.
+29 temperature valid. Capability bit 5 advertises battery telemetry: bytes 30..31
+then contain little-endian nominal-ADC VBAT millivolts (1..4350), with zero meaning
+unavailable, never a measured 0 V. Without capability bit 5 these bytes remain zero.
+An active valid record is not physical qualification.
+
+After IDENTIFY advertises this capability, the host adds `battery_voltage_v` to
+STATUS (`null` when unavailable). The existing auxiliary sensor supplies the
+sample; an unknown or more than 2000-ms-old battery sample is unavailable. This
+read starts no DUT acquisition and remains available while the charger interlock
+blocks measurement. It reports nominal ADC scaling, not calibrated voltage or
+state of charge. For example, `python tools/pc_cal_capture.py status --port COM4`
+identifies the device and reads battery telemetry using TTL only. Older firmware
+omits the voltage field and needs one firmware update before supporting this read.
 
 ## CCO1 observation artifact (188 bytes)
+
+Legacy service producers retain this exact format. Current BRINGUP_CAL opts in
+to CCO2 below; older clients reject its negotiated length, rather than treating
+group counts as physical-block counts.
 
 RESULT chunks contain at most 96 bytes; offsets/counts are explicitly checked.
 The PC validates chunk identity, whole-artifact CRC, condition and device identity.
@@ -101,8 +132,10 @@ Channel order is VEXC1, RET1X, VEXC2, RET_HG, VMID_ADC1, VMID_ADC2.
 Flags bits 0 stable, 1 safe teardown, 2 usable 1X, 3 usable HG, 4 observed HG
 overlap, 5 temperature available, 6 nominal ADC NOT calibrated, 7 1X clipped,
 8 HG clipped, 9 synthetic. No bit asserts physical qualification. GND phasors
-are running means of the existing accepted VMID-referenced samples restored with
-the same averaged VMID; the existing normalization/OSL equations remain unchanged.
+are running means of accepted samples after a shared unit phase rotation of all
+six channels, using VEXC1 (VEXC2 fallback) as phase origin. VMID is a fundamental
+phasor, not its DC voltage. Arbitrary phase between independent blocks cannot
+cancel the source mean; channel ratios and the normalization/OSL equations remain unchanged.
 The existing session uses `measurement_adc_calibration_ideal()` even if an OSL
 set is present. These actual nominal 3.3/4095 V/code and zero-offset values are
 reported, not substituted with invented measured ADC values.
@@ -112,14 +145,29 @@ retains it and rejects other blockers/faults. Hardware still selects the range a
 issues/validates its real permit for every attempt; this is not a range bypass.
 The service uses six stable accepted repeats, existing headroom/path checks and
 ten-attempt limit. It owns one 3,072-byte workspace; no second ADC buffer exists.
+Known SHORT admits finite unclipped zero-return evidence, with source and
+denominator observability still required. OPEN/LOAD retain their nonzero return
+thresholds. The minimum signal needed to observe HG gain remains unchanged for
+every standard; a zero SHORT cannot manufacture HG overlap.
 RX is 144 bytes, two bounded TX replies total 288 bytes, artifact 188 bytes, and
-six complex means 48 bytes; complete service context is 976 bytes on ARM.
+six complex means 48 bytes; the legacy service context was 1000 bytes on ARM.
+The CCO2 CAL service is 1072 bytes, including bounded integration state and
+the eight additional artifact bytes; the raw DMA workspace remains 3072 bytes.
 
 RX fragments expire at 250 ms. A capture expires after 20 seconds independently
 of PC connectivity and drains the existing hardware abort FSM. CANCEL also drains
 that FSM. TX occurs only after SAFE, excitation OFF, range disabled, acquisition
-inactive and quiet mode released. Main-loop byte reads/writes are bounded; TXE
+inactive and quiet mode released. After the first hardware attempt, replies are
+held until the entire repeat workflow drains, preventing a reply between blocks
+from inviting another request during synchronous DSP. The initial START ACK
+still leaves before any hardware attempt. Main-loop byte reads/writes are bounded; TXE
 polling is nonblocking. Queue overflow aborts capture and invalidates its result.
+After stable acquisition, the service stays BUSY while real auxiliary safety
+readings refresh after ADC restoration. Publication requires fresh allowed safety
+and transfer-safe state, within the original 20-second capture deadline. CANCEL,
+fault, charger/supply inhibition and timeout invalidate the pending result; START
+and installation BEGIN remain blocked. No nominal or old sample substitutes for
+the fresh post-capture safety snapshot.
 Only one volatile result exists; another START invalidates it. Capture commands
 do not install anything; use the separate A06.2b installer afterwards. An installation
 already programming can complete after disconnect. Resend IDENTIFY/STATUS to recover
@@ -134,3 +182,42 @@ large synthetic SHORT residual supports stable HG overlap; it is not a board mod
 or accuracy claim. Existing hardware FSM mock tests separately cover real permits,
 range sequencing, timeouts, charger abort and safe teardown. Physical GPIO/ADC/UART
 behavior is REQUIRES_BENCH_VALIDATION.
+
+## CCO2 grouped coherent calibration pilot (196 bytes)
+
+Capability bit 6 selects magic CCO2, artifact API2 and length196. PLC1 request API1,
+the installation protocol and calibration schema2/model5 are unchanged. Offsets
+0..183 retain the CCO1 field meanings except that accepted/rejected/attempts at
+40..42 count independent groups. Bytes184..185 are physical blocks/group u16;
+186..187 physical acquisition attempts u16; 188..189 accepted physical blocks
+u16; 190..191 reserved zero; 192..195 CRC32 over bytes0..191. RESULT remains in
+chunks of at most96 bytes, so the host reads three chunks. All fields are LE.
+
+For every standard at 10 kHz, 1 Mohm/100 mVrms uses96 physical blocks/group;
+1 Mohm/500 mVrms and100 kohm/100 mVrms use16; other keys use one. A group averages
+six observed complex phasors after common source-phase rotation, then derives
+impedance and effective HG transfer from the phasor means. It does not average
+per-block ratios. Clipping is ORed across the group; no clipped stream becomes
+valid through averaging. Six independent groups and the existing2% workflow
+criterion remain mandatory, with ten group attempts maximum. Physical attempts
+include partially rejected groups; accepted physical blocks equal accepted
+groups times blocks/group. Old CCO1 observations are never reinterpreted.
+
+Every contributing physical block remains a complete existing permitted hardware
+transaction and SAFE teardown using the single3072-byte raw workspace. No ADC
+timing, hardware transaction deadline, relay guard or safety threshold changes.
+Temperature metadata uses the freshness-qualified auxiliary reading at the last
+physical transaction in each group, rather than a long-request-start placeholder.
+
+Only integrated keys receive a90-second global capture deadline; ordinary keys
+keep20 seconds. The updated client defaults to95-second response allowance after
+identifying this service, and uses91-second quiet windows for integrated keys,
+21 seconds otherwise. Explicitly insufficient timeouts fail before START. The
+hardware FSM still stops on its own timeout/fault/interlock and drains to SAFE;
+longer PC quiet time does not extend a hardware permit or keep K1 energized
+between physical transactions. Cancellation discards partial means.
+
+This is a bounded engineering pilot. Longer integration is not proof of physical
+accuracy or sufficient overlap: the original validity gates still decide that.
+A changed source requires a new calibration cohort. See
+[the investigation plan](../../plans/14C-High-Z-Integration-Investigation.md).

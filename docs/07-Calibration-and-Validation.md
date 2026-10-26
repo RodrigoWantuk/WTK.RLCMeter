@@ -1,5 +1,76 @@
 # Calibration and Validation
 
+## First-unit experimental NTC profile
+
+The optional [factory profile](../Firmware/tools/NTC_FACTORY_PROFILE.md) fits
+owner-supplied temperature/raw-ADC pairs to an effective divider ratio and Beta,
+then emits a fixed-size MCU lookup table. It is UID-bound, versioned and explicitly
+unqualified. The first unit used 23.5 degC/ADC1952 and 30.1 degC/ADC1856 at the
+owner's explicit request despite contact uncertainty. These fitted parameters
+are not verified intrinsic component values; wider-range extrapolation and an
+independent third temperature remain unvalidated. Generic builds keep nominal
+100-kohm/B3950 conversion. Rebuilds must explicitly select the unit profile.
+See [physical delivery and limits](review/bringup-2026-10-25/NTC-Factory-Profile.md).
+This NTC adjustment does not complete the 33-condition OSL qualification or
+authorize installing a candidate with missing gain-overlap evidence.
+
+## First-board repeatability corrections — October 25, 2026
+
+Independent coherent ADC blocks can have different common timer-start phases.
+Source repeatability compares peak amplitudes; return impedance/admittance and
+effective HG-transfer repeatability remain complex and retain relative phase.
+The PC capture service rotates all six fundamental phasors by the same unit
+rotation before averaging blocks, using VEXC1 as phase origin (VEXC2 if VEXC1 is
+too small). This preserves within-block voltage ratios and channel phase while
+preventing cancellation of otherwise coherent signals. It does not calibrate
+ADC skew, physical phase error or source frequency.
+
+Endpoint repeatability needs a nonzero scale: OPEN uses dimensionless
+`y = (Vs - Vx) / Vx`, whose ideal value is zero, and SHORT uses impedance near
+zero. Their standard-deviation limits use the existing 20000 ppm (2%) fraction
+of `max(1, |mean(y)|)` for OPEN and `max(nominal RREF, |mean(Z)|)` for SHORT.
+LOAD, source amplitude and effective HG transfer retain relative limits about
+their nonzero means. Six accepted blocks and the ten-attempt bound remain.
+This is an explicit endpoint-quality policy correction, not an accuracy bound:
+2% of the range scale does not imply 2% of a small DUT value. Independent holdouts
+and a measured uncertainty budget remain required. Nominal RREF sets the scale
+of this stability test only; it does not replace the uncertain LOAD anchor.
+
+First-board evidence exposed both issues: low-range OPEN had normalized residual
+mean about 0.000516 with standard deviation 0.001299, while the source variation
+was about 0.40%. At 1 MOhm / 1 kHz the unaligned source phasor variation was about
+11.2%, but OPEN normalized-return variation was about 1.42% (1X) / 0.62% (HG).
+These observations motivate software regression cases; they are not accuracy or
+electrical qualification. Scope-dependent checks remain NOT_TESTED under the
+owner's explicitly limited engineering campaign.
+
+Calibration capture also refreshes real auxiliary samples between repeats,
+recognizes fully drained aborts, and holds UART replies after the first hardware
+attempt until the entire repeat workflow drains. Initial START acknowledgement
+still precedes hardware activity. Capture deadline, permits, excitation levels,
+OSL equations and persistent schema/model remain unchanged.
+Successful acquisition also waits in BUSY for fresh post-capture auxiliary
+readings before publication. This wait shares the original capture deadline;
+timeout/cancellation/interlock never publishes a pending result. The C-backed
+fixture exercises a real post-capture refresh delay, cancellation and timeout.
+
+The first full SHORT sweep also exposed a separate endpoint rule: a known SHORT
+must observe zero return without demanding the ordinary 50 uV nonzero DUT signal.
+Only the calibration SHORT uses a zero minimum return magnitude. Excitation,
+denominator, finite-data, clipping, six-repeat stability and electrical permission
+checks remain. OPEN, LOAD and ordinary measurements retain their signal thresholds.
+HG gain overlap still requires the original nonzero threshold on both channels;
+noise at zero cannot establish a measured HG gain. The regression uses quantized
+raw ADC blocks and checks zero SHORT, zero OPEN/LOAD, absent source and clipping.
+Firmware identity changes require fresh same-image OPEN/SHORT acquisition; the
+earlier 66 observations remain preserved and are not relabelled or mixed.
+
+## October24 integration baseline
+
+RGS-toGND boards now use hardware_revision0x00010002 (65538). Schema2/model5 and equations remain unchanged. Old0x00010001 topology records are incompatible; do not relabel them. Firmware and PC tools agree; stored bytes are not erased. New calibration must be captured on the reworked board.
+
+See [current evidence, input limits and release status](review/bringup-2026-10-24/README.md).
+
 ## Purpose
 
 The first PCB is not considered a qualified measurement instrument simply because it powers up. Rev.1 exists to measure and model:
@@ -277,3 +348,50 @@ Changes to any of the following may invalidate calibration:
 - calibration algorithm/model.
 
 Persistent calibration records therefore carry `hardware_revision` and model/schema version information.
+
+## Low-impedance search versus calibration
+
+The bounded search in [plan 23](../plans/23-Bounded-Low-Impedance-Search.md)
+adds a supporting 10-kHz attempt after a usable, unclipped,
+apparently resistive 1-kHz result on the 10/100-ohm references. It changes
+condition selection only. Finite negative estimated R may also be investigated,
+while existing negative-resistance/loss publication guards remain unchanged.
+The OSL model, coefficients, HG transfer, hardware
+revision, ADC timing, calibration serialization and publication gates remain
+unchanged. The existing active engineering set can be retained; this change
+does not require another resistor calibration campaign. Each selected condition
+still needs compatible calibration and real hardware safety permission.
+
+Validation must distinguish extra search from a successful derived value.
+Record all attempts, actual frequency/RREF/path and primary index. A second
+frequency that disagrees with the first may remain MIXED/UNKNOWN. Do not turn
+small negative X into positive L, suppress inconsistent evidence, or infer an
+instrument accuracy bound from the nominal DUT marking. The pre-change
+0.47-uH observation and its SAFE teardown are preserved in
+[bench evidence](../Firmware/releases/2026-10-25/inductor-047-limit-check/README.md).
+Sub-microhenry sensitivity, fixture parasitics and phase accuracy remain
+REQUIRES_BENCH_VALIDATION.
+
+
+## Evidence selection and held-session qualification (2026-10-26)
+
+The original four-attempt nominal 0.47-uH capture is replayed in host tests.
+Its early 0.1245/1.0915-mV selected returns are retained but cannot vote under
+the existing 2-mV weak-return threshold; the later 9.305/5.875-mV attempts remain
+resistance-dominated. This fixes evidence admission, not small-inductor accuracy.
+Threshold, raw signs and conditional C/L/loss publication remain unchanged.
+
+The PC-provisioned PRODUCT session owner may keep K1 connected across bounded
+1/10-kHz captures, while fixed calibration acquisition still returns SAFE per
+capture. Stored OSL schema/model/hardware compatibility and coefficients are
+unchanged. The engineering set and UID-bound experimental NTC profile must be
+preserved through deployment. No repeated resistor campaign is part of this task.
+
+Host tests cover single K1 entry across actual range-service transitions,
+neutral/disabled address changes, fresh initial authorization, deadline/battery
+expiry, six-capture limit, timer wrap, charger/fault/DMA/cancel failures and
+publication only after SAFE cleanup. These are software/fake-I/O observations.
+Actual relay counts/timing, analog settling and phase consistency with continuous
+connection remain REQUIRES_BENCH_VALIDATION; no owner button/fixture interaction
+is available during this work. No debugger state injection or reset-triggered
+DUT measurement is an acceptable substitute for a supported measurement command.

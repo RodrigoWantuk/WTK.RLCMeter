@@ -1,0 +1,120 @@
+{
+  "source": "f86b7f4e",
+  "owner_reading_ohms": 996000,
+  "fit_reference_nominal_ohms": 1000000,
+  "fit_reference_tolerance_pct": 1,
+  "physically_qualified": false,
+  "osl_installed": false,
+  "original_campaign_modified": false,
+  "artifacts": 12,
+  "comparison": [
+    {
+      "condition": {
+        "rref_ohms": 1000000,
+        "frequency_hz": 10000,
+        "amplitude_mvrms": 100
+      },
+      "statistics": {
+        "normalized_1x_transfer": {
+          "mean": [
+            0.04676541617425223,
+            0.04099209511227811
+          ],
+          "complex_std": 0.0028214721171497905,
+          "relative_std_pct": 4.536999027722583
+        },
+        "effective_hg_transfer": {
+          "mean": [
+            11.39959295388195,
+            0.14979749295734773
+          ],
+          "complex_std": 0.5313420471628986,
+          "relative_std_pct": 4.660659204320596
+        }
+      },
+      "initial_serial_status": {
+        "capture_id": 728472545,
+        "calibration_sequence": 0,
+        "safety_faults": 0,
+        "safety_blocks": 8,
+        "protocol_errors": 0,
+        "temperature_mC": 23571,
+        "capture_status": 0,
+        "busy": false,
+        "result_valid": true,
+        "calibrated": false,
+        "transfer_safe": true,
+        "battery_voltage_v": 3.947
+      },
+      "final_serial_status": {
+        "capture_id": 728472583,
+        "calibration_sequence": 0,
+        "safety_faults": 0,
+        "safety_blocks": 8,
+        "protocol_errors": 0,
+        "temperature_mC": 23370,
+        "capture_status": 0,
+        "busy": false,
+        "result_valid": true,
+        "calibrated": false,
+        "transfer_safe": true,
+        "battery_voltage_v": 3.939
+      }
+    },
+    {
+      "condition": {
+        "rref_ohms": 1000000,
+        "frequency_hz": 10000,
+        "amplitude_mvrms": 500
+      },
+      "statistics": {
+        "normalized_1x_transfer": {
+          "mean": [
+            0.03034626067951336,
+            0.034404411907186926
+          ],
+          "complex_std": 0.0008940990452051461,
+          "relative_std_pct": 1.9489696154465868
+        },
+        "effective_hg_transfer": {
+          "mean": [
+            15.272263027132707,
+            -1.5407826854928484
+          ],
+          "complex_std": 0.2921914286862218,
+          "relative_std_pct": 1.9035533609096547
+        }
+      },
+      "initial_serial_status": {
+        "capture_id": 728472583,
+        "calibration_sequence": 0,
+        "safety_faults": 0,
+        "safety_blocks": 8,
+        "protocol_errors": 0,
+        "temperature_mC": 23306,
+        "capture_status": 0,
+        "busy": false,
+        "result_valid": true,
+        "calibrated": false,
+        "transfer_safe": true,
+        "battery_voltage_v": 3.939
+      },
+      "final_serial_status": {
+        "capture_id": 871189834,
+        "calibration_sequence": 0,
+        "safety_faults": 0,
+        "safety_blocks": 8,
+        "protocol_errors": 0,
+        "temperature_mC": 23241,
+        "capture_status": 0,
+        "busy": false,
+        "result_valid": true,
+        "calibrated": false,
+        "transfer_safe": true,
+        "battery_voltage_v": 3.934
+      }
+    }
+  ],
+  "sha256": "993ff4d4e40a2c9fa754d83d36fe9e25dd5531bf694565788b2434d19a6657a6",
+  "next_step": "Await explicit empty-terminal confirmation for same-source 500-mVrms OPEN"
+}

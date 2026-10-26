@@ -1,5 +1,7 @@
 # PCB
 
+Current owner exports are dated2026-10-24 in source/ and fabrication/Rev1/: [EasyEDA](source/ProPrj_WTK%20RLC%20Meter_2026-10-24.epro2), [Gerber](fabrication/Rev1/Gerber_RLC_2026-10-24.zip), [BOM](fabrication/Rev1/BOM_WTK%20RLC%20PCB_RLC_2026-10-24.csv), [schematic](fabrication/Rev1/SCH_WTK%20RLC%20Meter_2026-10-24.pdf), [PCB](fabrication/Rev1/PCB_RLC_2026-10-24.pdf). All RGS10k are gate-toGND. audit_rev1.py now checks these files, without the old RSCK exception; historical exports remain in Git history.
+
 This directory contains the engineering and manufacturing artifacts for the WTK.RLCMeter PCB.
 
 Circuit behavior is documented under [`../docs`](../docs). This directory should contain the **actual EasyEDA Pro exports** and the manufacturing artifacts used for each hardware revision.

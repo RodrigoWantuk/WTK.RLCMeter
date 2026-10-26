@@ -13,6 +13,7 @@ from pathlib import Path
 
 FORBIDDEN = {
     "PRODUCT": (
+        re.compile(r"hw_k1_bench_|lab_k1_test"),
         re.compile(r"app_bringup_console"),
         re.compile(r"app_calibration_campaign"),
         re.compile(r"g_bringup_console"),
@@ -23,6 +24,7 @@ FORBIDDEN = {
         re.compile(r"ui_product_"),
     ),
     "BRINGUP_CAL": (
+        re.compile(r"hw_k1_bench_|lab_k1_test"),
         re.compile(r"app_product_|ui_product_|app_bringup_console|app_calibration_campaign|\blab_"),
     ),
 }
@@ -30,6 +32,15 @@ FORBIDDEN = {
 CURVE_SOURCES = {"measurement_cal_curve.c", "measurement_cal_curve_frame.c",
                  "measurement_cal_curve_store.c"}
 CURVE_SYMBOLS = re.compile(r"measurement_cal_curve_|product_(?:curve_|load_curve_|active_osl_crc32)|g_curve_store")
+
+
+def peripheral_composition_errors(symbols: str, enabled: bool) -> list[str]:
+    if not enabled:
+        return [line for line in symbols.splitlines() if re.search(r"ui_peripheral_test_|g_peripheral_ui", line)]
+    pattern = re.compile(r"app_bringup_console_|\brun_command|hw_metrology_measure_(?:start|step)|"
+                         r"app_calibration_service_(?:load|step|candidate_)|w25q_device_(?:program|erase)|"
+                         r"bsp_metrology_adc_start_capture")
+    return [line for line in symbols.splitlines() if pattern.search(line)]
 
 
 def factory_composition_errors(symbols: str, commands: list[dict], enabled: bool) -> list[str]:
@@ -53,8 +64,8 @@ def capture_composition_errors(commands: list[dict], profile: str) -> list[str]:
     if profile != "BRINGUP_CAL":
         return ["capture development service compiled in " + profile] if present & service else []
     forbidden = {"app_shell.c", "app_bringup_console.c", "app_calibration_campaign.c",
-                 "app_product.c", "ui_product.c", "resource_receiver.c", "resource_store.c",
-                 "app_settings_store.c", "ili9341.c", "ui_fallback_renderer.c"}
+                 "app_product.c", "ui_product.c", "resource_receiver.c",
+                 "app_settings_store.c", "ui_fallback_renderer.c"}
     errors = ["BRINGUP_CAL missing capture source: " + name for name in sorted(service-present)]
     errors += ["BRINGUP_CAL unrelated source: " + name for name in sorted(present & forbidden)]
     return errors
@@ -81,6 +92,7 @@ def main() -> int:
     parser.add_argument("--supplementary-curves", choices=("ON", "OFF"))
     parser.add_argument("--compile-commands", type=Path)
     parser.add_argument("--factory-provisioned", choices=("ON", "OFF"), default="OFF")
+    parser.add_argument("--peripheral-test", choices=("ON", "OFF"), default="OFF")
     args = parser.parse_args()
 
     if not args.elf.exists():
@@ -98,6 +110,9 @@ def main() -> int:
         return completed.returncode
 
     matches: list[str] = []
+    if args.peripheral_test == "ON" and args.profile != "BRINGUP":
+        parser.error("peripheral diagnostic requires BRINGUP")
+    matches.extend(peripheral_composition_errors(completed.stdout, args.peripheral_test == "ON"))
     if args.supplementary_curves is not None:
         if args.compile_commands is None:
             parser.error("--supplementary-curves requires --compile-commands")

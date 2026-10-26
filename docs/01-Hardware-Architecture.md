@@ -1,5 +1,11 @@
 # Hardware Architecture
 
+## October24 integration baseline
+
+All six10k RGS now connect gate toGND (October24 CAD), replacing the measured gate-to-source DC bias path. SRC nodes remain isolated fromGND. Calibration hardware identity is0x00010002; dynamic switching/power qualification remains pending.
+
+See [current evidence, input limits and release status](review/bringup-2026-10-24/README.md).
+
 ## Scope
 
 Rev.1 is a two-layer PCB for characterization of **de-energized passive components**. It deliberately avoids an external ADC and favors packages that remain practical for manual assembly.

@@ -21,6 +21,9 @@
 #include "hardware/hw_safety.h"
 #include "measurement/measurement_calibration_store.h"
 #include "wtk_build_config.h"
+#if WTK_ENABLE_K1_BENCH_TEST
+#include "hardware/hw_k1_bench.h"
+#endif
 
 enum
 {
@@ -95,6 +98,13 @@ typedef struct
     hw_aux_sensors_t *sensors_ref;
     hw_charger_t *charger_ref;
     app_safety_fault_latch_t *faults_ref;
+#if WTK_ENABLE_BENCH_SUPPLY
+    bool bench_supply_confirmed;
+#endif
+#if WTK_ENABLE_K1_BENCH_TEST
+    hw_k1_bench_t k1_test;
+    const w25q_device_t *k1_test_flash_ref;
+#endif
 #else
     uint8_t unused;
 #endif
@@ -118,5 +128,10 @@ void app_bringup_console_step(app_bringup_console_t *console,
 bool app_bringup_console_flash_busy(const app_bringup_console_t *console);
 bool app_bringup_console_capture_busy(const app_bringup_console_t *console);
 uint32_t app_bringup_console_context_size_bytes(void);
+#if WTK_ENABLE_K1_BENCH_TEST && WTK_ENABLE_BRINGUP_CONSOLE
+/* Scheduled before the main-loop safety arbiter and slow peripheral work. */
+void app_bringup_console_k1_test_step(app_bringup_console_t *console, uint32_t now_ms);
+bool app_bringup_console_k1_test_owned(const app_bringup_console_t *console);
+#endif
 
 #endif

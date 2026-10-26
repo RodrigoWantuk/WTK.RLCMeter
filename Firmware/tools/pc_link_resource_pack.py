@@ -4,6 +4,9 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
+import json
+import math
 from pathlib import Path
 import struct
 import sys
@@ -114,6 +117,9 @@ def _read_exact(link, size: int) -> bytes:
 def read_status_frame(link) -> tuple[int, int, int, int]:
     header = _read_exact(link, HEADER_SIZE)
     _magic, _version, _frame_type, _flags, _sequence, length, _payload_crc = struct.unpack("<IBBHHHI", header)
+    if (_magic != MAGIC or _version != VERSION or _frame_type != FRAME_STATUS or
+            _flags != 0 or length != STATUS_PAYLOAD_SIZE):
+        raise ValueError("invalid status header")
     payload = _read_exact(link, length)
     frame_type, sequence, decoded_payload = decode_frame(header + payload)
     if frame_type != FRAME_STATUS:
@@ -126,28 +132,77 @@ def read_status_frame(link) -> tuple[int, int, int, int]:
     return status_sequence, pc_status, update_status, update_state
 
 
-def send_serial(frames: list[bytes], port: str, baud: int, inter_frame_delay_s: float) -> None:
+def send_serial(frames: list[bytes], port: str, baud: int, inter_frame_delay_s: float,
+                inter_byte_delay_s: float = 0.002, settle_after_begin_s: float = 0.25,
+                report_path: Path | None = None, begin_byte_delay_s: float = 0.010) -> dict:
+    """Stop on any ambiguous ACK; never replay a potentially committed frame."""
+    for delay in (inter_frame_delay_s, inter_byte_delay_s, settle_after_begin_s, begin_byte_delay_s):
+        if not math.isfinite(delay) or delay < 0:
+            raise ValueError("delays must be finite and nonnegative")
+    if report_path is not None and report_path.exists():
+        raise ValueError("report already exists; choose a new evidence path")
+    if not frames or decode_frame(frames[0])[0] != FRAME_RESOURCE_BEGIN or decode_frame(frames[-1])[0] != FRAME_RESOURCE_END:
+        raise ValueError("complete BEGIN/CHUNK/END stream required")
+    for frame in frames:
+        decode_frame(frame)
     try:
         import serial  # type: ignore[import-not-found]
     except ImportError as exc:
         raise SystemExit("pyserial is required for --port transmission") from exc
 
-    with serial.Serial(port=port, baudrate=baud, timeout=2.0, write_timeout=2.0) as link:
+    report = dict(port=port, baud=baud, stream_sha256=hashlib.sha256(b"".join(frames)).hexdigest(),
+                  inter_byte_delay_s=inter_byte_delay_s, settle_after_begin_s=settle_after_begin_s,
+                  begin_byte_delay_s=begin_byte_delay_s,
+                  outcome="IN_PROGRESS", frames=[])
+    started = time.monotonic()
+    link = serial.Serial(port=None, baudrate=baud, timeout=15.0, write_timeout=15.0)
+    try:
+        link.dtr = False
+        link.rts = False
+        link.port = port
+        link.open()
         for frame in frames:
-            _frame_type, sequence, _payload = decode_frame(frame)
-            link.write(frame)
-            link.flush()
-            status_sequence, pc_status, update_status, _update_state = read_status_frame(link)
-            if status_sequence != sequence:
-                raise RuntimeError(f"status sequence {status_sequence} does not match frame {sequence}")
-            if (pc_status != PC_STATUS_OK) or (
-                update_status not in (UPDATE_STATUS_OK, UPDATE_STATUS_COMPLETE)
-            ):
-                raise RuntimeError(
-                    f"device rejected frame {sequence}: pc_status={pc_status} update_status={update_status}"
-                )
-            if inter_frame_delay_s > 0.0:
+            frame_type, sequence, _payload = decode_frame(frame)
+            item = dict(sequence=sequence, tx_hex=frame.hex(), started_s=time.monotonic()-started)
+            report["frames"].append(item)
+            byte_delay = max(inter_byte_delay_s, begin_byte_delay_s) if frame_type == FRAME_RESOURCE_BEGIN else inter_byte_delay_s
+            pieces = (bytes([value]) for value in frame) if byte_delay else (frame,)
+            for piece in pieces:
+                if link.write(piece) != len(piece):
+                    raise IOError("short serial write")
+                link.flush()
+                if byte_delay:
+                    time.sleep(byte_delay)
+            status_sequence, pc_status, update_status, update_state = read_status_frame(link)
+            item.update(status_sequence=status_sequence, pc_status=pc_status, update_status=update_status,
+                        update_state=update_state, acknowledged_s=time.monotonic()-started)
+            expected = UPDATE_STATUS_COMPLETE if frame_type == FRAME_RESOURCE_END else UPDATE_STATUS_OK
+            if status_sequence != sequence or pc_status != PC_STATUS_OK or update_status != expected:
+                raise RuntimeError(f"unexpected ACK for frame {sequence}: {item}")
+            if frame_type == FRAME_RESOURCE_BEGIN and settle_after_begin_s:
+                time.sleep(settle_after_begin_s)
+            if inter_frame_delay_s:
                 time.sleep(inter_frame_delay_s)
+        report["outcome"] = "ALL_FRAMES_ACKNOWLEDGED"
+        return report
+    except Exception as exc:
+        report.update(outcome="STOPPED_INSPECT_BEFORE_RETRY", error=str(exc))
+        raise
+    finally:
+        link.close()
+        report["elapsed_s"] = time.monotonic()-started
+        if report_path is not None:
+            report_path.parent.mkdir(parents=True, exist_ok=True)
+            report_path.write_text(json.dumps(report, indent=2)+"\n", encoding="utf-8")
+
+
+def add_serial_options(parser) -> None:
+    parser.add_argument("--inter-byte-delay-ms", type=float, default=2.0,
+                        help="flush each byte and pace polled UART (legacy images may require 10 ms)")
+    parser.add_argument("--settle-after-begin-ms", type=float, default=250.0)
+    parser.add_argument("--begin-byte-delay-ms", type=float, default=10.0,
+                        help="slower BEGIN while the existing screen may still redraw")
+    parser.add_argument("--report", type=Path, help="save ACK evidence, including partial failures")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -158,6 +213,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--baud", type=int, default=115200)
     parser.add_argument("--chunk-size", type=int, default=RESOURCE_CHUNK_DATA_BYTES)
     parser.add_argument("--inter-frame-delay-ms", type=float, default=2.0)
+    add_serial_options(parser)
     args = parser.parse_args(argv)
 
     pack = args.resource_pack.read_bytes()
@@ -167,7 +223,9 @@ def main(argv: list[str] | None = None) -> int:
         write_stream(frames, args.out)
 
     if args.port:
-        send_serial(frames, args.port, args.baud, args.inter_frame_delay_ms / 1000.0)
+        send_serial(frames, args.port, args.baud, args.inter_frame_delay_ms / 1000.0,
+                    args.inter_byte_delay_ms / 1000.0, args.settle_after_begin_ms / 1000.0, args.report,
+                    args.begin_byte_delay_ms / 1000.0)
 
     if args.out is None and not args.port:
         total = sum(len(frame) for frame in frames)

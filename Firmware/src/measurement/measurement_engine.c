@@ -243,6 +243,20 @@ static float selected_return_peak(const measurement_attempt_result_t *result)
                                                                  result->ret_1x_quality.signal_peak_v;
 }
 
+static bool classification_evidence_usable(const measurement_attempt_result_t *result)
+{
+    if (!result_math_ok(result) || result->clipped)
+    {
+        return false;
+    }
+    const measurement_channel_quality_t *quality =
+        (result->selected_channel == MEASUREMENT_RETURN_HG) ? &result->ret_hg_quality :
+                                                            &result->ret_1x_quality;
+    return quality->usable && !quality->clipped &&
+           isfinite(quality->signal_peak_v) &&
+           (quality->signal_peak_v >= AUTO_RET_WEAK_V_PEAK);
+}
+
 static bool can_append_attempt(const measurement_auto_session_t *session,
                                measurement_attempt_config_t attempt)
 {
@@ -305,6 +319,19 @@ static bool choose_500mv_retry(const measurement_auto_session_t *session,
     return false;
 }
 
+static bool explore_resistive_low_impedance(const measurement_attempt_result_t *result)
+{
+    const measurement_channel_quality_t *quality =
+        (result->selected_channel == MEASUREMENT_RETURN_HG) ? &result->ret_hg_quality :
+                                                            &result->ret_1x_quality;
+    /* Low-frequency resistance dominance can hide a small reactive component.
+     * Search at higher frequency without changing classification thresholds. */
+    return (result->derived.interpretation == MEASUREMENT_INTERPRET_RESISTIVE) &&
+           (result->config.frequency == HW_EXCITATION_FREQ_1KHZ) &&
+           ((uint32_t)result->config.range_id <= (uint32_t)HW_RANGE_ID_100R) &&
+           quality->usable && !quality->clipped;
+}
+
 static bool choose_frequency_refinement(const measurement_auto_session_t *session,
                                         const measurement_attempt_result_t *result,
                                         measurement_attempt_config_t *out)
@@ -316,20 +343,16 @@ static bool choose_frequency_refinement(const measurement_auto_session_t *sessio
     }
     if ((result->derived.interpretation != MEASUREMENT_INTERPRET_CAPACITIVE) &&
         (result->derived.interpretation != MEASUREMENT_INTERPRET_INDUCTIVE) &&
-        (result->derived.interpretation != MEASUREMENT_INTERPRET_MIXED_OR_UNKNOWN))
+        (result->derived.interpretation != MEASUREMENT_INTERPRET_MIXED_OR_UNKNOWN) &&
+        !explore_resistive_low_impedance(result))
     {
         return false;
     }
 
-    hw_excitation_freq_t next = HW_EXCITATION_FREQ_10KHZ;
-    if (result->config.frequency == HW_EXCITATION_FREQ_10KHZ)
-    {
-        next = HW_EXCITATION_FREQ_1KHZ;
-    }
-    else if (result->config.frequency == HW_EXCITATION_FREQ_10HZ)
-    {
-        next = HW_EXCITATION_FREQ_1KHZ;
-    }
+    /* Conditions are validated before scheduling: both 10 Hz and 10 kHz
+     * refine at 1 kHz; a 1-kHz condition refines at 10 kHz. */
+    const hw_excitation_freq_t next = (result->config.frequency == HW_EXCITATION_FREQ_1KHZ) ?
+                                         HW_EXCITATION_FREQ_10KHZ : HW_EXCITATION_FREQ_1KHZ;
 
     measurement_attempt_config_t attempt = make_attempt(session,
                                                         result->config.range_id,
@@ -630,8 +653,7 @@ static policy_decision_t decide_next(const measurement_auto_session_t *session,
         return decision;
     }
 
-    if ((result->derived.interpretation != MEASUREMENT_INTERPRET_RESISTIVE) &&
-        choose_frequency_refinement(session, result, &attempt))
+    if (choose_frequency_refinement(session, result, &attempt))
     {
         decision.decision = NEXT_DECISION_ATTEMPT;
         decision.attempt = attempt;
@@ -865,6 +887,20 @@ measurement_auto_event_t measurement_auto_cancel(measurement_auto_session_t *ses
     return MEASUREMENT_AUTO_EVENT_FINAL_RESULT;
 }
 
+measurement_auto_event_t measurement_auto_stop_session(measurement_auto_session_t *session,
+                                                       measurement_auto_status_t status)
+{
+    if ((session == NULL) || (session->status == MEASUREMENT_AUTO_STATUS_IDLE) ||
+        ((status != MEASUREMENT_AUTO_STATUS_SAFETY_ABORT) &&
+         (status != MEASUREMENT_AUTO_STATUS_CANCELED) &&
+         (status != MEASUREMENT_AUTO_STATUS_FAILED)))
+    {
+        return MEASUREMENT_AUTO_EVENT_NONE;
+    }
+    finalize_result(session, status, MEASUREMENT_ATTEMPT_VERIFY_CLASSIFICATION);
+    return MEASUREMENT_AUTO_EVENT_FINAL_RESULT;
+}
+
 measurement_auto_hint_t measurement_auto_make_hint(const measurement_session_result_t *result)
 {
     measurement_auto_hint_t hint = {0};
@@ -1052,7 +1088,7 @@ static bool attempt_local_interpretation(const measurement_attempt_result_t *res
                                          measurement_interpretation_t *interp,
                                          uint32_t *flags)
 {
-    if ((result == NULL) || (interp == NULL) || (flags == NULL) || !result_math_ok(result))
+    if ((result == NULL) || (interp == NULL) || (flags == NULL) || !classification_evidence_usable(result))
     {
         return false;
     }
@@ -1095,13 +1131,14 @@ static void evaluate_frequency_trend(const measurement_attempt_result_t *history
     bool inconsistent = false;
     for (uint8_t i = 0u; i < count; i++)
     {
-        if (!result_math_ok(&history[i]))
+        if (!classification_evidence_usable(&history[i]))
         {
             continue;
         }
         for (uint8_t j = (uint8_t)(i + 1u); j < count; j++)
         {
-            if (!result_math_ok(&history[j]) || (history[i].config.frequency == history[j].config.frequency))
+            if (!classification_evidence_usable(&history[j]) ||
+                (history[i].config.frequency == history[j].config.frequency))
             {
                 continue;
             }

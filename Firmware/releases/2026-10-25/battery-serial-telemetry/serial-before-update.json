@@ -1,0 +1,30 @@
+{
+  "utc": "2026-10-25T16:20:49.793593+00:00",
+  "operation": "SERIAL_ONLY_IDENTIFY_STATUS",
+  "identity": {
+    "hardware_revision": 65538,
+    "model": 5,
+    "profile": 1,
+    "capabilities": 31,
+    "protocol_version": 1,
+    "timeout_ms": 20000,
+    "adc_provenance": "NOMINAL_3V3_NOT_CALIBRATED",
+    "synthetic": false,
+    "uid": "54ff70068370525760380567",
+    "git": "0da88bfd",
+    "firmware_version": "0.1.0"
+  },
+  "status_bytes": 32,
+  "status_hex": "0000000000000000000000000800000000000000c05800000800000001010000",
+  "capture_id": 0,
+  "safety_faults": 0,
+  "safety_blocks": 8,
+  "protocol_errors": 0,
+  "temperature_mC": 22720,
+  "busy": false,
+  "transfer_safe": true,
+  "reserved_bytes_30_31": "0000",
+  "battery_voltage_exported": false,
+  "STLink_used": false,
+  "capture_started": false
+}

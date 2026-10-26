@@ -3,7 +3,6 @@
 #include <float.h>
 #include <math.h>
 #include <stddef.h>
-#include "wtk_build_config.h"
 
 enum
 {
@@ -66,9 +65,8 @@ static float atan_approx(float z)
 
 static float atan2_approx(float y, float x)
 {
-#if WTK_PRODUCT_FACTORY_PROVISIONED
-    /* atan_approx is calibrated for |z| <= 1. Reduce by the complementary
-       angle before evaluating; the previous y/x call diverged for reactive DUTs. */
+    /* The polynomial is bounded for |z| <= 1. Every firmware profile must
+       reduce the argument before evaluating a reactance-dominant impedance. */
     if (!finite_float(x) || !finite_float(y)) return NAN;
     const float ax = abs_float(x);
     const float ay = abs_float(y);
@@ -77,26 +75,6 @@ static float atan2_approx(float y, float x)
         MEAS_PI_F / 2.0f - atan_approx(ax / ay);
     if (x < 0.0f) angle = MEAS_PI_F - angle;
     return y < 0.0f ? -angle : angle;
-#else
-    if (x > 0.0f)
-    {
-        return atan_approx(y / x);
-    }
-    if (x < 0.0f)
-    {
-        return (y >= 0.0f) ? (atan_approx(y / x) + MEAS_PI_F) :
-                             (atan_approx(y / x) - MEAS_PI_F);
-    }
-    if (y > 0.0f)
-    {
-        return MEAS_PI_F / 2.0f;
-    }
-    if (y < 0.0f)
-    {
-        return -MEAS_PI_F / 2.0f;
-    }
-    return 0.0f;
-#endif
 }
 
 measurement_complex_t measurement_complex(float re, float im)

@@ -60,6 +60,43 @@ class ProvisioningTests(unittest.TestCase):
             self.assertEqual(result['candidate_sha256'],result['readback_sha256'])
             self.assertTrue(result['product_boot_verified'])
 
+    def test_commit_waits_for_fresh_residual_without_starting_flash(self):
+        transaction=self.ready(frame(1))
+        self.serial.control(14,struct.pack('<H',250))
+        self.installer.commit(transaction)
+        state=self.installer.status()
+        self.assertEqual(state['state'],install.WRITING)
+        self.assertEqual(self.debug()[6],0) # No erase/program operation while evidence is stale.
+        self.serial.advance(300)
+        for _ in range(500):
+            state=self.installer.status()
+            if state['state']!=install.WRITING:break
+            self.serial.advance(1)
+        self.assertEqual(state['state'],install.INSTALLED)
+        self.assert_old()
+
+    def test_commit_refresh_wait_expires_without_writing(self):
+        transaction=self.ready(frame(1))
+        self.serial.control(14,struct.pack('<H',31000))
+        self.installer.commit(transaction)
+        self.serial.advance(30100)
+        state=self.installer.status()
+        self.assertEqual(state['state'],install.FAILED)
+        self.assertEqual(state['error'],10)
+        self.assertEqual(self.debug()[6],0)
+        self.assertFalse(state['active_valid'])
+
+    def test_charger_preempts_commit_refresh_wait(self):
+        transaction=self.ready(frame(1))
+        self.serial.control(14,struct.pack('<H',250))
+        self.installer.commit(transaction)
+        self.serial.inject(1)
+        self.serial.advance(10)
+        state=self.installer.status()
+        self.assertEqual(state['state'],install.FAILED)
+        self.assertEqual(state['error'],7)
+        self.assertEqual(self.debug()[6],0)
+
     def product(self,resources=0,safety=0,click=True):
         return struct.unpack('<8I2f',self.serial.control(9,bytes((resources,safety,int(click)))))
 

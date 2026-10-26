@@ -1,0 +1,363 @@
+{
+  "recorded_utc": "2026-10-25T14:56:26.950462+00:00",
+  "SIMULATED": false,
+  "status": "ALL_99_CAPTURED_30_FITS_VALID_3_GAIN_OBSERVABILITY_BLOCKED",
+  "identity": {
+    "hardware_revision": 65538,
+    "model": 5,
+    "profile": 1,
+    "capabilities": 31,
+    "protocol_version": 1,
+    "timeout_ms": 20000,
+    "adc_provenance": "NOMINAL_3V3_NOT_CALIBRATED",
+    "synthetic": false,
+    "uid": "54ff70068370525760380567",
+    "git": "7017e5e0",
+    "firmware_version": "0.1.0"
+  },
+  "observations": 99,
+  "diagnostic_open_repeats": 3,
+  "solvable_conditions": 30,
+  "complete_triplets": 33,
+  "blocked": [
+    {
+      "condition": {
+        "rref_ohms": 100000,
+        "frequency_hz": 10000,
+        "amplitude_mvrms": 100
+      },
+      "error": "no stable nondegenerate OSL acquisition path",
+      "qualities": [
+        {
+          "standard": "OPEN",
+          "ret_1x_valid": false,
+          "ret_hg_valid": true,
+          "hg_observed": false
+        },
+        {
+          "standard": "SHORT",
+          "ret_1x_valid": true,
+          "ret_hg_valid": true,
+          "hg_observed": false
+        },
+        {
+          "standard": "LOAD",
+          "ret_1x_valid": false,
+          "ret_hg_valid": true,
+          "hg_observed": false
+        }
+      ]
+    },
+    {
+      "condition": {
+        "rref_ohms": 1000000,
+        "frequency_hz": 10000,
+        "amplitude_mvrms": 100
+      },
+      "error": "no stable nondegenerate OSL acquisition path",
+      "qualities": [
+        {
+          "standard": "OPEN",
+          "ret_1x_valid": false,
+          "ret_hg_valid": true,
+          "hg_observed": false
+        },
+        {
+          "standard": "SHORT",
+          "ret_1x_valid": true,
+          "ret_hg_valid": true,
+          "hg_observed": false
+        },
+        {
+          "standard": "LOAD",
+          "ret_1x_valid": false,
+          "ret_hg_valid": true,
+          "hg_observed": false
+        }
+      ]
+    },
+    {
+      "condition": {
+        "rref_ohms": 1000000,
+        "frequency_hz": 10000,
+        "amplitude_mvrms": 500
+      },
+      "error": "no stable nondegenerate OSL acquisition path",
+      "qualities": [
+        {
+          "standard": "OPEN",
+          "ret_1x_valid": false,
+          "ret_hg_valid": true,
+          "hg_observed": false
+        },
+        {
+          "standard": "SHORT",
+          "ret_1x_valid": true,
+          "ret_hg_valid": true,
+          "hg_observed": false
+        },
+        {
+          "standard": "LOAD",
+          "ret_1x_valid": false,
+          "ret_hg_valid": true,
+          "hg_observed": false
+        }
+      ]
+    }
+  ],
+  "diagnostic_results": [
+    {
+      "condition": {
+        "rref_ohms": 100000,
+        "frequency_hz": 10000,
+        "amplitude_mvrms": 100
+      },
+      "error": "no stable nondegenerate OSL acquisition path",
+      "open_quality": {
+        "ret_1x_valid": false,
+        "ret_hg_valid": true,
+        "hg_observed": false
+      },
+      "replacement_applied": false
+    },
+    {
+      "condition": {
+        "rref_ohms": 1000000,
+        "frequency_hz": 10000,
+        "amplitude_mvrms": 100
+      },
+      "error": "no stable nondegenerate OSL acquisition path",
+      "open_quality": {
+        "ret_1x_valid": false,
+        "ret_hg_valid": true,
+        "hg_observed": false
+      },
+      "replacement_applied": false
+    },
+    {
+      "condition": {
+        "rref_ohms": 1000000,
+        "frequency_hz": 10000,
+        "amplitude_mvrms": 500
+      },
+      "error": "no stable nondegenerate OSL acquisition path",
+      "open_quality": {
+        "ret_1x_valid": false,
+        "ret_hg_valid": true,
+        "hg_observed": false
+      },
+      "replacement_applied": false
+    }
+  ],
+  "reference": {
+    "id": "R1000000",
+    "impedance_ohms": [
+      1000000.0,
+      0.0
+    ],
+    "tolerance_pct": 1.0
+  },
+  "fresh_owner_dmm_ohms": 996000.0,
+  "owner_confirmation": "996k na leitura de hoje, conectado",
+  "reference_policy": "Printed nominal +/-1% fit anchor; DMM consistency only, no fixed lead subtraction or certified actual value",
+  "statistics": {
+    "recorded_utc": "2026-10-25T14:46:27.130736+00:00",
+    "operation": "OFFLINE_SAVED_RAM_STATISTICS",
+    "condition": {
+      "rref_ohms": 1000000,
+      "frequency_hz": 10000,
+      "amplitude_mvrms": 500
+    },
+    "capture_id": 1060327123,
+    "ram_sha256": "7311edbe0812271e37330d3a36257c3e214360f0c4b228b8be01d2693e914f04",
+    "values": {
+      "accepted": 6,
+      "rejected": 0,
+      "attempts": 6,
+      "ret_1x_evidence_valid": 0,
+      "ret_hg_evidence_valid": 1,
+      "hg_overlap_valid": 0,
+      "ret_1x_path.sample_count": 6,
+      "ret_1x_path.usable_count": 6,
+      "ret_1x_path.rejected_count": 0,
+      "ret_1x_path.stable": 0,
+      "ret_1x_path.insufficient": 0,
+      "ret_1x_path.evidence_valid": 0,
+      "ret_hg_path.sample_count": 6,
+      "ret_hg_path.usable_count": 6,
+      "ret_hg_path.rejected_count": 0,
+      "ret_hg_path.stable": 1,
+      "ret_hg_path.insufficient": 0,
+      "ret_hg_path.evidence_valid": 1,
+      "source_1.count": 6,
+      "source_1.m2_re": 2.378775889155804e-06,
+      "source_1.m2_im": 0.0,
+      "source_1.mean_re": 0.35753121972084045,
+      "source_1.mean_im": 0.0,
+      "source_2.count": 6,
+      "source_2.m2_re": 1.5265195543179289e-06,
+      "source_2.m2_im": 0.0,
+      "source_2.mean_re": 0.35776662826538086,
+      "source_2.mean_im": 0.0,
+      "z_1x.count": 6,
+      "z_1x.m2_re": 24948796.0,
+      "z_1x.m2_im": 52500952.0,
+      "z_1x.mean_re": 30263.76953125,
+      "z_1x.mean_im": 36301.1484375,
+      "z_hg.count": 6,
+      "z_hg.m2_re": 815134.0625,
+      "z_hg.m2_im": 284472.53125,
+      "z_hg.mean_re": 33430.50390625,
+      "z_hg.mean_im": 32912.02734375,
+      "hg_observed_transfer.count": 6,
+      "hg_observed_transfer.m2_re": 1.5273938179016113,
+      "hg_observed_transfer.m2_im": 5.0912346839904785,
+      "hg_observed_transfer.mean_re": 15.184722900390625,
+      "hg_observed_transfer.mean_im": -1.3968532085418701
+    },
+    "statistics": {
+      "source_1": {
+        "count": 6,
+        "mean": [
+          0.35753121972084045,
+          0.0
+        ],
+        "complex_std": 0.000689750083603591,
+        "relative_std_pct": 0.19292023900518288
+      },
+      "source_2": {
+        "count": 6,
+        "mean": [
+          0.35776662826538086,
+          0.0
+        ],
+        "complex_std": 0.000552543130319784,
+        "relative_std_pct": 0.15444233381933084
+      },
+      "z_1x": {
+        "count": 6,
+        "mean": [
+          30263.76953125,
+          36301.1484375
+        ],
+        "complex_std": 3935.7273279535,
+        "relative_std_pct": 8.32751803331573
+      },
+      "z_hg": {
+        "count": 6,
+        "mean": [
+          33430.50390625,
+          32912.02734375
+        ],
+        "complex_std": 468.9576939874214,
+        "relative_std_pct": 0.9996393961547385
+      },
+      "hg_observed_transfer": {
+        "count": 6,
+        "mean": [
+          15.184722900390625,
+          -1.3968532085418701
+        ],
+        "complex_std": 1.1505327897884605,
+        "relative_std_pct": 7.545053060395407
+      }
+    },
+    "stability_limit_pct": 2.0,
+    "physically_qualified": false
+  },
+  "battery_before_1M": {
+    "recorded_utc": "2026-10-25T14:41:54.719892+00:00",
+    "operation": "NO_RESET_BATTERY_RAM_HALT_RESUME",
+    "firmware_identity": {
+      "hardware_revision": 65538,
+      "model": 5,
+      "profile": 1,
+      "capabilities": 31,
+      "protocol_version": 1,
+      "timeout_ms": 20000,
+      "adc_provenance": "NOMINAL_3V3_NOT_CALIBRATED",
+      "synthetic": false,
+      "uid": "54ff70068370525760380567",
+      "git": "7017e5e0",
+      "firmware_version": "0.1.0"
+    },
+    "scale": "Nominal ADC 3.3V; not independently calibrated",
+    "values": {
+      "battery_v": 3.705347776412964,
+      "battery_raw": 2299,
+      "battery_state": 0,
+      "battery_timestamp_ms": 4221317,
+      "battery_published": 1,
+      "aux_paused": 0,
+      "vmid_v": 1.6560440063476562,
+      "fault_mask": 0,
+      "age_ms": 315
+    },
+    "before_status": {
+      "capture_id": 1060327069,
+      "calibration_sequence": 0,
+      "safety_faults": 0,
+      "safety_blocks": 8,
+      "protocol_errors": 1,
+      "temperature_mC": 26649,
+      "capture_status": 0,
+      "busy": false,
+      "result_valid": true,
+      "calibrated": false,
+      "transfer_safe": true
+    },
+    "after_status": {
+      "capture_id": 1060327069,
+      "calibration_sequence": 0,
+      "safety_faults": 0,
+      "safety_blocks": 8,
+      "protocol_errors": 1,
+      "temperature_mC": 26672,
+      "capture_status": 0,
+      "busy": false,
+      "result_valid": true,
+      "calibrated": false,
+      "transfer_safe": true
+    },
+    "ram_sha256": "548b1b081de77506f1003edcdc5ed475466b6b69b54fe41afa23605682a0ca71"
+  },
+  "final_status": {
+    "capture_id": 1060327152,
+    "calibration_sequence": 0,
+    "safety_faults": 0,
+    "safety_blocks": 8,
+    "protocol_errors": 1,
+    "temperature_mC": 26834,
+    "capture_status": 0,
+    "busy": false,
+    "result_valid": true,
+    "calibrated": false,
+    "transfer_safe": true
+  },
+  "installation_status": {
+    "transaction": 0,
+    "sequence": 0,
+    "received": 0,
+    "size": 2760,
+    "active_sequence": 0,
+    "crc": 0,
+    "state": 0,
+    "error": 0,
+    "store_state": 0,
+    "storage_available": true,
+    "next_sequence": 1,
+    "slot": 0,
+    "active_valid": false
+  },
+  "candidate_generation": "BLOCKED_BY_STRICT_SOLVER",
+  "candidate_generated": false,
+  "calibration_installed": false,
+  "physically_qualified": false,
+  "scope_checks": "NOT_TESTED; owner-directed engineering campaign",
+  "next_work": "Investigate high-Z 10-kHz path/gain observability; owner-authorized one-point NTC comparison pending stable external temperature. No thermometer model requested or stored.",
+  "capture_sha256": "87106a11d610670170fc27ee5186787a64916132b612043a2a97af0110b81d84",
+  "artifact": {
+    "bytes": 115709,
+    "sha256": "3f2fdab9c5cf675a75c2580bcadc2a2df7ec2b53c4244327b1d881126b2e4092"
+  }
+}

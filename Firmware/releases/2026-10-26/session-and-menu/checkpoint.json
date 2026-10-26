@@ -1,0 +1,74 @@
+{
+  "status": "IMPLEMENTED_DEPLOYED_READY_REQUIRES_PHYSICAL_SESSION_UI_VALIDATION",
+  "source": "7550d92dcf99c13d846d0d7762b30e2854ef030e",
+  "unit": "54ff70068370525760380567",
+  "firmware_readback": {
+    "start": 134217728,
+    "end_exclusive": 134273988,
+    "bytes": 56260,
+    "expected_sha256": "1fcf311bad8d9bd2da6a363ca5aeb5751cbdf566970f484d910cd9e9c34a69d0",
+    "actual_sha256": "1fcf311bad8d9bd2da6a363ca5aeb5751cbdf566970f484d910cd9e9c34a69d0",
+    "full_flash_sha256": "e8f02618ec1490c6338a35aa42a32c8dfc297a94aa0cb56fdbd98ca26c559a60",
+    "full_flash_bytes": 65536
+  },
+  "ntc_profile": "Firmware/config/units/54ff70068370525760380567-ntc-engineering.json",
+  "osl": {
+    "sequence": 1,
+    "records": 33,
+    "active": true,
+    "canonical_previous_frame_sha256": "af76d19b15a510dff0c880a4ab6e86893e0065ac7e845b9930111680752da78c",
+    "written": false
+  },
+  "host_checks": {
+    "standard": "46/46 PASS",
+    "factory": "47/47 PASS",
+    "final_diagnostic_mapping": "1/1 focused PASS"
+  },
+  "embedded_builds": "9/9 strict PASS",
+  "profile_flags": {
+    "WTK_ENABLE_MEASURE_SESSION_HOLD": "1u",
+    "WTK_ENABLE_UI_ROW_CACHE": "1u"
+  },
+  "boot_metadata": {
+    "product_state": 4,
+    "measurement_session_sequence": 0,
+    "product_initialized": 1,
+    "calibration_sequence": 1,
+    "calibration_record_count": 33,
+    "calibration_active_valid": 1,
+    "calibration_storage_available": 1,
+    "k1_commanded_state": 1,
+    "range_fsm_state": 0,
+    "range_enabled": 0,
+    "safety_fault_mask": 0,
+    "display_fault": 0,
+    "resource_status": 0,
+    "excitation_mode": 0,
+    "safety_blocker_flags": 8,
+    "display_slow_mode": 0,
+    "backlight_percent": 75,
+    "saved_brightness_percent": 75,
+    "measurement_hw_state": 0,
+    "measurement_hw_error": 0,
+    "session_connected": 0,
+    "session_capture_count": 0,
+    "workspace_owner": 0,
+    "quiet_requested": 0
+  },
+  "passive_uart": "\r\nWTK.RLCMeter SAFE_BOOT\r\n",
+  "new_dut_measurement": false,
+  "button_pressed": false,
+  "fixture_changed": false,
+  "external_flash_write_requested": false,
+  "battery_voltage_read_via_swd": false,
+  "physical_qualification": false,
+  "pending": [
+    "Physical single-K1-cycle search, transient/abort/settling/phase qualification",
+    "Display appearance and real button/menu responsiveness",
+    "Independent R/C/L accuracy and sub-microhenry limits"
+  ],
+  "archives": {
+    "firmware-images.zip": "3804b81cd7e89528f9c759ebc2b43d878291919dc8edc13b94767927d7338138",
+    "validation-evidence.zip": "e51cba872830393ccb4f9d24c1c9b70f646a0434d7beea2465bfe43597e456c1"
+  }
+}

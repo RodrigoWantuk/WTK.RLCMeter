@@ -30,6 +30,11 @@ The following complementary execution plans were written against commit `8abc1b3
 - [12 — Hardware metrology and guarded DC](12-Hardware-Metrology-and-DC-Qualification.md) — observable quantities, pad-level verification, AC physical matrix, guarded DC permission/error budget.
 - [13 — Curves and uncertainty](13-Curve-Calibration-Intervals-and-Uncertainty.md) — X/Y model catalogue, reference tolerance intervals, holdouts, OSL-vs-overlay model selection and credible displayed error.
 - [14 — PC calibrator and accessible reference kit](14-PC-Calibrator-Accessible-Standards-and-Scope.md) — Brazilian-store friendly components, safe scope probing, GUI UX, campaign evidence and transactional protocol prerequisites.
+- [14A — Experimental unit NTC factory profile](14A-Unit-NTC-Factory-Profile.md) — owner-authorized, UID-bound two-point lookup-table delivery; independent thermal qualification remains pending.
+- [14B — Calibration serial battery telemetry](14B-Calibration-Battery-Telemetry.md) — fresh nominal VBAT over read-only TTL STATUS; first-unit charger-absent reading verified.
+- [14C — High-Z integration investigation](14C-High-Z-Integration-Investigation.md) — bounded OPEN/LOAD repeatability diagnostics before changing integration or calibration provenance.
+- [14D — Condition-local calibration reuse](14D-Condition-Local-Calibration-Reuse.md) — explicitly audited reuse of complete compatible triplets, preserving source identity and all 33-condition validation gates.
+- [14E — Installation sensor refresh](14E-Installation-Sensor-Refresh.md) — complete engineering installation and reboot persistence verified; wait through all eight real residual requalification sweeps, retaining hard interlocks and deadlines.
 - [15 — Agent workstreams and release gates](15-Execution-Workstreams-and-Release-Gates.md) — ordered, parallelizable tickets, acceptance tests and product definition of done.
 - [16 — Optional DC and transient physics](16-Optional-DC-and-Transient-Physics.md) — DC winding resistance, capacitor self-discharge versus known-load RC decay, dielectric absorption, inductor RL field decay, physical feasibility and go/no-go before assembly.
 
@@ -122,3 +127,36 @@ Rev.1 firmware is not considered complete until:
 - UI remains responsive without corrupting acquisition;
 - a documented measurement qualification matrix exists;
 - unsupported/future capabilities remain clearly outside Rev.1.
+
+## First-board consolidation
+
+[Plan17](17-Bringup-Consolidation-and-Publish.md) integrates October24 bring-up findings, current owner exports, CHG input analysis, all firmware profiles and Git publication.
+
+[Plan18](18-First-Board-Resource-Provisioning.md) records the owner-requested
+production resource installation, physical W25Q readback, preserved mutable data
+and return to standard BRINGUP for remaining bench work.
+
+[Plan 19](19-Shared-Boot-Splash-and-Provisioning.md) adds the owner-supplied splash
+to every firmware profile and the external resource provisioning procedure.
+
+[Plan 20](20-Calibrated-Product-Handoff.md) transitions the calibrated first unit
+to PRODUCT without another resistor campaign, correcting application scheduling
+around idle ranges, residual requalification and slow TFT work.
+
+[Plan 21](21-Product-Display-Feedback.md) records the owner-confirmed display
+speed, duplicate-READY rendering and default-brightness correction.
+[Plan 22](22-Reactive-Result-Publication.md) separates dominant reactive C/L
+publication from unresolved loss; two actual capacitor readings pass, while
+the nominal 470-uH basic check is observed and independent accuracy qualification
+remains pending.
+
+[Plan 23](23-Bounded-Low-Impedance-Search.md) adds a bounded 10-kHz check for
+apparently resistive low-impedance results after ratio-based range selection.
+The original nominal 0.47-uH result was not resolved; additional search does not
+qualify sub-microhenry capability or override contradictory phase evidence.
+
+[Plan 24](24-Measurement-Evidence-Session-and-UI.md) implements trustworthy
+classification/trend evidence, bounded hardware-owned K1 continuation and exact
+incremental menus in PC-provisioned PRODUCT. Raw captures/calibration are
+preserved; unattended validation cannot replace pending physical switching/UI
+checks. Legacy full-wizard and fixed-capture profiles retain their safe paths.

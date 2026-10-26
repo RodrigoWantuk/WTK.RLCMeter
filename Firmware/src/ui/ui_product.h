@@ -52,6 +52,7 @@ typedef enum
     UI_PRODUCT_RENDER_CLEAR,
     UI_PRODUCT_RENDER_IMAGE,
     UI_PRODUCT_RENDER_TEXT,
+    UI_PRODUCT_RENDER_ROW_CLEAR,
 } ui_product_render_state_t;
 
 typedef enum
@@ -185,6 +186,21 @@ typedef resource_status_t (*ui_product_text_resolve_fn)(void *context,
                                                         char *dst,
                                                         size_t capacity);
 
+enum { UI_PRODUCT_CACHED_ROWS = 9u };
+
+/* Exact completed-row presentation, independent of font/resource size. */
+typedef struct
+{
+    char text[UI_FALLBACK_TEXT_MAX_CHARS];
+    uint16_t x;
+    uint16_t y;
+    uint16_t height;
+    uint16_t color;
+    uint8_t scale;
+    bool external_font;
+    bool valid;
+} ui_product_cached_row_t;
+
 typedef struct
 {
     ili9341_fill_t clear_fill;
@@ -206,6 +222,11 @@ typedef struct
     bool have_rendered;
     bool clear_started;
     bool image_started;
+#if WTK_ENABLE_UI_ROW_CACHE
+    ui_product_cached_row_t rows[UI_PRODUCT_CACHED_ROWS];
+    ui_product_cached_row_t painting_row;
+    bool painting_row_pending;
+#endif
 } ui_product_t;
 
 void ui_product_init(ui_product_t *ui);

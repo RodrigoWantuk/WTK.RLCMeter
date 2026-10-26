@@ -37,6 +37,14 @@ class CaptureTests(unittest.TestCase):
         self.assertTrue(text.startswith("RAW_BEGIN v=1"))
         self.assertEqual(len(capture.rows), 256)
 
+    def test_current_firmware_lowercase_range_tokens(self):
+        for token, canonical in (("10r","10R"),("100r","100R"),("1k","1K"),
+                                 ("10k","10K"),("100k","100K"),("1m","1M")):
+            capture = validate_dut_capture(dump().replace('r=1K','r='+token))
+            self.assertEqual(capture.metadata['range'], canonical)
+        with self.assertRaises(ValueError):
+            validate_dut_capture(dump().replace('r=1K','r=10r').replace('a=100','a=500'))
+
     def test_reject_capture_mode_and_failure(self):
         with self.assertRaises(ValueError):
             validate_dut_capture(dump(mode="SAFE_CAPTURE"))
@@ -68,6 +76,12 @@ class CaptureTests(unittest.TestCase):
             validate_dut_capture(dump().replace("k1op=10", "k1op=0"))
         with self.assertRaises(ValueError):
             validate_dut_capture(dump().replace("DSP_END\n", ""))
+
+    def test_owner_requested_30ms_guard_and_legacy_10ms(self):
+        self.assertEqual(validate_dut_capture(dump()).metadata['k1op'], '10')
+        self.assertEqual(validate_dut_capture(dump().replace('k1op=10','k1op=30')).metadata['k1op'], '30')
+        with self.assertRaises(ValueError):
+            validate_dut_capture(dump().replace('k1op=10','k1op=29'))
 
     def test_incomplete_dump_times_out(self):
         with self.assertRaises(TimeoutError):

@@ -1,4 +1,5 @@
 #include "hardware/hw_power.h"
+#include "wtk_build_config.h"
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -9,6 +10,9 @@ typedef struct
     float resistance_ohm;
 } ntc_lut_point_t;
 
+#if defined(WTK_NTC_FACTORY_CALIBRATION) && WTK_NTC_FACTORY_CALIBRATION
+#include "wtk_ntc_factory_lut.h"
+#else
 static const ntc_lut_point_t k_ntc_lut[] = {
     {.temperature_c = -20.0f, .resistance_ohm = 1053847.0f},
     {.temperature_c = -15.0f, .resistance_ohm = 778981.0f},
@@ -32,6 +36,7 @@ static const ntc_lut_point_t k_ntc_lut[] = {
     {.temperature_c = 75.0f, .resistance_ohm = 14917.0f},
     {.temperature_c = 80.0f, .resistance_ohm = 12703.0f},
 };
+#endif
 
 float hw_battery_vbat_from_adc_voltage(float adc_bat_v)
 {
@@ -57,6 +62,17 @@ hw_battery_state_t hw_battery_state_from_voltage(float vbat_v, bool valid)
         return HW_BATTERY_LOW;
     }
     return HW_BATTERY_OK;
+}
+
+uint16_t hw_battery_telemetry_mv(float vbat_v, hw_battery_state_t state)
+{
+    const bool known = state == HW_BATTERY_OK || state == HW_BATTERY_LOW ||
+                       state == HW_BATTERY_CRITICAL;
+    if (!known || !(vbat_v > 0.0f) || vbat_v > HW_BATTERY_MAX_PLAUSIBLE_V)
+    {
+        return 0u;
+    }
+    return (uint16_t)(vbat_v * 1000.0f + 0.5f);
 }
 
 float hw_ntc_resistance_from_voltage(float adc_ntc_v, float vdd_v, bool *valid)

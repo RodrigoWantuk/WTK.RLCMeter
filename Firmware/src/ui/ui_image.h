@@ -20,7 +20,16 @@ typedef struct
     resource_catalog_t *resource_catalog;
     ui_image_resource_t boot;
     bool ready;
+    uint32_t resource_id;
 } ui_image_catalog_t;
+
+typedef struct
+{
+    uint32_t cursor;
+    uint32_t payload_crc;
+    uint32_t command_crc;
+    uint32_t pixels;
+} ui_image_validation_t;
 
 typedef struct
 {
@@ -43,6 +52,15 @@ typedef struct
 void ui_image_catalog_init(ui_image_catalog_t *catalog);
 resource_status_t ui_image_catalog_mount(ui_image_catalog_t *catalog,
                                          resource_catalog_t *resource_catalog);
+resource_status_t ui_image_catalog_mount_resource(ui_image_catalog_t *catalog,
+                                                  resource_catalog_t *resource_catalog,
+                                                  uint32_t resource_id);
+/* Header preparation never admits unverified pixels. Each validation step reads <=128 bytes. */
+resource_status_t ui_image_catalog_prepare(ui_image_catalog_t *catalog,
+                                           resource_catalog_t *resource_catalog,
+                                           uint32_t resource_id, ui_image_validation_t *validation);
+resource_status_t ui_image_catalog_validate_step(ui_image_catalog_t *catalog,
+                                                 ui_image_validation_t *validation);
 bool ui_image_catalog_ready(const ui_image_catalog_t *catalog);
 bool ui_image_catalog_boot_ready(const ui_image_catalog_t *catalog);
 void ui_image_rle_start(ui_image_rle_op_t *op,

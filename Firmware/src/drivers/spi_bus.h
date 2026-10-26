@@ -14,6 +14,8 @@ typedef enum
 } spi_bus_device_t;
 
 bsp_status_t spi_bus_init(void);
+/* TFT defaults PCLK1/64 after init; Flash stays PCLK1/8. Faster TFT is unqualified. */
+bsp_status_t spi_bus_set_display_slow(bool enabled);
 bool spi_bus_quiet_requested(void);
 bsp_status_t spi_bus_acquire(spi_bus_device_t device);
 bsp_status_t spi_bus_transfer(const uint8_t *tx, uint8_t *rx, size_t length, uint32_t timeout_ms);

@@ -18,6 +18,7 @@ import time
 import uuid
 
 import pc_bringup as b01
+import ntc_factory_profile as ntc_factory
 from pc_osl_install import validate_candidate
 
 TOOLS=Path(__file__).resolve().parent
@@ -129,11 +130,14 @@ def elf_info(data):
 
 
 def parse_config(raw):
-    fields=dict(re.findall(r'^#define\s+(WTK_[A-Z_]+)\s+([^\r\n]+)',raw.decode(),re.M))
+    fields=dict(re.findall(r'^#define\s+(WTK_[A-Z0-9_]+)\s+([^\r\n]+)',raw.decode(),re.M))
     return {k:v.strip().strip('"') for k,v in fields.items()}
 
 
-def boot_identity(profile,sha_value,version):
+def boot_identity(profile,sha_value,version,detailed_bringup=True):
+    if profile=="BRINGUP" and not detailed_bringup:
+        return dict(interface="LIMITED_UART_UI_REQUIRED",firmware_version=version,hardware=HARDWARE,
+            git_prefix=None,limitation="Minimal SAFE_BOOT banner; use SWD byte verification and independent bench acceptance")
     return dict(interface="BRINGUP_UART" if profile=="BRINGUP" else "PLC1_IDENTIFY" if profile=="BRINGUP_CAL" else "LIMITED_UART_UI_REQUIRED",
         firmware_version=version,hardware=HARDWARE,git_prefix=sha_value[:12] if profile=="BRINGUP" else sha_value[:8] if profile=="BRINGUP_CAL" else None,
         limitation="PRODUCT banner is only WTK.RLCMeter SAFE_BOOT; UI/bench acceptance separate" if profile=="FACTORY_PRODUCT" else "reported short Git identity is not binary authentication")
@@ -158,8 +162,13 @@ def manifest(build_dir,out,profile,state,preset):
     for name,raw in (("firmware.bin",binary),("firmware.elf",elf),("build_config.h",config),
                      ("linker.ld",read(REPO/"Firmware/cmake/stm32/STM32F103C8Tx_FLASH.ld"))):
         (out/name).write_bytes(raw); files[name]=dict(bytes=len(raw),sha256=sha(raw))
-    identity=boot_identity(profile,state["git_sha"],flags["WTK_PROJECT_VERSION"])
-    value=dict(schema="WTK_FIRMWARE_1",source=state,profile=profile,factory_provisioned=spec[2],supplementary_curves=False,
+    identity=boot_identity(profile,state["git_sha"],flags["WTK_PROJECT_VERSION"],
+        flags.get("WTK_DIAGNOSTIC_LOG_LEVEL_DEFAULT","5u") not in ("1u","2u","3u"))
+    value=dict(schema="WTK_FIRMWARE_2" if flags.get("WTK_NTC_FACTORY_CALIBRATION","0u")=="1u" else "WTK_FIRMWARE_1",source=state,profile=profile,factory_provisioned=spec[2],supplementary_curves=False,
+        ntc_factory_profile=load(build_dir/"generated/wtk_ntc_factory_profile.json") if flags.get("WTK_NTC_FACTORY_CALIBRATION","0u")=="1u" else None,
+        bringup_k1_test=flags.get("WTK_ENABLE_K1_BENCH_TEST","0u")=="1u",
+        bringup_bench_supply=flags.get("WTK_ENABLE_BENCH_SUPPLY","0u")=="1u",
+        bringup_peripheral_test=flags.get("WTK_ENABLE_PERIPHERAL_TEST","0u")=="1u",
         preset=preset,build_configuration=spec[3],hardware=HARDWARE,firmware_version=flags["WTK_PROJECT_VERSION"],expected_boot=identity,
         toolchain=dict(compiler_path=compiler,compiler_version=version,cmake=command(["cmake","--version"]).splitlines()[0],cache_sha256=sha(cache.encode())),
         memory=dict(flash_base=BASE,flash_bytes=FLASH,ram_base=RAM_BASE,ram_bytes=RAM,internal_page_bytes=1024),linked=metrics,
@@ -171,7 +180,7 @@ def manifest(build_dir,out,profile,state,preset):
 
 def inspect(path,profile=None):
     path=Path(path); value=checked(load(path)); root=path.parent
-    if value.get("schema")!="WTK_FIRMWARE_1" or value.get("profile") not in PROFILES: raise ValueError("unsupported image manifest")
+    if value.get("schema") not in ("WTK_FIRMWARE_1","WTK_FIRMWARE_2") or value.get("profile") not in PROFILES: raise ValueError("unsupported image manifest")
     spec=PROFILES[value["profile"]]
     if profile and value["profile"]!=profile: raise ValueError("selected profile differs from artifact")
     if (value["factory_provisioned"],value["supplementary_curves"],value["preset"],value["build_configuration"],value["hardware"])!=(spec[2],False,spec[0],spec[3],HARDWARE): raise ValueError("unsupported configuration")
@@ -187,17 +196,40 @@ def inspect(path,profile=None):
     ram_budget=17408 if spec[2] else 18432
     if len(binary)>budget or metrics["ram_accounted_bytes"]>ram_budget or metrics["reserved_stack_bytes"]<2048: raise ValueError("project memory gate violated")
     flags=parse_config(read(root/"build_config.h"))
+    ntc_factory.validate_binary(value.get("ntc_factory_profile"), binary, flags)
+    if (value["schema"]=="WTK_FIRMWARE_2") != (value.get("ntc_factory_profile") is not None):
+        raise ValueError("UID-bound NTC profiles require manifest schema 2")
+    bench=value.get("bringup_k1_test",False)
+    if (type(bench) is not bool or bench != (flags.get("WTK_ENABLE_K1_BENCH_TEST","0u")=="1u") or
+        (bench and (value["profile"]!="BRINGUP" or flags.get("WTK_ENABLE_DC_PILOT")!="0u"))):
+        raise ValueError("invalid BRINGUP K1 test configuration")
+    supply=value.get("bringup_bench_supply",False)
+    if (type(supply) is not bool or supply != (flags.get("WTK_ENABLE_BENCH_SUPPLY","0u")=="1u") or
+        (supply and (value["profile"]!="BRINGUP" or bench or flags.get("WTK_ENABLE_DC_PILOT")!="0u"))):
+        raise ValueError("invalid BRINGUP bench supply configuration")
+    peripheral=value.get("bringup_peripheral_test",False)
+    if (type(peripheral) is not bool or peripheral != (flags.get("WTK_ENABLE_PERIPHERAL_TEST","0u")=="1u") or
+        (peripheral and (value["profile"]!="BRINGUP" or bench or supply or flags.get("WTK_ENABLE_DC_PILOT")!="0u"))):
+        raise ValueError("invalid BRINGUP peripheral test configuration")
     if (flags["WTK_FIRMWARE_PROFILE"],flags["WTK_PRODUCT_FACTORY_PROVISIONED"],flags["WTK_GIT_COMMIT"],flags["WTK_ENABLE_SUPPLEMENTARY_CURVES"],flags["WTK_BUILD_TYPE"],flags["WTK_HARDWARE_COMPATIBILITY"])!=(spec[1],"1u" if spec[2] else "0u",value["source"]["git_sha"][:12],"0u",spec[3],HARDWARE): raise ValueError("generated configuration mismatch")
-    if value.get("firmware_version")!=flags.get("WTK_PROJECT_VERSION") or value.get("expected_boot")!=boot_identity(value["profile"],value["source"]["git_sha"],flags["WTK_PROJECT_VERSION"]): raise ValueError("boot/version metadata mismatch")
+    if value.get("firmware_version")!=flags.get("WTK_PROJECT_VERSION") or value.get("expected_boot")!=boot_identity(value["profile"],value["source"]["git_sha"],flags["WTK_PROJECT_VERSION"],flags.get("WTK_DIAGNOSTIC_LOG_LEVEL_DEFAULT","5u") not in ("1u","2u","3u")): raise ValueError("boot/version metadata mismatch")
     linker=read(root/"linker.ld").decode()
     if not re.search(r'FLASH\s*\(rx\)\s*:\s*ORIGIN\s*=\s*0x08000000,\s*LENGTH\s*=\s*64K',linker) or not re.search(r'RAM\s*\(xrw\)\s*:\s*ORIGIN\s*=\s*0x20000000,\s*LENGTH\s*=\s*20K',linker): raise ValueError("linker contract mismatch")
     if not re.fullmatch("[0-9a-f]{40}",value["source"]["git_sha"]): raise ValueError("full source SHA required")
     return value
 
 
-def build(profile,out,dry_run=False):
+def build(profile,out,dry_run=False,k1_bench_test=False,bench_supply=False,peripheral_test=False,ntc_factory_profile=None):
+    if k1_bench_test and profile!="BRINGUP": raise ValueError("K1 bench test requires BRINGUP")
+    if bench_supply and (profile!="BRINGUP" or k1_bench_test): raise ValueError("bench supply requires a separate BRINGUP image")
+    if peripheral_test and (profile!="BRINGUP" or k1_bench_test or bench_supply):
+        raise ValueError("peripheral test requires a separate BRINGUP image")
     spec=PROFILES[profile]; out=Path(out).resolve(); folder=out/"build"
-    argv=["cmake","--preset",spec[0],"-B",str(folder),"-DWTK_ENABLE_SUPPLEMENTARY_CURVES=OFF",f'-DWTK_PRODUCT_FACTORY_PROVISIONED={"ON" if spec[2] else "OFF"}']
+    argv=["cmake","--preset",spec[0],"-B",str(folder),"-DWTK_ENABLE_SUPPLEMENTARY_CURVES=OFF",f'-DWTK_PRODUCT_FACTORY_PROVISIONED={"ON" if spec[2] else "OFF"}',
+          f'-DWTK_BRINGUP_K1_TEST={"ON" if k1_bench_test else "OFF"}',
+          f'-DWTK_BRINGUP_BENCH_SUPPLY={"ON" if bench_supply else "OFF"}',
+          f'-DWTK_BRINGUP_PERIPHERAL_TEST={"ON" if peripheral_test else "OFF"}']
+    argv.append("-DWTK_NTC_FACTORY_PROFILE="+str(Path(ntc_factory_profile).resolve()) if ntc_factory_profile else "-DWTK_NTC_FACTORY_PROFILE=")
     commands=[argv,["cmake","--build",str(folder),"-j","6"]]
     if dry_run: return dict(dry_run=True,commands=commands,target_access=False)
     out.mkdir(parents=True,exist_ok=False); before=source_state()
@@ -210,6 +242,7 @@ def build(profile,out,dry_run=False):
 
 def parse_target(transcript):
     if len(transcript)>1024*1024: raise ValueError("programmer transcript bound")
+    transcript=transcript.replace("\r\n","\n")
     matches=re.findall(r'^WTK_B011_TARGET\|([^\r\n]+)$',transcript,re.M)
     if len(matches)!=1: raise ValueError("missing/ambiguous toolkit preflight marker; native log is not identity proof")
     fields=matches[0].split("|")
@@ -253,7 +286,7 @@ class OpenOCD:
             toolkit_script_sha256=sha(read(TOOLS/"swd_deploy.tcl")),deployment_tool_sha256=sha(read(__file__)),adapter_serial_selection=self.serial)
 
     def plan(self,action,folder,image=None,uid=""):
-        argv=[str(self.executable),"-s",str(self.scripts),"-c","source $::env(WTK_INTERFACE)","-c","transport select hla_swd",
+        argv=[str(self.executable),"-s",str(self.scripts),"-c","source $::env(WTK_INTERFACE)","-c","transport select dapdirect_swd",
             "-c","adapter serial $::env(WTK_SERIAL)","-c","source $::env(WTK_TARGET)",
             "-c","gdb_port disabled; tcl_port disabled; telnet_port disabled","-c","source $::env(WTK_LIBRARY)",
             "-c",'if {[catch {init; reset init; wtk_operation} reason]} {echo "WTK_B011_FAILURE"; echo $reason; shutdown error} else {shutdown}']
@@ -344,6 +377,7 @@ def debug_authorization(session_path,board,operator,supply,acks):
 
 
 def authorize(image,session_path,board,operator,supply,previous,uid,accept,acks,simulated,installation=None,cal_readback=None,resource=None):
+    ntc_factory.require_target(image.get("ntc_factory_profile"), uid)
     if image["source"]["dirty"] and not simulated: raise ValueError("dirty-source image cannot be physically deployed")
     if not re.fullmatch("[0-9a-f]{24}",uid): raise ValueError("explicit inspected target UID required")
     for name,value in (("board",board),("operator",operator),("independent supply arrangement",supply)):
@@ -398,6 +432,8 @@ def authorize(image,session_path,board,operator,supply,previous,uid,accept,acks,
 def deployment(action,manifest_path,backend,out,authorization=None,uid="",dry_run=False):
     image=inspect(manifest_path) if manifest_path else None
     if image: image=dict(image,manifest_path=str(Path(manifest_path).resolve()))
+    if action=="program" and image:
+        ntc_factory.require_target(image.get("ntc_factory_profile"), uid)
     out=Path(out).resolve()
     if dry_run:
         return dict(dry_run=True,target_access=False,commands=backend.plan(action,out,image,uid),
@@ -493,7 +529,9 @@ def observe(deployment_path,evidence_path,out):
     if not record["SIMULATED"] and (value.get("SIMULATED") or value.get("OFFLINE_REPLAY") or value.get("synthetic")): raise ValueError("synthetic observation cannot confirm physical boot")
     profile=record["image"]["profile"]
     identity=value.get("identity",value)
-    if profile=="BRINGUP":
+    if profile=="BRINGUP" and record["image"]["expected_boot"]["interface"]=="LIMITED_UART_UI_REQUIRED":
+        status="UNKNOWN: minimal diagnostic banner requires independent SWD identity and bench acceptance"
+    elif profile=="BRINGUP":
         if identity.get("profile")!="BRINGUP" or identity.get("git")!=record["image"]["source"]["git_sha"][:12]: raise ValueError("BRINGUP banner identity mismatch")
         status="OBSERVED_MATCHING_BRINGUP_BANNER"
     elif profile=="BRINGUP_CAL":
@@ -523,6 +561,10 @@ def main(argv=None):
     p.add_argument("action",choices=("doctor","build","inspect","probe","program","verify","report"))
     p.add_argument("--profile",choices=tuple(PROFILES)); p.add_argument("--manifest",type=Path); p.add_argument("--out",type=Path)
     p.add_argument("--dry-run",action="store_true"); p.add_argument("--backend",choices=("openocd","fake"),default="openocd")
+    p.add_argument("--k1-bench-test",action="store_true",help="build the optional BRINGUP empty-fixture relay test variant")
+    p.add_argument("--bench-supply",action="store_true",help="build the optional BRINGUP external-5V bench variant")
+    p.add_argument("--peripheral-test",action="store_true",help="build standalone BRINGUP display/buttons/buzzer diagnostic")
+    p.add_argument("--ntc-factory-profile",type=Path,help="build with an experimental NTC profile bound to one MCU UID")
     p.add_argument("--openocd",type=Path); p.add_argument("--scripts",type=Path); p.add_argument("--adapter-serial")
     p.add_argument("--fake-device",type=Path); p.add_argument("--fake-scenario",choices=("normal","missing-adapter","unpowered","wrong-id","geometry","rdp","timeout","interrupted","readback-mismatch","missing-complete","unexpected-reset"),default="normal")
     p.add_argument("--session",type=Path); p.add_argument("--board"); p.add_argument("--operator"); p.add_argument("--supply")
@@ -533,10 +575,14 @@ def main(argv=None):
     p.add_argument("--deployment",type=Path); p.add_argument("--observed",type=Path); p.add_argument("--programmer-transcript",type=Path)
     args=p.parse_args(argv)
     try:
+        if args.k1_bench_test and args.action!="build": raise ValueError("--k1-bench-test is a build option; inspect/program use manifest identity")
+        if args.bench_supply and args.action!="build": raise ValueError("--bench-supply is a build option; inspect/program use manifest identity")
+        if args.peripheral_test and args.action!="build": raise ValueError("--peripheral-test is a build option; inspect/program use manifest identity")
+        if args.ntc_factory_profile and args.action!="build": raise ValueError("--ntc-factory-profile is a build option; program uses sealed manifest identity")
         if args.action=="doctor": result=doctor(args.openocd,args.scripts) if not args.dry_run else dict(dry_run=True,target_access=False,commands=["git --version","cmake --version","ninja --version","arm-none-eabi-gcc --version","selected openocd --version"])
         elif args.action=="build":
             if not args.profile or not args.out: raise ValueError("build needs --profile and new --out")
-            result=build(args.profile,args.out,args.dry_run)
+            result=build(args.profile,args.out,args.dry_run,args.k1_bench_test,args.bench_supply,args.peripheral_test,args.ntc_factory_profile)
         elif args.action=="inspect":
             if not args.manifest: raise ValueError("inspect needs --manifest")
             result=inspect(args.manifest,args.profile)

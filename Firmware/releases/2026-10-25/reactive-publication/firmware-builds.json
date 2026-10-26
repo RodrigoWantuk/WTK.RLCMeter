@@ -1,0 +1,301 @@
+{
+  "source": {
+    "git_sha": "3052bdde0b69c7d957cb70f4d150ec58843789f3",
+    "dirty": false,
+    "git_status": "",
+    "input_sha256": "d80293d85a8adfe1b6481a57560ee9a94bbc4282323360ccfd7c045e9042b432"
+  },
+  "calibration_hardware_revision": 65538,
+  "status": "SOFTWARE_BUILDS_PASS_REQUIRES_BENCH_VALIDATION",
+  "ntc_factory_profile": {
+    "schema": "WTK_NTC_COMPILED_V1",
+    "profile": {
+      "format": "WTK_NTC_FACTORY_PROFILE_V1",
+      "uid": "54ff70068370525760380567",
+      "qualified": false,
+      "owner_authorized": true,
+      "thermal_contact_uncertain": true,
+      "reference_uncertainty_c": null,
+      "reference_method": "Owner-provided contact thermometer; direct isolated-bead contact, cold and sustained hand-warmed reference",
+      "points": [
+        {
+          "temperature_c": 23.5,
+          "adc_raw": 1952,
+          "evidence": "ntc-reference-002, 2026-10-25T15:03:35Z"
+        },
+        {
+          "temperature_c": 30.1,
+          "adc_raw": 1856,
+          "evidence": "ntc-reference-004, 2026-10-25T15:24:26Z; owner explicitly requested use despite possible contact interference"
+        }
+      ],
+      "scope": "Experimental effective model for this UID; intrinsic Beta and wider temperature accuracy are not qualified"
+    },
+    "uid": "54ff70068370525760380567",
+    "profile_sha256": "9b3826a20b3c621a9e92be0035431b140c45d7a23acaba8ec237a63e4e8cad44",
+    "effective_beta_k": 1284.690748293537,
+    "effective_r25_over_rtop": 0.8912414562904697,
+    "qualified": false,
+    "lut_le_hex": "0000a0c128373b48000070c16ab02948000020c10c611a480000a0c050f20c4800000000c01c01480000a040584aed470000204193b4da4700007041b725ca470000a0416758bb470000bc41a1e7b147cdccf04113e7a14700000c42fa5a974700002042b59b8d47000034422cc48447000048423873794700005c42c9c96a4700007042ed635d4700008242bb1e514700008c42b9db4547000096423d803b470000a042dcf43147"
+  },
+  "cases": [
+    {
+      "name": "factory-release",
+      "preset": "stm32-factory-release",
+      "options": [],
+      "profile": "PRODUCT",
+      "factory": "1u",
+      "flash_bytes": 54320,
+      "ram_accounted_bytes": 15568,
+      "status": "PASS",
+      "files": {
+        "WTK.RLCMeter.bin": {
+          "bytes": 54320,
+          "sha256": "41ca97913085eec8c6977310df83c5dc066eade529bfbb170ba617b894e2c5a6"
+        },
+        "WTK.RLCMeter.elf": {
+          "bytes": 89196,
+          "sha256": "887b22d27e28cb8711941998395699a2ce8d90e4152733a7fc4d1d622a25a433"
+        },
+        "WTK.RLCMeter.hex": {
+          "bytes": 152839,
+          "sha256": "61f9e214508bd543dbb01fe5909d93c3eb5fc8cedaec4fbd0293f0ea172669ab"
+        },
+        "WTK.RLCMeter.map": {
+          "bytes": 49847,
+          "sha256": "838b2d20e00169cfea15f5dec4523b21af8a6e3e5cba74df6672d51ec46b02c1"
+        }
+      }
+    },
+    {
+      "name": "bringup",
+      "preset": "stm32-bringup",
+      "options": [],
+      "profile": "BRINGUP",
+      "factory": "0u",
+      "flash_bytes": 65504,
+      "ram_accounted_bytes": 15380,
+      "status": "PASS",
+      "files": {
+        "WTK.RLCMeter.bin": {
+          "bytes": 65504,
+          "sha256": "cc96a732dbb342cbae3cf14e388325c3fb6efecd8ab9a4732b8a3639cc0686bd"
+        },
+        "WTK.RLCMeter.elf": {
+          "bytes": 95736,
+          "sha256": "021890735dd6ac7df3b138204cc1fad7e346dbc2a28f6a25e53d037e532bc931"
+        },
+        "WTK.RLCMeter.hex": {
+          "bytes": 184307,
+          "sha256": "930a1d7ff33aad6652d0d83e04e1d248c17781ac9227a51179d94e111454e885"
+        },
+        "WTK.RLCMeter.map": {
+          "bytes": 47193,
+          "sha256": "e8cdc8c6cd793f0431d40973addcae2c4d7c1eb97343ffe84403240ba9533fce"
+        }
+      }
+    },
+    {
+      "name": "product-debug",
+      "preset": "stm32-debug",
+      "options": [],
+      "profile": "PRODUCT",
+      "factory": "0u",
+      "flash_bytes": 61120,
+      "ram_accounted_bytes": 15200,
+      "status": "PASS",
+      "files": {
+        "WTK.RLCMeter.bin": {
+          "bytes": 61120,
+          "sha256": "9797344fce3865f4581ac2402f07ba24d91a7b481f3bfe54fc6680f248d6d5a3"
+        },
+        "WTK.RLCMeter.elf": {
+          "bytes": 1488652,
+          "sha256": "e5b8608dddb4853489b3bbff5be3d0c952c892ad91ac0c3a635f3dca9e4c658c"
+        },
+        "WTK.RLCMeter.hex": {
+          "bytes": 171977,
+          "sha256": "caeec0e87abf55fe00dd575514b64e97b7f9f802d867260fc57bfe99c3ca2f6a"
+        },
+        "WTK.RLCMeter.map": {
+          "bytes": 362474,
+          "sha256": "4c9948483d2e14f24af476e27839a6b5a97e1452eaee56ec815f5c683fef1413"
+        }
+      }
+    },
+    {
+      "name": "product-release",
+      "preset": "stm32-release",
+      "options": [],
+      "profile": "PRODUCT",
+      "factory": "0u",
+      "flash_bytes": 63824,
+      "ram_accounted_bytes": 15520,
+      "status": "PASS",
+      "files": {
+        "WTK.RLCMeter.bin": {
+          "bytes": 63824,
+          "sha256": "3e5ba630986898eb5189a5e291046e6d6e54fe89c187aece1cd46116bfdc05b0"
+        },
+        "WTK.RLCMeter.elf": {
+          "bytes": 100228,
+          "sha256": "5ee2effc821a750113833c471c968e703c47fee81aafc56f6b6511d66d3c92e2"
+        },
+        "WTK.RLCMeter.hex": {
+          "bytes": 179582,
+          "sha256": "bc55387c2edbc9ecafee6c7a395d513f87f1e8fb1ec66e7be1de73e3faa76499"
+        },
+        "WTK.RLCMeter.map": {
+          "bytes": 51010,
+          "sha256": "f473fdeeebf7bf73b43453e6e8ef1753ec59e5ce467c54725bf6676aeb8a3d52"
+        }
+      }
+    },
+    {
+      "name": "factory-debug",
+      "preset": "stm32-factory-debug",
+      "options": [],
+      "profile": "PRODUCT",
+      "factory": "1u",
+      "flash_bytes": 54032,
+      "ram_accounted_bytes": 15488,
+      "status": "PASS",
+      "files": {
+        "WTK.RLCMeter.bin": {
+          "bytes": 54032,
+          "sha256": "cba3e9ce67c16ab6f329ff216491ee11b61ed79d89c9bdc15a6cb81fd1862a04"
+        },
+        "WTK.RLCMeter.elf": {
+          "bytes": 1430612,
+          "sha256": "9204beb7f2ded7aa67f91cd1c92b447e6a5af9338726ed0ad2db2e6f78cf360f"
+        },
+        "WTK.RLCMeter.hex": {
+          "bytes": 152029,
+          "sha256": "a70e15ff0e54fa3f9199fd8fdaa56771af9053dfa4e8585625602dc1ee77d03b"
+        },
+        "WTK.RLCMeter.map": {
+          "bytes": 363789,
+          "sha256": "e5ffcb22aa491aa53eac3aee3149ad1c0507b4a4a97998d9397f49af0e8cff7f"
+        }
+      }
+    },
+    {
+      "name": "bringup-cal",
+      "preset": "stm32-bringup-cal",
+      "options": [],
+      "profile": "BRINGUP_CAL",
+      "factory": "0u",
+      "flash_bytes": 37544,
+      "ram_accounted_bytes": 13744,
+      "status": "PASS",
+      "files": {
+        "WTK.RLCMeter.bin": {
+          "bytes": 37544,
+          "sha256": "01e67c558a9f688c1c5c5b69b7778e4e6d4f24d3e0a11303492d1d382ac48e51"
+        },
+        "WTK.RLCMeter.elf": {
+          "bytes": 62956,
+          "sha256": "cac7b0c6bf19c80516252c2dff1271fe61c7f6646946ddfd5c17f607700e6c3a"
+        },
+        "WTK.RLCMeter.hex": {
+          "bytes": 105663,
+          "sha256": "2d3f8d816360013229d1f142f320d8cd3d57753f8c33882cc145a0f62f018e04"
+        },
+        "WTK.RLCMeter.map": {
+          "bytes": 32310,
+          "sha256": "49d55942123432e91147312d436db5e800d32570d8a25fb02166165dc4fbb3d0"
+        }
+      }
+    },
+    {
+      "name": "bench-supply",
+      "preset": "stm32-bringup",
+      "options": [
+        "-DWTK_BRINGUP_BENCH_SUPPLY=ON"
+      ],
+      "profile": "BRINGUP",
+      "factory": "0u",
+      "flash_bytes": 65120,
+      "ram_accounted_bytes": 15468,
+      "status": "PASS",
+      "files": {
+        "WTK.RLCMeter.bin": {
+          "bytes": 65120,
+          "sha256": "e8153eb2752cbd810cec36bf1242538ae2aaef7cf9801fd0101c357619e8afb9"
+        },
+        "WTK.RLCMeter.elf": {
+          "bytes": 95084,
+          "sha256": "d68eab877382ffc9afa31b230f2204388adf700688598d35c5a69ec5682b261f"
+        },
+        "WTK.RLCMeter.hex": {
+          "bytes": 183227,
+          "sha256": "660f2f06dcd43428093968cdfaade92b03aea99b7792c52896022b4560e2a32e"
+        },
+        "WTK.RLCMeter.map": {
+          "bytes": 46875,
+          "sha256": "50ee5dc23e87b6cf9fddfb05e349ecb99bd2e2348b8194ec7d6669218bdf26f5"
+        }
+      }
+    },
+    {
+      "name": "k1-test",
+      "preset": "stm32-bringup",
+      "options": [
+        "-DWTK_BRINGUP_K1_TEST=ON"
+      ],
+      "profile": "BRINGUP",
+      "factory": "0u",
+      "flash_bytes": 65192,
+      "ram_accounted_bytes": 15396,
+      "status": "PASS",
+      "files": {
+        "WTK.RLCMeter.bin": {
+          "bytes": 65192,
+          "sha256": "425f467959ae2cc5f47294c663f9856eead3015058f78661f8708d90264accf5"
+        },
+        "WTK.RLCMeter.elf": {
+          "bytes": 95140,
+          "sha256": "6c2dc8074055f278ca8740f715443e12082e832f3bfa3a9ac685014495842094"
+        },
+        "WTK.RLCMeter.hex": {
+          "bytes": 183423,
+          "sha256": "a5798183b0b3ed109fe4753edec9b21f86ae2fa2127bc01cfe7363cb5b2bdd6f"
+        },
+        "WTK.RLCMeter.map": {
+          "bytes": 47074,
+          "sha256": "328d0b42eba983e15b05a3b5ffd0397d091ff911753aba97b1d8eea0fb920c35"
+        }
+      }
+    },
+    {
+      "name": "peripheral",
+      "preset": "stm32-bringup",
+      "options": [
+        "-DWTK_BRINGUP_PERIPHERAL_TEST=ON"
+      ],
+      "profile": "BRINGUP",
+      "factory": "0u",
+      "flash_bytes": 17016,
+      "ram_accounted_bytes": 12252,
+      "status": "PASS",
+      "files": {
+        "WTK.RLCMeter.bin": {
+          "bytes": 17016,
+          "sha256": "1dd8fb351208dde3ee94b8f37c8ed2f367efaa37fcfc5c7155450163878650bf"
+        },
+        "WTK.RLCMeter.elf": {
+          "bytes": 36172,
+          "sha256": "d65c318bfa860e82dae27dc062db3d02891a156a0effaa0fa5da938b0214b5b3"
+        },
+        "WTK.RLCMeter.hex": {
+          "bytes": 47928,
+          "sha256": "ff29902854e7d2cdb50d895c321f42e87625b543b6b4170d6ef4cae28f55dcc7"
+        },
+        "WTK.RLCMeter.map": {
+          "bytes": 30668,
+          "sha256": "ff4f99135b0359889f0d8621cb4bdde2d895e0fa10a7ebba033c3061fc9acacb"
+        }
+      }
+    }
+  ]
+}

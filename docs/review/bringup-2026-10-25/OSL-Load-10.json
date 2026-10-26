@@ -1,0 +1,262 @@
+{
+  "recorded_utc": "2026-10-25T14:14:52.925392+00:00",
+  "SIMULATED": false,
+  "status": "LOAD_10_COMPLETE_5_REFERENCE_GROUPS_PENDING",
+  "identity": {
+    "hardware_revision": 65538,
+    "model": 5,
+    "profile": 1,
+    "capabilities": 31,
+    "protocol_version": 1,
+    "timeout_ms": 20000,
+    "adc_provenance": "NOMINAL_3V3_NOT_CALIBRATED",
+    "synthetic": false,
+    "uid": "54ff70068370525760380567",
+    "git": "7017e5e0",
+    "firmware_version": "0.1.0"
+  },
+  "observations": 69,
+  "required_observations": 99,
+  "complete_conditions": 3,
+  "reference": {
+    "id": "R10",
+    "impedance_ohms": [
+      10.0,
+      0.0
+    ],
+    "tolerance_pct": 1.0
+  },
+  "fresh_owner_dmm_ohms": 10.5,
+  "reference_policy": "Printed nominal +/-1% fit anchor; DMM consistency only, no fixed lead subtraction or certified actual value",
+  "battery_policy": {
+    "check_before_each_new_resistor": true,
+    "request_charging_if_low": true,
+    "nominal_low_threshold_v": 3.5,
+    "no_measurement_while_charging": true,
+    "no_charge_percentage_or_runtime_claim": true,
+    "owner_instruction": "Sempre antes de prosseguir cada novo valor de resistor, vamos fazer um check de bateria, e se estiver baixa, voce me pede pra carregar"
+  },
+  "battery_before_10": {
+    "recorded_utc": "2026-10-25T14:09:58.301958+00:00",
+    "operation": "NO_RESET_BATTERY_RAM_HALT_RESUME",
+    "firmware_identity": {
+      "hardware_revision": 65538,
+      "model": 5,
+      "profile": 1,
+      "capabilities": 31,
+      "protocol_version": 1,
+      "timeout_ms": 20000,
+      "adc_provenance": "NOMINAL_3V3_NOT_CALIBRATED",
+      "synthetic": false,
+      "uid": "54ff70068370525760380567",
+      "git": "7017e5e0",
+      "firmware_version": "0.1.0"
+    },
+    "scale": "Nominal ADC 3.3V; not independently calibrated",
+    "values": {
+      "battery_v": 3.7182416915893555,
+      "battery_raw": 2307,
+      "battery_state": 0,
+      "battery_timestamp_ms": 2309050,
+      "battery_published": 1,
+      "aux_paused": 0,
+      "vmid_v": 1.6544321775436401,
+      "fault_mask": 0,
+      "age_ms": 221
+    },
+    "before_status": {
+      "capture_id": 961116860,
+      "calibration_sequence": 0,
+      "safety_faults": 0,
+      "safety_blocks": 8,
+      "protocol_errors": 0,
+      "temperature_mC": 26202,
+      "capture_status": 0,
+      "busy": false,
+      "result_valid": true,
+      "calibrated": false,
+      "transfer_safe": true
+    },
+    "after_status": {
+      "capture_id": 961116860,
+      "calibration_sequence": 0,
+      "safety_faults": 0,
+      "safety_blocks": 8,
+      "protocol_errors": 0,
+      "temperature_mC": 26249,
+      "capture_status": 0,
+      "busy": false,
+      "result_valid": true,
+      "calibrated": false,
+      "transfer_safe": true
+    },
+    "ram_sha256": "10bc32ba15ee1d0a33053017a3d63e5d59aa830eaecb83c4304aee455a00d97c"
+  },
+  "battery_before_100": {
+    "recorded_utc": "2026-10-25T14:13:43.690869+00:00",
+    "operation": "NO_RESET_BATTERY_RAM_HALT_RESUME",
+    "firmware_identity": {
+      "hardware_revision": 65538,
+      "model": 5,
+      "profile": 1,
+      "capabilities": 31,
+      "protocol_version": 1,
+      "timeout_ms": 20000,
+      "adc_provenance": "NOMINAL_3V3_NOT_CALIBRATED",
+      "synthetic": false,
+      "uid": "54ff70068370525760380567",
+      "git": "7017e5e0",
+      "firmware_version": "0.1.0"
+    },
+    "scale": "Nominal ADC 3.3V; not independently calibrated",
+    "values": {
+      "battery_v": 3.716629981994629,
+      "battery_raw": 2306,
+      "battery_state": 0,
+      "battery_timestamp_ms": 2533871,
+      "battery_published": 1,
+      "aux_paused": 0,
+      "vmid_v": 1.6544321775436401,
+      "fault_mask": 0,
+      "age_ms": 316
+    },
+    "before_status": {
+      "capture_id": 961116889,
+      "calibration_sequence": 0,
+      "safety_faults": 0,
+      "safety_blocks": 8,
+      "protocol_errors": 1,
+      "temperature_mC": 26273,
+      "capture_status": 0,
+      "busy": false,
+      "result_valid": true,
+      "calibrated": false,
+      "transfer_safe": true
+    },
+    "after_status": {
+      "capture_id": 961116889,
+      "calibration_sequence": 0,
+      "safety_faults": 0,
+      "safety_blocks": 8,
+      "protocol_errors": 1,
+      "temperature_mC": 26297,
+      "capture_status": 0,
+      "busy": false,
+      "result_valid": true,
+      "calibrated": false,
+      "transfer_safe": true
+    },
+    "ram_sha256": "0c1287f1a9bdbed9e3f4ee27523905b726b9c96623094c8e5ae60732c16d1c6e"
+  },
+  "communication_incident": "After all three accepted LOADs, an unpaced read-only STATUS timed out. A paced read-only reconnect succeeded with protocol counter 1, unchanged across that battery read. No START was retried or SWD reset issued.",
+  "fits": [
+    {
+      "condition": {
+        "rref_ohms": 10,
+        "frequency_hz": 10,
+        "amplitude_mvrms": 100
+      },
+      "fit_channel": "1X",
+      "hg_observed": true,
+      "min_separation": 0.46281870716960993,
+      "serialized_float32_values": [
+        15.97284984588623,
+        0.026766538619995117,
+        10.0,
+        0.0,
+        0.02867059037089348,
+        -0.0013470578705891967,
+        0.9990730881690979,
+        -7.687441393500194e-05,
+        -10.967229843139648,
+        0.02534116432070732,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "condition": {
+        "rref_ohms": 10,
+        "frequency_hz": 1000,
+        "amplitude_mvrms": 100
+      },
+      "fit_channel": "1X",
+      "hg_observed": true,
+      "min_separation": 0.46255474581813183,
+      "serialized_float32_values": [
+        15.866665840148926,
+        -0.15525367856025696,
+        10.0,
+        0.0,
+        0.03082667477428913,
+        0.001513994880951941,
+        0.9993095397949219,
+        -0.0006775591755285859,
+        -10.937743186950684,
+        0.008814513683319092,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "condition": {
+        "rref_ohms": 10,
+        "frequency_hz": 10000,
+        "amplitude_mvrms": 100
+      },
+      "fit_channel": "1X",
+      "hg_observed": true,
+      "min_separation": 0.4576615298456255,
+      "serialized_float32_values": [
+        15.859908103942871,
+        -1.1776069402694702,
+        10.0,
+        0.0,
+        0.04120318591594696,
+        0.001589053776115179,
+        0.9999240040779114,
+        -0.0074322945438325405,
+        -10.949142456054688,
+        -0.03824261203408241,
+        0.0,
+        0.0
+      ]
+    }
+  ],
+  "final_capture_status": {
+    "capture_id": 961116889,
+    "calibration_sequence": 0,
+    "safety_faults": 0,
+    "safety_blocks": 8,
+    "protocol_errors": 0,
+    "temperature_mC": 26438,
+    "capture_status": 0,
+    "busy": false,
+    "result_valid": true,
+    "calibrated": false,
+    "transfer_safe": true
+  },
+  "installation_status": {
+    "transaction": 0,
+    "sequence": 0,
+    "received": 0,
+    "size": 2760,
+    "active_sequence": 0,
+    "crc": 0,
+    "state": 0,
+    "error": 0,
+    "store_state": 0,
+    "storage_available": true,
+    "next_sequence": 1,
+    "slot": 0,
+    "active_valid": false
+  },
+  "calibration_installed": false,
+  "candidate_generated": false,
+  "physically_qualified": false,
+  "artifact": {
+    "bytes": 80248,
+    "sha256": "7e0097c006a315949756b5bd0970e27269d38a8aa9d87b32db4f57de153390f1"
+  },
+  "capture_sha256": "7ceae11c1f8daed98c271d027d45115d0df9309597c266cc02db4d03a9307670"
+}

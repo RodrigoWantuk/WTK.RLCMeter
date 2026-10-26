@@ -12,10 +12,12 @@ static uint32_t g_font_chars_written;
 static uint32_t g_font_start_count;
 static uint32_t g_full_clears;
 static uint32_t g_partial_clears;
-static char g_started_text[16][UI_FALLBACK_TEXT_MAX_CHARS];
-static char g_started_font_text[16][UI_FONT_TEXT_MAX_CHARS];
-static ui_font_role_t g_started_font_roles[16];
+static char g_started_text[64][UI_FALLBACK_TEXT_MAX_CHARS];
+static char g_started_font_text[64][UI_FONT_TEXT_MAX_CHARS];
+static ui_font_role_t g_started_font_roles[64];
 static bool g_font_ready;
+static bool g_fill_fail;
+static bool g_font_fail;
 
 static resource_status_t g_provider_status;
 static uint32_t g_provider_calls;
@@ -83,6 +85,7 @@ void ili9341_fill_start(ili9341_fill_t *fill,
 bsp_status_t ili9341_fill_step(const ili9341_t *display, ili9341_fill_t *fill, uint16_t max_pixels)
 {
     (void)display;
+    if (g_fill_fail) return BSP_STATUS_ERROR;
     if ((fill == NULL) || !fill->active)
     {
         return BSP_STATUS_INVALID_ARG;
@@ -217,6 +220,7 @@ void ui_font_text_start(ui_font_text_op_t *op,
 bsp_status_t ui_font_text_step(const ili9341_t *display, ui_font_text_op_t *op)
 {
     (void)display;
+    if (g_font_fail) return BSP_STATUS_ERROR;
     if ((op == NULL) || !op->active)
     {
         return BSP_STATUS_INVALID_ARG;
@@ -253,6 +257,8 @@ static void reset_render_counters(void)
     (void)memset(g_started_font_text, 0, sizeof(g_started_font_text));
     (void)memset(g_started_font_roles, 0, sizeof(g_started_font_roles));
     g_font_ready = true;
+    g_fill_fail = false;
+    g_font_fail = false;
     g_provider_status = RESOURCE_STATUS_OK;
     g_provider_calls = 0u;
 }
@@ -394,16 +400,52 @@ static int test_partial_region_and_latest_generation_wins(void)
     failures += expect_true(g_full_clears == 1u, "initial render uses full clear");
 
     ui_product_view_t slow = ready_view(2u);
+    slow.menu.language_id = (uint8_t)UI_LANGUAGE_PT_BR;
     ui_product_request(&ui, &slow);
     failures += expect_true(ui_product_step(&ui, &display, false) == BSP_STATUS_BUSY,
                             "partial update begins");
     ui_product_view_t newest = ready_view(3u);
+    newest.menu.language_id = (uint8_t)UI_LANGUAGE_PT_BR;
     ui_product_request(&ui, &newest);
     failures += expect_true(drain_render(&ui, &display) == 0, "coalesced render completes");
-    failures += expect_true(g_partial_clears >= 1u, "same-screen update uses partial clear");
-    failures += expect_true(g_full_clears == 1u, "same-screen update does not full clear");
+    failures += expect_true(g_full_clears == 2u, "language change clears all localized labels including bottom READY hint");
     failures += expect_true(ui_product_step(&ui, &display, false) == BSP_STATUS_OK,
                             "latest generation rendered and queue is bounded");
+    return failures;
+}
+
+static int test_startup_to_ready_paints_once_and_coalesces_metadata(void)
+{
+    int failures = 0;
+    reset_render_counters();
+    ui_product_t ui;
+    ili9341_t display = {.ready=true};
+    ui_product_init(&ui);
+    attach_external_font(&ui);
+    ui_product_view_t view = ready_view(1u);
+    view.state = UI_PRODUCT_STATE_SELF_TEST;
+    ui_product_request(&ui,&view);
+    (void)ui_product_step(&ui,&display,false);
+    view.state = UI_PRODUCT_STATE_READY;
+    view.generation++;
+    ui_product_request(&ui,&view);
+    (void)ui_product_step(&ui,&display,false);
+    view.generation++;
+    view.calibration_active_valid=true;
+    view.calibration_sequence=1u;
+    ui_product_request(&ui,&view);
+    failures += expect_true(drain_render(&ui,&display)==0,"startup changes converge to one READY draw");
+    failures += expect_true(ui.rendered_generation==view.generation &&
+        g_pixels_written < (uint32_t)ILI9341_WIDTH * ILI9341_HEIGHT + 4096u,
+        "obsolete startup clear and generation cannot cause a second full READY paint");
+    const uint32_t pixels = g_pixels_written;
+    const uint32_t starts = g_font_start_count;
+    view.generation++;
+    view.calibration_sequence=2u;
+    ui_product_request(&ui,&view);
+    failures += expect_true(drain_render(&ui,&display)==0 && g_pixels_written==pixels &&
+        g_font_start_count==starts && ui.rendered_generation==view.generation,
+        "READY metadata that changes no visible label does not repaint the background");
     return failures;
 }
 
@@ -758,15 +800,172 @@ static int test_factory_guidance_uses_internal_font_and_no_wizard_prompt(void)
 }
 #endif
 
+#if WTK_ENABLE_UI_ROW_CACHE
+static int test_menu_updates_only_changed_rows(void)
+{
+    int failures = 0;
+    reset_render_counters();
+    ui_product_t ui;
+    ili9341_t display = {.ready = true};
+    ui_product_init(&ui);
+    ui_product_set_text_provider(&ui, fake_text_provider, NULL);
+    attach_external_font(&ui);
+    ui_product_view_t view = ready_view(1u);
+    view.state = UI_PRODUCT_STATE_MENU;
+    ui_product_request(&ui, &view);
+    failures += expect_true(drain_render(&ui, &display) == 0 && g_font_start_count == 9u,
+                            "initial menu paints all nine rows");
+    const uint32_t pixels = g_pixels_written;
+    view.menu.selected_index = 1u; view.generation++;
+    ui_product_request(&ui, &view);
+    failures += expect_true(drain_render(&ui, &display) == 0, "selection patch completes");
+    failures += expect_true(g_full_clears == 1u && g_partial_clears == 2u && g_font_start_count == 11u,
+                            "navigation repaints only old and new selected rows");
+    failures += expect_true(g_pixels_written - pixels < 10000u, "selection patch transfers a small fraction of one screen");
+    const uint32_t after = g_pixels_written;
+    view.calibration_sequence++; view.generation++;
+    ui_product_request(&ui, &view);
+    failures += expect_true(drain_render(&ui, &display) == 0 && g_pixels_written == after && g_font_start_count == 11u,
+                            "nonvisual menu metadata causes no TFT writes");
+    view.state = UI_PRODUCT_STATE_MAINTENANCE; view.menu.selected_index = 0u; view.generation++;
+    ui_product_request(&ui, &view);
+    failures += expect_true(drain_render(&ui, &display) == 0, "maintenance screen initial render");
+    const uint32_t maintenance_text = g_font_start_count;
+    const uint32_t maintenance_clears = g_partial_clears;
+    view.menu.selected_index = 1u; view.generation++;
+    ui_product_request(&ui, &view);
+    failures += expect_true(drain_render(&ui, &display) == 0 && g_font_start_count == maintenance_text + 2u &&
+                               g_partial_clears == maintenance_clears + 2u && g_full_clears == 2u,
+                            "maintenance navigation also repaints only old/new selection");
+    return failures;
+}
+
+static int test_numeric_edit_and_removed_warning(void)
+{
+    int failures = 0;
+    reset_render_counters();
+    ui_product_t ui;
+    ili9341_t display = {.ready = true};
+    ui_product_init(&ui);
+    ui_product_set_text_provider(&ui, fake_text_provider, NULL);
+    attach_external_font(&ui);
+    ui_product_view_t view = ready_view(1u);
+    view.state = UI_PRODUCT_STATE_DISPLAY_MENU; view.menu.brightness_percent = 100u;
+    ui_product_request(&ui, &view);
+    failures += expect_true(drain_render(&ui, &display) == 0, "display menu initial render");
+    view.state = UI_PRODUCT_STATE_BRIGHTNESS_EDIT; view.menu.brightness_percent = 5u; view.generation++;
+    ui_product_request(&ui, &view);
+    failures += expect_true(drain_render(&ui, &display) == 0 && g_full_clears == 1u &&
+                               g_font_start_count == 5u && g_partial_clears == 1u,
+                            "edit entry shares display layout and redraws one numeric row");
+    failures += expect_true(strstr(ui.rows[1].text, "5%") != NULL && strstr(ui.rows[1].text, "100") == NULL,
+                            "shorter numeric value has no old suffix after whole-row erasure");
+    view.menu.save_failed = true; view.generation++;
+    ui_product_request(&ui, &view);
+    failures += expect_true(drain_render(&ui, &display) == 0 && ui.rows[4].valid, "save warning row appears");
+    const uint32_t text_before = g_font_start_count;
+    const uint32_t clears_before = g_partial_clears;
+    view.menu.save_failed = false; view.generation++;
+    ui_product_request(&ui, &view);
+    failures += expect_true(drain_render(&ui, &display) == 0 && !ui.rows[4].valid &&
+                               g_font_start_count == text_before && g_partial_clears == clears_before + 1u &&
+                               g_full_clears == 1u, "removed warning is erased without repainting other rows");
+    return failures;
+}
+
+static int test_menu_update_during_clear_and_failure(void)
+{
+    int failures = 0;
+    for (uint8_t fault = 0u; fault < 3u; fault++)
+    {
+        reset_render_counters();
+        ui_product_t ui;
+        ili9341_t display = {.ready = true};
+        ui_product_init(&ui);
+        ui_product_set_text_provider(&ui, fake_text_provider, NULL);
+        attach_external_font(&ui);
+        ui_product_view_t view = ready_view(1u);
+        view.state = UI_PRODUCT_STATE_DISPLAY_MENU; view.menu.brightness_percent = 100u;
+        ui_product_request(&ui, &view);
+        failures += expect_true(drain_render(&ui, &display) == 0, "patch fixture rendered");
+        view.menu.brightness_percent = 50u; view.generation++;
+        ui_product_request(&ui, &view);
+        for (uint32_t i = 0u; i < 100u && ui.render_state != UI_PRODUCT_RENDER_ROW_CLEAR; i++)
+            (void)ui_product_step(&ui, &display, false);
+        failures += expect_true(ui.render_state == UI_PRODUCT_RENDER_ROW_CLEAR, "changed row starts bounded erasure");
+        const uint32_t pixels = g_pixels_written;
+        for (uint8_t i = 0u; i < 8u; i++) (void)ui_product_step(&ui, &display, true);
+        failures += expect_true(g_pixels_written == pixels, "quiet mode pauses row erasure");
+        if (fault == 1u)
+        {
+            g_fill_fail = true;
+            failures += expect_true(ui_product_step(&ui, &display, false) == BSP_STATUS_ERROR, "row-clear fault is reported");
+            g_fill_fail = false;
+        }
+        else if (fault == 2u)
+        {
+            for (uint32_t i = 0u; i < 100u && !ui.font_text_op.active; i++)
+                (void)ui_product_step(&ui, &display, false);
+            g_font_fail = true;
+            failures += expect_true(ui_product_step(&ui, &display, false) == BSP_STATUS_ERROR, "glyph fault is reported");
+            g_font_fail = false;
+        }
+        view.menu.brightness_percent = 5u; view.generation++;
+        ui_product_request(&ui, &view);
+        failures += expect_true(drain_render(&ui, &display) == 0 && strstr(ui.rows[1].text, "5%") != NULL &&
+                                   ui.rendered_generation == view.generation,
+                                "latest shorter value wins after interruption or failed paint");
+        failures += expect_true(g_full_clears == ((fault == 0u) ? 1u : 2u),
+                                "only I/O failure forces a fresh full-screen baseline");
+    }
+    return failures;
+}
+
+static int test_oversized_face_and_provider_invalidation(void)
+{
+    int failures = 0;
+    reset_render_counters();
+    ui_product_t ui;
+    ili9341_t display = {.ready = true};
+    ui_font_catalog_t catalog = {0};
+    catalog.faces[UI_FONT_ROLE_MEDIUM].line_height = 40u;
+    ui_product_init(&ui);
+    ui_product_set_font_catalog(&ui, &catalog);
+    ui_product_set_text_provider(&ui, fake_text_provider, NULL);
+    ui_product_view_t view = ready_view(0u);
+    view.state = UI_PRODUCT_STATE_MENU;
+    ui_product_request(&ui, &view);
+    failures += expect_true(drain_render(&ui, &display) == 0 && g_full_clears == 1u,
+                            "generation zero still establishes an initial baseline");
+    view.menu.selected_index = 1u; view.generation++;
+    ui_product_request(&ui, &view);
+    failures += expect_true(drain_render(&ui, &display) == 0 && g_full_clears == 2u,
+                            "font taller than row pitch cannot use damaging partial-row erasure");
+    catalog.faces[UI_FONT_ROLE_MEDIUM].line_height = 22u;
+    ui_product_set_font_catalog(&ui, &catalog);
+    ui_product_request(&ui, &view);
+    failures += expect_true(drain_render(&ui, &display) == 0 && g_full_clears == 3u && ui.rows[1].valid,
+                            "provider invalidation repaints even when generation has not changed");
+    return failures;
+}
+#endif
+
 int main(void)
 {
     int failures = 0;
+#if WTK_ENABLE_UI_ROW_CACHE
+    failures += test_menu_updates_only_changed_rows();
+    failures += test_numeric_edit_and_removed_warning();
+    failures += test_menu_update_during_clear_and_failure();
+    failures += test_oversized_face_and_provider_invalidation();
+#endif
 #if WTK_PRODUCT_FACTORY_PROVISIONED
     failures += test_factory_result_contract();
     failures += test_factory_guidance_uses_internal_font_and_no_wizard_prompt();
 #endif
     failures += test_quiet_pause_retains_render_state();
     failures += test_partial_region_and_latest_generation_wins();
+    failures += test_startup_to_ready_paints_once_and_coalesces_metadata();
     failures += test_update_during_active_text_restarts_with_newest_generation();
     failures += test_details_phase_label_uses_catalog();
     failures += test_capacitor_esr_and_invalid_details();

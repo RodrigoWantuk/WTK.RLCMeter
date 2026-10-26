@@ -8,6 +8,7 @@ import unittest
 import struct
 from typing import Optional
 import re
+import zlib
 
 
 TOOLS = Path(__file__).resolve().parents[2] / "tools"
@@ -38,16 +39,29 @@ IMAGE_SPEC.loader.exec_module(prepare_image)
 
 
 class ResourcePackTests(unittest.TestCase):
+    def test_indexed_png_palette_alpha_and_invalid_index(self):
+        def chunk(kind, data):
+            return struct.pack('>I',len(data))+kind+data+struct.pack('>I',zlib.crc32(kind+data)&0xFFFFFFFF)
+        prefix = b'\x89PNG\r\n\x1a\n'+chunk(b'IHDR',struct.pack('>IIBBBBB',2,1,8,3,0,0,0))
+        prefix += chunk(b'PLTE',bytes([255,0,0,0,255,0]))+chunk(b'tRNS',bytes([255,0]))
+        with tempfile.TemporaryDirectory() as tmp:
+            path=Path(tmp)/'indexed.png'
+            path.write_bytes(prefix+chunk(b'IDAT',zlib.compress(bytes([0,0,1])))+chunk(b'IEND',b''))
+            self.assertEqual(prepare_image.read_png_rgb(path),(2,1,[(255,0,0),(4,10,19)]))
+            path.write_bytes(prefix+chunk(b'IDAT',zlib.compress(bytes([0,0,2])))+chunk(b'IEND',b''))
+            with self.assertRaisesRegex(ValueError,'palette index'):
+                prepare_image.read_png_rgb(path)
+
     def test_product_pack_has_complete_bilingual_fonts_and_portrait_art(self):
         assets = Path(__file__).resolve().parents[2] / "assets"
         manifest = assets / "resource_manifest.json"
         required = resource_pack_format.required_font_codepoints(manifest)
         resources = json.loads(manifest.read_text(encoding="utf-8"))["resources"]
-        self.assertEqual(len(resources), 6)
+        self.assertEqual(len(resources), 7)
         self.assertEqual(
             {entry["id"] for entry in resources},
             {"TEXT_EN", "TEXT_PT_BR", "FONT_UI_SMALL", "FONT_UI_MEDIUM",
-             "FONT_UI_LARGE", "IMAGE_SCREEN_BOOT"},
+             "FONT_UI_LARGE", "IMAGE_SCREEN_BOOT", "IMAGE_BOOT_SPLASH"},
         )
         for role in ("small", "medium", "large"):
             source = json.loads((assets / "font" / f"plex-{role}-a1.json").read_text(encoding="utf-8"))
@@ -59,6 +73,11 @@ class ResourcePackTests(unittest.TestCase):
         self.assertEqual(image["channel_bits"], 3)
         self.assertEqual(sum(run[0] for run in image["runs"]), 240 * 320)
         self.assertLess(len(image["runs"]) * 4, 6000)
+        splash = json.loads((assets / "image/personalized-boot-splash-rle.json").read_text(encoding="utf-8"))
+        w, h, pixels = prepare_image.read_png_rgb(assets / "source/screens/wtk-rlcmeter-boot-splash-rodrigo-wantuk-240x320.png")
+        self.assertEqual((w, h), (240, 320))
+        self.assertEqual(splash["channel_bits"], 8)
+        self.assertEqual(splash["runs"], prepare_image.rle_encode(pixels, 8))
         pack = resource_pack_format.build_pack(manifest)
         self.assertEqual(resource_pack_format.inspect_pack(pack)["resource_api_version"], 4)
 
@@ -199,7 +218,7 @@ class ResourcePackTests(unittest.TestCase):
         info = resource_pack_format.inspect_pack(first)
         self.assertEqual(info["schema_version"], 2)
         self.assertEqual(info["resource_api_version"], 4)
-        self.assertEqual(info["entry_count"], 6)
+        self.assertEqual(info["entry_count"], 7)
         self.assertEqual(info["text_id_first"], 0x0001)
         self.assertEqual(info["text_id_last"], 0x0059)
         self.assertEqual(info["text_max_bytes"], 31)
@@ -212,6 +231,7 @@ class ResourcePackTests(unittest.TestCase):
                 0x00020002,
                 0x00020003,
                 0x00030002,
+                0x00030006,
             ],
         )
         font_entries = [entry for entry in info["entries"] if entry["font"] is not None]
@@ -223,7 +243,7 @@ class ResourcePackTests(unittest.TestCase):
             self.assertLessEqual(font["max_width"], resource_pack_format.FONT_MAX_WIDTH)
             self.assertLessEqual(font["max_height"], resource_pack_format.FONT_MAX_HEIGHT)
         image_entries = [entry for entry in info["entries"] if entry["image"] is not None]
-        self.assertEqual(len(image_entries), 1)
+        self.assertEqual(len(image_entries), 2)
         image_by_id = {entry["resource_id"]: entry["image"] for entry in image_entries}
         self.assertEqual(image_by_id[0x00030002]["width"], 240)
         self.assertEqual(image_by_id[0x00030002]["height"], 320)
@@ -273,11 +293,11 @@ class ResourcePackTests(unittest.TestCase):
             self.assertEqual(summary["schema_version"], 2)
             self.assertEqual(summary["resource_api_version"], 4)
             self.assertEqual(summary["size_bytes"], len(pack_path.read_bytes()))
-            self.assertEqual(summary["entry_count"], 6)
+            self.assertEqual(summary["entry_count"], 7)
             self.assertEqual(len(summary["sha256"]), 64)
             image_entries = [entry for entry in summary["entries"] if entry["image"] is not None]
-            self.assertEqual(len(image_entries), 1)
-            self.assertEqual(sum(entry["image"]["decoded_pixels"] for entry in image_entries), 240 * 320)
+            self.assertEqual(len(image_entries), 2)
+            self.assertEqual(sum(entry["image"]["decoded_pixels"] for entry in image_entries), 2 * 240 * 320)
 
             self.assertEqual(resource_pack_tool.main(["frame", str(pack_path), "-o", str(stream_path)]), 0)
             stream = stream_path.read_bytes()

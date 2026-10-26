@@ -1,0 +1,39 @@
+{
+  "status": "ALL_33_SAME_SOURCE_CCO2_OPEN_ACCEPTED",
+  "identity": {
+    "hardware_revision": 65538,
+    "model": 5,
+    "profile": 1,
+    "capabilities": 127,
+    "protocol_version": 1,
+    "timeout_ms": 90000,
+    "adc_provenance": "NOMINAL_3V3_NOT_CALIBRATED",
+    "synthetic": false,
+    "uid": "54ff70068370525760380567",
+    "git": "a52dba35",
+    "firmware_version": "0.1.0"
+  },
+  "groups": 198,
+  "physical_attempts": 948,
+  "accepted_physical_blocks": 948,
+  "captures": 33,
+  "final_serial_status": {
+    "capture_id": 981717004,
+    "calibration_sequence": 0,
+    "safety_faults": 0,
+    "safety_blocks": 8,
+    "protocol_errors": 0,
+    "temperature_mC": 24072,
+    "capture_status": 0,
+    "busy": false,
+    "result_valid": true,
+    "calibrated": false,
+    "transfer_safe": true,
+    "battery_voltage_v": 3.92
+  },
+  "original_cohorts_modified": false,
+  "osl_installed": false,
+  "physically_qualified": false,
+  "sha256": "ee12d0a2ca3675f972a11c9432a265b8a5146a2af7ed580564afcdc19c4ea987",
+  "capture_file_sha256": "acc242277f601c0402a17f0f171a4f0c3a501e56ab4fbd7a63d7bb3f3e8c98a3"
+}

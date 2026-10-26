@@ -2,6 +2,53 @@
 
 STATUS: IMPLEMENTED_REQUIRES_BENCH_VALIDATION
 
+Current owner-authorized [plan17](17-Bringup-Consolidation-and-Publish.md) promotes
+the successful mounted TFT initialization/orientation/clock to all TFT profiles.
+Earlier diagnostic-only/ordinary-MADCTL48 descriptions below are historical.
+
+### Active bounded diagnostic, 2026-10-24
+
+Owner reports working button tones with a white display in the standalone
+peripheral image. Under tasks5/12, add bounded read-only controller responses
+before rendering and retain them for SWD because UART and TFT cannot be connected
+together on this fixture. Prerequisites: existing safe peripheral image, SPI bus
+ownership and the owner-confirmed J_TFT label order. Expected files: ILI9341
+driver/header, app shell diagnostic integration, host transaction test/CMake and
+PERIPHERAL_TEST.md. No panel supply/init-voltage changes or metrology actions.
+Four relevant host tests and the strict Arm peripheral build pass (14308 B Flash,
+11772 B accounted RAM). Physical readback and module-side voltage checks remain
+pending; compilation/READY is not display qualification.
+
+Follow-up: owner continuity is33Ohm on SCK/MOSI and0Ohm on MISO/CS/reset/DC,
+with no reported shorts toGND. Module label is only "2.8 TFT SPI240x320 V1.2";
+a similar listing ambiguously names ST7789/ILI9341. Extend the isolated peripheral
+diagnostic with common DCS commands, longer bounded reset/waits, read04/09 and
+PCLK1/64 TFT clock (Flash remains /8). No controller-specific analog settings.
+Additional expected files are spi_bus.c/.h, CMake and its mock clock test.
+`WTK_ILI9341_DIAGNOSTIC_SUPPORT` is derived internally from the existing peripheral
+variant flag; ordinary images retain the baseline command list. Five relevant
+host tests and strict peripheral/default/PRODUCT Arm builds pass. Peripheral:
+14468B Flash/11788B accountedRAM; defaultBRINGUP65448B andPRODUCT62232B fit hard
+limits (existing soft-size/LTO advisories remain). Physical result still pending.
+
+Deployed62e7659 with exact internal readback and controlled boot. Owner still
+reports white. All seven raw register responses remain zero; FlashEF4016 still
+detected. Image-bound breakpoints show actual MCU CS/DC low for commands and
+CS low/DC high for data, followed by breakpoint removal/resume. This narrows the
+observation but does not identify controller/module fault. See the
+[physical report](../docs/review/a05/Display-White-Screen-2026-10-24.md).
+
+Owner resolved white screen by repairing a bad solder joint on the module flat
+and confirmed rendering. Follow-up request is only a180degree orientation change:
+diagnostic MADCTL88/rotation2, ordinaryMADCTL48. Expected files: ILI9341 source,
+existing driver regression and peripheral/physical documentation. No hardware
+qualification beyond that owner observation is inferred.
+
+Deployed3d276b1, exact readback/controlled boot passed. Owner confirms portrait180
+and button operation. LCD now returns MADCTL88, power-mode9C and diagnosticC0;
+ID04/D3 still zero, actual controller identity unresolved. White-screen/rotation
+subtask is functionally confirmed; Phase03's remaining bench criteria stay open.
+
 ## Goal
 
 Implement and validate the non-metrology user-interface peripherals while preserving shared-SPI correctness, future quiet-mode requirements, and the fixed button/resource architecture used by later product UI work.

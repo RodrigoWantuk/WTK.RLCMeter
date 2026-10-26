@@ -1,0 +1,20 @@
+{
+  "status": "OWNER_CONFIRMED_DISPLAY_IMPROVED_RLC_ISSUES_SEPARATE",
+  "source": "ddd565dbcfd1d1c28e7e520cab4a92f4dd3e65d1",
+  "firmware_sha256": "7ba619e752084e377de02019ae3f0d561755c13e9f9d6bd0aaa399aa44df0e2c",
+  "flash_bytes": 54360,
+  "nominal_tft_hz": 4500000,
+  "slow_diagnostic_retained": true,
+  "brightness_actual_percent": 75,
+  "safety_faults": 0,
+  "calibration_sequence": 1,
+  "calibration_records": 33,
+  "host_standard_tests": "46/46 PASS",
+  "host_factory_tests": "47/47 PASS",
+  "embedded_builds": "9/9 PASS",
+  "owner_feedback": "ta melhor, ta legal",
+  "pending": "Owner reports intermittent capacitor n/a and unidentified small choke appearing resistive; investigate separately without relabeling calibration",
+  "physically_qualified": false,
+  "firmware_archive_sha256": "6ca89fc9c637fa8da431b501c2361a505ae45b2f0e654f02cb7ed58b21663320",
+  "physical_archive_sha256": "193afbffea1ec96d3e097e5b377d49bcd273ccafb8ca38dbd9051c1fb77e6b8e"
+}
