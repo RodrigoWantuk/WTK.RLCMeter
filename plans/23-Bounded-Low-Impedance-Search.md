@@ -90,5 +90,19 @@ profile and all nine strict UID-bound embedded builds. PRODUCT 54,340 B is
 programmed/readback verified and boots READY/SAFE with the same active 33-record
 OSL set and resources. Full BRINGUP is 65,528 B (8 B remaining). The final matrix
 supersedes all failed size experiments. Owner-triggered physical extra-frequency
-capture remains pending; no sub-microhenry success is claimed. See
+capture was pending at deployment; the subsequent check below completes this
+search observation without claiming sub-microhenry success. See
 [delivery](../Firmware/releases/2026-10-25/low-impedance-search/README.md).
+
+## Owner-triggered extra-frequency observation
+
+Session 1 on the same nominal 0.47-uH part completed four attempts: RREF
+1k/100/10 ohm at 1 kHz, then 10 ohm at 10 kHz. This confirms the added search
+branch. At 10 kHz, R=0.245470 ohm and X=+0.021326 ohm give a raw 0.339413-uH
+candidate; the ratio |X|/|R| remains resistance-dominated, and L/C are not
+published. Full-session classification is MIXED/UNKNOWN, including conflicting
+capacitive evidence from early weak-return/reranged attempts. Evidence admission
+for classification deserves separate review; no small-L capability is qualified.
+The owner's multiple relay clicks correspond to the retained per-attempt safety
+transaction. Postflight confirms K1 SAFE, zero faults, all excitation/ranges OFF
+and unchanged 33-record calibration. No further code or calibration change.

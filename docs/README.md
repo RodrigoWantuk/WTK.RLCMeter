@@ -178,4 +178,5 @@ capability remain unvalidated; this is not a proven hardware lower limit.
 is deployed and software-tested across both host profiles and nine embedded
 profiles. It adds a supporting 10-kHz check for usable low-RREF resistive
 results without changing classification thresholds or calibration. Actual
-extra-frequency capture is pending; K1 remains SAFE between attempts.
+four-attempt search now includes 10 kHz but leaves the nominal 0.47-uH result
+inconclusive, with no published L; K1 remains SAFE between attempts.

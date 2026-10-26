@@ -245,5 +245,6 @@ capability remain unvalidated; this is not a proven hardware lower limit.
 is now deployed: usable resistive 1-kHz results on RREF 10/100 ohm can request
 one supporting 10-kHz check after existing range/quality decisions. All 46/47
 host tests and nine strict unit-bound builds pass; calibration is preserved.
-Physical extra-frequency capture is pending. K1 still returns SAFE per attempt;
+Four actual attempts now include 10 kHz; the nominal 0.47-uH result remains
+inconclusive, with no published L. K1 still returns SAFE per attempt;
 session-wide relay ownership is a separate safety architecture change.

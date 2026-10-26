@@ -1,5 +1,5 @@
 {
-  "status": "DEPLOYED_READY_EXTRA_FREQUENCY_PHYSICAL_CAPTURE_PENDING",
+  "status": "EXTRA_FREQUENCY_SEARCH_PHYSICALLY_OBSERVED_SUB_UH_UNRESOLVED",
   "source": "80193b99e6ae2edc440e24c10512f4e6e515963b",
   "firmware_readback": {
     "start": 134217728,
@@ -44,6 +44,92 @@
   "sub_microhenry_qualified": false,
   "archives": {
     "firmware-images.zip": "0cff0b45b79d346cd91597d221fcc6bb59f42e646e43f3e43ee84fca16cf9c9f",
-    "deployment-evidence.zip": "3c980bdc45f1d240d85dc216bf4227d39b34f4093b1f3673c7b3adbc9d73b82c"
+    "deployment-evidence.zip": "3c980bdc45f1d240d85dc216bf4227d39b34f4093b1f3673c7b3adbc9d73b82c",
+    "low-z-physical-evidence.zip": "19a44ca69dbf13d90bbcdb6e872a3c4cd3468357c191fab19cfde5891579d91c"
+  },
+  "physical_check": {
+    "session": 1,
+    "fixture": "Owner-confirmed isolated nominal 0.47uH inductor, short OK after new-image READY preflight",
+    "attempts": [
+      {
+        "index": 0,
+        "frequency_hz": 1000,
+        "rref_ohms": 1000,
+        "reason": 0,
+        "r_ohm": -3.383366823196411,
+        "x_ohm": -1.1537868976593018,
+        "return_peak_v": 0.00012449426867533475,
+        "dsp_status": 0,
+        "calibration_sequence": 1,
+        "safety_abort": 0,
+        "derived_interpretation": 1
+      },
+      {
+        "index": 1,
+        "frequency_hz": 1000,
+        "rref_ohms": 100,
+        "reason": 2,
+        "r_ohm": 0.1627989560365677,
+        "x_ohm": -0.1407489776611328,
+        "return_peak_v": 0.0010914899175986648,
+        "dsp_status": 0,
+        "calibration_sequence": 1,
+        "safety_abort": 0,
+        "derived_interpretation": 1
+      },
+      {
+        "index": 2,
+        "frequency_hz": 1000,
+        "rref_ohms": 10,
+        "reason": 2,
+        "r_ohm": 0.322007417678833,
+        "x_ohm": -0.007153800223022699,
+        "return_peak_v": 0.00930500403046608,
+        "dsp_status": 0,
+        "calibration_sequence": 1,
+        "safety_abort": 0,
+        "derived_interpretation": 0
+      },
+      {
+        "index": 3,
+        "frequency_hz": 10000,
+        "rref_ohms": 10,
+        "reason": 5,
+        "r_ohm": 0.2454703450202942,
+        "x_ohm": 0.021325943991541862,
+        "return_peak_v": 0.005875129718333483,
+        "dsp_status": 0,
+        "calibration_sequence": 1,
+        "safety_abort": 0,
+        "derived_interpretation": 0
+      }
+    ],
+    "primary_attempt_index": 2,
+    "final_classification": "MIXED_OR_UNKNOWN",
+    "inductance_published": false,
+    "capacitance_published": false,
+    "secondary_10khz_candidate_inductance_h": 3.39412935090877e-07,
+    "candidate_is_qualified": false
+  },
+  "post_measurement_metadata": {
+    "product_state": 20,
+    "measurement_session_sequence": 1,
+    "product_initialized": 1,
+    "calibration_sequence": 1,
+    "calibration_record_count": 33,
+    "calibration_active_valid": 1,
+    "calibration_storage_available": 1,
+    "k1_commanded_state": 1,
+    "range_fsm_state": 0,
+    "range_enabled": 0,
+    "safety_fault_mask": 0,
+    "display_fault": 0,
+    "resource_status": 0,
+    "excitation_mode": 0,
+    "safety_blocker_flags": 8,
+    "display_slow_mode": 0,
+    "backlight_percent": 75,
+    "saved_brightness_percent": 75,
+    "quiet_requested": 0
   }
 }
