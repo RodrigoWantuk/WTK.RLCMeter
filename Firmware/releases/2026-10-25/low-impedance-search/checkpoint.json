@@ -1,0 +1,49 @@
+{
+  "status": "DEPLOYED_READY_EXTRA_FREQUENCY_PHYSICAL_CAPTURE_PENDING",
+  "source": "80193b99e6ae2edc440e24c10512f4e6e515963b",
+  "firmware_readback": {
+    "start": 134217728,
+    "end_exclusive": 134272068,
+    "bytes": 54340,
+    "expected_sha256": "c8196f18daa7934243bfaf8303c03260d267cfdacf14b7c8efb2fd17b75d1fb9",
+    "actual_sha256": "c8196f18daa7934243bfaf8303c03260d267cfdacf14b7c8efb2fd17b75d1fb9",
+    "full_flash_sha256": "1a20e12207b90fa393c16aff092a614108ee99d6b9678a0fdedb0689ed1c3d59",
+    "full_flash_bytes": 65536
+  },
+  "active_calibration_sequence": 1,
+  "active_calibration_records": 33,
+  "host_standard": "46/46 PASS",
+  "host_factory": "47/47 PASS",
+  "embedded_profiles": "9/9 PASS_STRICT",
+  "boot_metadata": {
+    "product_state": 4,
+    "measurement_session_sequence": 0,
+    "product_initialized": 1,
+    "calibration_sequence": 1,
+    "calibration_record_count": 33,
+    "calibration_active_valid": 1,
+    "calibration_storage_available": 1,
+    "k1_commanded_state": 1,
+    "range_fsm_state": 0,
+    "range_enabled": 0,
+    "safety_fault_mask": 0,
+    "display_fault": 0,
+    "resource_status": 0,
+    "excitation_mode": 0,
+    "safety_blocker_flags": 8,
+    "display_slow_mode": 0,
+    "backlight_percent": 75,
+    "saved_brightness_percent": 75,
+    "quiet_requested": 0
+  },
+  "firmware_updated": true,
+  "calibration_written": false,
+  "resources_written": false,
+  "relay_session_hold_implemented": false,
+  "battery_voltage_read_via_swd": false,
+  "sub_microhenry_qualified": false,
+  "archives": {
+    "firmware-images.zip": "0cff0b45b79d346cd91597d221fcc6bb59f42e646e43f3e43ee84fca16cf9c9f",
+    "deployment-evidence.zip": "3c980bdc45f1d240d85dc216bf4227d39b34f4093b1f3673c7b3adbc9d73b82c"
+  }
+}

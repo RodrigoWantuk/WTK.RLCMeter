@@ -173,3 +173,9 @@ Independent thermal accuracy is not qualified. The three RLC fit blocks remain.
 The [nominal 0.47-uH follow-up](../Firmware/releases/2026-10-25/inductor-047-limit-check/README.md) was resistance-like at 1 kHz
 and did not publish L. Automatic frequency search and sub-microhenry
 capability remain unvalidated; this is not a proven hardware lower limit.
+
+[Bounded low-impedance search](../Firmware/releases/2026-10-25/low-impedance-search/README.md)
+is deployed and software-tested across both host profiles and nine embedded
+profiles. It adds a supporting 10-kHz check for usable low-RREF resistive
+results without changing classification thresholds or calibration. Actual
+extra-frequency capture is pending; K1 remains SAFE between attempts.

@@ -1,6 +1,6 @@
 # Bounded low-impedance automatic search
 
-STATUS: IN_PROGRESS
+STATUS: IMPLEMENTED_REQUIRES_BENCH_VALIDATION
 
 ## Trigger and prerequisites
 
@@ -84,3 +84,11 @@ extra soft-float comparison in the nearly full BRINGUP image. The exploratory
 predicate never bypasses finite-DSP, selected-path, terminal or safety gates.
 Equivalent compact frequency selection retains all three supported mappings.
 A BRINGUP size check now fits at 65,528 bytes; final committed matrix is pending.
+
+Final source 80193b99e6ae2edc440e24c10512f4e6e515963b passes 46/47 CTests by host
+profile and all nine strict UID-bound embedded builds. PRODUCT 54,340 B is
+programmed/readback verified and boots READY/SAFE with the same active 33-record
+OSL set and resources. Full BRINGUP is 65,528 B (8 B remaining). The final matrix
+supersedes all failed size experiments. Owner-triggered physical extra-frequency
+capture remains pending; no sub-microhenry success is claimed. See
+[delivery](../Firmware/releases/2026-10-25/low-impedance-search/README.md).

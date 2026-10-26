@@ -240,3 +240,10 @@ See [delivery evidence](docs/review/bringup-2026-10-25/Boot-Splash.md) and
 The [nominal 0.47-uH follow-up](Firmware/releases/2026-10-25/inductor-047-limit-check/README.md) was resistance-like at 1 kHz
 and did not publish L. Automatic frequency search and sub-microhenry
 capability remain unvalidated; this is not a proven hardware lower limit.
+
+[Bounded low-impedance search](Firmware/releases/2026-10-25/low-impedance-search/README.md)
+is now deployed: usable resistive 1-kHz results on RREF 10/100 ohm can request
+one supporting 10-kHz check after existing range/quality decisions. All 46/47
+host tests and nine strict unit-bound builds pass; calibration is preserved.
+Physical extra-frequency capture is pending. K1 still returns SAFE per attempt;
+session-wide relay ownership is a separate safety architecture change.
