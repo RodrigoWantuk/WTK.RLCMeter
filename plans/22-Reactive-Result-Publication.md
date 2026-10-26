@@ -46,3 +46,15 @@ not relabeled as a post-fix physical negative-R capture. Actual final teardown
 is SAFE, range/excitation OFF, no safety faults. Known-inductor, independent
 C/L/loss/phase accuracy and final display confirmation remain pending.
 See [delivery](../Firmware/releases/2026-10-25/reactive-publication/README.md).
+
+## Subsequent known-inductor basic check
+
+The owner then fitted a marked nominal 470-uH choke and triggered two Click
+measurements. Both finish INDUCTIVE with published L: 461.356 and 472.200 uH
+at 1 kHz / 10 ohm / HG, four then two attempts. Actual SAFE teardown, zero
+faults and unchanged sequence 1 are verified. The full 1/10-kHz/range history
+is retained, including lower secondary L estimates; nominal tolerance, phase,
+loss and absolute accuracy are unqualified. No code or calibration was changed.
+The basic known-inductor check is now observed; 0.15/2.2-uH sensitivity and
+independent qualification remain pending. See
+[physical evidence](../Firmware/releases/2026-10-25/inductor-470-check/README.md).

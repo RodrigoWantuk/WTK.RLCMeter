@@ -31,8 +31,10 @@ restores normal TFT speed, coalesces READY painting and improves default brightn
 [Reactive publication recovery](Firmware/releases/2026-10-25/reactive-publication/README.md)
 separates dominant C/L reactance from unresolved negative estimated loss. Two
 actual 103J100 measurements publish 9.55/9.68 nF with SAFE teardown and unchanged
-calibration. A marked known inductor and independent accuracy/loss validation
-remain pending; no repeated resistor campaign is needed for these app fixes.
+calibration. A subsequent [nominal 470-uH check](Firmware/releases/2026-10-25/inductor-470-check/README.md)
+publishes 461.4/472.2 uH as INDUCTIVE with SAFE teardown. Very small inductors
+and independent accuracy/loss validation remain pending; no repeated resistor
+campaign is needed for these app fixes.
 
 ## Project goals
 
