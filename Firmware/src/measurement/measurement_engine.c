@@ -305,6 +305,21 @@ static bool choose_500mv_retry(const measurement_auto_session_t *session,
     return false;
 }
 
+static bool explore_resistive_low_impedance(const measurement_attempt_result_t *result)
+{
+    const measurement_channel_quality_t *quality =
+        (result->selected_channel == MEASUREMENT_RETURN_HG) ? &result->ret_hg_quality :
+                                                            &result->ret_1x_quality;
+    /* Low-frequency resistance dominance can hide a small reactive component.
+     * Search at higher frequency without changing classification thresholds. */
+    return (result->derived.interpretation == MEASUREMENT_INTERPRET_RESISTIVE) &&
+           (result->config.frequency == HW_EXCITATION_FREQ_1KHZ) &&
+           ((result->config.range_id == HW_RANGE_ID_10R) ||
+            (result->config.range_id == HW_RANGE_ID_100R)) &&
+           (result->z_ohms.re >= 0.0f) && quality->usable && !quality->clipped &&
+           !result->clipped;
+}
+
 static bool choose_frequency_refinement(const measurement_auto_session_t *session,
                                         const measurement_attempt_result_t *result,
                                         measurement_attempt_config_t *out)
@@ -316,7 +331,8 @@ static bool choose_frequency_refinement(const measurement_auto_session_t *sessio
     }
     if ((result->derived.interpretation != MEASUREMENT_INTERPRET_CAPACITIVE) &&
         (result->derived.interpretation != MEASUREMENT_INTERPRET_INDUCTIVE) &&
-        (result->derived.interpretation != MEASUREMENT_INTERPRET_MIXED_OR_UNKNOWN))
+        (result->derived.interpretation != MEASUREMENT_INTERPRET_MIXED_OR_UNKNOWN) &&
+        !explore_resistive_low_impedance(result))
     {
         return false;
     }
@@ -630,8 +646,7 @@ static policy_decision_t decide_next(const measurement_auto_session_t *session,
         return decision;
     }
 
-    if ((result->derived.interpretation != MEASUREMENT_INTERPRET_RESISTIVE) &&
-        choose_frequency_refinement(session, result, &attempt))
+    if (choose_frequency_refinement(session, result, &attempt))
     {
         decision.decision = NEXT_DECISION_ATTEMPT;
         decision.attempt = attempt;

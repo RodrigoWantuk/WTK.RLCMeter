@@ -140,6 +140,29 @@ Safe range transition:
 RANGE_EN=0 -> set A0/A1/A2 -> dead-time -> RANGE_EN=1 -> settling -> acquire
 ```
 
+### Bounded low-impedance exploration
+
+Automatic range selection first follows the existing DUT/reference ratio,
+clipping and weak-signal criteria. It does not sweep every RREF: a larger RREF
+can further reduce a small DUT's return signal. After these quality steps, a
+finite apparently resistive result at 1 kHz on RREF 10 or 100 ohm also requests
+one 10-kHz attempt at the same amplitude/RREF, provided R is nonnegative and
+the selected return path is usable and unclipped. Reactance can be zero or
+have either sign at this stage; the check investigates possible hidden
+reactance rather than presuming a component type.
+
+The existing six-attempt/four-range/one-frequency limits and no-repeat rule
+still apply. Actual SHORT/OPEN, invalid data, safety abort and cancellation
+retain their priorities. No 10-ohm/500-mVrms condition is allowed. Higher-RREF
+and already-10-kHz resistive results do not trigger this additional check.
+Every requested condition still uses a fresh guarded acquisition transaction.
+
+The second frequency is supporting evidence. Existing primary selection,
+classification thresholds and conservative disagreement handling remain
+unchanged: a resistive/reactive disagreement can finish MIXED/UNKNOWN, and
+an extra attempt is not proof of sub-microhenry capability or accuracy.
+See [plan 23](../plans/23-Bounded-Low-Impedance-Search.md).
+
 ## Confidence gates
 
 A reading may be rejected or marked `EXTENDED` / `LOW_CONFIDENCE` due to:

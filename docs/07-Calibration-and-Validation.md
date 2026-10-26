@@ -348,3 +348,24 @@ Changes to any of the following may invalidate calibration:
 - calibration algorithm/model.
 
 Persistent calibration records therefore carry `hardware_revision` and model/schema version information.
+
+## Low-impedance search versus calibration
+
+The bounded search in [plan 23](../plans/23-Bounded-Low-Impedance-Search.md)
+adds a supporting 10-kHz attempt after a usable, unclipped, nonnegative-R,
+apparently resistive 1-kHz result on the 10/100-ohm references. It changes
+condition selection only. The OSL model, coefficients, HG transfer, hardware
+revision, ADC timing, calibration serialization and publication gates remain
+unchanged. The existing active engineering set can be retained; this change
+does not require another resistor calibration campaign. Each selected condition
+still needs compatible calibration and real hardware safety permission.
+
+Validation must distinguish extra search from a successful derived value.
+Record all attempts, actual frequency/RREF/path and primary index. A second
+frequency that disagrees with the first may remain MIXED/UNKNOWN. Do not turn
+small negative X into positive L, suppress inconsistent evidence, or infer an
+instrument accuracy bound from the nominal DUT marking. The pre-change
+0.47-uH observation and its SAFE teardown are preserved in
+[bench evidence](../Firmware/releases/2026-10-25/inductor-047-limit-check/README.md).
+Sub-microhenry sensitivity, fixture parasitics and phase accuracy remain
+REQUIRES_BENCH_VALIDATION.

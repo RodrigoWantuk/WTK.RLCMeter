@@ -147,4 +147,10 @@ around idle ranges, residual requalification and slow TFT work.
 speed, duplicate-READY rendering and default-brightness correction.
 [Plan 22](22-Reactive-Result-Publication.md) separates dominant reactive C/L
 publication from unresolved loss; two actual capacitor readings pass, while
-known-inductor and independent accuracy qualification remain pending.
+the nominal 470-uH basic check is observed and independent accuracy qualification
+remains pending.
+
+[Plan 23](23-Bounded-Low-Impedance-Search.md) adds a bounded 10-kHz check for
+apparently resistive low-impedance results after ratio-based range selection.
+The original nominal 0.47-uH result was not resolved; additional search does not
+qualify sub-microhenry capability or override contradictory phase evidence.
