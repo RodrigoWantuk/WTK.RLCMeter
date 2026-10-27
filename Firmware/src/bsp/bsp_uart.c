@@ -13,6 +13,7 @@ enum
 };
 
 static bool g_uart_ready = false;
+static bsp_uart_rx_t g_uart_rx;
 
 static void gpio_config_pin(GPIO_TypeDef *const port, uint32_t pin, uint32_t mode)
 {
@@ -49,23 +50,34 @@ bsp_status_t bsp_uart_init(uint32_t baud_rate)
 {
     const bsp_clock_summary_t *const clock = bsp_clock_get_summary();
 
-    if (baud_rate == 0u)
+    if (baud_rate == 0u || clock == NULL || clock->pclk2_hz == 0u)
     {
         return BSP_STATUS_INVALID_ARG;
     }
 
+    const uint32_t masked = __get_PRIMASK();
+    __disable_irq();
+    NVIC_DisableIRQ(USART1_IRQn);
+    g_uart_ready = false;
     RCC->APB2ENR |= RCC_APB2ENR_IOPAEN | RCC_APB2ENR_USART1EN;
 
     gpio_config_pin(GPIOA, 9u, 0xAu);  /* PA9 USART1_TX, AF push-pull, 2 MHz */
     gpio_config_pin(GPIOA, 10u, 0x4u); /* PA10 USART1_RX, floating input */
 
     USART1->CR1 = 0u;
+    bsp_uart_rx_init(&g_uart_rx);
     USART1->CR2 = 0u;
-    USART1->CR3 = 0u;
+    USART1->CR3 = USART_CR3_EIE;
     USART1->BRR = (clock->pclk2_hz + (baud_rate / 2u)) / baud_rate;
-    USART1->CR1 = USART_CR1_TE | USART_CR1_RE | USART_CR1_UE;
+    (void)USART1->SR;
+    (void)USART1->DR;
+    NVIC_ClearPendingIRQ(USART1_IRQn);
+    NVIC_SetPriority(USART1_IRQn, 3u); /* Lower priority than both acquisition DMA channels. */
+    USART1->CR1 = USART_CR1_TE | USART_CR1_RE | USART_CR1_UE | USART_CR1_RXNEIE;
+    NVIC_EnableIRQ(USART1_IRQn);
 
     g_uart_ready = true;
+    __set_PRIMASK(masked);
     return BSP_STATUS_OK;
 }
 
@@ -117,13 +129,45 @@ bsp_status_t bsp_uart_try_read_byte(uint8_t *byte)
         return BSP_STATUS_ERROR;
     }
 
-    if ((USART1->SR & USART_SR_RXNE) == 0u)
-    {
-        return BSP_STATUS_BUSY;
-    }
+    const uint32_t masked = __get_PRIMASK();
+    __disable_irq();
+    const bsp_status_t status = bsp_uart_rx_pop(&g_uart_rx, byte);
+    __set_PRIMASK(masked);
+    return status;
+}
 
-    *byte = (uint8_t)(USART1->DR & 0xFFu);
-    return BSP_STATUS_OK;
+void USART1_IRQHandler(void)
+{
+    const uint32_t status = USART1->SR;
+    const uint32_t errors = status & (USART_SR_ORE | USART_SR_FE | USART_SR_NE | USART_SR_PE);
+    if ((status & USART_SR_RXNE) != 0u || errors != 0u)
+    {
+        const uint8_t byte = (uint8_t)USART1->DR; /* SR then DR clears hardware error flags. */
+        bsp_uart_rx_push(&g_uart_rx, byte, errors != 0u);
+    }
+}
+void bsp_uart_rx_set_blocked(uint8_t reason, bool blocked)
+{
+    const uint32_t masked = __get_PRIMASK();
+    __disable_irq();
+    const uint32_t before = g_uart_rx.epoch;
+    bsp_uart_rx_block(&g_uart_rx, reason, blocked);
+    if (before != g_uart_rx.epoch && g_uart_ready)
+    {
+        (void)USART1->SR;
+        (void)USART1->DR;
+        NVIC_ClearPendingIRQ(USART1_IRQn);
+    }
+    __set_PRIMASK(masked);
+}
+uint32_t bsp_uart_rx_epoch(void) { return g_uart_rx.epoch; }
+void bsp_uart_rx_counters(uint32_t *errors, uint32_t *overflows)
+{
+    const uint32_t masked = __get_PRIMASK();
+    __disable_irq();
+    if (errors != NULL) *errors = g_uart_rx.errors;
+    if (overflows != NULL) *overflows = g_uart_rx.overflows;
+    __set_PRIMASK(masked);
 }
 
 bsp_status_t bsp_uart_try_write_byte(uint8_t byte)

@@ -1,6 +1,8 @@
 import sys
 from pathlib import Path
 import unittest
+from unittest.mock import patch
+import struct
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]/"tools"))
 import pc_serial_ui as ui
@@ -28,6 +30,43 @@ class Link:
 
 
 class SerialUiTests(unittest.TestCase):
+    def test_telemetry_wire_values_and_unavailable_data(self):
+        payload=bytearray(ui.TELEMETRY_BYTES)
+        payload[0:4]=bytes((1,ui.TELEMETRY,0,20))
+        for offset,value in ((4,42),(8,3),(12,12345),(16,8),(24,1),(28,31),(36,100),(40,23500),(44,120),(48,155),(56,2),(60,3)):
+            struct.pack_into('<I',payload,offset,value)
+        struct.pack_into('<H',payload,32,3942)
+        payload[64:76]=b'123456789abc'
+        payload[76:88]=bytes(range(1,13))
+        struct.pack_into('<4f',payload,88,2.0,-16000.0,9.99e-9,float('nan'))
+        payload[104]=3
+        def framed():
+            return ui.HEADER.pack(ui.MAGIC,1,ui.TELEMETRY_RESPONSE,0,42,len(payload),ui.zlib.crc32(payload))+payload
+        result=ui.decode(framed(),ui.TELEMETRY,42)
+        self.assertEqual(result['battery_mv'],3942)
+        self.assertEqual(result['ntc_temperature_c'],23.5)
+        self.assertEqual(result['safety_blocker_flags'],8)
+        self.assertEqual(result['uid'],bytes(range(1,13)).hex())
+        self.assertIsNone(result['last_result']['inductance_h'])
+        ui.json.dumps(result,allow_nan=False)
+        struct.pack_into('<f',payload,88,float('nan'))
+        with self.assertRaises(ValueError): ui.decode(framed(),ui.TELEMETRY,42)
+        struct.pack_into('<I',payload,48,0); payload[104]=0
+        result=ui.decode(framed(),ui.TELEMETRY,42)
+        self.assertIsNone(result['battery_mv'])
+        self.assertIsNone(result['ntc_temperature_c'])
+        self.assertFalse(result['measurement_completion_observed'])
+        ui.json.dumps(result,allow_nan=False)
+
+    def test_paced_transmission_still_never_retries_activation(self):
+        link=Link(reply())
+        with patch.object(ui.time,'sleep') as sleep:
+            ui.exchange(link,ui.OK,42,3,pace_ms=3.0)
+        self.assertEqual(link.writes,len(ui.encode(ui.OK,42,3)))
+        self.assertEqual(sleep.call_count,link.writes)
+        link=Link(reply(),short=True)
+        with self.assertRaises(RuntimeError): ui.exchange(link,ui.OK,42,3,pace_ms=3.0)
+        self.assertEqual(link.writes,1)
     def test_request_and_reply(self):
         request = ui.encode(ui.OK, 42, 3)
         self.assertEqual(ui.REQUEST.unpack_from(request, ui.HEADER.size), (1,ui.OK,0,42,3))

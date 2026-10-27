@@ -112,10 +112,12 @@ void bsp_gpio_emergency_safe(void)
     TIM1->BDTR = 0u;
     TIM1->CCER = 0u;
     TIM1->CR1 = 0u;
+    TIM1->DIER = 0u;
     TIM2->CR1 = 0u;
     TIM2->DIER = 0u;
     RCC->AHBENR |= RCC_AHBENR_DMA1EN;
     DMA1_Channel1->CCR = 0u;
+    DMA1_Channel5->CCR = 0u;
     TIM4->CR1 = 0u;
     TIM4->DIER = 0u;
     GPIOA->BSRR = ((1u << 8u) | (1u << 11u)) << 16u;

@@ -2,6 +2,11 @@
 
 #include "storage/storage_crc32.h"
 
+bool app_pc_link_magic_byte(uint8_t byte, uint16_t index)
+{
+    return index < 4u && byte == (uint8_t)((uint32_t)APP_PC_LINK_MAGIC >> (8u * index));
+}
+
 static void write_le16(uint8_t *dst, uint16_t value)
 {
     dst[0] = (uint8_t)(value & 0xFFu);

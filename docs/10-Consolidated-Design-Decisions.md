@@ -1132,3 +1132,14 @@ Mute/quiet drops queued old feedback; result/save/fault notifications requested
 while quiet wait at the output boundary until quiet ends. No hardware safety
 control is delegated to UI. SAFE idle disabled ranges no longer defeat the
 display timeout; actual hardware measurement permission is unchanged.
+
+PRODUCT UART reception now uses a fixed 256-byte ring at IRQ priority 3,
+below ADC/excitation DMA priorities 1/2; feedback TIM4 uses priority 4. ISR work
+is bounded and never runs commands. Receive epochs invalidate partial frames on
+overflow/error or boot/quiet/application-busy transitions. Old bytes are dropped,
+not deferred into a later activation. Main-loop access uses brief interrupt
+critical sections. A new read-only 128-byte telemetry command reports genuine
+sample values/ages and published-result provenance, with explicit unavailable
+sentinels and unchanged independent measurement permissions. See
+[the wire contract](17-Product-Serial-Protocol.md). Physical burst/quiet behavior
+remains REQUIRES_BENCH_VALIDATION.

@@ -96,6 +96,8 @@ void app_product_step(app_product_t *product,
                       uint32_t now_ms);
 void app_product_make_view(const app_product_t *product, ui_product_view_t *view);
 void app_product_make_outputs(const app_product_t *product, app_product_outputs_t *outputs);
+/* Scheduling only; actual relay/power permission is still checked separately. */
+bool app_product_serial_idle(const app_product_t *product);
 uint32_t app_product_context_size_bytes(void);
 
 #endif

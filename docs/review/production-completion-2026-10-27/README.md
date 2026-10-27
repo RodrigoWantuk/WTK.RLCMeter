@@ -9,6 +9,31 @@ the complete scope. This log records actual progress; unfinished packages are
 not release-complete. The physical unit still runs the previously recorded image.
 No target access or automatic DUT measurement has occurred during this work.
 
+## Serial checkpoint
+
+USART1 now receives through a bounded interrupt ring with explicit error/overflow
+poisoning, receive epochs and independent quiet/application discard holds. Boot,
+measurement and settings-busy requests cannot remain queued for a later OK.
+Actual GPIO/source/power admission remains separate. Fault diagnostics can resume
+after hardware teardown, and an accepted settings operation can drain safely
+without starting a new save in FAULT.
+
+[The PRODUCT serial protocol](../../17-Product-Serial-Protocol.md) adds a read-only
+128-byte telemetry response with actual auxiliary ADC-derived battery/NTC values,
+ages/validity, UID/build identity, last published RLC, features and error counters.
+Unavailable data uses sentinels and becomes JSON null in the PC client. Optional
+byte pacing preserves compatibility with older polled receivers; activation
+is never retried automatically.
+
+Focused CTest runs pass **4/4 factory and 4/4 standard**, and PC client tests pass
+**6/6**. The strict unit build uses **64,908 B Flash / 14,484 B accounted RAM**.
+See [serial-checkpoint.json](serial-checkpoint.json) and
+[serial-evidence.zip](serial-evidence.zip). The generic 64-KiB PRODUCT hard Flash
+budget is unchanged and is now smaller than the complete telemetry image; the
+explicit 128-KiB unit profile is used. Final supported/compatibility profile
+selection remains package F work, rather than silently relaxing a C8 gate.
+No hardware access or deployment was performed for this checkpoint.
+
 ## Foundation checkpoint
 
 | Package | Software state | Physical acceptance |
@@ -17,7 +42,7 @@ No target access or automatic DUT measurement has occurred during this work.
 | B: emergency SAFE/watchdog | Direct fatal-output shutdown; watchdog failure latched in both shells | Controlled fault injection/timing pending |
 | C: settings | Accepted-start adapter, immutable snapshot, CRC schema 4, timeout and legacy migration implemented | Actual save/reboot/interrupted-write pending |
 | D: display/feedback | Idle RANGE blocker fixed; product patterns/queue and armed TIM4 stop implemented | Display timeout, tones and quiet interference pending |
-| E: UART/telemetry | NOT_STARTED | Pending |
+| E: UART/telemetry | Interrupt RX, busy/quiet epochs, CRC/request guards, numeric telemetry and PC client implemented; software tests pass | Burst/error/quiet behavior on target pending |
 | F: unified product contract | NOT_STARTED | Pending |
 | G: lead math | NOT_STARTED (audit prototype only) | Pending |
 | H: lead storage | NOT_STARTED | Pending |

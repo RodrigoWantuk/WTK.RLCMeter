@@ -285,6 +285,7 @@ if(WTK_PRODUCT_FACTORY_PROVISIONED_VALUE AND WTK_TARGET_PLATFORM STREQUAL "stm32
     list(APPEND WTK_COMMON_SOURCES src/app/app_calibration_service_loadonly.c
         src/measurement/measurement_calibration_store_loadonly.c)
 endif()
+list(APPEND WTK_COMMON_SOURCES src/bsp/bsp_uart_rx.c)
 add_library(wtk_firmware_common STATIC ${WTK_COMMON_SOURCES})
 if(WTK_TARGET_PLATFORM STREQUAL "host" OR WTK_FIRMWARE_PROFILE STREQUAL "BRINGUP_CAL")
     target_sources(wtk_firmware_common PRIVATE src/app/app_cal_capture_service.c

@@ -104,6 +104,7 @@ bsp_status_t bsp_timer4_buzzer_init(void)
 
     TIM4->ARR = 999u;
     TIM4->EGR = TIM_EGR_UG;
+    NVIC_SetPriority(TIM4_IRQn, 4u);
     NVIC_EnableIRQ(TIM4_IRQn);
     bsp_timer4_buzzer_stop();
     return BSP_STATUS_OK;

@@ -1159,6 +1159,10 @@ void app_product_step(app_product_t *product,
                                          inputs->temperature_valid,
                                          now_ms);
         }
+        /* Drain an already accepted settings operation after quiet ownership
+         * releases; never start a new write from this fault branch. */
+        if (app_settings_service_busy(product->settings_service))
+            service_pending_settings_save(product, inputs, now_ms);
         clear_requests(product);
         return;
     }
@@ -1696,6 +1700,17 @@ void app_product_make_outputs(const app_product_t *product, app_product_outputs_
         .tone_sequence = product->tone_sequence,
         .tone_event = product->tone_event,
     };
+}
+
+bool app_product_serial_idle(const app_product_t *product)
+{
+    if (product == NULL || !product->initialized || runtime_active(product) ||
+        product->runtime_teardown_kind != APP_PRODUCT_RUNTIME_TEARDOWN_NONE) return false;
+    if (product->view.state == UI_PRODUCT_STATE_FAULT) return true;
+    if (product->settings_save_requested || app_settings_service_busy(product->settings_service)) return false;
+    return product->view.state >= UI_PRODUCT_STATE_CALIBRATION_REQUIRED &&
+        product->view.state != UI_PRODUCT_STATE_MEASURING &&
+        product->view.state != UI_PRODUCT_STATE_CALIBRATION_WIZARD;
 }
 
 uint32_t app_product_context_size_bytes(void)
