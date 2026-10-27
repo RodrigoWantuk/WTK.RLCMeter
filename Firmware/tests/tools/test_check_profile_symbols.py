@@ -10,6 +10,14 @@ SPEC.loader.exec_module(tool)
 
 
 class CurveCompositionTest(unittest.TestCase):
+    def test_k1_campaign_contract(self):
+        message=b"CAL_CMP_UNAVAILABLE use=BRINGUP_CAL"
+        self.assertEqual(tool.campaign_composition_errors(message,True),[])
+        self.assertTrue(tool.campaign_composition_errors(message+b"CAL_CMP_SOLVE st=",True))
+        self.assertTrue(tool.campaign_composition_errors(b"",True))
+        self.assertTrue(tool.campaign_composition_errors(message,False))
+        self.assertEqual(tool.campaign_composition_errors(b"CAL_CMP_SOLVE st=",False),[])
+
     def test_peripheral_diagnostic_rejects_active_operations(self):
         for name in ("app_bringup_console_step", "run_command.constprop.0", "hw_metrology_measure_start",
                      "hw_metrology_measure_step", "bsp_metrology_adc_start_capture",
@@ -30,11 +38,12 @@ class CurveCompositionTest(unittest.TestCase):
 
     def test_factory_requires_runtime_safety_resources_and_excludes_fit(self):
         retained = [{"file": name} for name in ("app_product.c", "app_calibration_runtime.c",
-                    "measurement_calibration.c", "measurement_calibration_store.c",
+                    "measurement_calibration.c", "measurement_calibration_store_loadonly.c", "app_calibration_service_loadonly.c",
                     "app_resource_update.c", "hw_safety.c")]
         self.assertEqual(tool.factory_composition_errors("", retained, True), [])
         self.assertTrue(tool.factory_composition_errors("", retained[:-1], True))
-        for source in ("app_calibration_wizard.c", "app_calibration_session.c", "measurement_calibration_solver.c"):
+        for source in ("app_calibration_wizard.c", "app_calibration_session.c", "measurement_calibration_solver.c",
+                       "measurement_calibration_store.c", "app_calibration_service.c"):
             self.assertTrue(tool.factory_composition_errors("", retained + [{"file": source}], True))
         for symbol in ("app_calibration_wizard_start", "measurement_cal_solver_solve",
                        "measurement_cal_store_step", "prepare_wizard_line", "cal_load_preset_token"):

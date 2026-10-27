@@ -59,7 +59,9 @@ typedef struct
     size_t image_size;
     size_t program_offset;
     size_t current_chunk;
+#if !WTK_CAL_FACTORY_LOAD_ONLY
     measurement_cal_set_t scan_set;
+#endif
     measurement_cal_validity_t staged_validity;
     uint32_t expected_sequence;
     uint32_t expected_crc32;

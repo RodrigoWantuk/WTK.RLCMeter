@@ -6,6 +6,7 @@
 
 #include <stdio.h>
 #include "wtk_build_config.h"
+#include "app/app_serial_ui.h"
 #include <string.h>
 #include <math.h>
 #include <float.h>
@@ -26,8 +27,8 @@ typedef struct
 {
     app_measurement_session_io_t measurement_io;
     app_cal_session_io_t calibration_io;
-    fake_outcome_t outcomes[MEASUREMENT_AUTO_MAX_ATTEMPTS];
-    hw_metrology_measure_request_t requests[MEASUREMENT_AUTO_MAX_ATTEMPTS];
+    fake_outcome_t outcomes[MEASUREMENT_AUTO_HISTORY_CAPACITY + MEASUREMENT_TRIMMED_MAX_EXTRA_CAPTURES];
+    hw_metrology_measure_request_t requests[MEASUREMENT_AUTO_HISTORY_CAPACITY + MEASUREMENT_TRIMMED_MAX_EXTRA_CAPTURES];
     hw_metrology_block_t block;
     uint8_t outcome_count;
     uint8_t start_count;
@@ -644,11 +645,11 @@ static int test_ok_gestures_and_measurement_flow(void)
     failures += expect_u32(fake.start_count, 0u, "start is deferred until session steps");
     app_product_step(&product, &inputs, &clock, BSP_STATUS_OK, 5u);
     failures += expect_u32(fake.start_count, 0u, "auto begin precedes hardware start");
-#if !WTK_PRODUCT_FACTORY_PROVISIONED
+#if !WTK_PRODUCT_MODERN
     click_ok(&product);
 #endif
     app_product_step(&product, &inputs, &clock, BSP_STATUS_OK, 6u);
-    failures += expect_u32(fake.start_count, 1u, "repeated OK while measuring ignored");
+    failures += expect_u32(fake.start_count, 1u, "measurement starts once after AUTO_BEGIN");
     bool saw_partial = false;
     for (uint32_t now = 7u; now < 24u; now++)
     {
@@ -868,6 +869,10 @@ static int test_backlight_timeout_wake_consumes_ok_gesture(void)
     failures += expect_true(init_product(&product, &fake) == BSP_STATUS_OK,
                             "product init backlight timeout");
     boot_to_ready(&product, &inputs);
+    inputs.range_disabled = true;
+    inputs.safety_result.measure_allowed = false;
+    inputs.safety_result.blocker_flags = HW_SAFETY_BLOCK_RANGE;
+    inputs.safety_result.primary_blocker = HW_SAFETY_BLOCKED_RANGE;
     app_product_step(&product, &inputs, &clock, BSP_STATUS_OK, 60005u);
     app_product_outputs_t outputs;
     app_product_make_outputs(&product, &outputs);
@@ -1033,7 +1038,7 @@ static int test_missing_resources_force_pc_link_upload_mode(void)
     return failures;
 }
 
-#if WTK_PRODUCT_FACTORY_PROVISIONED
+#if WTK_PRODUCT_MODERN
 static void ac_fixture(fake_io_t *fake, fake_outcome_t outcome)
 {
     *fake = (fake_io_t){0};
@@ -1249,7 +1254,7 @@ static int test_factory_ac_lifecycle(const char *directory)
 }
 #endif
 
-#if WTK_PRODUCT_FACTORY_PROVISIONED
+#if WTK_PRODUCT_MODERN
 static int test_reactive_value_survives_unresolved_negative_loss(void)
 {
     int failures = 0;
@@ -1342,6 +1347,167 @@ static int test_actual_idle_and_owned_safety_scheduling(void)
     return failures;
 }
 
+#if WTK_ENABLE_FREQUENCY_SURVEY
+static bsp_status_t fake_finish_already_safe(void *user)
+{
+    return ((const fake_io_t *)user)->active ? BSP_STATUS_BUSY : BSP_STATUS_OK;
+}
+
+static int test_survey_low_frequency_final_reaches_product_view(void)
+{
+    int failures = 0;
+    fake_io_t fake = {0};
+    fake.outcome_count = MEASUREMENT_AUTO_HISTORY_CAPACITY + MEASUREMENT_TRIMMED_MAX_EXTRA_CAPTURES;
+    for (uint8_t i = 0u; i < fake.outcome_count; i++)
+    {
+        fake.outcomes[i] = good_outcome(measurement_complex(0.05f, 0.0f), MEASUREMENT_INTERPRET_CAPACITIVE);
+        fake.outcomes[i].electrical_model = 1u;
+        fake.outcomes[i].reactive_value = 0.0047f;
+    }
+    app_product_t product;
+    const app_product_inputs_t inputs = inputs_ready();
+    const bsp_clock_summary_t clock = {.source = BSP_CLOCK_SOURCE_HSE_PLL,
+        .sysclk_hz = 72000000u, .hse_ready = true};
+    failures += expect_true(init_product(&product, &fake) == BSP_STATUS_OK, "low-frequency final product init");
+    fake.measurement_io.finish_session = fake_finish_already_safe;
+    fake.measurement_io.trimmed_enabled = true;
+    fake.measurement_io.frequency_survey_enabled = true;
+    boot_to_ready(&product, &inputs);
+    click_ok(&product);
+    for (uint32_t now = 3u; now < 512u; now++)
+    {
+        app_product_step(&product, &inputs, &clock, BSP_STATUS_OK, now);
+        if (product.view.state == UI_PRODUCT_STATE_RESULT && !product.view.measurement_result_partial) break;
+    }
+    const ui_product_measurement_t *result = &product.view.measurement_result;
+    failures += expect_true(product.view.state == UI_PRODUCT_STATE_RESULT && product.view.has_measurement_result &&
+                            !product.view.measurement_result_partial && result->status == MEASUREMENT_AUTO_STATUS_FINAL_OK,
+                            "already-SAFE statistical completion delivers final event to PRODUCT, replacing partial");
+    failures += expect_true(result->frequency == (uint8_t)HW_EXCITATION_FREQ_10HZ &&
+                            result->capacitance_valid && result->trimmed_applied && result->frequency_attempted_mask == 7u &&
+                            fabsf(result->capacitance_f - 0.0047f) < 0.000001f,
+                            "PRODUCT displays seven-sample 10-Hz capacitance and full survey coverage");
+    failures += expect_true(!fake.active && app_io_workspace_owner(&g_workspace) == APP_IO_WORKSPACE_OWNER_FREE,
+                            "final display implies released measurement workspace");
+    return failures;
+}
+#endif
+
+static int test_serial_ok_contract(void)
+{
+    int failures = 0;
+    for (unsigned variant = 0u; variant < 15u; ++variant)
+    {
+        fake_io_t fake = {0};
+        app_product_t product;
+        app_serial_ui_t serial = {0};
+        (void)init_product(&product, &fake);
+        const app_product_inputs_t inputs = inputs_ready();
+        boot_to_ready(&product, &inputs);
+        uint8_t payload[APP_SERIAL_UI_REQUEST_BYTES] = {APP_SERIAL_UI_API, APP_SERIAL_UI_OK_CLICK, 0u, 0u, 2u};
+        uint8_t bytes[APP_PC_LINK_HEADER_SIZE + APP_SERIAL_UI_REQUEST_BYTES];
+        uint8_t reply[APP_SERIAL_UI_RESPONSE_BYTES];
+        app_pc_link_encode_header(bytes, (app_pc_link_frame_type_t)APP_SERIAL_UI_OK_CLICK, 0u, 2u, payload, sizeof(payload));
+        memcpy(bytes + APP_PC_LINK_HEADER_SIZE, payload, sizeof(payload));
+        app_pc_link_frame_t frame;
+        failures += expect_true(app_pc_link_decode_frame(bytes, sizeof(bytes), &frame) == APP_PC_LINK_STATUS_OK,
+            "serial OK uses the existing CRC-checked frame");
+        bool can_activate = true;
+        if (variant == 1u) can_activate = false;
+        if (variant == 2u) serial.last_request = 2u;
+        if (variant == 3u) product.session_sequence = 1u;
+        if (variant == 4u) product.view.state = UI_PRODUCT_STATE_MENU;
+        if (variant == 5u) product.ok_armed = true;
+        if (variant == 6u) product.request_click = true;
+        if (variant == 7u) product.view.state = UI_PRODUCT_STATE_MEASURING;
+        if (variant == 8u) frame.flags = 1u;
+        if (variant == 9u) frame.payload_length--;
+        if (variant == 10u) frame.sequence = 3u;
+        if (variant == 11u) bytes[APP_PC_LINK_HEADER_SIZE + 1u] = APP_SERIAL_UI_STATUS;
+        if (variant == 12u) product.backlight_sleeping = true;
+        if (variant == 13u) product.view.state = UI_PRODUCT_STATE_CALIBRATION_REQUIRED;
+        if (variant == 14u) frame.payload = NULL;
+        app_serial_ui_handle(&serial, &product, &frame, can_activate, can_activate ? 8u : 1u, 100u, reply);
+        const bool accepted = variant == 0u || variant == 12u;
+        failures += expect_true((reply[2] == APP_SERIAL_UI_ACCEPTED || reply[2] == APP_SERIAL_UI_WOKE_ONLY) == accepted,
+            "serial rejects malformed, duplicate, stale-session, unsafe and nonmeasurement UI requests");
+        failures += expect_true(fake.start_count == 0u,
+            "serial acceptance cannot directly start hardware acquisition");
+        if (variant == 0u)
+        {
+            failures += expect_true(product.request_click && !product.ok_armed,
+                "one accepted serial OK uses ordinary PRESS/RELEASE semantics");
+            product.request_click = false;
+            app_serial_ui_handle(&serial, &product, &frame, true, 8u, 101u, reply);
+            failures += expect_true(reply[2] == APP_SERIAL_UI_STALE_REQUEST && !product.request_click,
+                "an uncertain-response retry cannot deliver another click");
+        }
+        if (variant == 1u)
+            failures += expect_true(serial.last_request == 2u && !product.request_click,
+                "a rejected activation is consumed rather than queued until safe");
+        if (variant == 12u)
+            failures += expect_true(reply[2] == APP_SERIAL_UI_WOKE_ONLY && !product.backlight_sleeping && !product.request_click && !product.wake_consume_active,
+                "sleeping UI consumes the first complete serial click as wake only");
+        if (variant != 6u && !accepted)
+            failures += expect_true(!product.request_click, "rejected control cannot inject a click");
+    }
+    return failures;
+}
+
+
+static unsigned lead_menu_poll_count;
+static bsp_status_t lead_menu_busy_poll(uint32_t now_ms,void *user)
+{
+    (void)now_ms;(void)user;lead_menu_poll_count++;return BSP_STATUS_BUSY;
+}
+static int test_lead_menu_guards(void)
+{
+    fake_io_t fake={0};app_product_t product;app_product_inputs_t inputs=inputs_ready();int failures=0;
+    failures+=expect_true(init_product(&product,&fake)==BSP_STATUS_OK,"lead UI init");
+    boot_to_ready(&product,&inputs);
+    app_lead_calibration_t lead={.factory=&g_service,.io=&fake.measurement_io};
+    app_product_attach_lead_service(&product,&lead);
+    product.view.state=UI_PRODUCT_STATE_CALIBRATION_STATUS;click_ok(&product);
+    app_product_step(&product,&inputs,NULL,BSP_STATUS_OK,100u);
+    failures+=expect_true(product.view.state==UI_PRODUCT_STATE_LEAD_MENU,"native lead menu from calibration status");
+    failures+=expect_true(!app_product_serial_idle(&product) && !app_product_request_resource_upload(&product),
+                         "lead UI cannot admit serial activation or external updater");
+    click_ok(&product);app_product_step(&product,&inputs,NULL,BSP_STATUS_OK,101u);
+    failures+=expect_true(product.view.state==UI_PRODUCT_STATE_LEAD_MENU && fake.start_count==0u,
+                         "unavailable lead store cannot energize capture");
+    g_settings.initialized=true;g_settings.storage_available=true;g_settings.state=APP_SETTINGS_STORE_ERASE_WAIT;
+    g_settings.save_started_ms=100u;g_settings.io.poll=lead_menu_busy_poll;lead_menu_poll_count=0u;
+    app_product_step(&product,&inputs,NULL,BSP_STATUS_OK,102u);
+    failures+=expect_true(lead_menu_poll_count==1u && fake.start_count==0u,
+                         "lead menu drains an accepted settings write without capture");
+    g_settings.state=APP_SETTINGS_STORE_IDLE;
+    lead.state=APP_LEAD_WAIT_OPEN;lead.store.initialized=true;lead.store.loaded=true;
+    product.view.state=UI_PRODUCT_STATE_LEAD_WIZARD;
+    inputs.safety_fault_mask=APP_SAFETY_FAULT_METROLOGY_RUNTIME;
+    app_product_step(&product,&inputs,NULL,BSP_STATUS_OK,102u);
+    failures+=expect_true(lead.state==APP_LEAD_CANCELED && product.view.state==UI_PRODUCT_STATE_FAULT && fake.start_count==0u,
+                         "fault cancels waiting standard without a capture");
+    return failures;
+}
+
+
+static int test_diagnostic_freshness(void)
+{
+    app_product_t p;fake_io_t fake={0};app_product_inputs_t inputs=inputs_ready();int failures=0;
+    failures+=expect_true(init_product(&p,&fake)==BSP_STATUS_OK,"diagnostic init");boot_to_ready(&p,&inputs);
+    hw_aux_sensors_snapshot_t sensors={.battery_state=HW_BATTERY_OK,.battery_v=3.9f,.battery_age_ms=100u,
+        .ntc_temperature_valid=true,.ntc_temperature_c=23.5f,.ntc_age_ms=100u};
+    inputs.sensors=&sensors;p.view.state=UI_PRODUCT_STATE_DIAGNOSTICS;
+    app_product_step(&p,&inputs,NULL,BSP_STATUS_OK,1000u);
+    failures+=expect_true(p.view.battery_valid && p.view.battery_mv==3900u && p.view.temperature_valid &&
+        p.view.temperature_mC==23500,"diagnostics use actual fresh snapshot");
+    sensors.battery_age_ms=2001u;sensors.ntc_age_ms=5001u;
+    app_product_step(&p,&inputs,NULL,BSP_STATUS_OK,1500u);
+    failures+=expect_true(!p.view.battery_valid && !p.view.temperature_valid && p.view.battery_mv==UINT16_MAX &&
+        p.view.temperature_mC==INT32_MIN,"stale measurements become unavailable instead of zero");
+    return failures;
+}
+
 int main(int argc, char **argv)
 {
     if ((argc == 2) && (strcmp(argv[1], "--sizes") == 0))
@@ -1370,14 +1536,20 @@ int main(int argc, char **argv)
         return 0;
     }
     int failures = 0;
-#if WTK_PRODUCT_FACTORY_PROVISIONED
+    failures += test_serial_ok_contract();
+    failures += test_lead_menu_guards();
+    failures += test_diagnostic_freshness();
+#if WTK_PRODUCT_MODERN
     const char *directory = argc==3 && strcmp(argv[1],"--ac-snapshots")==0 ? argv[2] : NULL;
     failures += test_factory_ac_results(directory);
     failures += test_factory_ac_lifecycle(directory);
 #endif
     failures += test_boot_calibration_gate();
     failures += test_actual_idle_and_owned_safety_scheduling();
-#if WTK_PRODUCT_FACTORY_PROVISIONED
+#if WTK_ENABLE_FREQUENCY_SURVEY
+    failures += test_survey_low_frequency_final_reaches_product_view();
+#endif
+#if WTK_PRODUCT_MODERN
     failures += test_reactive_value_survives_unresolved_negative_loss();
 #endif
     failures += test_host_resource_maintenance_entry();

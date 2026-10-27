@@ -1,0 +1,26 @@
+{
+  "status": "SERIAL_RX_AND_GENUINE_TELEMETRY_SOFTWARE_TESTED_NOT_DEPLOYED",
+  "source_baseline": "2038e1c",
+  "source_modifications_at_build": true,
+  "target_access": false,
+  "factory_focused_ctest": {
+    "pass": 4,
+    "total": 4
+  },
+  "standard_focused_ctest": {
+    "pass": 4,
+    "total": 4
+  },
+  "pc_serial_unittest": {
+    "pass": 6,
+    "total": 6
+  },
+  "unit128_linked_flash_bytes": 64908,
+  "unit128_ram_accounted_bytes": 14484,
+  "evidence_sha256": "3718d29a57249f31894b759dfdc14ccb8879198ab843c35a83ef2f9915082294",
+  "limits": [
+    "Physical UART burst/quiet/timing validation pending",
+    "Full profile matrix and endpoint wizard pending",
+    "No target access or new deployment"
+  ]
+}

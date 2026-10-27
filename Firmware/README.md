@@ -4,7 +4,7 @@ Current shared display/acquisition baseline, calibration hardware0x00010002 and 
 
 The first unit's optional [experimental NTC factory profile](tools/NTC_FACTORY_PROFILE.md)
 must be explicitly selected on rebuild. Generic builds retain the nominal table.
-The profile is UID-bound, unqualified, and independent of unfinished OSL calibration.
+The profile is UID-bound, unqualified, and independent of factory OSL and lead compensation.
 
 For reproducible linked Flash attribution, profile/commit comparisons and the
 current completion budget, see the [A01 report](../docs/review/a01/README.md) and
@@ -64,25 +64,29 @@ cmake --build --preset host-debug
 ctest --preset host-debug
 ```
 
-Embedded debug build:
+Production build for the experimentally verified first unit:
 
 ```bash
 cd Firmware
-cmake --preset stm32-debug
-cmake --build --preset stm32-debug
+cmake --preset stm32-unit-release
+cmake --build --preset stm32-unit-release
 ```
 
-Embedded release build:
+This preset explicitly selects 128 KiB, the verified MCU UID and its preserved experimental NTC profile. It is **not a generic C8 memory upgrade**. Its deployment tool refuses another UID. The full production feature set currently exceeds 64 KiB; generic `stm32-debug`, `stm32-release` and `stm32-factory-*` retain their 64-KiB gates and are budget checks, not deployable current full-product images. Do not enlarge their linker to hide overflow.
+
+Generic C8 factory calibration/recovery remains a separate, bounded image:
 
 ```bash
-cd Firmware
-cmake --preset stm32-release
-cmake --build --preset stm32-release
+cmake --preset stm32-bringup-cal
+cmake --build --preset stm32-bringup-cal
 ```
+
+All PRODUCT builds use the same continuous-session hardware policy, three-frequency classification, seven-point estimates, provenance and row cache. `WTK_PRODUCT_FACTORY_PROVISIONED` now controls only the full factory OSL provisioning/wizard path; it defaults ON. Factory LOAD capture/install remains available in BRINGUP_CAL and through host-tested provisioning tools. The production lead OPEN/SHORT menu is separate and does not repeat factory LOAD calibration. Host builds with this provisioning flag ON and OFF exercise the same measurement/UI contract. An embedded full factory-wizard variant must independently pass RAM/Flash gates; do not infer that it fits because a host variant passes.
+
+Settings schema 4 reads legacy schemas 2/3, protects header and payload with CRC and commits an immutable snapshot to redundant slots. The new lead profile has independent A/B sectors before the old 32-KiB mutable tail; the resource limit is now capacity minus 40 KiB. Existing OSL/settings/WCRV/diagnostic addresses are unchanged. Before first lead-profile use, capture the last 40 KiB with the [read-only UART preservation command](../docs/17-Product-Serial-Protocol.md). See the [completion log and physical validation boundary](../docs/review/production-completion-2026-10-27/README.md).
 
 Supplementary post-OSL curves are optional and default to **OFF** on all targets.
-The ordinary OSL model, full wizard, calibration boot gate and W25Q partitions are
-unchanged. Existing WCRV records remain stored when the runtime is disabled.
+The factory OSL model and boot gate are unchanged; existing WCRV sector offsets are preserved. Existing WCRV records remain stored when the runtime is disabled.
 Use separate build directories to test or re-enable the runtime:
 
 ```bash
@@ -598,8 +602,19 @@ Current size tooling enforces PRODUCT 64512-byte Flash/17408-byte accounted RAM 
 BRINGUP 65536-byte Flash/18432-byte accounted RAM; historical stage budgets above
 are retained for traceability. See plan 19 for source-bound final build evidence.
 
-Bench-supply and empty-fixture K1 variants retain their full command sets but use
+Bench-supply and empty-fixture K1 variants retain their sensing/acquisition commands but exclude the complete factory campaign as specified below. They use
 log level3 and the minimal SAFE_BOOT banner instead of unsolicited verbose boot,
 button and safety-transition messages. Standard BRINGUP keeps its detailed banner
-and logs. This bounds those splash-enabled diagnostic images without removing
-measurement/calibration commands or changing safety policy.
+and logs. This bounds those splash-enabled diagnostic images without changing electrical safety policy.
+
+
+The optional `WTK_BRINGUP_K1_TEST=ON` once-only relay diagnostic retains its empty-fixture authorization, power/residual interlocks and cleanup, but intentionally excludes the factory calibration campaign solver/commit command family. It returns `CAL_CMP_UNAVAILABLE use=BRINGUP_CAL` for those commands. Use the dedicated BRINGUP_CAL image for factory work; normal BRINGUP keeps its campaign capability. This keeps the relay diagnostic inside generic 64 KiB without changing measurement safety, factory records, the NTC profile or the shared boot splash. Build composition checks enforce that declared restriction.
+
+The same factory-campaign restriction applies to `WTK_BRINGUP_BENCH_SUPPLY=ON`. That operator-confirmed external-supply diagnostic is limited to 100 mVrms and cannot collect the full 33-condition factory set. Its ordinary sensing/acquisition/ADC tracing remains available. Full factory solve/install belongs to BRINGUP_CAL with the required normal power conditions. The matrix exposed a separate 412-byte overflow in this optional 64-KiB image; excluding its unsupported complete-factory workflow preserves the memory gate and all electrical admission checks.
+
+
+Optional WCRV builds prefetch all available qualified curves into a fixed RAM cache before acquisition, using the existing shared 3-KiB workspace to verify the complete selected frame again. The cache adds approximately 1.74 KiB only when WCRV is compiled ON. Quiet-window DSP never reads W25Q. Missing conditions remain absent, a changed OSL binding invalidates cached data, and corrupt/incomplete prefetch fails closed. Lead compensation remains explicitly disabled while an active WCRV profile is selected; combining those corrections is not qualified. Default production retains WCRV OFF and does not allocate that cache.
+
+CI uses the explicit first-unit production matrix and keeps a negative generic 64-KiB product budget test. Historical baseline builds remain separately identified. Host oracle/capture tests link the platform math library on non-MSVC hosts; that library is not added to the embedded image. Physical acceptance is separate from CI/build success.
+
+The prepared first-unit [production-completion release](releases/2026-10-27/production-completion/README.md) contains the sealed 128-KiB UID-bound image and software evidence. It is not physically deployed or qualified.

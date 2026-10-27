@@ -9,13 +9,17 @@
 #include "app/app_measurement_session.h"
 #include "app/app_safety_fault.h"
 #include "app/app_settings_service.h"
+#include "app/app_feedback.h"
+#include "app/app_lead_calibration.h"
 #include "drivers/buttons.h"
 #include "hardware/hw_power.h"
+#include "hardware/hw_aux_sensors.h"
 #include "hardware/hw_safety.h"
 #include "ui/ui_product.h"
 
 typedef struct
 {
+    const hw_aux_sensors_snapshot_t *sensors;
     app_cal_service_status_t calibration_status;
     bool calibration_active_valid;
     uint32_t calibration_active_sequence;
@@ -26,6 +30,7 @@ typedef struct
     bool residual_refresh_pending; /* Scheduling only; real permit still requires SAFE. */
     uint32_t safety_fault_mask;
     bool display_fault;
+    bool lead_storage_blocked;
     bool settings_storage_busy;
     resource_status_t resource_status;
 } app_product_inputs_t;
@@ -37,6 +42,7 @@ typedef struct
     uint16_t tone_frequency_hz;
     uint16_t tone_duration_ms;
     uint32_t tone_sequence;
+    app_feedback_event_t tone_event;
 } app_product_outputs_t;
 
 typedef struct
@@ -50,6 +56,9 @@ typedef struct
     const app_cal_session_io_t *calibration_io;
     app_calibration_service_t *calibration_service;
     app_settings_service_t *settings_service;
+    app_lead_calibration_t *lead_service;
+    uint32_t lead_sequence_seen;
+    uint32_t diagnostic_update_ms;
     measurement_auto_hint_t next_hint;
     app_settings_t edit_entry_settings;
     ui_product_view_t view;
@@ -57,6 +66,7 @@ typedef struct
     uint32_t calibration_sequence;
     uint32_t last_activity_ms;
     uint32_t tone_sequence;
+    app_feedback_event_t tone_event;
     uint8_t menu_index;
     uint8_t calibration_load_preset;
     uint8_t runtime_kind;
@@ -83,6 +93,7 @@ bsp_status_t app_product_init(app_product_t *product,
                               app_settings_service_t *settings_service,
                               const app_measurement_session_io_t *measurement_io,
                               const app_cal_session_io_t *calibration_io);
+void app_product_attach_lead_service(app_product_t *product, app_lead_calibration_t *lead);
 void app_product_handle_button_event(app_product_t *product, const button_event_t *event);
 /* Host RESOURCE_BEGIN may enter maintenance only from an idle presentation. */
 bool app_product_request_resource_upload(app_product_t *product);
@@ -93,6 +104,8 @@ void app_product_step(app_product_t *product,
                       uint32_t now_ms);
 void app_product_make_view(const app_product_t *product, ui_product_view_t *view);
 void app_product_make_outputs(const app_product_t *product, app_product_outputs_t *outputs);
+/* Scheduling only; actual relay/power permission is still checked separately. */
+bool app_product_serial_idle(const app_product_t *product);
 uint32_t app_product_context_size_bytes(void);
 
 #endif

@@ -96,7 +96,7 @@ int main(void)
     int failures = 0;
     failures += test_si_units();
     failures += test_unavailable_and_primary();
-#if WTK_PRODUCT_FACTORY_PROVISIONED
+#if WTK_PRODUCT_MODERN
     char text[24];
     const float invalid[] = {NAN, INFINITY, -INFINITY, FLT_MAX};
     for (size_t i = 0u; i < sizeof(invalid) / sizeof(invalid[0]); i++)

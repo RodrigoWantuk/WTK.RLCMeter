@@ -61,7 +61,7 @@ bool ui_fallback_font_get_glyph(uint32_t codepoint, uint8_t rows[UI_FALLBACK_GLY
     {
         return false;
     }
-#if WTK_PRODUCT_FACTORY_PROVISIONED
+#if WTK_PRODUCT_MODERN
     /* Derive the comma from the existing dot; no additional font asset. */
     if (codepoint == (uint32_t)',')
     {

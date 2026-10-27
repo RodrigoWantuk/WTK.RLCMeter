@@ -581,3 +581,78 @@ connection during unattended work. See
 A custom medium font taller than the 28-pixel minimum menu row pitch uses a
 full repaint so clearing one row cannot damage cached neighbors. Provider
 invalidation is honored even when the view generation has not changed.
+
+## Trimmed-result details
+
+Factory PRODUCT details append AVG7/3 only after seven valid calibrated complex
+samples have completed coordinate-wise two-per-tail trimming and SAFE cleanup.
+The adjacent attempt count remains the raw autorange-condition count; it does
+not include the six or up-to-eight extra statistical windows. Diagnostic session
+metadata carries admitted/extra counts, independent R/X retained masks and all
+seven raw complex points. An incomplete or hardware-aborted collection is not
+presented as an averaged measurement. No asset-pack or persistent-settings update
+is needed for this indicator.
+
+## Frequency-survey coverage
+
+Factory continuous relay/power ownership is defined by plan 27. The following
+frequency and seven-point UI metadata remains unchanged.
+
+Factory PRODUCT details append F<n>/3 for attempted frequency coverage, alongside
+AVG7/3 for a successfully completed primary-condition estimator. Separate raw
+attempted/usable masks remain in diagnostic result metadata; F3/3 does not claim
+three usable/qualified observations or absolute accuracy. Low-frequency surveys
+can take seconds and intentionally use SAFE/fresh-permit relay boundaries.
+Below the ~1-ohm lower engineering target, resistance-dominated uncertain data
+uses IMPEDANCE/unknown instead of asserting RESISTOR. No asset-pack change is
+required for these compact indicators.
+
+## Serial short-OK control
+
+WTK_ENABLE_SERIAL_UI is a CMake option, ON by default for PRODUCT. It enables
+existing PLC1 receiving in Debug as well as Release/factory PRODUCT. BRINGUP
+and BRINGUP_CAL retain their diagnostic protocols; neither has the product UI
+OK action. Their capture commands are not aliased to a relay shortcut. Setting
+-DWTK_ENABLE_SERIAL_UI=OFF removes serial UI control without disabling safety.
+
+Use Firmware/tools/pc_serial_ui.py --port COM4 --out <new-directory> for a
+read-only state query; add --ok for one explicit short click after a fresh query.
+115200 8N1 and deasserted DTR/RTS are shared with existing tools. A timeout is an
+ambiguous activation outcome; the client never retries. Inspect state/results
+before explicitly sending another request. WOKE_ONLY reports a complete first
+click consumed by backlight wake, without starting acquisition. This preserves
+physical-button behavior. Acceptance is not a measurement-completion reply.
+
+PLC1 request types 0x30 (status) and 0x31 (short OK) have exactly 12 payload bytes:
+API u8=1, echoed command u8, reserved u16=0, nonzero increasing request ID u32,
+expected measurement-session sequence u32, all little-endian. Header sequence
+matches the low 16 ID bits; flags must be zero. Payload CRC, command echo and
+identity must match. Status ignores the expected sequence; activation requires
+an exact match. Rejected valid IDs are consumed, so commands cannot wait for
+later admission. No activation replay is allowed within a boot. The tool uses
+fresh increasing IDs and records exact request/reply bytes.
+
+Response type 0xB0 has 16 payload bytes: API u8, echoed command u8, status u8,
+UI state u8, request ID u32, current session sequence u32, safety blocker flags
+u32. Status values are ACCEPTED=0, BAD_REQUEST=1, STALE_REQUEST=2,
+SESSION_MISMATCH=3, NOT_READY=4, SAFETY_BLOCKED=5, WOKE_ONLY=6. Request IDs are
+boot-local and must increase without wrap; they are not authentication tokens.
+Only initialized READY/RESULT presentations can accept a short click. Actual
+hardware must be SAFE, range disabled, source OFF, idle/free of metrology and
+resource ownership, with no charger/fault/supply/residual blocker and active
+calibration. Physical-button/pending UI overlap is rejected. The usual app and
+hardware fresh-permit checks still run after the ordinary PRESS/RELEASE pair.
+No menu confirmation, calibration action, long press, repeat or raw GPIO control
+is provided. Queries do not wake or start measurement. Quiet acquisition defers
+UART parsing/output and discards partial frames; partial RX expires at 250 ms.
+Resource payload bytes are never scanned as UI commands.
+
+## Production completion: native lead compensation
+
+Calibration status -> short OK opens the lead menu. `New OPEN/SHORT` asks for OPEN at the final lead tips, then a firm SHORT at those same tips. Discharge/remove all DUTs and independent sources first. Each endpoint captures seven coherent windows at 10 Hz, 1 kHz and 10 kHz; no LOAD resistor is requested. Standard changes occur only after complete hardware teardown. Review -> short OK saves the candidate; holding OK cancels before saving. A committed save cannot be undone by cancellation. Enable/disable retains coefficients; Clear requires confirmation and writes a disabled tombstone. The prior bound profile remains in use while an unsaved candidate is collected. After save, reboot loads the bound profile without PC/SWD.
+
+This is relative fixture compensation, not a replacement for factory RREF/HG calibration. It corrects signed complex series/shunt deltas relative to that factory plane. It is explicitly engineering/unqualified until endpoint observability, range/amplitude invariance, final leads and independent holdouts pass bench checks. A different MCU or factory OSL sequence/content makes it inactive.
+
+Result details use separate bounded rows for range/RET/attempt count, `AVG7/3`, frequency coverage, factory sequence and applied lead sequence. Diagnostics show fresh BAT/NTC values and age, unavailable sentinels for stale data, settings write phase/error and actual lead status. Resource status distinguishes verified header/table CRC from payload validation; a failed mount never claims CRC OK. Menu/edit changes retain the row cache and erase a disappearing save warning without a full-screen redraw. Read-only UART telemetry and Flash backup remain separate from guarded short-OK activation.
+
+Optional supplementary WCRV composition with lead compensation is not qualified. When a compatible WCRV store is active, the UI explicitly disables lead compensation and refuses new/enable actions; stored lead records are retained. The DSP also refuses a supplementary-curve operation on an already lead-compensated result. This prevents a curve from silently overwriting fixture correction while its provenance still claims application. Default PRODUCT has WCRV runtime OFF.

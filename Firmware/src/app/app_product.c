@@ -3,11 +3,11 @@
 
 #include <stddef.h>
 #include "wtk_build_config.h"
-#if WTK_PRODUCT_FACTORY_PROVISIONED
 #include <math.h>
-#endif
 
 #define WTK_NOINLINE
+
+_Static_assert((APP_LEAD_CANCELED+0)==(UI_PRODUCT_LEAD_CANCELED+0),"lead view stage mapping");
 
 enum
 {
@@ -45,6 +45,15 @@ enum
 
 static void mark_dirty(app_product_t *product);
 static void set_state(app_product_t *product, ui_product_state_t state);
+
+static void feedback_event(app_product_t *product, app_feedback_event_t event)
+{
+    if ((product->view.state == UI_PRODUCT_STATE_FAULT ||
+         product->view.state == UI_PRODUCT_STATE_SAFETY_BLOCKED) && event < APP_FEEDBACK_ERROR) return;
+    product->tone_event = event;
+    ++product->tone_sequence;
+    if (product->tone_sequence == 0u) ++product->tone_sequence;
+}
 
 #if !WTK_PRODUCT_FACTORY_PROVISIONED
 static float calibration_load_preset_value(uint8_t preset, hw_range_id_t range_id)
@@ -137,7 +146,8 @@ static void sync_settings_view(app_product_t *product)
         (product->view.menu.sound_enabled != settings.sound_enabled) ||
         (product->view.menu.language_id != settings.language_id) ||
         (product->view.menu.calibration_load_preset != product->calibration_load_preset) ||
-        (product->view.menu.save_failed != app_settings_service_save_failed(product->settings_service)))
+        (product->view.menu.save_failed != app_settings_service_save_failed(product->settings_service)) ||
+        (product->view.menu.saving != app_settings_service_busy(product->settings_service)))
     {
         product->view.menu.brightness_percent = settings.brightness_percent;
         product->view.menu.timeout_seconds = timeout_seconds;
@@ -145,6 +155,7 @@ static void sync_settings_view(app_product_t *product)
         product->view.menu.language_id = settings.language_id;
         product->view.menu.calibration_load_preset = product->calibration_load_preset;
         product->view.menu.save_failed = app_settings_service_save_failed(product->settings_service);
+        product->view.menu.saving = app_settings_service_busy(product->settings_service);
         mark_dirty(product);
     }
 }
@@ -242,6 +253,10 @@ static void set_state(app_product_t *product, ui_product_state_t state)
 {
     if ((product != NULL) && (product->view.state != state))
     {
+        if (state == UI_PRODUCT_STATE_FAULT) feedback_event(product, APP_FEEDBACK_FAULT);
+        else if (state == UI_PRODUCT_STATE_SAFETY_BLOCKED) feedback_event(product, APP_FEEDBACK_ERROR);
+        else if (state == UI_PRODUCT_STATE_RESULT) feedback_event(product,
+            product->view.measurement_result.derived_valid ? APP_FEEDBACK_COMPLETE : APP_FEEDBACK_ERROR);
         product->view.state = (uint8_t)state;
         mark_dirty(product);
     }
@@ -419,7 +434,9 @@ bool app_product_request_resource_upload(app_product_t *product)
 {
     if (product == NULL || !product->initialized || runtime_active(product) ||
         product->runtime_teardown_kind != APP_PRODUCT_RUNTIME_TEARDOWN_NONE ||
-        product->settings_save_requested) return false;
+        product->settings_save_requested || product->view.state==UI_PRODUCT_STATE_LEAD_MENU ||
+        product->view.state==UI_PRODUCT_STATE_LEAD_WIZARD ||
+        (product->lead_service!=NULL && app_lead_busy(product->lead_service))) return false;
     switch (product->view.state)
     {
     case UI_PRODUCT_STATE_CALIBRATION_REQUIRED:
@@ -500,7 +517,7 @@ static bool drain_runtime_teardown(app_product_t *product,
 
 #endif
     product->runtime_teardown_kind = APP_PRODUCT_RUNTIME_TEARDOWN_NONE;
-#if WTK_PRODUCT_FACTORY_PROVISIONED
+#if WTK_PRODUCT_MODERN
     product->view.measurement_canceling = false;
 #endif
     const ui_product_state_t target = (ui_product_state_t)product->runtime_teardown_target_state;
@@ -537,7 +554,7 @@ static ui_product_measurement_t ui_measurement_from_result(const measurement_ses
     out.derived_valid = publish_values && result->primary_attempt.derived.valid;
     out.capacitance_valid = out.derived_valid && result->primary_attempt.derived.capacitance_valid;
     out.inductance_valid = out.derived_valid && result->primary_attempt.derived.inductance_valid;
-#if WTK_PRODUCT_FACTORY_PROVISIONED
+#if WTK_PRODUCT_MODERN
     const measurement_attempt_result_t *attempt = &result->primary_attempt;
     const measurement_derived_result_t *derived = &attempt->derived;
     const measurement_channel_quality_t *selected =
@@ -548,10 +565,17 @@ static ui_product_measurement_t ui_measurement_from_result(const measurement_ses
         attempt->config.frequency, attempt->config.amplitude);
     out.session_sequence = result->session_sequence;
     out.calibration_sequence = attempt->calibration.set_sequence;
+    out.lead_sequence = attempt->calibration.lead_sequence;
     out.range_id = (uint8_t)attempt->config.range_id;
     out.return_channel = (uint8_t)attempt->selected_channel;
     out.confidence = (uint8_t)result->confidence.publication_confidence;
     out.attempt_count = result->attempt_count;
+#if WTK_ENABLE_MEASUREMENT_TRIMMED
+    out.trimmed_applied = result->trimmed.applied;
+#if WTK_ENABLE_FREQUENCY_SURVEY
+    out.frequency_attempted_mask = result->frequency_attempted_mask;
+#endif
+#endif
     /* Unresolved phase/loss can put estimated R below zero while a dominant
        reactance still supports C/L. Preserve R; never turn it into valid loss. */
     const bool reactive_dominant =
@@ -607,7 +631,7 @@ static ui_product_measurement_t ui_measurement_from_result(const measurement_ses
     return out;
 }
 
-#if WTK_PRODUCT_FACTORY_PROVISIONED
+#if WTK_PRODUCT_MODERN
 static void invalidate_measurement(app_product_t *product)
 {
     const bool changed = product->view.has_measurement_result ||
@@ -725,7 +749,7 @@ static void update_measurement_result(app_product_t *product, app_measurement_ev
         if (partial != NULL)
         {
             product->view.measurement_result = ui_measurement_from_result(partial);
-#if WTK_PRODUCT_FACTORY_PROVISIONED
+#if WTK_PRODUCT_MODERN
             if (partial->session_sequence != product->session_sequence ||
                 partial->primary_attempt.calibration.set_sequence != product->view.calibration_sequence)
             {
@@ -745,7 +769,7 @@ static void update_measurement_result(app_product_t *product, app_measurement_ev
         if (final != NULL)
         {
             product->view.measurement_result = ui_measurement_from_result(final);
-#if WTK_PRODUCT_FACTORY_PROVISIONED
+#if WTK_PRODUCT_MODERN
             if (final->session_sequence != product->session_sequence ||
                 final->primary_attempt.calibration.set_sequence != product->view.calibration_sequence)
             {
@@ -760,7 +784,7 @@ static void update_measurement_result(app_product_t *product, app_measurement_ev
             product->view.has_measurement_result = true;
             product->view.measurement_result_partial = false;
             product->next_hint = measurement_auto_make_hint(final);
-#if WTK_PRODUCT_FACTORY_PROVISIONED
+#if WTK_PRODUCT_MODERN
             if (!product->view.measurement_result.derived_valid)
             {
                 product->next_hint.valid = false;
@@ -769,7 +793,7 @@ static void update_measurement_result(app_product_t *product, app_measurement_ev
             mark_dirty(product);
         }
     }
-#if WTK_PRODUCT_FACTORY_PROVISIONED
+#if WTK_PRODUCT_MODERN
     else if (event == APP_MEASUREMENT_EVENT_ERROR)
     {
         invalidate_measurement(product);
@@ -867,7 +891,10 @@ static WTK_NOINLINE void service_pending_settings_save(app_product_t *product,
         if ((status != BSP_STATUS_OK) && (status != BSP_STATUS_BUSY))
         {
             product->settings_save_requested = false;
+            feedback_event(product, APP_FEEDBACK_ERROR);
         }
+        else if (status == BSP_STATUS_OK && !app_settings_service_dirty(product->settings_service))
+            feedback_event(product, APP_FEEDBACK_SAVED);
         sync_settings_view(product);
         return;
     }
@@ -926,7 +953,8 @@ static WTK_NOINLINE void update_backlight_idle(app_product_t *product,
 #if !WTK_PRODUCT_FACTORY_PROVISIONED
         calibration_forces_awake(product) ||
 #endif
-        !inputs->safety_result.measure_allowed;
+        !app_product_schedule_allowed(&inputs->safety_result, inputs->range_disabled,
+                                      inputs->residual_refresh_pending, false);
     if (force_awake)
     {
         if (product->backlight_sleeping)
@@ -1041,12 +1069,15 @@ void app_product_handle_button_event(app_product_t *product, const button_event_
         {
             product->ok_long_seen = true;
             product->request_menu = true;
+            feedback_event(product, APP_FEEDBACK_BACK);
         }
         else if (event->type == BUTTON_EVENT_RELEASE)
         {
             if (product->ok_armed && !product->ok_long_seen)
             {
                 product->request_click = true;
+                if (product->view.state != UI_PRODUCT_STATE_MEASURING)
+                    feedback_event(product, APP_FEEDBACK_CONFIRM);
             }
             product->ok_armed = false;
             product->ok_long_seen = false;
@@ -1065,6 +1096,98 @@ void app_product_handle_button_event(app_product_t *product, const button_event_
     {
         product->request_page_next = true;
     }
+    if (product->view.state != UI_PRODUCT_STATE_MEASURING)
+        feedback_event(product, APP_FEEDBACK_NAVIGATE);
+}
+
+
+void app_product_attach_lead_service(app_product_t *product,app_lead_calibration_t *lead)
+{
+    if(product!=NULL && !runtime_active(product)) product->lead_service=lead;
+}
+static void sync_lead_view(app_product_t *product)
+{
+    app_lead_calibration_t *lead=product->lead_service;
+    if(lead==NULL) return;
+    const measurement_lead_profile_t *active=app_lead_active_profile(lead);
+    const uint32_t seq=active!=NULL?active->sequence:0u;
+    if(product->lead_sequence_seen!=seq) {
+        product->lead_sequence_seen=seq;
+        product->next_hint=(measurement_auto_hint_t){0};
+        product->view.has_measurement_result=false;
+    }
+    const uint32_t stored_sequence=lead->store.active_valid?lead->store.active.sequence:0u;
+    if(product->view.lead_sequence!=stored_sequence || product->view.lead_active!=(active!=NULL) ||
+       product->view.lead_state!=(uint8_t)lead->state || product->view.lead_frequency!=lead->frequency ||
+       product->view.lead_samples!=lead->samples.summary.samples || product->view.lead_error!=(uint8_t)lead->error ||
+       product->view.lead_short!=lead->short_stage || product->view.lead_uncertain!=lead->store.commit_uncertain ||
+       product->view.lead_curve_conflict!=lead->supplementary_active) {
+        product->view.lead_sequence=stored_sequence; product->view.lead_active=active!=NULL;
+        product->view.lead_state=(uint8_t)lead->state; product->view.lead_frequency=lead->frequency;
+        product->view.lead_samples=lead->samples.summary.samples; product->view.lead_error=(uint8_t)lead->error;
+        product->view.lead_short=lead->short_stage; product->view.lead_uncertain=lead->store.commit_uncertain;
+        product->view.lead_curve_conflict=lead->supplementary_active;
+        mark_dirty(product);
+    }
+}
+/* Lead captures use the same app-owned metrology IO and hardware permits as DUT
+ * sessions. This controller owns only sequencing and presentation. */
+static bool step_lead_ui(app_product_t *product,const app_product_inputs_t *inputs,
+    const bsp_clock_summary_t *clock,bsp_status_t clock_status,uint32_t now_ms)
+{
+    app_lead_calibration_t *lead=product->lead_service;
+    if(lead==NULL) return false;
+    sync_lead_view(product);
+    if(product->view.state!=UI_PRODUCT_STATE_LEAD_MENU && product->view.state!=UI_PRODUCT_STATE_LEAD_WIZARD)
+        return false;
+    product->backlight_sleeping=false; product->last_activity_ms=now_ms;
+    const bool fault=inputs->safety_fault_mask!=0u || inputs->display_fault;
+    const bool blocked=fault || !inputs->calibration_active_valid ||
+        resource_status_requires_upload(inputs->resource_status);
+    /* Entering this menu while a previous settings write is accepted must not
+     * strand that owner. Captures still wait for all pending settings to drain. */
+    if(product->view.state==UI_PRODUCT_STATE_LEAD_MENU &&
+       (!fault || app_settings_service_busy(product->settings_service))) {
+        service_pending_settings_save(product,inputs,now_ms);
+        sync_settings_view(product);
+    }
+    if(blocked) app_lead_cancel(lead);
+    if(product->view.state==UI_PRODUCT_STATE_LEAD_MENU && !blocked) {
+        if(product->request_menu) set_state(product,UI_PRODUCT_STATE_CALIBRATION_STATUS);
+        else if(product->request_page_next || product->request_page_prev) {
+            product->menu_index=(uint8_t)((product->menu_index+(product->request_page_next?1u:3u))%4u);
+            product->view.menu.selected_index=product->menu_index; mark_dirty(product);
+        } else if(product->request_click && !product->settings_save_requested &&
+                  !app_settings_service_busy(product->settings_service) && !inputs->lead_storage_blocked) {
+            bsp_status_t status=BSP_STATUS_OK;
+            if(product->menu_index==0u) status=app_lead_begin(lead);
+            else if(product->menu_index==1u) status=app_lead_set_enabled(lead,!product->view.lead_active,false,now_ms);
+            else if(product->menu_index==2u) status=app_lead_set_enabled(lead,false,true,now_ms);
+            else set_state(product,UI_PRODUCT_STATE_CALIBRATION_STATUS);
+            if(product->menu_index<3u) {
+                if(status==BSP_STATUS_OK) { product->next_hint=(measurement_auto_hint_t){0};
+                    product->view.has_measurement_result=false; set_state(product,UI_PRODUCT_STATE_LEAD_WIZARD); }
+                else { lead->error=status; feedback_event(product,APP_FEEDBACK_ERROR); }
+            }
+        }
+    } else if(product->view.state==UI_PRODUCT_STATE_LEAD_WIZARD && !blocked) {
+        if(product->request_menu) {
+            if(app_lead_busy(lead)) app_lead_cancel(lead);
+            else set_menu(product,UI_PRODUCT_STATE_LEAD_MENU,0u);
+        } else if(product->request_click) {
+            if(!app_lead_busy(lead)) set_menu(product,UI_PRODUCT_STATE_LEAD_MENU,0u);
+            else if(lead->state==APP_LEAD_WAIT_OPEN || lead->state==APP_LEAD_WAIT_SHORT ||
+                    ((lead->state==APP_LEAD_REVIEW || lead->state==APP_LEAD_CONFIRM_CLEAR) && !inputs->lead_storage_blocked))
+                app_lead_confirm(lead,now_ms);
+        }
+    }
+    const app_lead_state_t before=lead->state;
+    app_lead_step(lead,clock,clock_status,!inputs->lead_storage_blocked,now_ms);
+    if(before!=lead->state && lead->state==APP_LEAD_COMPLETE) feedback_event(product,APP_FEEDBACK_SAVED);
+    if(before!=lead->state && lead->state==APP_LEAD_FAILED) feedback_event(product,APP_FEEDBACK_ERROR);
+    sync_lead_view(product);
+    if(blocked && !app_lead_busy(lead)) set_state(product,fault?UI_PRODUCT_STATE_FAULT:UI_PRODUCT_STATE_CALIBRATION_REQUIRED);
+    clear_requests(product); return true;
 }
 
 void app_product_step(app_product_t *product,
@@ -1078,6 +1201,25 @@ void app_product_step(app_product_t *product,
         return;
     }
 
+    if(product->view.state==UI_PRODUCT_STATE_DIAGNOSTICS && inputs->sensors!=NULL &&
+       (uint32_t)(now_ms-product->diagnostic_update_ms)>=500u) {
+        const hw_aux_sensors_snapshot_t *sensor=inputs->sensors;
+        product->diagnostic_update_ms=now_ms;
+        product->view.battery_valid=(sensor->battery_state==HW_BATTERY_OK || sensor->battery_state==HW_BATTERY_LOW ||
+            sensor->battery_state==HW_BATTERY_CRITICAL) && sensor->battery_age_ms<=2000u &&
+            isfinite(sensor->battery_v) && sensor->battery_v>=0.0f && sensor->battery_v<=HW_BATTERY_MAX_PLAUSIBLE_V;
+        product->view.battery_mv=product->view.battery_valid?(uint16_t)(sensor->battery_v*1000.0f):UINT16_MAX;
+        product->view.battery_age_ms=sensor->battery_age_ms;
+        product->view.temperature_valid=sensor->ntc_temperature_valid && sensor->ntc_age_ms<=5000u &&
+            isfinite(sensor->ntc_temperature_c) && sensor->ntc_temperature_c>=-40.0f && sensor->ntc_temperature_c<=125.0f;
+        product->view.temperature_mC=product->view.temperature_valid?(int32_t)(sensor->ntc_temperature_c*1000.0f):INT32_MIN;
+        product->view.temperature_age_ms=sensor->ntc_age_ms;
+        product->view.settings_phase=(uint8_t)product->settings_service->state;
+        product->view.settings_error=(uint8_t)product->settings_service->last_error;
+        mark_dirty(product);
+    }
+    if(step_lead_ui(product,inputs,clock_summary,clock_status,now_ms)) return;
+
     const ui_product_calibration_state_t next_cal =
         ui_cal_state(inputs->calibration_status, inputs->calibration_active_valid);
     const bool measurement_active = product->runtime_kind == APP_PRODUCT_RUNTIME_MEASUREMENT &&
@@ -1087,7 +1229,7 @@ void app_product_step(app_product_t *product,
     const ui_product_blocker_t next_blocker = schedule_allowed ? UI_PRODUCT_BLOCK_NONE :
         ui_blocker(inputs->safety_result.primary_blocker);
     const bool next_storage_unavailable = inputs->calibration_status == APP_CAL_SERVICE_STORAGE_UNAVAILABLE;
-#if WTK_PRODUCT_FACTORY_PROVISIONED
+#if WTK_PRODUCT_MODERN
     const bool calibration_changed = product->view.calibration_active_valid &&
         (!inputs->calibration_active_valid ||
          product->view.calibration_sequence != inputs->calibration_active_sequence);
@@ -1131,6 +1273,10 @@ void app_product_step(app_product_t *product,
                                          inputs->temperature_valid,
                                          now_ms);
         }
+        /* Drain an already accepted settings operation after quiet ownership
+         * releases; never start a new write from this fault branch. */
+        if (app_settings_service_busy(product->settings_service))
+            service_pending_settings_save(product, inputs, now_ms);
         clear_requests(product);
         return;
     }
@@ -1158,7 +1304,7 @@ void app_product_step(app_product_t *product,
     sync_settings_view(product);
     update_backlight_idle(product, inputs, now_ms);
 
-#if WTK_PRODUCT_FACTORY_PROVISIONED
+#if WTK_PRODUCT_MODERN
     /* Revoke presentation immediately, then drain the existing hardware owner.
        A changed valid OSL sequence also cannot finish an old capture as new. */
     if (product->runtime_kind == APP_PRODUCT_RUNTIME_MEASUREMENT && runtime_active(product) &&
@@ -1295,7 +1441,7 @@ void app_product_step(app_product_t *product,
                     request_settings_save(product);
                     if (settings.sound_enabled)
                     {
-                        product->tone_sequence++;
+                        feedback_event(product, APP_FEEDBACK_CONFIRM);
                     }
                 }
                 else
@@ -1401,6 +1547,10 @@ void app_product_step(app_product_t *product,
         if (product->request_menu)
         {
             set_state(product, UI_PRODUCT_STATE_MENU);
+        }
+        else if (product->request_click && product->lead_service!=NULL && inputs->calibration_active_valid)
+        {
+            set_menu(product,UI_PRODUCT_STATE_LEAD_MENU,0u);
         }
 #if !WTK_PRODUCT_FACTORY_PROVISIONED
         else if (product->request_page_next || product->request_page_prev)
@@ -1523,7 +1673,7 @@ void app_product_step(app_product_t *product,
     if ((product->runtime_kind == APP_PRODUCT_RUNTIME_MEASUREMENT) &&
         app_measurement_session_active(measurement_runtime(product)))
     {
-#if WTK_PRODUCT_FACTORY_PROVISIONED
+#if WTK_PRODUCT_MODERN
         if (product->request_click || product->request_menu)
         {
             invalidate_measurement(product);
@@ -1570,7 +1720,7 @@ void app_product_step(app_product_t *product,
     if (product->view.has_measurement_result && !product->view.measurement_result_partial &&
         (product->view.state == UI_PRODUCT_STATE_RESULT))
     {
-#if WTK_PRODUCT_FACTORY_PROVISIONED
+#if WTK_PRODUCT_MODERN
         if (product->view.page == UI_PRODUCT_PAGE_DETAILS && product->request_click)
         {
             invalidate_measurement(product);
@@ -1626,7 +1776,7 @@ void app_product_step(app_product_t *product,
                                           now_ms);
         if ((start_status == BSP_STATUS_BUSY) || (start_status == BSP_STATUS_OK))
         {
-#if WTK_PRODUCT_FACTORY_PROVISIONED
+#if WTK_PRODUCT_MODERN
             invalidate_measurement(product);
 #endif
             product->view.measurement_result_partial = false;
@@ -1666,7 +1816,21 @@ void app_product_make_outputs(const app_product_t *product, app_product_outputs_
         .tone_frequency_hz = (product->tone_sequence != 0u) ? 2000u : 0u,
         .tone_duration_ms = (product->tone_sequence != 0u) ? 30u : 0u,
         .tone_sequence = product->tone_sequence,
+        .tone_event = product->tone_event,
     };
+}
+
+bool app_product_serial_idle(const app_product_t *product)
+{
+    if (product == NULL || !product->initialized || runtime_active(product) ||
+        (product->lead_service!=NULL && app_lead_busy(product->lead_service)) ||
+        product->view.state==UI_PRODUCT_STATE_LEAD_MENU || product->view.state==UI_PRODUCT_STATE_LEAD_WIZARD ||
+        product->runtime_teardown_kind != APP_PRODUCT_RUNTIME_TEARDOWN_NONE) return false;
+    if (product->view.state == UI_PRODUCT_STATE_FAULT) return true;
+    if (product->settings_save_requested || app_settings_service_busy(product->settings_service)) return false;
+    return product->view.state >= UI_PRODUCT_STATE_CALIBRATION_REQUIRED &&
+        product->view.state != UI_PRODUCT_STATE_MEASURING &&
+        product->view.state != UI_PRODUCT_STATE_CALIBRATION_WIZARD;
 }
 
 uint32_t app_product_context_size_bytes(void)

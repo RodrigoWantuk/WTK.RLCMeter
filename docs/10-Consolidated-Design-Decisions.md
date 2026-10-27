@@ -1094,3 +1094,57 @@ Calibration schema/model/hardware revision and stored OSL/NTC coefficients are
 unchanged. The unit's calibration remains engineering data, without a new
 accuracy or metrology qualification claim. No new resistor campaign is required
 for this policy/lifecycle change.
+
+## 2026-10-27 — Production completion foundation
+
+[Plan 30](../plans/30-Production-Firmware-Audit-and-Completion.md) now has owner
+authorization to implement the audited corrections. Generic C8 defaults remain
+64 KiB. `stm32-unit-release` is an explicit 128-KiB engineering PRODUCT profile
+bound to UID `54ff70068370525760380567`, whose upper half passed plan 29. It
+preserves the unit NTC profile, generates a matching linker, uses a 130,048-B
+PRODUCT hard Flash budget and retains the existing RAM/stack gates. The deploy
+tool separately checks configured geometry and the still-64-KiB factory register;
+unknown UIDs are rejected before programming. This does not qualify other C8s.
+
+Factory PRODUCT loads OSL through a read-only service with two candidate scans
+and a final verified read into the inactive runtime set. This removes the
+permanent duplicate scan set and unused full-workflow context. No stored OSL
+format changes; legacy full calibration/capture profiles keep their write path.
+
+Settings schema 4 retains the 36-byte layout and commit-last redundant slots,
+but covers header metadata (excluding the checksum field) and payload in its
+CRC. Schemas 2/3 remain readable; the next successful save upgrades via the
+inactive slot. Settings start OK means accepted/poll required; BUSY means not
+accepted. The W25Q adapter observes new operation ownership to distinguish them.
+The immutable write frame is verified independently of later RAM edits; a newer
+dirty value is saved afterward. The transaction has a 5,000-ms cooperative bound.
+
+Fatal exception handling directly disables interrupts, range enable, K1,
+excitation/trigger/DMA and buzzer without depending on initialized application
+contexts. Watchdog initialization failure is latched before measurement can be
+admitted. TIM4 tone stop clears pending sources under an interrupt critical
+section and the ISR checks the armed state. Physical shutdown and quiet timing
+remain REQUIRES_BENCH_VALIDATION.
+
+PRODUCT feedback uses bounded event patterns and a four-entry queue with
+duplicate coalescing, priority eviction and a 250-ms driver-BUSY retry bound.
+Mute/quiet drops queued old feedback; result/save/fault notifications requested
+while quiet wait at the output boundary until quiet ends. No hardware safety
+control is delegated to UI. SAFE idle disabled ranges no longer defeat the
+display timeout; actual hardware measurement permission is unchanged.
+
+PRODUCT UART reception now uses a fixed 256-byte ring at IRQ priority 3,
+below ADC/excitation DMA priorities 1/2; feedback TIM4 uses priority 4. ISR work
+is bounded and never runs commands. Receive epochs invalidate partial frames on
+overflow/error or boot/quiet/application-busy transitions. Old bytes are dropped,
+not deferred into a later activation. Main-loop access uses brief interrupt
+critical sections. A new read-only 128-byte telemetry command reports genuine
+sample values/ages and published-result provenance, with explicit unavailable
+sentinels and unchanged independent measurement permissions. See
+[the wire contract](17-Product-Serial-Protocol.md). Physical burst/quiet behavior
+remains REQUIRES_BENCH_VALIDATION.
+
+
+Production completion adds an independent lead OPEN/SHORT profile relative to factory OSL, bound to MCU UID and factory sequence/content CRC. Two redundant 4-KiB sectors precede the existing 32-KiB mutable tail; old partition offsets remain unchanged. Resource-pack writers reserve 40 KiB. The product uses composed complex ratio correction before derived R/C/L and records the applied lead sequence; two endpoint standards do not recalibrate factory gain. Native capture/review/commit is engineering-only pending physical validation. Compatible active supplementary WCRV disables lead correction explicitly; no unqualified composition or silent provenance mismatch is allowed.
+
+All PRODUCT provisioning variants share the modern measurement/UI contract. The complete current product requires the explicitly UID-bound first-unit 128-KiB engineering preset; generic C8 remains 64 KiB and cannot silently shed safety/measurement features to pass its gate. Factory capture/install/recovery remains separate BRINGUP_CAL. Read-only serial telemetry and bounded external-Flash backup cannot activate acquisition or mutate Flash. Owner-reported uncertain battery power defers physical deployment/tests until stable power is confirmed.

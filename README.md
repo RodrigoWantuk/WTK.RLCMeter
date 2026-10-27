@@ -4,7 +4,15 @@ WTK.RLCMeter is a portable two-wire RLC meter based on the **STM32F103C8T6**, de
 
 The project combines a custom mixed-signal PCB, an **STM32 Blue Pill** module, an **ILI9341** TFT display, external **W25Q** SPI Flash, a 1-cell Li-ion power subsystem, and dedicated firmware for measurement, safety, user interface, storage, and diagnostics.
 
-> **Current status — October24,2026:** basic R/C/L and display/buttons/buzzer observations are recorded. Current CAD includes six RGS gate-toGND pull-downs; shared firmware includes acquisition/phase/relay fixes and mounted display orientation. Calibration and battery/charger/metrology qualification remain pending. See [bring-up consolidation](docs/review/bringup-2026-10-24/README.md).
+> **Previously installed engineering baseline — October 27, 2026:** one continuous K1 transaction covers all three frequencies and the seven-sample estimate with real interleaved power supervision. Guarded serial OK is implemented and tested: the unchanged nominal 470-uH inductor returned 472.656 uH, seven accepted samples and five actual power refreshes, ending SAFE without faults. Physical contact count, independent accuracy, actual 10-mF endpoint and polarized-envelope qualification remain pending. The MCU declares 64 KiB Flash; the installed image uses 61,596 B. See [the current delivery](Firmware/releases/2026-10-27/serial-ok-control/README.md).
+
+First-unit capacity experiment: despite its 64-KiB factory register, this MCU passed full upper-half erase/program/readback/reset tests and instruction fetching near the 128-KiB boundary. **At least 128 KiB is experimentally usable on this unit.** Original contents and READY/SAFE calibration state are restored; generic C8 linkers/budgets remain at 64 KiB; the new first-unit production preset explicitly binds 128 KiB to this verified UID. See [the capacity evidence](Firmware/releases/2026-10-27/extended-flash-capacity/README.md).
+
+**Production completion — October 27:** the audit findings now have implementations: atomic settings saves and legacy migration, real audible feedback, idle display timeout, emergency SAFE/watchdog handling, bounded interrupt UART and genuine telemetry, one production measurement/UI contract, and a native quick OPEN/SHORT lead menu. Lead profiles have independent redundant storage and calibrated complex runtime correction; no new factory LOAD campaign is required. See the [audit](docs/review/production-audit-2026-10-27/README.md), [execution log](docs/review/production-completion-2026-10-27/README.md), and [Plan 30](plans/30-Production-Firmware-Audit-and-Completion.md).
+
+The complete current PRODUCT exceeds generic 64 KiB and uses the explicit `stm32-unit-release` engineering preset for the verified first MCU. Existing calibration, NTC profile and owner splash are preserved by design. The [corrected production delivery](Firmware/releases/2026-10-27/production-completion/watchdog-startup-fix/README.md) is now explicitly authorized, programmed/readback verified and running READY/SAFE with zero faults. Its first boot exposed an existing IWDG synchronization-before-enable error; the corrected startup retains the failure latch and matches ST initialization order. UART reports 3.689 V at 19:32 on October 27; all 33 OSL records and the complete 40-KiB mutable tail are unchanged. The image uses 75,092 B Flash and 15,204 B accounted RAM, leaving 55,980 B of the explicit unit Flash capacity. Eight embedded profiles pass; 65 optional-curves host entries and focused watchdog regressions pass. Physical UI/settings/lead workflow and metrology qualification remain pending; no DUT measurement was started.
+
+> **Historical bring-up checkpoint — October 24, 2026:** basic R/C/L and display/buttons/buzzer observations are recorded. Current CAD includes six RGS gate-toGND pull-downs; shared firmware includes acquisition/phase/relay fixes and mounted display orientation. Calibration and battery/charger/metrology qualification remain pending. See [bring-up consolidation](docs/review/bringup-2026-10-24/README.md).
 
 October 25 first-unit update: [all 99 OSL captures](docs/review/bringup-2026-10-25/OSL-All-99.md)
 are preserved, with 30 valid fits and three high-Z/10-kHz fits still blocked.
@@ -35,6 +43,7 @@ calibration. A subsequent [nominal 470-uH check](Firmware/releases/2026-10-25/in
 publishes 461.4/472.2 uH as INDUCTIVE with SAFE teardown. Very small inductors
 and independent accuracy/loss validation remain pending; no repeated resistor
 campaign is needed for these app fixes.
+
 
 ## Project goals
 

@@ -31,7 +31,7 @@
     {
       "name": "stm32-debug",
       "displayName": "STM32 Debug",
-      "description": "Configure STM32F103C8T6 firmware with Arm GCC debug flags.",
+      "description": "Generic 64-KiB PRODUCT budget check; use the verified UID-bound unit preset for the current full product.",
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/build/stm32-debug",
       "toolchainFile": "${sourceDir}/cmake/toolchains/arm-none-eabi-gcc.cmake",
@@ -47,7 +47,7 @@
     {
       "name": "stm32-release",
       "displayName": "STM32 Release",
-      "description": "Configure STM32F103C8T6 firmware with Arm GCC release flags.",
+      "description": "Generic 64-KiB PRODUCT budget check; use the verified UID-bound unit preset for the current full product.",
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/build/stm32-release",
       "toolchainFile": "${sourceDir}/cmake/toolchains/arm-none-eabi-gcc.cmake",
@@ -87,7 +87,7 @@
     {
       "name": "stm32-factory-debug",
       "inherits": "stm32-debug",
-      "displayName": "Experimental factory PRODUCT debug",
+      "displayName": "Generic 64-KiB factory PRODUCT debug budget check",
       "binaryDir": "${sourceDir}/build/stm32-factory-debug",
       "cacheVariables": {
         "WTK_PRODUCT_FACTORY_PROVISIONED": "ON"
@@ -96,10 +96,21 @@
     {
       "name": "stm32-factory-release",
       "inherits": "stm32-release",
-      "displayName": "Experimental factory PRODUCT release",
+      "displayName": "Generic 64-KiB factory PRODUCT release budget check",
       "binaryDir": "${sourceDir}/build/stm32-factory-release",
       "cacheVariables": {
         "WTK_PRODUCT_FACTORY_PROVISIONED": "ON"
+      }
+    },
+    {
+      "name": "stm32-unit-release",
+      "inherits": "stm32-factory-release",
+      "displayName": "Verified first unit PRODUCT (128 KiB, UID bound)",
+      "binaryDir": "${sourceDir}/build/stm32-unit-release",
+      "cacheVariables": {
+        "WTK_INTERNAL_FLASH_KIB": "128",
+        "WTK_EXTENDED_FLASH_UID": "54ff70068370525760380567",
+        "WTK_NTC_FACTORY_PROFILE": "${sourceDir}/config/units/54ff70068370525760380567-ntc-engineering.json"
       }
     }
   ],
@@ -140,6 +151,10 @@
     {
       "name": "stm32-factory-release",
       "configurePreset": "stm32-factory-release"
+    },
+    {
+      "name": "stm32-unit-release",
+      "configurePreset": "stm32-unit-release"
     }
   ],
   "testPresets": [

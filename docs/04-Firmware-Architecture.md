@@ -361,3 +361,80 @@ existing footprint gate and bounded renderer; its common language/error recovery
 and evidence-admission fixes still apply. Full BRINGUP now omits unsolicited
 verbose boot/button logs (INFO default), preserving commands and safety logs to
 make room for the common measurement policy within guaranteed C8 Flash.
+
+## Post-search statistical capture role
+
+WTK_ENABLE_MEASUREMENT_TRIMMED is enabled only with PC-provisioned PRODUCT.
+The app adapter explicitly opts into collecting seven valid impedances after
+primary selection. The hardware owner separately bounds search captures (six)
+and statistical continuations (eight extra), for at most 14 captures under the
+same consumed initial permit. The first statistical continuation may return
+from the secondary frequency to the primary; subsequent requests are locked
+to that range/frequency/amplitude, and search cannot resume. Same-condition
+statistical repeats skip redundant range addressing while retaining ADC and
+excitation settling, neutral inter-window ownership and all dynamic aborts.
+The original 500-ms connected limit and 1,000-ms battery-evidence expiry are
+unchanged and are never refreshed by these extra captures.
+
+The fixed-size pure estimator stores seven complex points and coordinate masks;
+there are no seven ADC buffers, heap or new persistent records. App FINISHING
+still withholds publication until complete SAFE cleanup. An incomplete or late
+faulted estimate is rejected. Calibration coefficients, assets and NTC profile
+are unchanged. Legacy/full-wizard PRODUCT and fixed diagnostics are not enlarged
+by enabling this feature.
+
+## Three-frequency factory orchestration
+
+WTK_ENABLE_FREQUENCY_SURVEY is generated only for PC-provisioned PRODUCT and
+its adapter opts into measurement_auto_start_t.frequency_survey. Preserve the
+legacy six-attempt policy for other callers/profiles. Factory history capacity
+is twelve (six extra 156-byte raw attempt records = 936 B); the active survey
+bounds each frequency to four conditions. This deliberate traceability allocation
+can exceed the preferred 16-KiB accounted-RAM budget but must stay below the
+existing 17,408-B hard budget including the reserved 2-KiB stack. No extra ADC
+buffer or heap is introduced.
+
+App DRAINING is a nonpublishing cleanup/reauthorization handoff, distinct from
+terminal FINISHING. Cancel, late cleanup error and the 60-s overall deadline
+revoke the transaction. Fixed 10-Hz captures retain their existing owner and
+SAFE teardown. Statistical collection after SAFE is allowed to acquire a new
+ordinary permit, then repeat at one exact primary condition. Acquired DSP
+rejection can inform another condition; missing/invalid processing output and
+hardware faults still fail closed. BSP, drivers, timer/ADC profiles, calibration
+model/storage formats and unit NTC coefficients are unchanged.
+
+## Continuous factory power handoff (plan 27)
+
+The factory adapter now opts into WTK_ENABLE_CONTINUOUS_SURVEY and sets
+continuous_survey on held requests. It bypasses plan 26's DRAINING segmentation
+while preserving terminal FINISHING and all seven-point admission/trim rules.
+The hardware owner admits twelve search captures plus eight statistical extras
+under one consumed initial permit, with a 30-s connected bound. Legacy opt-out
+requests retain their previous limits and SAFE transactions.
+
+POWER_RESTORE, POWER_WAIT and POWER_ACQUIRE lend the stopped metrology ADC to
+hw_aux_sensors_power_begin/status while normal auxiliaries stay paused. The
+existing main loop advances four VMID/four BAT conversions, excluding OV/NTC;
+residual evidence remains UNKNOWN. ADC restoration/reacquisition uses existing
+BSP paths and the identical coherent profile, without changing excitation,
+K1, ranges, quiet or workspace ownership. Sampling is scheduled about every
+250 ms outside DMA, bounded by 100 ms including both handoffs. Validated actual
+timestamps renew the existing 1,000-ms battery deadline. Settling resumes at its
+original deadline. Failure always enters normal SAFE cleanup.
+
+The plan-27 factory image accounts for 17,104 B RAM including its 2,052-B
+stack reservation; the subsequent serial-control image accounts for 17,116 B
+including a 2,048-B stack reservation. The existing 17,408-B hard gate remains enforced; inspect
+the release matrix for final sizes. No additional ADC buffer, heap, calibration
+record or persistent-format change is introduced.
+
+## Serial UI adapter
+
+app_serial_ui validates bounded PRODUCT control frames and request identity,
+then delegates a single short OK to app_product_handle_button_event. It has one
+32-bit boot-local request counter, no queue or peripheral ownership. The board
+adapter supplies actual SAFE/power/ownership/physical-button admission. Existing
+PLC1 decoding/resource frame boundaries remain authoritative; no byte-sniffing
+multiplexer or alternate measurement engine is introduced. The PC client never
+retries activation after an uncertain reply. See plan 28 for the profile and
+validation contract.

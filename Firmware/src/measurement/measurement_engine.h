@@ -8,6 +8,7 @@
 #include "hardware/hw_range.h"
 #include "measurement/measurement_calibration.h"
 #include "measurement/measurement_dsp.h"
+#include "measurement/measurement_trimmed.h"
 
 enum
 {
@@ -16,6 +17,12 @@ enum
     MEASUREMENT_AUTO_MAX_FREQUENCY_REFINEMENTS = 1u,
     MEASUREMENT_AUTO_MAX_REPEATED_CONDITIONS = 1u,
     MEASUREMENT_AUTO_INDEX_NONE = 255u,
+#if WTK_ENABLE_FREQUENCY_SURVEY
+    MEASUREMENT_AUTO_HISTORY_CAPACITY = 12u,
+    MEASUREMENT_SURVEY_STAGE_MAX_ATTEMPTS = 4u,
+#else
+    MEASUREMENT_AUTO_HISTORY_CAPACITY = MEASUREMENT_AUTO_MAX_ATTEMPTS,
+#endif
 };
 
 typedef enum
@@ -218,6 +225,13 @@ typedef struct
     measurement_auto_mode_t mode;
     bool partial;
     bool final;
+#if WTK_ENABLE_FREQUENCY_SURVEY
+    uint8_t frequency_attempted_mask;
+    uint8_t frequency_usable_mask;
+#endif
+#if WTK_ENABLE_MEASUREMENT_TRIMMED
+    measurement_trimmed_summary_t trimmed;
+#endif
 } measurement_session_result_t;
 
 typedef struct
@@ -226,6 +240,9 @@ typedef struct
     measurement_qualification_t qualification;
     uint32_t session_sequence;
     measurement_auto_hint_t hint;
+#if WTK_ENABLE_FREQUENCY_SURVEY
+    bool frequency_survey;
+#endif
 } measurement_auto_start_t;
 
 typedef struct
@@ -236,7 +253,7 @@ typedef struct
     uint32_t session_sequence;
     measurement_auto_hint_t hint;
     measurement_attempt_config_t next_attempt;
-    measurement_attempt_result_t history[MEASUREMENT_AUTO_MAX_ATTEMPTS];
+    measurement_attempt_result_t history[MEASUREMENT_AUTO_HISTORY_CAPACITY];
     measurement_session_result_t last_result;
     uint64_t attempted_conditions;
     uint8_t attempt_count;
@@ -246,6 +263,9 @@ typedef struct
     bool has_next_attempt;
     bool has_partial;
     bool has_final;
+#if WTK_ENABLE_FREQUENCY_SURVEY
+    bool frequency_survey;
+#endif
 } measurement_auto_session_t;
 
 void measurement_auto_session_init(measurement_auto_session_t *session);
@@ -274,6 +294,10 @@ measurement_confidence_result_t measurement_auto_evaluate_confidence(
 measurement_session_classification_t measurement_auto_classify_session(
     const measurement_attempt_result_t *history,
     uint8_t count);
+#if WTK_ENABLE_FREQUENCY_SURVEY
+measurement_session_classification_t measurement_auto_classify_survey(
+    const measurement_attempt_result_t *history, uint8_t count);
+#endif
 
 const measurement_session_result_t *measurement_auto_last_result(
     const measurement_auto_session_t *session);

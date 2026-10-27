@@ -24,6 +24,13 @@ enum
     HW_METROLOGY_MEASURE_DC_PILOT_SETTLE_MS = 2u,
     HW_METROLOGY_SESSION_MAX_CONNECTED_MS = 500u,
     HW_METROLOGY_SESSION_MAX_CAPTURES = 6u,
+    HW_METROLOGY_SESSION_MAX_STATISTICAL_CAPTURES = 8u,
+#if WTK_ENABLE_CONTINUOUS_SURVEY
+    HW_METROLOGY_SURVEY_MAX_CONNECTED_MS = 30000u,
+    HW_METROLOGY_SURVEY_MAX_SEARCH_CAPTURES = 12u,
+    HW_METROLOGY_POWER_REFRESH_PERIOD_MS = 250u,
+    HW_METROLOGY_POWER_REFRESH_TIMEOUT_MS = 100u,
+#endif
 };
 
 typedef enum
@@ -61,6 +68,11 @@ typedef enum
     HW_METROLOGY_MEASURE_ABORT,
 #if WTK_ENABLE_MEASURE_SESSION_HOLD
     HW_METROLOGY_MEASURE_SESSION_HOLD,
+#if WTK_ENABLE_CONTINUOUS_SURVEY
+    HW_METROLOGY_MEASURE_POWER_RESTORE,
+    HW_METROLOGY_MEASURE_POWER_WAIT,
+    HW_METROLOGY_MEASURE_POWER_ACQUIRE,
+#endif
 #endif
 } hw_metrology_measure_state_t;
 
@@ -81,6 +93,15 @@ typedef enum
     HW_METROLOGY_MEASURE_ERR_AUX_RESTORE,
     HW_METROLOGY_MEASURE_ERR_ABORT,
 } hw_metrology_measure_error_t;
+
+#if WTK_ENABLE_CONTINUOUS_SURVEY
+typedef struct
+{
+    uint32_t timestamp_ms;
+    hw_battery_state_t battery;
+    bool vmid_valid;
+} hw_metrology_power_sample_t;
+#endif
 
 typedef struct
 {
@@ -103,6 +124,10 @@ typedef struct
                                       void *user);
     void (*adc_stop)(void *user);
     bsp_status_t (*adc_restore)(uint32_t now_ms, void *user);
+#if WTK_ENABLE_CONTINUOUS_SURVEY
+    bsp_status_t (*power_begin)(uint32_t now_ms, void *user);
+    bsp_status_t (*power_status)(hw_metrology_power_sample_t *sample, void *user);
+#endif
     bool (*adc_dma_complete)(void *user);
     bool (*adc_dma_error)(void *user);
     bsp_status_t (*excitation_off)(void *user);
@@ -135,6 +160,12 @@ typedef struct
     hw_range_id_t range_id;
 #if WTK_ENABLE_MEASURE_SESSION_HOLD
     bool session_hold;
+#if WTK_ENABLE_CONTINUOUS_SURVEY
+    bool continuous_survey;
+#endif
+#if WTK_ENABLE_MEASUREMENT_TRIMMED
+    bool statistical_capture;
+#endif
 #endif
 #if WTK_ENABLE_DC_PILOT
     bool dc_pilot;
@@ -171,7 +202,17 @@ typedef struct
     uint32_t session_battery_deadline_ms;
     uint32_t session_validate_ms;
     uint8_t session_capture_count;
+#if WTK_ENABLE_MEASUREMENT_TRIMMED
+    uint8_t session_statistical_count;
+#endif
     bool session_connected;
+#if WTK_ENABLE_CONTINUOUS_SURVEY
+    uint32_t power_next_due_ms;
+    uint32_t power_deadline_ms;
+    uint32_t power_resume_deadline_ms;
+    uint16_t power_refresh_count;
+    hw_metrology_measure_state_t power_resume_state;
+#endif
 #endif
 } hw_metrology_measure_t;
 

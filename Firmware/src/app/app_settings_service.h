@@ -7,6 +7,7 @@
 
 #include "bsp/bsp_status.h"
 #include "storage/storage_layout.h"
+#include "storage/storage_async_io.h"
 #include "ui/ui_text.h"
 
 typedef enum
@@ -78,14 +79,7 @@ typedef enum
     APP_SETTINGS_STORE_ERROR,
 } app_settings_store_state_t;
 
-typedef struct
-{
-    bsp_status_t (*read)(uint32_t address, void *dst, size_t size, void *user);
-    bsp_status_t (*erase_sector_start)(uint32_t address, uint32_t now_ms, void *user);
-    bsp_status_t (*program_start)(uint32_t address, const void *src, size_t size, uint32_t now_ms, void *user);
-    bsp_status_t (*poll)(uint32_t now_ms, void *user);
-    void *user;
-} app_settings_store_io_t;
+typedef storage_async_io_t app_settings_store_io_t;
 
 typedef struct
 {
@@ -103,6 +97,7 @@ typedef struct
     app_settings_t persisted;
     uint32_t persisted_sequence;
     uint32_t target_sequence;
+    uint32_t save_started_ms;
     app_settings_slot_t active_slot;
     app_settings_slot_t target_slot;
     app_settings_store_state_t state;

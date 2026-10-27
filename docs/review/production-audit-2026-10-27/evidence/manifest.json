@@ -1,0 +1,112 @@
+{
+  "schema": "WTK_PRODUCTION_AUDIT_EVIDENCE_1",
+  "baseline": "842276976c7f44a5fcb3b7ed287325428f01668d",
+  "device_access_performed_for_audit": false,
+  "production_source_changed": false,
+  "host_suites": {
+    "factory": {
+      "pass": 50,
+      "total": 50
+    },
+    "standard": {
+      "pass": 48,
+      "total": 48
+    }
+  },
+  "audit_probes": {
+    "host_defects_reproduced": 4,
+    "standalone_ctest_entries_pass": 2
+  },
+  "math_prototype": {
+    "cases": 108,
+    "type": "SYNTHETIC_DOUBLE_ALGEBRA_ONLY"
+  },
+  "files": [
+    {
+      "path": ".gitattributes",
+      "bytes": 84,
+      "sha256": "815a56119fa97b69e51b681b4dfabbe7b093caaf3577aa5fc33e7bd80e28d442"
+    },
+    {
+      "path": "CMakeLists.txt",
+      "bytes": 1725,
+      "sha256": "0c6ee6e215628e1995b5e6eaa35297688630afbb4de9e37113f4e47c5b77e365"
+    },
+    {
+      "path": "factory-ctest.log",
+      "bytes": 5984,
+      "sha256": "1d30415d19cdc02278e0e3dda0bccf10eb6d53174c0f4509ac098e8884999334"
+    },
+    {
+      "path": "lead-compensation-math.json",
+      "bytes": 691,
+      "sha256": "2b266ea2b1d129986c5ae84fb8f74fdc447e618bcbd01eb69350380f95e3f607"
+    },
+    {
+      "path": "lead_math.py",
+      "bytes": 2697,
+      "sha256": "c14827f57afb525bd90b9598ecabef96687df72ef1bd001b7793f18ab54f31d1"
+    },
+    {
+      "path": "memory-audit.json",
+      "bytes": 765,
+      "sha256": "f1c7febfb900d98512e13a861705ee8a6a67a59f744627b60bd9db7ea5b5604e"
+    },
+    {
+      "path": "product_idle.c",
+      "bytes": 1421,
+      "sha256": "d88d9ac2ea30c2bab1794a4883b640f72fba324be29c6793b8f75dfc61d02158"
+    },
+    {
+      "path": "README.md",
+      "bytes": 4411,
+      "sha256": "b4faefdf198fea57a1e8d2a2a2cd08445702892bf42bc5a4bd59c70c0c17374b"
+    },
+    {
+      "path": "replay-ctest.log",
+      "bytes": 1684,
+      "sha256": "207644e2aff5623936e5a9eaf1f78daa5449fe8ea71082bc3786a7b70accec8e"
+    },
+    {
+      "path": "repro-idle-results.log",
+      "bytes": 114,
+      "sha256": "8c9d8e21ddd8130481c7a2f0b92f6883debab55665cf476ef8cd66e3bb9c01b3"
+    },
+    {
+      "path": "repro-results.log",
+      "bytes": 233,
+      "sha256": "ea0f5370138f2277fa7effb41d29d902a078f6fdfeaa28819ec9e929f72e4d22"
+    },
+    {
+      "path": "settings_contract.c",
+      "bytes": 4250,
+      "sha256": "5e18fd355d5519b57b2b1350db4d2210657f9972c40803beed9e7fbe5910917f"
+    },
+    {
+      "path": "sizes.c",
+      "bytes": 420,
+      "sha256": "d8df13379126f464fb04772bc09be2bcd4dc148cb48ebe93ac1cac31642acc0d"
+    },
+    {
+      "path": "sizes.s",
+      "bytes": 572,
+      "sha256": "a4c598c875364a30acd8fe716e4f3a0a1df9d3bf1decc16efd00245e618c31b0"
+    },
+    {
+      "path": "source-hashes.json",
+      "bytes": 7278,
+      "sha256": "8092272988eb31e7cf8c025efb0b8f0aafb40b68f040ed20e4cd55e8186526ce"
+    },
+    {
+      "path": "standard-ctest.log",
+      "bytes": 5727,
+      "sha256": "3e6dab61134d0333c743d2f8cd6b947b72f00211782e45006849e64326a6bc1c"
+    },
+    {
+      "path": "strict-profile-sizes.json",
+      "bytes": 4074,
+      "sha256": "e7ceb7b8f68996540e713dd45e404c4512ce0861f14b435f69641a1435e063d9"
+    }
+  ],
+  "text_line_endings": "Archived text normalized to LF before hashing; source byte fingerprints retain declared semantics"
+}

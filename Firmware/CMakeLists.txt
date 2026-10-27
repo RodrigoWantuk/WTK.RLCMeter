@@ -16,6 +16,22 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 find_package(Python3 COMPONENTS Interpreter QUIET)
 include(FactoryNtc)
 
+set(WTK_INTERNAL_FLASH_KIB "64" CACHE STRING "Internal Flash: generic 64 or verified first-unit 128 KiB")
+set_property(CACHE WTK_INTERNAL_FLASH_KIB PROPERTY STRINGS 64 128)
+set(WTK_EXTENDED_FLASH_UID "" CACHE STRING "UID bound to the verified 128-KiB engineering profile")
+if(NOT WTK_INTERNAL_FLASH_KIB MATCHES "^(64|128)$")
+    message(FATAL_ERROR "Only generic 64-KiB and verified first-unit 128-KiB profiles exist")
+endif()
+if(WTK_INTERNAL_FLASH_KIB STREQUAL "128")
+    if(NOT WTK_EXTENDED_FLASH_UID STREQUAL "54ff70068370525760380567" OR
+       NOT WTK_NTC_FACTORY_CALIBRATION_VALUE OR NOT WTK_NTC_FACTORY_UID STREQUAL WTK_EXTENDED_FLASH_UID)
+        message(FATAL_ERROR "128 KiB requires the verified first UID and its preserved NTC profile; never infer from C8 marking")
+    endif()
+elseif(NOT WTK_EXTENDED_FLASH_UID STREQUAL "")
+    message(FATAL_ERROR "Extended-Flash UID requires the explicit 128-KiB profile")
+endif()
+math(EXPR WTK_INTERNAL_FLASH_BYTES "${WTK_INTERNAL_FLASH_KIB} * 1024")
+
 set(WTK_TARGET_PLATFORM "host" CACHE STRING "Build target platform: host or stm32")
 set_property(CACHE WTK_TARGET_PLATFORM PROPERTY STRINGS host stm32)
 set(WTK_FIRMWARE_PROFILE "PRODUCT" CACHE STRING "Firmware feature profile: PRODUCT, BRINGUP or BRINGUP_CAL")
@@ -26,8 +42,9 @@ option(WTK_WARNINGS_AS_ERRORS_STM32 "Treat warnings as errors for STM32 project 
 option(WTK_FLASH_FORENSICS "Emit GNU link, discarded-section and LTO stack-usage evidence" OFF)
 option(WTK_CAL_INSTALL_SERVICE "Include installation in the calibration service profile" ON)
 option(WTK_PRODUCT_FACTORY_PROVISIONED
-       "Experimental PRODUCT: require PC-provisioned OSL and exclude the embedded wizard" OFF)
+       "PRODUCT provisioning: require PC-provisioned OSL and exclude the full factory wizard" ON)
 option(WTK_ENABLE_SUPPLEMENTARY_CURVES "Enable optional post-OSL WCRV calibration runtime" OFF)
+option(WTK_ENABLE_SERIAL_UI "Enable guarded short-OK control through the PRODUCT UART protocol" ON)
 option(WTK_BRINGUP_K1_TEST "BRINGUP-only empty-fixture K1 pulse; excludes experimental DC pilot for Flash space" OFF)
 option(WTK_BRINGUP_BENCH_SUPPLY "BRINGUP-only operator-confirmed external 5V supply, without battery" OFF)
 option(WTK_BRINGUP_PERIPHERAL_TEST "BRINGUP-only standalone display/buttons/buzzer diagnostic; no active lab console" OFF)
@@ -79,12 +96,26 @@ if(NOT WTK_BUILD_TYPE)
     set(WTK_BUILD_TYPE "MultiConfig")
 endif()
 string(TOUPPER "${WTK_FIRMWARE_PROFILE}" WTK_FIRMWARE_PROFILE)
+# The measurement/UI contract does not depend on how factory OSL was provisioned.
+set(WTK_PRODUCT_MODERN_VALUE 0)
+if(WTK_FIRMWARE_PROFILE STREQUAL "PRODUCT")
+    set(WTK_PRODUCT_MODERN_VALUE 1)
+endif()
 set(WTK_PRODUCT_FACTORY_PROVISIONED_VALUE 0)
+set(WTK_CAL_FACTORY_LOAD_ONLY_VALUE 0)
 if(WTK_PRODUCT_FACTORY_PROVISIONED AND WTK_FIRMWARE_PROFILE STREQUAL "PRODUCT")
     set(WTK_PRODUCT_FACTORY_PROVISIONED_VALUE 1)
+    if(WTK_TARGET_PLATFORM STREQUAL "stm32")
+        set(WTK_CAL_FACTORY_LOAD_ONLY_VALUE 1)
+    endif()
 endif()
 
-if(WTK_ENABLE_PRODUCT_RESOURCE_UPDATE OR
+set(WTK_ENABLE_SERIAL_UI_VALUE 0)
+if(WTK_ENABLE_SERIAL_UI AND WTK_FIRMWARE_PROFILE STREQUAL "PRODUCT")
+    set(WTK_ENABLE_SERIAL_UI_VALUE 1)
+endif()
+
+if(WTK_ENABLE_PRODUCT_RESOURCE_UPDATE OR WTK_ENABLE_SERIAL_UI_VALUE OR
    WTK_PRODUCT_FACTORY_PROVISIONED_VALUE OR
    (WTK_FIRMWARE_PROFILE STREQUAL "PRODUCT" AND WTK_BUILD_TYPE STREQUAL "Release"))
     set(WTK_ENABLE_PRODUCT_RESOURCE_UPDATE_VALUE 1)
@@ -154,8 +185,10 @@ set(WTK_COMMON_SOURCES
     src/app/app_io_workspace.c
     src/app/app_measurement_session.c
     src/app/app_pc_link_protocol.c
+    src/app/app_serial_ui.c
     src/app/app_product.c
     src/app/app_resource_update.c
+    src/app/app_lead_calibration.c
     src/app/app_settings_service.c
     src/app/app_version.c
     src/bsp/bsp_adc_common.c
@@ -165,6 +198,8 @@ set(WTK_COMMON_SOURCES
     src/drivers/ili9341_color.c
     src/drivers/ili9341_geometry.c
     src/drivers/w25q_core.c
+    src/app/app_feedback.c
+    src/measurement/measurement_lead_compensation.c
     src/hardware/hw_aux_sensors.c
     src/hardware/hw_buzzer_policy.c
     src/hardware/hw_charger.c
@@ -187,9 +222,11 @@ set(WTK_COMMON_SOURCES
     src/measurement/measurement_calibration_solver.c
     src/measurement/measurement_calibration_store.c
     src/measurement/measurement_engine.c
+    src/measurement/measurement_trimmed.c
     src/storage/resource_store.c
     src/storage/storage_crc32.c
     src/storage/storage_layout.c
+    src/storage/lead_profile_store.c
     src/ui/ui_fallback_font.c
     src/ui/ui_peripheral_test.c
     src/ui/ui_font.c
@@ -248,10 +285,15 @@ if(WTK_FIRMWARE_PROFILE STREQUAL "BRINGUP_CAL")
 endif()
 if(WTK_PRODUCT_FACTORY_PROVISIONED_VALUE AND WTK_TARGET_PLATFORM STREQUAL "stm32")
     list(REMOVE_ITEM WTK_COMMON_SOURCES
+        src/app/app_calibration_service.c
+        src/measurement/measurement_calibration_store.c
         src/app/app_calibration_session.c
         src/app/app_calibration_wizard.c
         src/measurement/measurement_calibration_solver.c)
+    list(APPEND WTK_COMMON_SOURCES src/app/app_calibration_service_loadonly.c
+        src/measurement/measurement_calibration_store_loadonly.c)
 endif()
+list(APPEND WTK_COMMON_SOURCES src/bsp/bsp_uart_rx.c)
 add_library(wtk_firmware_common STATIC ${WTK_COMMON_SOURCES})
 if(WTK_TARGET_PLATFORM STREQUAL "host" OR WTK_FIRMWARE_PROFILE STREQUAL "BRINGUP_CAL")
     target_sources(wtk_firmware_common PRIVATE src/app/app_cal_capture_service.c
@@ -259,6 +301,7 @@ if(WTK_TARGET_PLATFORM STREQUAL "host" OR WTK_FIRMWARE_PROFILE STREQUAL "BRINGUP
 endif()
 if(WTK_ENABLE_SUPPLEMENTARY_CURVES)
     target_sources(wtk_firmware_common PRIVATE
+        src/app/app_curve_cache.c
         src/measurement/measurement_cal_curve.c
         src/measurement/measurement_cal_curve_frame.c
         src/measurement/measurement_cal_curve_store.c
@@ -295,9 +338,9 @@ elseif(WTK_TARGET_PLATFORM STREQUAL "stm32")
         target_compile_options(wtk_firmware_common PRIVATE -fstack-usage)
     endif()
     if(WTK_FIRMWARE_PROFILE STREQUAL "PRODUCT")
-        # PRODUCT Debug intentionally uses -Os + debug symbols: the complete
-        # firmware must fit the guaranteed 64 KiB STM32F103C8T6 Flash while
-        # still preserving symbols for SWD/GDB inspection. Release may also
+        # PRODUCT Debug intentionally uses -Os + debug symbols. Each variant
+        # must pass its explicit generic-64 or verified-unit-128 memory gate
+        # while preserving symbols for SWD/GDB inspection. Release may also
         # enable preset-level LTO for additional dead-code folding.
         target_compile_options(wtk_firmware_common PRIVATE ${WTK_PRODUCT_OPTIMIZATION_LEVEL} -fno-unwind-tables -fno-asynchronous-unwind-tables)
     endif()
@@ -372,7 +415,11 @@ elseif(WTK_TARGET_PLATFORM STREQUAL "stm32")
         COMPILE_OPTIONS "-Wno-pedantic"
     )
 
-    set(WTK_LINKER_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/cmake/stm32/STM32F103C8Tx_FLASH.ld")
+    file(READ "${CMAKE_CURRENT_SOURCE_DIR}/cmake/stm32/STM32F103C8Tx_FLASH.ld" WTK_LINKER_CONTENT)
+    string(REPLACE "LENGTH = 64K" "LENGTH = ${WTK_INTERNAL_FLASH_KIB}K" WTK_LINKER_CONTENT "${WTK_LINKER_CONTENT}")
+    set(WTK_LINKER_SCRIPT "${CMAKE_CURRENT_BINARY_DIR}/generated/WTK_FLASH.ld")
+    file(GENERATE OUTPUT "${WTK_LINKER_SCRIPT}" CONTENT "${WTK_LINKER_CONTENT}")
+    set_property(TARGET wtk_rlcmeter APPEND PROPERTY LINK_DEPENDS "${WTK_LINKER_SCRIPT}")
     set(WTK_FIRMWARE_BASE "${CMAKE_CURRENT_BINARY_DIR}/WTK.RLCMeter")
     set(WTK_FIRMWARE_MAP "${WTK_FIRMWARE_BASE}.map")
     set(WTK_SIZE_BUDGET "none")
@@ -416,6 +463,7 @@ elseif(WTK_TARGET_PLATFORM STREQUAL "stm32")
                     "${CMAKE_CURRENT_SOURCE_DIR}/tools/firmware_size.py"
                     $<TARGET_FILE:wtk_rlcmeter>
                     --budget ${WTK_SIZE_BUDGET}
+                    --flash-bytes ${WTK_INTERNAL_FLASH_BYTES}
                     --size-tool ${CMAKE_SIZE}
                     --objdump-tool ${CMAKE_OBJDUMP}
                     --nm-tool ${CMAKE_NM}
@@ -429,6 +477,8 @@ elseif(WTK_TARGET_PLATFORM STREQUAL "stm32")
                     $<TARGET_FILE:wtk_rlcmeter>
                     --profile ${WTK_FIRMWARE_PROFILE}
                     --factory-provisioned $<IF:$<BOOL:${WTK_PRODUCT_FACTORY_PROVISIONED_VALUE}>,ON,OFF>
+                    --k1-bench-test $<IF:$<BOOL:${WTK_BRINGUP_K1_TEST}>,ON,OFF>
+                    --bench-supply $<IF:$<BOOL:${WTK_BRINGUP_BENCH_SUPPLY}>,ON,OFF>
                     --peripheral-test $<IF:$<BOOL:${WTK_ENABLE_PERIPHERAL_TEST_VALUE}>,ON,OFF>
                     --supplementary-curves $<IF:$<BOOL:${WTK_ENABLE_SUPPLEMENTARY_CURVES}>,ON,OFF>
                     --compile-commands "${CMAKE_CURRENT_BINARY_DIR}/compile_commands.json"

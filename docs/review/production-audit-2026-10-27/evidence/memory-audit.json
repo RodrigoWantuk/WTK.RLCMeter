@@ -1,0 +1,25 @@
+{
+  "arm_abi_types": {
+    "app_calibration_service_t": 5776,
+    "app_calibration_runtime_t": 2684,
+    "measurement_cal_store_t": 2688,
+    "measurement_cal_set_t": 2576,
+    "app_calibration_workflow_t": 376,
+    "app_product_t": 2640,
+    "app_measurement_session_t": 2464,
+    "app_io_workspace_t": 3076,
+    "app_settings_service_t": 152,
+    "hw_metrology_measure_t": 356,
+    "ui_product_t": 816
+  },
+  "flash_bytes": 61596,
+  "ram_static_bytes": 15068,
+  "reserved_stack_bytes": 2048,
+  "ram_accounted_bytes": 17116,
+  "ram_hard_headroom": 292,
+  "ram_silicon_headroom_after_reserved_stack": 3364,
+  "experimentally_verified_flash_bytes": 131072,
+  "flash_physical_headroom": 69476,
+  "current_64kib_headroom": 3940,
+  "product_hard_64kib_headroom": 2916
+}

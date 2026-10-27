@@ -291,6 +291,10 @@ static int test_charger_and_power_helpers(void)
 int main(void)
 {
     int failures = 0;
+    failures += expect_true(hw_battery_state_from_voltage(NAN, true) == HW_BATTERY_UNKNOWN &&
+        hw_battery_state_from_voltage(INFINITY, true) == HW_BATTERY_UNKNOWN &&
+        hw_battery_state_from_voltage(-0.1f, true) == HW_BATTERY_UNKNOWN,
+        "nonfinite and negative battery inputs cannot admit measurement");
     failures += expect_true(hw_battery_telemetry_mv(3.9f, HW_BATTERY_OK) == 3900u,
                             "fresh nominal battery millivolts");
     failures += expect_true(hw_battery_telemetry_mv(3.2f, HW_BATTERY_CRITICAL) == 3200u,

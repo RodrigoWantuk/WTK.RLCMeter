@@ -1,0 +1,36 @@
+{
+  "factory_register": {
+    "address": "0x1FFFF7E0",
+    "value": "0x0040",
+    "declared_kib": 64,
+    "bytes": 65536,
+    "live_read_utc": "2026-10-27T03:23:04.844082+00:00",
+    "halt_reset_or_write_requested": false
+  },
+  "out_of_contract_reads": {
+    "extra_start": {
+      "readable": true,
+      "hex": "ffffffffffffffffffffffffffffffff"
+    },
+    "extra_end": {
+      "readable": true,
+      "hex": "ffffffffffffffffffffffffffffffff"
+    }
+  },
+  "extra_writable_capacity_verified": false,
+  "original_image": {
+    "bytes": 60136,
+    "sha256": "26cb50c86e798d0ca0b040ddd5ab3a6a1f8e9791145a504bd2e8c6f46fa8e20f"
+  },
+  "current_verified_image": {
+    "bytes": 61596,
+    "sha256": "5dd9a53f4117a5239e2ec0769e0560c10ce4114789f7782ef929da4b684aba7d",
+    "usage_percent": 93.988037109375,
+    "remaining_silicon_bytes": 3940,
+    "remaining_product_hard_budget_bytes": 2916
+  },
+  "programmer_geometry_kib": 64,
+  "guaranteed_linker_capacity_bytes": 65536,
+  "limitation": "Successful all-FF reads beyond 64 KiB do not establish writable extra Flash; no erase/program test outside the guaranteed C8 range was performed.",
+  "official_datasheet": "https://www.st.com/resource/en/datasheet/stm32f103c8.pdf"
+}

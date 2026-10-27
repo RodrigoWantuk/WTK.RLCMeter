@@ -1,0 +1,3 @@
+CONFIRMED accepted-start BUSY stall: erase_calls=128 poll_calls=0 state=1
+CONFIRMED edit-during-save mismatch: current=65 persisted_after_reload=60 failed=1
+CONFIRMED sequence header outside CRC: changed_sequence=33 accepted_valid=1

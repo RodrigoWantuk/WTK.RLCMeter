@@ -1,0 +1,524 @@
+{
+  "status": "IMPLEMENTED_DEPLOYED_READY_SAFE_REQUIRES_BENCH_VALIDATION",
+  "source": {
+    "git_sha": "40a0b420ef60003d302b5a8a79c3d53d8c097fc7",
+    "dirty": false,
+    "git_status": "",
+    "input_sha256": "fac57cb2661a1ee643752d9abffc228fd6c65965ab0ffb5bad0988036f65a36b"
+  },
+  "unit": "54ff70068370525760380567",
+  "firmware_readback": {
+    "start": 134217728,
+    "end_exclusive": 134278864,
+    "bytes": 61136,
+    "expected_sha256": "b51558edced7660528ae6dc9b898e0242e422ef57af8f013e44f9aa4575343a6",
+    "actual_sha256": "b51558edced7660528ae6dc9b898e0242e422ef57af8f013e44f9aa4575343a6",
+    "full_flash_sha256": "60774661913039dcd7506a169da58d4d7e62646a6d25b02fb43df18ef180d7ae",
+    "full_flash_bytes": 65536
+  },
+  "host_tests": {
+    "factory": "49/49 PASS",
+    "standard": "47/47 PASS"
+  },
+  "strict_embedded_profiles": "9/9 PASS",
+  "boot": {
+    "utc": "2026-10-27T03:45:38.315452+00:00",
+    "operation": "STABLE_LIVE_DAP_METADATA_NO_HALT_NO_RESET_NO_RESUME",
+    "target": {
+      "uid": "54ff70068370525760380567"
+    },
+    "firmware_sha256": "b51558edced7660528ae6dc9b898e0242e422ef57af8f013e44f9aa4575343a6",
+    "exact_running_image_match": true,
+    "metadata": {
+      "product_state": 4,
+      "measurement_session_sequence": 0,
+      "product_initialized": 1,
+      "calibration_sequence": 1,
+      "calibration_record_count": 33,
+      "calibration_active_valid": 1,
+      "calibration_storage_available": 1,
+      "k1_commanded_state": 1,
+      "range_fsm_state": 0,
+      "range_enabled": 0,
+      "safety_fault_mask": 0,
+      "display_fault": 0,
+      "resource_status": 0,
+      "excitation_mode": 0,
+      "safety_blocker_flags": 8,
+      "display_slow_mode": 0,
+      "backlight_percent": 75,
+      "saved_brightness_percent": 75,
+      "measurement_hw_state": 0,
+      "measurement_hw_error": 0,
+      "session_connected": 0,
+      "session_capture_count": 0,
+      "session_deadline_ms": 0,
+      "wait_deadline_ms": 0,
+      "session_statistical_count": 0,
+      "workspace_owner": 0,
+      "quiet_requested": 0,
+      "power_refresh_count": 0,
+      "power_next_due_ms": 0,
+      "power_deadline_ms": 0,
+      "session_battery_deadline_ms": 0,
+      "initial_permit_issued_ms": 0,
+      "initial_permit_validate_ms": 0
+    },
+    "layout": [
+      {
+        "name": "product_state",
+        "address": 536877800,
+        "size": 1
+      },
+      {
+        "name": "measurement_session_sequence",
+        "address": 536877904,
+        "size": 4
+      },
+      {
+        "name": "product_initialized",
+        "address": 536877938,
+        "size": 1
+      },
+      {
+        "name": "calibration_sequence",
+        "address": 536879784,
+        "size": 4
+      },
+      {
+        "name": "calibration_record_count",
+        "address": 536879848,
+        "size": 1
+      },
+      {
+        "name": "calibration_active_valid",
+        "address": 536882467,
+        "size": 1
+      },
+      {
+        "name": "calibration_storage_available",
+        "address": 536885553,
+        "size": 1
+      },
+      {
+        "name": "k1_commanded_state",
+        "address": 536870984,
+        "size": 1
+      },
+      {
+        "name": "range_fsm_state",
+        "address": 536871000,
+        "size": 1
+      },
+      {
+        "name": "range_enabled",
+        "address": 536871009,
+        "size": 1
+      },
+      {
+        "name": "safety_fault_mask",
+        "address": 536871184,
+        "size": 4
+      },
+      {
+        "name": "display_fault",
+        "address": 536878924,
+        "size": 1
+      },
+      {
+        "name": "resource_status",
+        "address": 536870952,
+        "size": 1
+      },
+      {
+        "name": "excitation_mode",
+        "address": 536871182,
+        "size": 1
+      },
+      {
+        "name": "safety_blocker_flags",
+        "address": 536878448,
+        "size": 4
+      },
+      {
+        "name": "display_slow_mode",
+        "address": 536878307,
+        "size": 1
+      },
+      {
+        "name": "backlight_percent",
+        "address": 536870953,
+        "size": 1
+      },
+      {
+        "name": "saved_brightness_percent",
+        "address": 536871964,
+        "size": 1
+      },
+      {
+        "name": "measurement_hw_state",
+        "address": 536871324,
+        "size": 1
+      },
+      {
+        "name": "measurement_hw_error",
+        "address": 536871325,
+        "size": 1
+      },
+      {
+        "name": "session_connected",
+        "address": 536871526,
+        "size": 1
+      },
+      {
+        "name": "session_capture_count",
+        "address": 536871524,
+        "size": 1
+      },
+      {
+        "name": "session_deadline_ms",
+        "address": 536871512,
+        "size": 4
+      },
+      {
+        "name": "wait_deadline_ms",
+        "address": 536871492,
+        "size": 4
+      },
+      {
+        "name": "session_statistical_count",
+        "address": 536871525,
+        "size": 1
+      },
+      {
+        "name": "workspace_owner",
+        "address": 536875292,
+        "size": 1
+      },
+      {
+        "name": "quiet_requested",
+        "address": 536871550,
+        "size": 1
+      },
+      {
+        "name": "power_refresh_count",
+        "address": 536871540,
+        "size": 2
+      },
+      {
+        "name": "power_next_due_ms",
+        "address": 536871528,
+        "size": 4
+      },
+      {
+        "name": "power_deadline_ms",
+        "address": 536871532,
+        "size": 4
+      },
+      {
+        "name": "session_battery_deadline_ms",
+        "address": 536871516,
+        "size": 4
+      },
+      {
+        "name": "initial_permit_issued_ms",
+        "address": 536871344,
+        "size": 4
+      },
+      {
+        "name": "initial_permit_validate_ms",
+        "address": 536871520,
+        "size": 4
+      }
+    ],
+    "battery_voltage_read_via_swd": false,
+    "measurement_commanded": false,
+    "halt_requested": false,
+    "external_flash_written": false,
+    "uart_captured": true,
+    "uart_text": "\r\nWTK.RLCMeter SAFE_BOOT\r\n",
+    "profile_flags": {
+      "WTK_ENABLE_MEASURE_SESSION_HOLD": "1u",
+      "WTK_ENABLE_UI_ROW_CACHE": "1u",
+      "WTK_ENABLE_MEASUREMENT_TRIMMED": "1u",
+      "WTK_ENABLE_FREQUENCY_SURVEY": "1u",
+      "WTK_ENABLE_CONTINUOUS_SURVEY": "1u"
+    },
+    "controlled_reset": true,
+    "postboot_halted": false,
+    "outcome": "CONTINUOUS_SURVEY_UART_READY_SAFE_ZERO_SESSIONS",
+    "physical_qualification": false
+  },
+  "postflight": {
+    "utc": "2026-10-27T03:46:49.060036+00:00",
+    "operation": "STABLE_LIVE_DAP_METADATA_NO_HALT_NO_RESET_NO_RESUME",
+    "target": {
+      "uid": "54ff70068370525760380567"
+    },
+    "firmware_sha256": "b51558edced7660528ae6dc9b898e0242e422ef57af8f013e44f9aa4575343a6",
+    "exact_running_image_match": true,
+    "metadata": {
+      "product_state": 4,
+      "measurement_session_sequence": 0,
+      "product_initialized": 1,
+      "calibration_sequence": 1,
+      "calibration_record_count": 33,
+      "calibration_active_valid": 1,
+      "calibration_storage_available": 1,
+      "k1_commanded_state": 1,
+      "range_fsm_state": 0,
+      "range_enabled": 0,
+      "safety_fault_mask": 0,
+      "display_fault": 0,
+      "resource_status": 0,
+      "excitation_mode": 0,
+      "safety_blocker_flags": 8,
+      "display_slow_mode": 0,
+      "backlight_percent": 75,
+      "saved_brightness_percent": 75,
+      "measurement_hw_state": 0,
+      "measurement_hw_error": 0,
+      "session_connected": 0,
+      "session_capture_count": 0,
+      "session_deadline_ms": 0,
+      "wait_deadline_ms": 0,
+      "session_statistical_count": 0,
+      "workspace_owner": 0,
+      "quiet_requested": 0,
+      "power_refresh_count": 0,
+      "power_next_due_ms": 0,
+      "power_deadline_ms": 0,
+      "session_battery_deadline_ms": 0,
+      "initial_permit_issued_ms": 0,
+      "initial_permit_validate_ms": 0
+    },
+    "layout": [
+      {
+        "name": "product_state",
+        "address": 536877800,
+        "size": 1
+      },
+      {
+        "name": "measurement_session_sequence",
+        "address": 536877904,
+        "size": 4
+      },
+      {
+        "name": "product_initialized",
+        "address": 536877938,
+        "size": 1
+      },
+      {
+        "name": "calibration_sequence",
+        "address": 536879784,
+        "size": 4
+      },
+      {
+        "name": "calibration_record_count",
+        "address": 536879848,
+        "size": 1
+      },
+      {
+        "name": "calibration_active_valid",
+        "address": 536882467,
+        "size": 1
+      },
+      {
+        "name": "calibration_storage_available",
+        "address": 536885553,
+        "size": 1
+      },
+      {
+        "name": "k1_commanded_state",
+        "address": 536870984,
+        "size": 1
+      },
+      {
+        "name": "range_fsm_state",
+        "address": 536871000,
+        "size": 1
+      },
+      {
+        "name": "range_enabled",
+        "address": 536871009,
+        "size": 1
+      },
+      {
+        "name": "safety_fault_mask",
+        "address": 536871184,
+        "size": 4
+      },
+      {
+        "name": "display_fault",
+        "address": 536878924,
+        "size": 1
+      },
+      {
+        "name": "resource_status",
+        "address": 536870952,
+        "size": 1
+      },
+      {
+        "name": "excitation_mode",
+        "address": 536871182,
+        "size": 1
+      },
+      {
+        "name": "safety_blocker_flags",
+        "address": 536878448,
+        "size": 4
+      },
+      {
+        "name": "display_slow_mode",
+        "address": 536878307,
+        "size": 1
+      },
+      {
+        "name": "backlight_percent",
+        "address": 536870953,
+        "size": 1
+      },
+      {
+        "name": "saved_brightness_percent",
+        "address": 536871964,
+        "size": 1
+      },
+      {
+        "name": "measurement_hw_state",
+        "address": 536871324,
+        "size": 1
+      },
+      {
+        "name": "measurement_hw_error",
+        "address": 536871325,
+        "size": 1
+      },
+      {
+        "name": "session_connected",
+        "address": 536871526,
+        "size": 1
+      },
+      {
+        "name": "session_capture_count",
+        "address": 536871524,
+        "size": 1
+      },
+      {
+        "name": "session_deadline_ms",
+        "address": 536871512,
+        "size": 4
+      },
+      {
+        "name": "wait_deadline_ms",
+        "address": 536871492,
+        "size": 4
+      },
+      {
+        "name": "session_statistical_count",
+        "address": 536871525,
+        "size": 1
+      },
+      {
+        "name": "workspace_owner",
+        "address": 536875292,
+        "size": 1
+      },
+      {
+        "name": "quiet_requested",
+        "address": 536871550,
+        "size": 1
+      },
+      {
+        "name": "power_refresh_count",
+        "address": 536871540,
+        "size": 2
+      },
+      {
+        "name": "power_next_due_ms",
+        "address": 536871528,
+        "size": 4
+      },
+      {
+        "name": "power_deadline_ms",
+        "address": 536871532,
+        "size": 4
+      },
+      {
+        "name": "session_battery_deadline_ms",
+        "address": 536871516,
+        "size": 4
+      },
+      {
+        "name": "initial_permit_issued_ms",
+        "address": 536871344,
+        "size": 4
+      },
+      {
+        "name": "initial_permit_validate_ms",
+        "address": 536871520,
+        "size": 4
+      }
+    ],
+    "battery_voltage_read_via_swd": false,
+    "measurement_commanded": false,
+    "halt_requested": false,
+    "external_flash_written": false
+  },
+  "flash_capacity": {
+    "factory_register": {
+      "address": "0x1FFFF7E0",
+      "value": "0x0040",
+      "declared_kib": 64,
+      "bytes": 65536,
+      "live_read_utc": "2026-10-27T03:23:04.844082+00:00",
+      "halt_reset_or_write_requested": false
+    },
+    "out_of_contract_reads": {
+      "extra_start": {
+        "readable": true,
+        "hex": "ffffffffffffffffffffffffffffffff"
+      },
+      "extra_end": {
+        "readable": true,
+        "hex": "ffffffffffffffffffffffffffffffff"
+      }
+    },
+    "extra_writable_capacity_verified": false,
+    "original_image": {
+      "bytes": 60136,
+      "sha256": "26cb50c86e798d0ca0b040ddd5ab3a6a1f8e9791145a504bd2e8c6f46fa8e20f"
+    },
+    "current_verified_image": {
+      "bytes": 61136,
+      "sha256": "b51558edced7660528ae6dc9b898e0242e422ef57af8f013e44f9aa4575343a6",
+      "usage_percent": 93.2861328125,
+      "remaining_silicon_bytes": 4400,
+      "remaining_product_hard_budget_bytes": 3376
+    },
+    "programmer_geometry_kib": 64,
+    "guaranteed_linker_capacity_bytes": 65536,
+    "limitation": "Successful all-FF reads beyond 64 KiB do not establish writable extra Flash; no erase/program test outside the guaranteed C8 range was performed.",
+    "official_datasheet": "https://www.st.com/resource/en/datasheet/stm32f103c8.pdf"
+  },
+  "ntc_profile": "Firmware/config/units/54ff70068370525760380567-ntc-engineering.json",
+  "osl": {
+    "sequence": 1,
+    "records": 33,
+    "active": true,
+    "written": false
+  },
+  "external_flash_write_requested": false,
+  "battery_voltage_read_via_swd": false,
+  "measurement_commanded": false,
+  "physical_qualification": false,
+  "pending": [
+    "Owner-triggered C/L measurement with actual power refreshes and seven accepted primary samples",
+    "Owner witness of one physical K1 engagement and one final release",
+    "Independent accuracy/phase/loss, polarized envelope and actual 10-mF endpoint",
+    "Physical transition/abort latency, stack high-water and final TFT appearance"
+  ],
+  "archives": {
+    "firmware-images.zip": "7d1b4641d5b3a087aae6da6fd871b1089d6034e5de99d1cfa8b06dec26a9cfa9",
+    "validation-evidence.zip": "567f6ef26e5c07337908877e8e3dfd869d095116f178ded92e605ad22873e4aa"
+  }
+}

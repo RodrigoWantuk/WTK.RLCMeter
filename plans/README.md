@@ -160,3 +160,41 @@ classification/trend evidence, bounded hardware-owned K1 continuation and exact
 incremental menus in PC-provisioned PRODUCT. Raw captures/calibration are
 preserved; unattended validation cannot replace pending physical switching/UI
 checks. Legacy full-wizard and fixed-capture profiles retain their safe paths.
+
+[Plan 25](25-Trimmed-Measurement-Estimate.md) implements a bounded seven-sample
+coordinate-wise trimmed complex estimate after autorange, preserving raw search
+history, calibration provenance and the original K1/battery deadlines. Physical
+follow-up to plan 24 now records two valid inductive results and an owner-confirmed
+single K1 engagement/release across four captures; independent qualification remains pending.
+
+[Plan 26](26-Three-Frequency-Product-Survey.md) integrates all three existing
+frequencies before final factory PRODUCT interpretation, guarded SAFE/fresh-
+permit segmentation for 10 Hz, twelve-record traceability and seven-point
+primary estimates without increasing the fast continuous authorization.
+
+[Plan 27](27-Single-Relay-Continuous-Survey.md) replaces factory segmentation
+with one K1 engagement and final release across the three-frequency/seven-sample
+survey, using real interleaved power sampling and unchanged evidence freshness.
+Legacy captures retain their authorization limits; physical acceptance is
+tracked separately from software tests.
+
+[Plan 28](28-Serial-OK-Control.md) adds explicit bounded PRODUCT serial short-OK
+control through the ordinary UI path for an owner-confirmed unchanged passive
+DUT, preserving real permission, duplicate rejection and quiet acquisition.
+Diagnostic profiles retain their existing protocols.
+
+[Plan 29](29-Unit-Extended-Flash-Capacity.md) records the owner-authorized first-unit
+upper-Flash experiment: complete patterns, reset persistence and execution near
+128 KiB pass despite the 64-KiB factory register. Contents and calibrated SAFE
+boot are restored; normal C8 build/programming limits remain 64 KiB.
+
+[Plan 30](30-Production-Firmware-Audit-and-Completion.md) records a complete
+production audit and ordered completion work: real asynchronous settings saves,
+idle/backlight policy, audible feedback, fault/watchdog handling, consistent
+production profiles, bounded UART diagnostics, explicit unit-only 128-KiB
+deployment and native quick OPEN/SHORT lead compensation. The audit is complete;
+the [correction work is now in progress](../docs/review/production-completion-2026-10-27/README.md).
+The native menu is now implemented; final software checks and physical acceptance are tracked separately. Existing engineering OSL and
+owner assets must be preserved, without another factory LOAD campaign.
+
+Production completion: [sealed software image, memory and acceptance handoff](../Firmware/releases/2026-10-27/production-completion/README.md). Software checks passed; deployment and physical qualification are pending.

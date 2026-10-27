@@ -45,14 +45,16 @@ def peripheral_composition_errors(symbols: str, enabled: bool) -> list[str]:
 
 def factory_composition_errors(symbols: str, commands: list[dict], enabled: bool) -> list[str]:
     present = {Path(row["file"].replace("\\", "/")).name for row in commands}
-    exclusive = {"app_calibration_wizard.c", "app_calibration_session.c", "measurement_calibration_solver.c"}
+    exclusive = {"app_calibration_wizard.c", "app_calibration_session.c", "measurement_calibration_solver.c",
+                 "app_calibration_service.c", "measurement_calibration_store.c"}
     if not enabled:
         return []
     errors = ["factory PRODUCT compiled wizard source: " + name for name in sorted(present & exclusive)]
     pattern = re.compile(r"app_calibration_wizard_|app_calibration_session_|measurement_cal_solver_|measurement_cal_store_(?:step|write_start)|prepare_wizard_line|calibration_load_preset_value|cal_load_preset_token")
     errors += [line for line in symbols.splitlines() if pattern.search(line)]
     for name in ("app_product.c", "app_calibration_runtime.c", "measurement_calibration.c",
-                 "measurement_calibration_store.c", "app_resource_update.c", "hw_safety.c"):
+                 "measurement_calibration_store_loadonly.c", "app_calibration_service_loadonly.c",
+                 "app_resource_update.c", "hw_safety.c"):
         if name not in present:
             errors.append("factory PRODUCT missing retained source: " + name)
     return errors
@@ -84,6 +86,17 @@ def curve_composition_errors(symbols: str, commands: list[dict], enabled: bool) 
     return errors
 
 
+def campaign_composition_errors(binary: bytes, enabled: bool) -> list[str]:
+    unavailable=b"CAL_CMP_UNAVAILABLE use=BRINGUP_CAL"
+    solver=b"CAL_CMP_SOLVE st="
+    if enabled:
+        errors=[]
+        if unavailable not in binary:errors.append("restricted diagnostic lacks explicit factory-campaign unavailability")
+        if solver in binary:errors.append("restricted diagnostic links factory campaign solver")
+        return errors
+    return ["unrestricted profile links campaign limitation"] if unavailable in binary else []
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("elf", type=Path)
@@ -92,6 +105,8 @@ def main() -> int:
     parser.add_argument("--supplementary-curves", choices=("ON", "OFF"))
     parser.add_argument("--compile-commands", type=Path)
     parser.add_argument("--factory-provisioned", choices=("ON", "OFF"), default="OFF")
+    parser.add_argument("--k1-bench-test", choices=("ON", "OFF"))
+    parser.add_argument("--bench-supply", choices=("ON", "OFF"))
     parser.add_argument("--peripheral-test", choices=("ON", "OFF"), default="OFF")
     args = parser.parse_args()
 
@@ -110,6 +125,8 @@ def main() -> int:
         return completed.returncode
 
     matches: list[str] = []
+    if args.k1_bench_test is not None or args.bench_supply is not None:
+        matches.extend(campaign_composition_errors(args.elf.read_bytes(), args.k1_bench_test=="ON" or args.bench_supply=="ON"))
     if args.peripheral_test == "ON" and args.profile != "BRINGUP":
         parser.error("peripheral diagnostic requires BRINGUP")
     matches.extend(peripheral_composition_errors(completed.stdout, args.peripheral_test == "ON"))

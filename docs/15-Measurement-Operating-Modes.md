@@ -6,7 +6,7 @@ These modes change *when* complete measurement transactions are requested. They 
 
 ## Design principle
 
-Current implementation checkpoint (October 25, 2026): PRODUCT exposes Click;
+Historical implementation checkpoint (October 25, 2026; superseded for factory PRODUCT by the three-frequency section below): PRODUCT exposes Click;
 continuous Live is not enabled in the UI. A fresh Click probes 1 kohm / 1 kHz /
 100 mVrms, or reuses a valid previous-condition hint, then selects range/channel
 and may retry amplitude and one secondary frequency. Reactive refinement from
@@ -346,3 +346,36 @@ LIVE  = the application repeatedly schedules complete automatic measurement
 ```
 
 The distinction is scheduling/UX policy. The safety and metrology transaction underneath both modes remains the same.
+
+## Three-frequency factory PRODUCT survey
+
+The PC-provisioned PRODUCT now explicitly surveys 1 kHz, 10 kHz and finally
+10 Hz before a normal final R/C/L or endpoint conclusion. Initial range hints
+may select RREF but cannot skip a frequency. Select RREF adaptively within each
+frequency: at most four distinct conditions per stage, twelve total, nine range
+moves and two frequency changes. This is not an exhaustive Cartesian sweep.
+Actual hardware failure/cancel terminates immediately; a weak acquired/DSP-
+rejected return may rerange or advance to another frequency. Separate attempted
+and usable frequency masks preserve this distinction. F3/3 in details reports
+attempted frequency coverage, not accuracy qualification.
+
+Classification combines usable evidence. Low-frequency resistance dominance can
+support a higher-frequency inductive result; high-frequency resistance dominance
+can support a low-frequency capacitive result. Opposing reactive signs or an
+inconsistent trend remain unknown. Resistor classification requires usable,
+unambiguous observations at all three frequencies; sub-ohm resistance-dominated
+results remain impedance/unknown because the documented lower target is about
+1 ohm and a small choke may be unresolved below the 10-kHz ceiling. No lowered
+reactance threshold or forced sub-uH L publication is introduced.
+
+Fast captures retain the existing 500-ms/six-search-capture hardware segment.
+Before 10 Hz or another required segment, app DRAINING waits for K1 SAFE,
+ADC/auxiliary restoration and workspace/quiet release. New captures get ordinary
+fresh permits. Ten Hz keeps its existing 800-ms settling/400-ms acquisition and
+SAFE per capture. Seven-sample trimming then uses one selected primary condition;
+if that primary is 10 Hz its additional windows also use full fresh-permit SAFE
+cycles. Expect longer measurements and multiple K1 cycles for these cases.
+The 60-s overall app bound does not replace any hardware timeout. Existing
+500-ms connected/battery evidence limits are not extended. This implementation
+is not qualification of polarized electrolytics, the 10-mF target or accuracy.
+See [plan 26](../plans/26-Three-Frequency-Product-Survey.md).

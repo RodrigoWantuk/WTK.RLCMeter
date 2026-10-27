@@ -9,7 +9,7 @@
 
 enum
 {
-    SETTINGS_SCHEMA_VERSION = 3u,
+    SETTINGS_SCHEMA_VERSION = 4u,
     SETTINGS_MIN_SCHEMA_VERSION = 2u,
     SETTINGS_HEADER_SIZE = 24u,
     SETTINGS_PAYLOAD_OFFSET = 24u,
@@ -18,6 +18,7 @@ enum
     SETTINGS_COMMIT_SIZE = 4u,
     SETTINGS_FRAME_SIZE = 36u,
     SETTINGS_CONTEXT_BUDGET_BYTES = 256u,
+    SETTINGS_SAVE_TIMEOUT_MS = 5000u,
 };
 
 _Static_assert(sizeof(app_settings_service_t) <= SETTINGS_CONTEXT_BUDGET_BYTES,
@@ -182,6 +183,13 @@ static bool decode_payload(const uint8_t *payload, uint16_t schema_version, app_
     return app_settings_validate(settings);
 }
 
+static uint32_t frame_crc(const uint8_t frame[SETTINGS_FRAME_SIZE])
+{
+    uint32_t crc = storage_crc32_update(STORAGE_CRC32_INIT, frame, 16u);
+    crc = storage_crc32_update(crc, &frame[20], SETTINGS_COMMIT_OFFSET - 20u);
+    return crc ^ STORAGE_CRC32_XOR_OUT;
+}
+
 static void serialize_frame(uint8_t frame[SETTINGS_FRAME_SIZE],
                             const app_settings_t *settings,
                             uint32_t sequence,
@@ -196,9 +204,9 @@ static void serialize_frame(uint8_t frame[SETTINGS_FRAME_SIZE],
     put_u16(&frame[8], SETTINGS_FRAME_SIZE);
     put_u16(&frame[10], SETTINGS_PAYLOAD_SIZE);
     put_u32(&frame[12], sequence);
-    put_u32(&frame[16], storage_crc32(payload, SETTINGS_PAYLOAD_SIZE));
     put_u32(&frame[20], 0u);
     memcpy(&frame[SETTINGS_PAYLOAD_OFFSET], payload, SETTINGS_PAYLOAD_SIZE);
+    put_u32(&frame[16], frame_crc(frame));
     put_u32(&frame[SETTINGS_COMMIT_OFFSET], committed ? SETTINGS_COMMIT_MARKER : UINT32_MAX);
 }
 
@@ -233,7 +241,9 @@ static app_settings_slot_status_t inspect_frame(const uint8_t frame[SETTINGS_FRA
     {
         return APP_SETTINGS_SLOT_CORRUPT;
     }
-    if (get_u32(&frame[16]) != storage_crc32(&frame[SETTINGS_PAYLOAD_OFFSET], SETTINGS_PAYLOAD_SIZE))
+    const uint32_t expected_crc = schema_version >= 4u ? frame_crc(frame) :
+        storage_crc32(&frame[SETTINGS_PAYLOAD_OFFSET], SETTINGS_PAYLOAD_SIZE);
+    if (get_u32(&frame[16]) != expected_crc || get_u32(&frame[20]) != 0u)
     {
         return APP_SETTINGS_SLOT_CORRUPT;
     }
@@ -392,7 +402,8 @@ bsp_status_t app_settings_service_set(app_settings_service_t *service,
     service->dirty = !service->persisted_valid ||
                      !settings_equal(&service->current, &service->persisted);
     service->save_failed = false;
-    service->status = service->dirty ? APP_SETTINGS_STATUS_DIRTY :
+    service->status = app_settings_service_busy(service) ? APP_SETTINGS_STATUS_SAVING :
+                     service->dirty ? APP_SETTINGS_STATUS_DIRTY :
                                       (service->persisted_valid ? APP_SETTINGS_STATUS_LOADED :
                                                                   APP_SETTINGS_STATUS_DEFAULTS);
     return BSP_STATUS_OK;
@@ -400,7 +411,6 @@ bsp_status_t app_settings_service_set(app_settings_service_t *service,
 
 bsp_status_t app_settings_service_save_start(app_settings_service_t *service, uint32_t now_ms)
 {
-    (void)now_ms;
     if ((service == NULL) || !service->initialized)
     {
         return BSP_STATUS_INVALID_ARG;
@@ -426,6 +436,7 @@ bsp_status_t app_settings_service_save_start(app_settings_service_t *service, ui
             APP_SETTINGS_SLOT_B;
     service->target_sequence = service->persisted_valid ? (service->persisted_sequence + 1u) : 1u;
     serialize_frame(service->frame, &service->current, service->target_sequence, false);
+    service->save_started_ms = now_ms;
     service->state = APP_SETTINGS_STORE_ERASE_START;
     service->status = APP_SETTINGS_STATUS_SAVING;
     service->last_error = BSP_STATUS_OK;
@@ -449,6 +460,11 @@ bsp_status_t app_settings_service_step(app_settings_service_t *service, uint32_t
     if (!app_settings_service_busy(service))
     {
         return BSP_STATUS_OK;
+    }
+    if ((uint32_t)(now_ms - service->save_started_ms) >= SETTINGS_SAVE_TIMEOUT_MS)
+    {
+        set_error(service, BSP_STATUS_TIMEOUT);
+        return BSP_STATUS_TIMEOUT;
     }
     const uint32_t base = service->slots[(uint8_t)service->target_slot].start;
     bsp_status_t status = BSP_STATUS_OK;
@@ -534,7 +550,7 @@ bsp_status_t app_settings_service_step(app_settings_service_t *service, uint32_t
             uint32_t sequence = 0u;
             if ((inspect_frame(service->verify, true, &decoded, &sequence) != APP_SETTINGS_SLOT_VALID) ||
                 (sequence != service->target_sequence) ||
-                !settings_equal(&decoded, &service->current))
+                memcmp(service->verify, service->frame, SETTINGS_COMMIT_OFFSET) != 0)
             {
                 status = BSP_STATUS_ERROR;
             }
@@ -544,10 +560,10 @@ bsp_status_t app_settings_service_step(app_settings_service_t *service, uint32_t
                 service->persisted_sequence = sequence;
                 service->active_slot = service->target_slot;
                 service->persisted_valid = true;
-                service->dirty = false;
+                service->dirty = !settings_equal(&service->current, &decoded);
                 service->save_failed = false;
                 service->state = APP_SETTINGS_STORE_DONE;
-                service->status = APP_SETTINGS_STATUS_LOADED;
+                service->status = service->dirty ? APP_SETTINGS_STATUS_DIRTY : APP_SETTINGS_STATUS_LOADED;
             }
         }
         break;

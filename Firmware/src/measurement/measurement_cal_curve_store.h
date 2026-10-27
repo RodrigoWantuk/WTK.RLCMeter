@@ -21,7 +21,7 @@ typedef struct
     uint32_t osl_sequence;
     uint32_t osl_frame_crc32;
     uint32_t curve_sequence;
-    uint8_t record_index[MEASUREMENT_CONDITION_REV1_MAX_SUPPORTED];
+    uint8_t record_index[MEASUREMENT_CONDITION_REV1_INDEX_COUNT];
     bool active;
 } measurement_cal_curve_store_t;
 

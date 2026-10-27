@@ -1,0 +1,101 @@
+Test project C:/Users/rodri/source/repos/WTK.RLCMeter/Firmware/build/calibration-20261025/ntc-host-tests
+      Start  1: wtk_smoke_test
+ 1/48 Test  #1: wtk_smoke_test ......................   Passed    0.03 sec
+      Start  2: wtk_measurement_trimmed_test
+ 2/48 Test  #2: wtk_measurement_trimmed_test ........   Passed    0.05 sec
+      Start  3: wtk_buttons_test
+ 3/48 Test  #3: wtk_buttons_test ....................   Passed    0.02 sec
+      Start  4: wtk_ui_peripheral_test
+ 4/48 Test  #4: wtk_ui_peripheral_test ..............   Passed    0.03 sec
+      Start  5: wtk_w25q_core_test
+ 5/48 Test  #5: wtk_w25q_core_test ..................   Passed    0.03 sec
+      Start  6: wtk_ili9341_color_test
+ 6/48 Test  #6: wtk_ili9341_color_test ..............   Passed    0.03 sec
+      Start  7: wtk_ili9341_geometry_test
+ 7/48 Test  #7: wtk_ili9341_geometry_test ...........   Passed    0.03 sec
+      Start  8: wtk_ili9341_readback_test
+ 8/48 Test  #8: wtk_ili9341_readback_test ...........   Passed    0.03 sec
+      Start  9: wtk_spi_bus_clock_test
+ 9/48 Test  #9: wtk_spi_bus_clock_test ..............   Passed    0.08 sec
+      Start 10: wtk_resource_store_test
+10/48 Test #10: wtk_resource_store_test .............   Passed    0.03 sec
+      Start 11: wtk_hw_buzzer_policy_test
+11/48 Test #11: wtk_hw_buzzer_policy_test ...........   Passed    0.03 sec
+      Start 12: wtk_hw_safety_test
+12/48 Test #12: wtk_hw_safety_test ..................   Passed    0.02 sec
+      Start 13: wtk_hw_relays_test
+13/48 Test #13: wtk_hw_relays_test ..................   Passed    0.03 sec
+      Start 14: wtk_hw_k1_bench_test
+14/48 Test #14: wtk_hw_k1_bench_test ................   Passed    0.03 sec
+      Start 15: wtk_hw_range_test
+15/48 Test #15: wtk_hw_range_test ...................   Passed    0.03 sec
+      Start 16: wtk_hw_measure_permit_test
+16/48 Test #16: wtk_hw_measure_permit_test ..........   Passed    0.05 sec
+      Start 17: wtk_app_safety_fault_test
+17/48 Test #17: wtk_app_safety_fault_test ...........   Passed    0.03 sec
+      Start 18: wtk_app_flash_access_test
+18/48 Test #18: wtk_app_flash_access_test ...........   Passed    0.03 sec
+      Start 19: wtk_app_io_workspace_test
+19/48 Test #19: wtk_app_io_workspace_test ...........   Passed    0.03 sec
+      Start 20: wtk_app_pc_link_protocol_test
+20/48 Test #20: wtk_app_pc_link_protocol_test .......   Passed    0.04 sec
+      Start 21: wtk_app_resource_update_test
+21/48 Test #21: wtk_app_resource_update_test ........   Passed    0.04 sec
+      Start 22: wtk_bsp_adc_core_test
+22/48 Test #22: wtk_bsp_adc_core_test ...............   Passed    0.03 sec
+      Start 23: wtk_hw_aux_sensors_test
+23/48 Test #23: wtk_hw_aux_sensors_test .............   Passed    0.03 sec
+      Start 24: wtk_hw_metrology_clock_test
+24/48 Test #24: wtk_hw_metrology_clock_test .........   Passed    0.03 sec
+      Start 25: wtk_hw_excitation_test
+25/48 Test #25: wtk_hw_excitation_test ..............   Passed    0.03 sec
+      Start 26: wtk_hw_metrology_raw_test
+26/48 Test #26: wtk_hw_metrology_raw_test ...........   Passed    0.02 sec
+      Start 27: wtk_hw_metrology_session_test
+27/48 Test #27: wtk_hw_metrology_session_test .......   Passed    0.04 sec
+      Start 28: wtk_hw_metrology_measure_test
+28/48 Test #28: wtk_hw_metrology_measure_test .......   Passed    0.04 sec
+      Start 29: wtk_measurement_dsp_test
+29/48 Test #29: wtk_measurement_dsp_test ............   Passed    0.03 sec
+      Start 30: wtk_measurement_dc_test
+30/48 Test #30: wtk_measurement_dc_test .............   Passed    0.03 sec
+      Start 31: wtk_measurement_calibration_test
+31/48 Test #31: wtk_measurement_calibration_test ....   Passed    0.04 sec
+      Start 32: wtk_measurement_engine_test
+32/48 Test #32: wtk_measurement_engine_test .........   Passed    0.04 sec
+      Start 33: wtk_app_measurement_session_test
+33/48 Test #33: wtk_app_measurement_session_test ....   Passed    0.03 sec
+      Start 34: wtk_app_product_test
+34/48 Test #34: wtk_app_product_test ................   Passed    0.03 sec
+      Start 35: wtk_app_settings_service_test
+35/48 Test #35: wtk_app_settings_service_test .......   Passed    0.03 sec
+      Start 36: wtk_app_calibration_wizard_test
+36/48 Test #36: wtk_app_calibration_wizard_test .....   Passed    0.13 sec
+      Start 37: wtk_ui_format_test
+37/48 Test #37: wtk_ui_format_test ..................   Passed    0.03 sec
+      Start 38: wtk_ui_utf8_test
+38/48 Test #38: wtk_ui_utf8_test ....................   Passed    0.03 sec
+      Start 39: wtk_ui_font_test
+39/48 Test #39: wtk_ui_font_test ....................   Passed    0.03 sec
+      Start 40: wtk_ui_image_test
+40/48 Test #40: wtk_ui_image_test ...................   Passed    0.03 sec
+      Start 41: wtk_ui_product_test
+41/48 Test #41: wtk_ui_product_test .................   Passed    0.03 sec
+      Start 42: wtk_app_calibration_workflow_test
+42/48 Test #42: wtk_app_calibration_workflow_test ...   Passed    0.04 sec
+      Start 43: wtk_pc_serial_ui_test
+43/48 Test #43: wtk_pc_serial_ui_test ...............   Passed    0.28 sec
+      Start 44: wtk_ntc_factory_profile_test
+44/48 Test #44: wtk_ntc_factory_profile_test ........   Passed    0.28 sec
+      Start 45: wtk_hw_ntc_factory_test
+45/48 Test #45: wtk_hw_ntc_factory_test .............   Passed    0.02 sec
+      Start 46: wtk_pc_osl_compatibility
+46/48 Test #46: wtk_pc_osl_compatibility ............   Passed    6.21 sec
+      Start 47: wtk_pc_cal_capture_integration
+47/48 Test #47: wtk_pc_cal_capture_integration ......   Passed    5.08 sec
+      Start 48: wtk_pc_osl_install_integration
+48/48 Test #48: wtk_pc_osl_install_integration ......   Passed   16.09 sec
+
+100% tests passed out of 48
+
+Total Test time (real) =  29.56 sec

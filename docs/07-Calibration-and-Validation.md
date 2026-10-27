@@ -395,3 +395,42 @@ Actual relay counts/timing, analog settling and phase consistency with continuou
 connection remain REQUIRES_BENCH_VALIDATION; no owner button/fixture interaction
 is available during this work. No debugger state injection or reset-triggered
 DUT measurement is an acceptable substitute for a supported measurement command.
+
+## Physical follow-up and robust estimate
+
+The [session/menu physical follow-up](../Firmware/releases/2026-10-26/session-and-menu/physical-followup/README.md)
+records 467.0/468.8-uH results from the same passive inductor (nominal unconfirmed)
+and an owner-confirmed single K1 engagement/release during a four-capture session.
+This supersedes the earlier lack of an owner relay-count observation; switching
+transients, phase/accuracy and fault/deadline timing remain unqualified.
+
+Plan 25 adds post-search seven-sample trimming to factory PRODUCT, not a new
+calibration campaign or calibration record format. OSL coefficients and all
+33 active engineering conditions, assets and UID-bound NTC calibration must be
+preserved. Host evidence covers deterministic signed-coordinate trimming,
+separate masks, wrapped phase, nonfinite values, same-condition/provenance
+admission, bounded rejections, original raw history, cancellation, cleanup
+faults, role/condition locks, timers and one authorization. Actual seven-window
+completion time, fixture stability and repeated C/L results require board evidence;
+statistical filtering does not qualify absolute accuracy.
+
+## Three-frequency survey acceptance
+
+The segmented transaction details below describe plan 26. Plan 27 adds one
+continuous factory transaction with actual interleaved power supervision; it
+does not alter OSL records, the seven-point estimator or accuracy qualification.
+
+Plan 26 completes automatic use of the existing 10-Hz/1-kHz/10-kHz calibration
+conditions. No coefficient or persistent format is changed, no old captures are
+relabeled, and no resistor recapture campaign is required. Preserve active OSL
+sequence 1/all 33 records and the experimental UID-bound NTC profile.
+
+Host tests exercise all three frequencies for R/C/L, 4,700/10,000-uF synthetic
+recovery from unusable high-frequency returns, 470-uH low-frequency resistance
+versus higher-frequency inductance, 10-H, small-C, true OPEN/SHORT, clipping,
+weak coverage, opposing signs and sub-ohm ambiguity. App tests cover guarded
+segment drains, fresh-statistical and repeated 10-Hz captures, seven-point
+aggregation, exact frequency derivation, cancel/cleanup faults and overall
+expiry. These are synthetic/IO tests, not physical 10-mF or polarized-capacitor
+qualification. Physical settling, leakage, phase/accuracy, relay/abort timing
+and large-electrolytic excitation remain REQUIRES_BENCH_VALIDATION.

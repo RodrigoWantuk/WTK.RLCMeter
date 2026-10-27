@@ -196,6 +196,9 @@ static void test_resource_session_rejects_mismatch_cases(void)
 
 int main(void)
 {
+    require_bool(app_pc_link_magic_byte('P',0u) && app_pc_link_magic_byte('L',1u) &&
+        app_pc_link_magic_byte('C',2u) && app_pc_link_magic_byte('1',3u));
+    require_bool(!app_pc_link_magic_byte('X',0u) && !app_pc_link_magic_byte('P',4u));
     test_decode_rejects_bad_header_and_crc();
     test_resource_session_accepts_ordered_chunks();
     test_resource_session_rejects_mismatch_cases();

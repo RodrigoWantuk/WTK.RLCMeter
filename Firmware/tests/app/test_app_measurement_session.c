@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <math.h>
 
 typedef struct
 {
@@ -18,14 +19,16 @@ typedef struct
     bool open_like;
     bool short_like;
     bool phase05_fail;
+    uint8_t provenance_variant;
+    bool processing_missing;
     hw_metrology_measure_error_t phase05_error;
 } fake_outcome_t;
 
 typedef struct
 {
     app_measurement_session_io_t io;
-    fake_outcome_t outcomes[MEASUREMENT_AUTO_MAX_ATTEMPTS];
-    hw_metrology_measure_request_t requests[MEASUREMENT_AUTO_MAX_ATTEMPTS];
+    fake_outcome_t outcomes[MEASUREMENT_AUTO_HISTORY_CAPACITY + MEASUREMENT_TRIMMED_MAX_EXTRA_CAPTURES];
+    hw_metrology_measure_request_t requests[MEASUREMENT_AUTO_HISTORY_CAPACITY + MEASUREMENT_TRIMMED_MAX_EXTRA_CAPTURES];
     hw_metrology_block_t block;
     uint8_t outcome_count;
     uint8_t start_count;
@@ -37,6 +40,13 @@ typedef struct
     hw_metrology_measure_error_t error;
 #if WTK_ENABLE_MEASURE_SESSION_HOLD
     bool hold_mode;
+    bool qualified_calibration;
+#if WTK_ENABLE_FREQUENCY_SURVEY
+    bool synthetic_survey;
+    float survey_r;
+    float survey_c;
+    float survey_l;
+#endif
     bool hold_waiting;
     bool closing;
     bool cleanup_fail;
@@ -138,6 +148,8 @@ static bsp_status_t fake_start_attempt(const hw_metrology_measure_request_t *req
     fake->done = false;
 #if WTK_ENABLE_MEASURE_SESSION_HOLD
     fake->hold_waiting = false;
+    fake->closing = false;
+    fake->cleanup_steps = 0u;
 #endif
     fake->dumpable = !outcome->phase05_fail;
     fake->error = outcome->phase05_error;
@@ -168,6 +180,18 @@ static bsp_status_t fake_step_attempt(uint32_t now_ms, void *user)
 #if WTK_ENABLE_MEASURE_SESSION_HOLD
     if (fake->hold_mode)
     {
+#if WTK_ENABLE_FREQUENCY_SURVEY
+        if (fake->synthetic_survey && fake->start_count != 0u &&
+#if WTK_ENABLE_CONTINUOUS_SURVEY
+            !fake->io.continuous_survey_enabled &&
+#endif
+            fake->requests[fake->start_count - 1u].frequency == HW_EXCITATION_FREQ_10HZ)
+        {
+            fake->active = false;
+            fake->done = true;
+            return BSP_STATUS_OK;
+        }
+#endif
         if (fake->closing)
         {
             fake->cleanup_steps++;
@@ -269,6 +293,36 @@ static bsp_status_t fake_process_block(const hw_metrology_block_t *block,
         return BSP_STATUS_ERROR;
     }
     const fake_outcome_t *outcome = &fake->outcomes[fake->process_count];
+    if (outcome->processing_missing)
+    {
+        fake->process_count++;
+        return BSP_STATUS_ERROR;
+    }
+#if WTK_ENABLE_FREQUENCY_SURVEY
+    fake_outcome_t synthetic;
+    if (fake->synthetic_survey)
+    {
+        const float omega = 6.28318530718f * (float)frequency_hz(attempt->frequency);
+        const measurement_complex_t z = measurement_complex(fake->survey_r,
+            fake->survey_c > 0.0f ? -1.0f / (omega * fake->survey_c) : omega * fake->survey_l);
+        const measurement_dsp_config_t config = measurement_dsp_config_ideal(attempt->range_id);
+        const measurement_derived_result_t derived = measurement_derive_quantities(z,
+            frequency_hz(attempt->frequency), &config, MEASUREMENT_STATUS_OK);
+        synthetic = good_outcome(z, derived.interpretation);
+        synthetic.ret_1x_peak_v = 0.1f * measurement_complex_mag(z) /
+            measurement_complex_mag(measurement_complex_add(config.zref_ohms, z));
+        synthetic.ret_hg_peak_v = synthetic.ret_1x_peak_v;
+        synthetic.short_like = synthetic.ret_1x_peak_v < 0.00005f;
+        if (synthetic.short_like)
+        {
+            synthetic.dsp_status = MEASUREMENT_STATUS_CHANNEL_UNUSABLE;
+            synthetic.ret_1x_usable = false;
+            synthetic.ret_hg_usable = false;
+            synthetic.short_like = false;
+        }
+        outcome = &synthetic;
+    }
+#endif
     fake->process_count++;
     *processed = (measurement_calibrated_result_t){0};
     measurement_result_t *result = &processed->result;
@@ -281,6 +335,19 @@ static bsp_status_t fake_process_block(const hw_metrology_block_t *block,
         .uncalibrated = true,
     };
     result->status = outcome->dsp_status;
+#if WTK_ENABLE_MEASUREMENT_TRIMMED
+    if (fake->io.trimmed_enabled)
+    {
+        const measurement_cal_key_t key = measurement_cal_key(MEASUREMENT_CAL_HARDWARE_REV1,
+            MEASUREMENT_CAL_MODEL_VERSION_CURRENT, attempt->range_id, attempt->frequency, attempt->amplitude);
+        processed->provenance.source = MEASUREMENT_CAL_SOURCE_PERSISTED;
+        processed->provenance.status = fake->qualified_calibration ?
+            MEASUREMENT_CAL_RESOLVE_FOUND : MEASUREMENT_CAL_RESOLVE_UNQUALIFIED;
+        processed->provenance.set_sequence = 1u + outcome->provenance_variant;
+        processed->provenance.condition_id = measurement_cal_condition_id(&key);
+        processed->provenance.uncalibrated = !fake->qualified_calibration;
+    }
+#endif
     result->phasors.vexc_1_peak_v = outcome->source_peak_v;
     result->phasors.vexc_2_peak_v = outcome->source_peak_v;
     result->phasors.clipped = outcome->clipped;
@@ -323,6 +390,9 @@ static bsp_status_t fake_process_block(const hw_metrology_block_t *block,
                                                     },
                                                     outcome->dsp_status);
     result->derived.interpretation = outcome->interpretation;
+#if WTK_ENABLE_FREQUENCY_SURVEY
+    if (fake->synthetic_survey && outcome->dsp_status != MEASUREMENT_STATUS_OK) return BSP_STATUS_ERROR;
+#endif
     return BSP_STATUS_OK;
 }
 
@@ -372,7 +442,7 @@ static app_measurement_event_t run_until_event(app_measurement_session_t *sessio
                                                app_measurement_event_t wanted,
                                                uint32_t *now_ms)
 {
-    for (uint32_t i = 0u; i < 32u; i++)
+    for (uint32_t i = 0u; i < 128u; i++)
     {
         const app_measurement_event_t event = app_measurement_session_step(session, (*now_ms)++);
         if ((event != APP_MEASUREMENT_EVENT_NONE) && ((wanted == APP_MEASUREMENT_EVENT_NONE) || (event == wanted)))
@@ -694,6 +764,238 @@ static int test_held_partial_continuation_and_cancel(void)
 }
 #endif
 
+#if WTK_ENABLE_MEASUREMENT_TRIMMED
+static int test_trimmed_session(void)
+{
+    int failures = 0;
+    for (uint8_t variant = 0u; variant < 6u; variant++)
+    {
+        app_measurement_session_t session;
+        fake_io_t fake = {0};
+        fake.hold_mode = true;
+        fake.qualified_calibration = variant == 0u;
+        fake.outcome_count = 9u;
+        for (uint8_t i = 0u; i < fake.outcome_count; i++)
+            fake.outcomes[i] = good_outcome(measurement_complex(1000.0f, 0.0f), MEASUREMENT_INTERPRET_RESISTIVE);
+        fake.outcomes[1].z.re = 9000.0f;
+        fake.outcomes[2].z.re = -9000.0f;
+        fake.outcomes[3].z.re = 1002.0f;
+        fake.outcomes[4].z.re = 1001.0f;
+        fake.outcomes[5].z.re = 9100.0f;
+        fake.outcomes[6].z.re = -9100.0f;
+        if (variant == 1u)
+        {
+            fake.outcomes[1].selected = MEASUREMENT_RETURN_HG;
+            fake.outcomes[2].provenance_variant = 1u;
+        }
+        if (variant == 2u)
+            for (uint8_t i = 1u; i < fake.outcome_count; i++) fake.outcomes[i].clipped = true;
+        failures += start_session(&session, &fake, MEASUREMENT_AUTO_MODE_CLICK, 31u + variant, NULL);
+        fake.io.finish_session = fake_finish_session;
+        fake.io.trimmed_enabled = true;
+        uint32_t now = 1u;
+        for (uint32_t i = 0u; i < 128u && !app_measurement_session_final_ready(&session); i++)
+        {
+            (void)app_measurement_session_step(&session, now++);
+            if (session.trimming && variant == 3u) (void)app_measurement_session_cancel(&session);
+            if (session.trimming && variant == 5u) fake.supervision_fail = true;
+            if (variant == 4u && session.state == APP_MEASUREMENT_SESSION_FINISHING) fake.cleanup_fail = true;
+            if (fake.active)
+                failures += expect_true(!app_measurement_session_final_ready(&session), "filtered final waits for SAFE cleanup");
+        }
+        const measurement_session_result_t *result = app_measurement_session_final(&session);
+        failures += expect_true(result != NULL && !fake.active, "trimmed session always terminates and releases owner");
+        if (result == NULL) continue;
+        failures += expect_true(result->trimmed.requested && result->attempt_count == 1u &&
+                                session.policy.history[0].z_ohms.re == 1000.0f,
+                                "statistical windows never overwrite raw search history");
+        const bool success = variant <= 1u;
+        failures += expect_true(result->trimmed.applied == success, "only a complete safe estimate is marked applied");
+        if (success)
+        {
+            failures += expect_u32(result->trimmed.samples, 7u, "exactly seven admitted samples");
+            failures += expect_u32(fake.start_count, variant == 0u ? 7u : 9u, "bounded mismatched-path and provenance rejection");
+            failures += expect_true(result->status == MEASUREMENT_AUTO_STATUS_FINAL_OK &&
+                result->primary_attempt.derived.valid &&
+                result->confidence.publication_confidence == MEASUREMENT_CONFIDENCE_LOW_CONFIDENCE,
+                "averaging preserves unqualified confidence and derives one result");
+            if (variant == 0u)
+                failures += expect_true(fabsf(result->primary_attempt.z_ohms.re - 1001.0f) < 0.001f &&
+                                        result->trimmed.r_retained_mask == 25u,
+                                        "two high and two low coordinates excluded");
+        }
+        else
+        {
+            failures += expect_true(result->confidence.publication_confidence == MEASUREMENT_CONFIDENCE_REJECTED,
+                                    "incomplete canceled or faulty filter cannot fall back to raw result");
+            const measurement_auto_status_t expected = variant == 2u ? MEASUREMENT_AUTO_STATUS_FAILED :
+                variant == 3u ? MEASUREMENT_AUTO_STATUS_CANCELED : MEASUREMENT_AUTO_STATUS_SAFETY_ABORT;
+            failures += expect_true(result->status == expected, "filtered failure has explicit terminal disposition");
+        }
+        for (uint8_t i = 1u; i < fake.start_count; i++)
+            failures += expect_true(fake.requests[i].statistical_capture && fake.requests[i].session_hold &&
+                fake.requests[i].range_id == HW_RANGE_ID_1K && fake.requests[i].frequency == HW_EXCITATION_FREQ_1KHZ,
+                "all statistical windows use explicit role and primary condition");
+        failures += expect_true(!fake.requests[0].statistical_capture, "initial search is never a statistical authorization");
+    }
+    return failures;
+}
+
+static int test_trimmed_primary_after_second_frequency(void)
+{
+    int failures = 0;
+    app_measurement_session_t session;
+    fake_io_t fake = {0};
+    fake.hold_mode = true;
+    fake.outcome_count = 8u;
+    for (uint8_t i = 0u; i < fake.outcome_count; i++)
+        fake.outcomes[i] = good_outcome(measurement_complex(20.0f, -3000.0f), MEASUREMENT_INTERPRET_CAPACITIVE);
+    fake.outcomes[1].z.im = -300.0f;
+    failures += start_session(&session, &fake, MEASUREMENT_AUTO_MODE_CLICK, 38u, NULL);
+    fake.io.finish_session = fake_finish_session;
+    fake.io.trimmed_enabled = true;
+    uint32_t now = 1u;
+    failures += expect_true(run_until_event(&session, APP_MEASUREMENT_EVENT_FINAL_RESULT, &now) ==
+                            APP_MEASUREMENT_EVENT_FINAL_RESULT, "reactive aggregate completes after frequency refinement");
+    const measurement_session_result_t *result = app_measurement_session_final(&session);
+    failures += expect_true(result != NULL && result->trimmed.applied && result->attempt_count == 2u &&
+                            result->primary_attempt.config.frequency == HW_EXCITATION_FREQ_1KHZ &&
+                            result->classification.interpretation == MEASUREMENT_INTERPRET_CAPACITIVE &&
+                            result->primary_attempt.derived.capacitance_valid,
+                            "C derives from selected primary while secondary evidence remains raw");
+    failures += expect_true(fake.requests[1].frequency == HW_EXCITATION_FREQ_10KHZ &&
+                            fake.requests[2].frequency == HW_EXCITATION_FREQ_1KHZ &&
+                            fake.requests[2].statistical_capture, "first statistical window returns to primary frequency");
+    return failures;
+}
+#endif
+
+#if WTK_ENABLE_FREQUENCY_SURVEY
+static int test_complete_survey_and_statistical_segments(void)
+{
+    int failures = 0;
+    for (uint8_t variant = 0u; variant < 6u; variant++)
+    {
+        app_measurement_session_t session;
+        fake_io_t fake = {0};
+        fake.hold_mode = true;
+        fake.synthetic_survey = true;
+        fake.survey_r = variant == 0u ? 0.07f : 7.5f;
+        fake.survey_c = variant == 0u ? 0.0047f : 0.0f;
+        fake.survey_l = variant == 0u ? 0.0f : 0.000470f;
+        fake.outcome_count = MEASUREMENT_AUTO_HISTORY_CAPACITY + MEASUREMENT_TRIMMED_MAX_EXTRA_CAPTURES;
+        for (uint8_t i = 0u; i < fake.outcome_count; i++)
+            fake.outcomes[i] = good_outcome(measurement_complex(10.0f, 0.0f), MEASUREMENT_INTERPRET_RESISTIVE);
+        if (variant == 5u) fake.outcomes[1].processing_missing = true;
+        failures += start_session(&session, &fake, MEASUREMENT_AUTO_MODE_CLICK, 40u + variant, NULL);
+        fake.io.finish_session = fake_finish_session;
+        fake.io.trimmed_enabled = true;
+        fake.io.frequency_survey_enabled = true;
+        /* start_session uses the legacy policy to keep pre-existing tests
+         * unchanged; restart this not-yet-captured policy with survey opt-in. */
+        const measurement_auto_start_t start = {.frequency_survey = true,
+            .qualification = MEASUREMENT_QUALIFICATION_UNQUALIFIED, .session_sequence = 40u + variant};
+        (void)measurement_auto_start_session(&session.policy, &start);
+        uint32_t now = 1u;
+        bool saw_draining = false;
+        for (uint32_t i = 0u; i < 512u && !app_measurement_session_final_ready(&session); i++)
+        {
+            const app_measurement_event_t event = app_measurement_session_step(&session, now++);
+            if (app_measurement_session_final_ready(&session))
+                failures += expect_true(event == APP_MEASUREMENT_EVENT_FINAL_RESULT,
+                    "final event is delivered on terminal step, including already-SAFE 10-Hz capture");
+            if (session.state == APP_MEASUREMENT_SESSION_DRAINING)
+            {
+                saw_draining = true;
+                failures += expect_true(fake.active && !app_measurement_session_final_ready(&session),
+                                        "frequency handoff drains owner before new permit");
+                if (variant == 2u) (void)app_measurement_session_cancel(&session);
+                if (variant == 3u) fake.cleanup_fail = true;
+                if (variant == 4u) now = session.survey_deadline_ms;
+            }
+        }
+        const measurement_session_result_t *result = app_measurement_session_final(&session);
+        failures += expect_true(result != NULL && !fake.active && (saw_draining || variant == 5u),
+                                "bounded survey completes or aborts through safe ownership handoff");
+        if (result == NULL) continue;
+        if (variant >= 2u)
+        {
+            failures += expect_true(result->status == (variant == 2u ? MEASUREMENT_AUTO_STATUS_CANCELED :
+                                    variant == 5u ? MEASUREMENT_AUTO_STATUS_FAILED :
+                                                    MEASUREMENT_AUTO_STATUS_SAFETY_ABORT) && !result->trimmed.applied,
+                                    "draining cancellation cleanup fault and overall deadline revoke publication");
+            continue;
+        }
+        failures += expect_true(result->status == MEASUREMENT_AUTO_STATUS_FINAL_OK && result->trimmed.applied &&
+                                result->trimmed.samples == 7u && result->trimmed.extra_captures == 6u &&
+                                result->frequency_attempted_mask == 7u,
+                                "all-frequency final receives exactly seven valid primary samples");
+        const hw_excitation_freq_t primary = variant == 0u ? HW_EXCITATION_FREQ_10HZ : HW_EXCITATION_FREQ_1KHZ;
+        failures += expect_true(result->primary_attempt.config.frequency == primary &&
+            result->classification.interpretation == (variant == 0u ? MEASUREMENT_INTERPRET_CAPACITIVE :
+                                                                    MEASUREMENT_INTERPRET_INDUCTIVE),
+            "large-C and inductive evidence choose suitable primary frequency");
+        for (uint8_t i = result->attempt_count; i < fake.start_count; i++)
+        {
+            failures += expect_true(fake.requests[i].frequency == primary, "statistical windows never mix frequencies");
+            if (primary == HW_EXCITATION_FREQ_10HZ || i == result->attempt_count)
+                failures += expect_true(!fake.requests[i].statistical_capture,
+                                        "fresh segment enters normal real-permit path before statistical continuation");
+        }
+        if (variant == 0u)
+            failures += expect_true(fabsf(result->primary_attempt.derived.capacitance_f - 0.0047f) < 0.000001f,
+                                    "10-Hz aggregate derives capacitance at 10 Hz, never 1 kHz");
+    }
+    return failures;
+}
+#endif
+
+#if WTK_ENABLE_CONTINUOUS_SURVEY
+static int test_continuous_app_survey(void)
+{
+    int failures = 0;
+    for (uint8_t capacitor = 0u; capacitor < 2u; capacitor++)
+    {
+        app_measurement_session_t session;
+        fake_io_t fake = {0};
+        fake.hold_mode = true;
+        fake.synthetic_survey = true;
+        fake.survey_r = capacitor != 0u ? 0.07f : 7.5f;
+        fake.survey_c = capacitor != 0u ? 0.0047f : 0.0f;
+        fake.survey_l = capacitor != 0u ? 0.0f : 0.000470f;
+        fake.outcome_count = MEASUREMENT_AUTO_HISTORY_CAPACITY + MEASUREMENT_TRIMMED_MAX_EXTRA_CAPTURES;
+        for (uint8_t i = 0u; i < fake.outcome_count; i++)
+            fake.outcomes[i] = good_outcome(measurement_complex(10.0f, 0.0f), MEASUREMENT_INTERPRET_RESISTIVE);
+        failures += start_session(&session, &fake, MEASUREMENT_AUTO_MODE_CLICK, 70u, NULL);
+        fake.io.finish_session = fake_finish_session;
+        fake.io.trimmed_enabled = true;
+        fake.io.frequency_survey_enabled = true;
+        fake.io.continuous_survey_enabled = true;
+        const measurement_auto_start_t start = {.frequency_survey = true,
+            .qualification = MEASUREMENT_QUALIFICATION_UNQUALIFIED, .session_sequence = 70u};
+        (void)measurement_auto_start_session(&session.policy, &start);
+        uint32_t now = 1u;
+        for (uint32_t i = 0u; i < 512u && !app_measurement_session_final_ready(&session); i++)
+        {
+            (void)app_measurement_session_step(&session, now++);
+            failures += expect_true(session.state != APP_MEASUREMENT_SESSION_DRAINING,
+                                    "continuous mode never splits at 10Hz or six fast search captures");
+            if (fake.start_count != 0u && session.state != APP_MEASUREMENT_SESSION_DONE)
+                failures += expect_true(fake.active, "one hardware owner spans frequency and statistical handoffs");
+        }
+        const measurement_session_result_t *result = app_measurement_session_final(&session);
+        failures += expect_true(result != NULL && result->status == MEASUREMENT_AUTO_STATUS_FINAL_OK &&
+                                result->trimmed.applied && result->trimmed.samples == 7u &&
+                                result->frequency_attempted_mask == 7u && !fake.active,
+                                "single-owner path preserves all-frequency seven-valid-point final after cleanup");
+        for (uint8_t i = 0u; i < fake.start_count; i++)
+            failures += expect_true(fake.requests[i].continuous_survey && fake.requests[i].session_hold,
+                                    "every capture explicitly retains continuous survey ownership");
+    }
+    return failures;
+}
+#endif
+
 int main(int argc, char **argv)
 {
     if ((argc == 2) && (strcmp(argv[1], "--sizes") == 0))
@@ -714,6 +1016,16 @@ int main(int argc, char **argv)
 #if WTK_ENABLE_MEASURE_SESSION_HOLD
     failures += test_final_result_waits_for_session_cleanup();
     failures += test_held_partial_continuation_and_cancel();
+#if WTK_ENABLE_MEASUREMENT_TRIMMED
+    failures += test_trimmed_session();
+    failures += test_trimmed_primary_after_second_frequency();
+#if WTK_ENABLE_FREQUENCY_SURVEY
+    failures += test_complete_survey_and_statistical_segments();
+#if WTK_ENABLE_CONTINUOUS_SURVEY
+    failures += test_continuous_app_survey();
+#endif
+#endif
+#endif
 #endif
     return (failures == 0) ? 0 : 1;
 }

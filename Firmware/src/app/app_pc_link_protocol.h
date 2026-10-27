@@ -5,6 +5,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+bool app_pc_link_magic_byte(uint8_t byte, uint16_t index);
+
 enum
 {
     APP_PC_LINK_MAGIC = 0x31434C50u, /* "PLC1" little-endian */

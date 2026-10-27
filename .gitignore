@@ -41,3 +41,7 @@ __pycache__/
 # Local scratch
 scratch/
 local/
+
+# Local/CI Python environments
+.workbench-env/
+.venv/

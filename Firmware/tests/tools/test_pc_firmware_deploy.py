@@ -62,7 +62,72 @@ def image_fixture(root,profile):
     d.inspect(root/"manifest.json"); return root/"manifest.json"
 
 
+class Unit128GeometryTests(unittest.TestCase):
+    def test_geometry_override_is_never_inferred_from_register_or_marker(self):
+        text=f"WTK_B011_TARGET|20036410|411fc231|64|00000000|ffffffff|{d.UNIT128_UID}|134217728|131072|stm32f1x|halted\n"
+        with self.assertRaises(ValueError): d.parse_target(text)
+        target=d.parse_target(text,131072)
+        self.assertEqual(target["flash_kib"],64)
+        self.assertEqual(target["flash_bytes"],131072)
+        for bad in (text.replace(d.UNIT128_UID,UID),text.replace("|64|","|128|")):
+            with self.assertRaises(ValueError): d.parse_target(bad,131072)
+
+    def test_unit_plan_and_build_require_explicit_binding(self):
+        with tempfile.TemporaryDirectory() as folder:
+            backend=d.OpenOCD(Path(folder)/"openocd.exe",Path(folder)/"scripts","SERIAL123",131072)
+            with self.assertRaises(ValueError): backend.plan("probe",folder,uid=UID)
+            plan=backend.plan("probe",folder,uid=d.UNIT128_UID)
+            self.assertEqual(plan["environment"]["WTK_FLASH_BYTES"],"131072")
+            self.assertEqual(plan["internal_flash_range"],[d.BASE,d.BASE+131072])
+            result=d.build("FACTORY_PRODUCT_UNIT128",Path(folder)/"build",dry_run=True)
+            self.assertIn("stm32-unit-release",result["commands"][0])
+            self.assertTrue(any(d.UNIT128_UID+"-ntc-engineering.json" in x for x in result["commands"][0]))
+            flags={"WTK_INTERNAL_FLASH_BYTES":"131072u","WTK_EXTENDED_FLASH_UID":d.UNIT128_UID,"WTK_NTC_FACTORY_UID":d.UNIT128_UID}
+            self.assertEqual(d.validate_memory_binding("FACTORY_PRODUCT_UNIT128",flags),131072)
+            with self.assertRaises(ValueError): d.validate_memory_binding("FACTORY_PRODUCT",flags)
+            flags["WTK_NTC_FACTORY_UID"]=UID
+            with self.assertRaises(ValueError): d.validate_memory_binding("FACTORY_PRODUCT_UNIT128",flags)
+
+    def test_upper_half_elf_requires_selected_128_bounds(self):
+        import struct
+        with tempfile.TemporaryDirectory() as folder:
+            image=image_fixture(Path(folder)/"image","BRINGUP")
+            elf=bytearray(image.with_name("firmware.elf").read_bytes())
+            header=list(struct.unpack_from('<16sHHIIIIIHHHHHH',elf)); header[10]=2
+            elf[:52]=struct.pack('<16sHHIIIIIHHHHHH',*header)
+            elf[84:116]=struct.pack('<8I',1,0x3000,d.BASE+65536,d.BASE+65536,16,16,5,4)
+            elf.extend(bytes(0x3010-len(elf)))
+            elf[0x3000:0x3010]=b'upper-half-test!'
+            with self.assertRaises(ValueError): d.elf_info(elf)
+            binary,_=d.elf_info(elf,131072)
+            self.assertEqual(len(binary),65552)
+            self.assertEqual(binary[65536:],b'upper-half-test!')
+
+
 class DeployTests(unittest.TestCase):
+    def test_atomic_save_transient_windows_lock(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path=Path(folder)/"record.json"; path.write_text('{"old": true}',encoding="utf-8")
+            replace=os.replace; calls=[]
+            def locked_then_replace(source,destination):
+                calls.append(source)
+                if len(calls)<3: raise PermissionError("transient test lock")
+                replace(source,destination)
+            with patch.object(d.os,"replace",side_effect=locked_then_replace), patch.object(d.time,"sleep") as sleep:
+                d.save(path,{"new": True})
+            self.assertEqual(json.loads(path.read_text(encoding="utf-8")),{"new": True})
+            self.assertEqual(len(calls),3); self.assertEqual(sleep.call_count,2)
+            self.assertFalse(list(Path(folder).glob("*.tmp")))
+
+    def test_atomic_save_persistent_lock_keeps_old_record_and_stops(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path=Path(folder)/"record.json"; path.write_text('{"old": true}',encoding="utf-8")
+            with patch.object(d.os,"replace",side_effect=PermissionError("persistent test lock")) as replace, patch.object(d.time,"sleep"):
+                with self.assertRaises(PermissionError): d.save(path,{"new": True})
+            self.assertEqual(replace.call_count,8)
+            self.assertEqual(json.loads(path.read_text(encoding="utf-8")),{"old": True})
+            self.assertEqual(len(list(Path(folder).glob("*.tmp"))),1)
+
     def ntc_image(self):
         import ntc_factory_profile as ntc
         profile=d.load(Path(__file__).resolve().parents[2]/"config/units/54ff70068370525760380567-ntc-engineering.json")
@@ -486,7 +551,7 @@ class RealArtifactTests(unittest.TestCase):
         for profile in d.PROFILES:
             with self.subTest(profile=profile):
                 result=d.inspect(Path(IMAGE_ROOT)/profile/"manifest.json")
-                self.assertEqual(result["profile"],profile); self.assertLessEqual(result["binary_size"],65536)
+                self.assertEqual(result["profile"],profile); self.assertLessEqual(result["binary_size"],d.profile_flash_bytes(profile))
 
     def test_real_bringup_64_single_page_erases_and_external_preservation(self):
         with tempfile.TemporaryDirectory() as temp:

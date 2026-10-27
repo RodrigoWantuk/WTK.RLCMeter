@@ -106,6 +106,10 @@ static void begin_group(hw_aux_sensors_t *sensors, sensor_group_t group, uint32_
 
 static void invalidate_active_group(hw_aux_sensors_t *sensors)
 {
+#if WTK_ENABLE_CONTINUOUS_SURVEY
+    sensors->power_refreshing = false;
+    sensors->power_ready = false;
+#endif
     sensors->fault_mask |= HW_AUX_SENSOR_FAULT_ADC_RUNTIME;
     sensors->state = sensors->paused ? HW_AUX_SENSORS_PAUSED : HW_AUX_SENSORS_IDLE;
     sensors->current_channel = BSP_ADC_CHANNEL_INVALID;
@@ -239,6 +243,30 @@ static void complete_sample(hw_aux_sensors_t *sensors, uint16_t raw)
     }
 
     sensors->sample_index = 0u;
+#if WTK_ENABLE_CONTINUOUS_SURVEY
+    if (sensors->power_refreshing)
+    {
+        if (sensors->channel_phase == 0u)
+        {
+            sensors->channel_phase = 3u;
+            sensors->state = HW_AUX_SENSORS_START;
+            return;
+        }
+        const uint16_t vmid = mean4(sensors->accum_vmid);
+        const float vmid_v = bsp_adc_raw_to_voltage(vmid);
+        sensors->snapshot.vmid_raw = vmid;
+        sensors->snapshot.vmid_v = vmid_v;
+        sensors->snapshot.vmid_valid = !sensors->vmid_group_saturated &&
+            !hw_residual_raw_is_saturated(vmid) && vmid_v >= HW_AUX_VMID_MIN_V && vmid_v <= HW_AUX_VMID_MAX_V;
+        publish_battery(sensors);
+        sensors->power_refreshing = false;
+        sensors->power_ready = true;
+        sensors->current_channel = BSP_ADC_CHANNEL_INVALID;
+        sensors->channel_phase = 255u;
+        sensors->state = HW_AUX_SENSORS_PAUSED;
+        return;
+    }
+#endif
     if (active_group(sensors) == SENSOR_GROUP_RESIDUAL)
     {
         if (sensors->channel_phase < 2u)
@@ -340,6 +368,10 @@ bsp_status_t hw_aux_sensors_init(hw_aux_sensors_t *sensors, const hw_aux_adc_io_
     sensors->residual_published = false;
     sensors->battery_published = false;
     sensors->ntc_published = false;
+#if WTK_ENABLE_CONTINUOUS_SURVEY
+    sensors->power_refreshing = false;
+    sensors->power_ready = false;
+#endif
     reset_group(sensors);
     return BSP_STATUS_OK;
 }
@@ -351,7 +383,11 @@ bsp_status_t hw_aux_sensors_step(hw_aux_sensors_t *sensors, uint32_t now_ms)
         return BSP_STATUS_INVALID_ARG;
     }
 
-    if (sensors->paused)
+    if (sensors->paused
+#if WTK_ENABLE_CONTINUOUS_SURVEY
+        && !sensors->power_refreshing
+#endif
+       )
     {
         if (sensors->state == HW_AUX_SENSORS_POLL)
         {
@@ -423,6 +459,10 @@ void hw_aux_sensors_pause(hw_aux_sensors_t *sensors)
     }
 
     sensors->paused = true;
+#if WTK_ENABLE_CONTINUOUS_SURVEY
+    sensors->power_refreshing = false;
+    sensors->power_ready = false;
+#endif
     if (sensors->state == HW_AUX_SENSORS_POLL)
     {
         sensors->io.cancel(sensors->io.user_data);
@@ -442,6 +482,10 @@ void hw_aux_sensors_resume(hw_aux_sensors_t *sensors, uint32_t now_ms)
     }
 
     sensors->paused = false;
+#if WTK_ENABLE_CONTINUOUS_SURVEY
+    sensors->power_refreshing = false;
+    sensors->power_ready = false;
+#endif
     sensors->state = HW_AUX_SENSORS_IDLE;
     sensors->current_channel = BSP_ADC_CHANNEL_INVALID;
     sensors->next_residual_due_ms = now_ms;
@@ -449,6 +493,30 @@ void hw_aux_sensors_resume(hw_aux_sensors_t *sensors, uint32_t now_ms)
     sensors->next_ntc_due_ms = now_ms;
     reset_group(sensors);
 }
+
+#if WTK_ENABLE_CONTINUOUS_SURVEY
+bsp_status_t hw_aux_sensors_power_begin(hw_aux_sensors_t *sensors, uint32_t now_ms)
+{
+    if (sensors == NULL || !sensors->paused || sensors->state != HW_AUX_SENSORS_PAUSED ||
+        sensors->power_refreshing) return BSP_STATUS_INVALID_ARG;
+    invalidate_residual_evidence(sensors);
+    reset_group(sensors);
+    sensors->group_timestamp_ms = now_ms;
+    sensors->power_ready = false;
+    sensors->power_refreshing = true;
+    sensors->last_adc_status = BSP_STATUS_OK;
+    sensors->channel_phase = 0u;
+    sensors->state = HW_AUX_SENSORS_START;
+    return BSP_STATUS_OK;
+}
+
+bsp_status_t hw_aux_sensors_power_status(const hw_aux_sensors_t *sensors)
+{
+    if (sensors == NULL || !sensors->paused || sensors->fault_mask != 0u) return BSP_STATUS_ERROR;
+    if (sensors->power_refreshing) return BSP_STATUS_BUSY;
+    return sensors->power_ready ? BSP_STATUS_OK : BSP_STATUS_ERROR;
+}
+#endif
 
 bool hw_aux_sensors_is_idle(const hw_aux_sensors_t *sensors)
 {

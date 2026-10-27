@@ -11,6 +11,7 @@ typedef enum
     APP_FLASH_ACCESS_RESOURCE_MUTATION,
     APP_FLASH_ACCESS_RESOURCE_READ,
     APP_FLASH_ACCESS_GENERIC_POLL,
+    APP_FLASH_ACCESS_LEAD_MUTATION,
 } app_flash_access_operation_t;
 
 typedef struct
@@ -19,6 +20,7 @@ typedef struct
     bool calibration_mutation;
     bool settings_mutation;
     bool resource_mutation;
+    bool lead_mutation;
 } app_flash_access_snapshot_t;
 
 bool app_flash_access_allowed(const app_flash_access_snapshot_t *snapshot,

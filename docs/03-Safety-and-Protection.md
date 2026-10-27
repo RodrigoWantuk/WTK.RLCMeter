@@ -168,3 +168,55 @@ session requires real residual requalification and a new initial permit.
 
 See [plan 24](../plans/24-Measurement-Evidence-Session-and-UI.md). This change
 does not extend the de-energized-passive-component or voltage envelope.
+
+## Three-frequency survey segmentation
+
+This describes plan 26's former factory implementation. Plan 27's explicit
+continuous option below supersedes segmentation for PC-provisioned PRODUCT.
+
+Factory PRODUCT includes 10 Hz last, without extending continuous authorization.
+App DRAINING completes SAFE/ADC/auxiliary/quiet/workspace cleanup before a
+10-Hz capture or another fast segment after its search-capture budget. Cleanup
+fault/cancel prevents restarting. Each new segment obtains fresh real residual,
+power, clock, charger and range permission. The first statistical window after
+SAFE uses the normal initial-permit path; later fast repeats use the bounded,
+condition-locked continuation role. The 500-ms connected and original battery
+expiry remain unchanged.
+
+Existing 10-Hz fixed capture uses 800-ms sine settling and 400-ms coherent ADC
+capture, live charger/fault checks and full SAFE cleanup. It remains outside the
+fast held-session optimization. Every repeated 10-Hz statistical capture renews
+permission after real auxiliary/residual sampling. Multiple relay cycles are
+intentional under this contract; no fresh battery/residual evidence is invented
+while ADC auxiliaries are paused. An overall 60-s application survey bound
+limits the at-most-twelve search/eight-extra workflow; it does not grant a
+60-s continuous K1 authorization or supersede hardware timeouts.
+
+Unpowered passive DUT and existing residual/polarized-component restrictions
+remain. All-frequency software coverage does not qualify the bipolar AC mode
+for 4,700/10,000-uF electrolytics. No automatic boot measurement is added.
+
+## Continuous factory survey with sampled power supervision
+
+WTK_ENABLE_CONTINUOUS_SURVEY is confined to PC-provisioned PRODUCT. One fresh
+ordinary permit and residual check authorize one K1 engagement for the same
+unpowered passive DUT through all three frequencies and seven admitted samples.
+Guarded neutral range changes retain RANGE_EN disabling, dead time and settling.
+Publication waits for the final SAFE release and complete cleanup.
+
+Continuous authorization is bounded to 30,000 ms, twelve search captures and
+eight extra statistical attempts; the outer application deadline remains 60 s.
+The battery-evidence limit remains 1,000 ms. Every approximately 250 ms outside
+coherent acquisition, the hardware owner lends the ADC to a power-only auxiliary
+group: four VMID and four BAT conversions. Restore, sampling and reacquisition
+share a 100-ms bound. A coherent 10-Hz window takes 400 ms and completes without
+concurrent auxiliary sampling. Original sine-settling deadlines are preserved.
+
+Only actual validated group timestamps renew battery evidence. Invalid VMID,
+critical/unknown battery, ADC errors, stale/future/preceding samples, timeout,
+charger/interlock, fault, DMA error, lost ownership or cancellation fail closed.
+Residual state remains UNKNOWN during connection; no new SAFE observation or
+permit is fabricated. DUT removal or external power during a held survey is
+outside the authorized use. Legacy requests without this option retain their
+500-ms fast-session and individual fixed-capture behavior. Physical timing and
+metrology qualification remain REQUIRES_BENCH_VALIDATION until recorded.

@@ -11,6 +11,7 @@
 #include "app/app_pc_link_protocol.h"
 #endif
 #include "app/app_product.h"
+#include "app/app_serial_ui.h"
 #if !WTK_ENABLE_BRINGUP_CONSOLE && WTK_ENABLE_PRODUCT_RESOURCE_UPDATE
 #include "app/app_resource_update.h"
 #endif
@@ -64,6 +65,7 @@ static volatile struct
 #include "storage/measurement_cal_w25q_adapter.h"
 #if !WTK_ENABLE_BRINGUP_CONSOLE && WTK_ENABLE_SUPPLEMENTARY_CURVES
 #include "measurement/measurement_cal_curve_store.h"
+#include "app/app_curve_cache.h"
 #endif
 #include "storage/resource_store.h"
 #include "storage/resource_w25q_adapter.h"
@@ -117,6 +119,7 @@ static bool g_display_ready_reported = false;
 #else
 static app_settings_service_t g_settings_service;
 static app_product_t g_product;
+static app_lead_calibration_t g_lead;
 static ui_product_t g_product_ui;
 static hw_metrology_measure_t g_product_measure;
 static resource_catalog_t g_resource_catalog;
@@ -129,6 +132,7 @@ static resource_w25q_reader_t g_resource_reader;
 static resource_status_t g_resource_status = RESOURCE_STATUS_MISSING;
 #if WTK_ENABLE_SUPPLEMENTARY_CURVES
 static measurement_cal_curve_store_t g_curve_store;
+static app_curve_cache_t g_curve_cache;
 #endif
 #if WTK_ENABLE_PRODUCT_RESOURCE_UPDATE
 static app_resource_update_t g_resource_update;
@@ -142,9 +146,14 @@ static bool g_pc_link_frame_ready = false;
 static bool g_pc_link_ack_deferred = false;
 static bool g_resource_update_configured = false;
 static bool g_resource_update_workspace_acquired = false;
+#if WTK_ENABLE_SERIAL_UI
+static app_serial_ui_t g_serial_ui;
+static uint32_t g_pc_link_rx_deadline_ms;
+#endif
 #endif
 static uint16_t g_product_ccr_table[HW_EXCITATION_LUT_MAX_POINTS];
 static uint32_t g_product_output_tone_sequence = 0u;
+static app_feedback_t g_product_feedback;
 static uint8_t g_product_output_backlight_percent = UINT8_MAX;
 static bool g_product_output_sound_valid = false;
 static bool g_product_output_sound_enabled = true;
@@ -226,6 +235,7 @@ static app_flash_access_snapshot_t product_flash_access_snapshot(void *user)
         .quiet = hw_peripherals_quiet_requested(),
         .calibration_mutation = app_calibration_service_busy(&g_calibration_service),
         .settings_mutation = app_settings_service_busy(&g_settings_service),
+        .lead_mutation = lead_profile_store_busy(&g_lead.store),
 #if WTK_ENABLE_PRODUCT_RESOURCE_UPDATE
         .resource_mutation = app_resource_update_active(&g_resource_update),
 #else
@@ -270,6 +280,12 @@ static void product_load_curve_store(void)
         product_active_osl_crc32(),
         app_io_workspace_calibration_frame(&g_io_workspace),
         app_io_workspace_calibration_frame_bytes());
+    if (g_curve_store.active)
+    {
+        (void)app_curve_cache_load(&g_curve_cache, &g_curve_store,
+            app_io_workspace_calibration_frame(&g_io_workspace),
+            app_io_workspace_calibration_frame_bytes());
+    }
     (void)app_io_workspace_release(&g_io_workspace, APP_IO_WORKSPACE_OWNER_CAL_CURVE);
 }
 #endif
@@ -566,6 +582,69 @@ static APP_NOINLINE void product_pc_link_decode_ready_frame(uint32_t now_ms)
     {
         sequence = app_read_le16(&g_pc_link_frame[8]);
     }
+#if WTK_ENABLE_SERIAL_UI
+    if(pc_status==APP_PC_LINK_STATUS_OK && frame.type==(app_pc_link_frame_type_t)APP_SERIAL_UI_FLASH_READ) {
+        uint8_t reply[APP_SERIAL_UI_TELEMETRY_BYTES],header[APP_PC_LINK_HEADER_SIZE];
+        const app_flash_access_snapshot_t access=product_flash_access_snapshot(NULL);
+        const bool allowed=g_flash.detected && !g_resource_update_configured &&
+            app_flash_access_allowed(&access,APP_FLASH_ACCESS_RESOURCE_READ) &&
+            !hw_metrology_measure_active(&g_product_measure) && hw_k1_commanded_state(&g_k1)==HW_K1_STATE_SAFE &&
+            hw_range_get_state(&g_range)==HW_RANGE_FSM_DISABLED;
+        app_serial_ui_flash_read(&g_serial_ui,&g_product,&frame,g_flash.part.capacity_bytes,allowed,
+            g_settings_service.io.read,g_settings_service.io.user,reply);
+        (void)app_pc_link_encode_header(header,(app_pc_link_frame_type_t)APP_SERIAL_UI_FLASH_READ_RESPONSE,
+            0u,sequence,reply,sizeof(reply));
+        product_pc_link_reset_rx();(void)bsp_uart_write((const char *)header,sizeof(header));
+        (void)bsp_uart_write((const char *)reply,sizeof(reply));return;
+    }
+    if (pc_status == APP_PC_LINK_STATUS_OK && frame.type == (app_pc_link_frame_type_t)APP_SERIAL_UI_TELEMETRY)
+    {
+        hw_aux_sensors_snapshot_t snapshot;
+        const uint32_t sampled_now = bsp_time_now_ms();
+        hw_aux_sensors_snapshot(&g_aux_sensors, sampled_now, &snapshot);
+        uint8_t uid[12], reply[APP_SERIAL_UI_TELEMETRY_BYTES], header[APP_PC_LINK_HEADER_SIZE];
+        bsp_reset_read_device_uid(uid);
+        app_serial_telemetry_t telemetry = {.sensors = &snapshot, .uid = uid, .now_ms = sampled_now,
+            .feedback_dropped = g_product_feedback.dropped, .feedback_error = g_product_feedback.last_error,
+            .lead_active = app_lead_active_profile(&g_lead)!=NULL,
+            .lead_sequence = app_lead_active_profile(&g_lead)!=NULL?g_lead.store.active.sequence:0u,
+            .blocker_flags = g_safety_result.blocker_flags, .charger = hw_charger_get_state(&g_charger),
+            .k1_commanded = (uint8_t)hw_k1_commanded_state(&g_k1), .range_state = (uint8_t)hw_range_get_state(&g_range)};
+        bsp_uart_rx_counters(&telemetry.uart_errors, &telemetry.uart_overflows);
+        app_serial_ui_telemetry(&g_serial_ui, &g_product, &frame, &telemetry, reply);
+        (void)app_pc_link_encode_header(header, (app_pc_link_frame_type_t)APP_SERIAL_UI_TELEMETRY_RESPONSE,
+            0u, sequence, reply, sizeof(reply));
+        product_pc_link_reset_rx();
+        (void)bsp_uart_write((const char *)header, sizeof(header));
+        (void)bsp_uart_write((const char *)reply, sizeof(reply));
+        return;
+    }
+    if (pc_status == APP_PC_LINK_STATUS_OK &&
+        (frame.type == (app_pc_link_frame_type_t)APP_SERIAL_UI_STATUS || frame.type == (app_pc_link_frame_type_t)APP_SERIAL_UI_OK_CLICK))
+    {
+        bool physical_idle = g_buttons.event_count == 0u;
+        for (unsigned i = 0u; i < BUTTON_ID_COUNT; ++i)
+            physical_idle = physical_idle && !g_buttons.states[i].raw_pressed && !g_buttons.states[i].debounced_pressed;
+        const bool can_activate = physical_idle && app_product_serial_idle(&g_product) && !g_resource_update_configured &&
+            !hw_peripherals_quiet_requested() && !hw_metrology_measure_active(&g_product_measure) &&
+            hw_k1_commanded_state(&g_k1) == HW_K1_STATE_SAFE &&
+            hw_range_get_state(&g_range) == HW_RANGE_FSM_DISABLED &&
+            bsp_excitation_mode() == BSP_EXCITATION_MODE_OFF &&
+            app_io_workspace_owner(&g_io_workspace) == APP_IO_WORKSPACE_OWNER_FREE &&
+            (g_safety_result.blocker_flags & ~(uint32_t)HW_SAFETY_BLOCK_RANGE) == 0u &&
+            app_calibration_service_active_valid(&g_calibration_service);
+        uint8_t reply[APP_SERIAL_UI_RESPONSE_BYTES];
+        uint8_t header[APP_PC_LINK_HEADER_SIZE];
+        app_serial_ui_handle(&g_serial_ui, &g_product, &frame, can_activate,
+            g_safety_result.blocker_flags, now_ms, reply);
+        app_pc_link_encode_header(header, (app_pc_link_frame_type_t)APP_SERIAL_UI_RESPONSE,
+            0u, sequence, reply, sizeof(reply));
+        product_pc_link_reset_rx();
+        (void)bsp_uart_write((const char *)header, sizeof(header));
+        (void)bsp_uart_write((const char *)reply, sizeof(reply));
+        return;
+    }
+#endif
     app_resource_update_status_t update_status = APP_RESOURCE_UPDATE_STATUS_PROTOCOL;
     if (pc_status == APP_PC_LINK_STATUS_OK)
     {
@@ -591,6 +670,22 @@ static APP_NOINLINE void product_pc_link_decode_ready_frame(uint32_t now_ms)
 
 static APP_NOINLINE void product_pc_link_step_rx(uint32_t now_ms)
 {
+    static uint32_t receive_epoch;
+    const uint32_t epoch = bsp_uart_rx_epoch();
+    if (epoch != receive_epoch)
+    {
+        product_pc_link_reset_rx();
+        receive_epoch = epoch;
+    }
+#if WTK_ENABLE_SERIAL_UI
+    if (hw_peripherals_quiet_requested())
+    {
+        product_pc_link_reset_rx();
+        return;
+    }
+    if (g_pc_link_received != 0u && (now_ms - g_pc_link_rx_deadline_ms) < 0x80000000u)
+        product_pc_link_reset_rx();
+#endif
     if (g_pc_link_ack_deferred || g_pc_link_frame_ready)
     {
         return;
@@ -601,10 +696,22 @@ static APP_NOINLINE void product_pc_link_step_rx(uint32_t now_ms)
         const bsp_status_t status = bsp_uart_try_read_byte(&byte);
         if (status != BSP_STATUS_OK)
         {
+            if (status != BSP_STATUS_BUSY) product_pc_link_reset_rx();
             break;
+        }
+        if (g_pc_link_received < 4u)
+        {
+            if (!app_pc_link_magic_byte(byte, g_pc_link_received))
+            {
+                product_pc_link_reset_rx();
+                if (!app_pc_link_magic_byte(byte, 0u)) continue;
+            }
         }
         if (g_pc_link_received < sizeof(g_pc_link_frame))
         {
+#if WTK_ENABLE_SERIAL_UI
+            if (g_pc_link_received == 0u) g_pc_link_rx_deadline_ms = now_ms + 250u;
+#endif
             g_pc_link_frame[g_pc_link_received] = byte;
             g_pc_link_received++;
         }
@@ -745,6 +852,7 @@ static bsp_status_t product_range_force_disabled(void *user)
 static void product_quiet_request(bool requested, void *user)
 {
     (void)user;
+    bsp_uart_rx_set_blocked(BSP_UART_RX_QUIET, requested);
     hw_peripherals_request_quiet(requested);
 }
 
@@ -790,6 +898,27 @@ static bsp_status_t product_adc_restore(uint32_t now_ms, void *user)
     (void)user;
     return bsp_metrology_adc_restore(now_ms);
 }
+
+#if WTK_ENABLE_CONTINUOUS_SURVEY
+static bsp_status_t product_power_begin(uint32_t now_ms, void *user)
+{
+    (void)user;
+    return hw_aux_sensors_power_begin(&g_aux_sensors, now_ms);
+}
+
+static bsp_status_t product_power_status(hw_metrology_power_sample_t *sample, void *user)
+{
+    (void)user;
+    const bsp_status_t status = hw_aux_sensors_power_status(&g_aux_sensors);
+    if (status != BSP_STATUS_OK || sample == NULL) return status != BSP_STATUS_OK ? status : BSP_STATUS_INVALID_ARG;
+    *sample = (hw_metrology_power_sample_t){
+        .timestamp_ms = g_aux_sensors.battery_timestamp_ms,
+        .battery = g_aux_sensors.snapshot.battery_state,
+        .vmid_valid = g_aux_sensors.snapshot.vmid_valid,
+    };
+    return BSP_STATUS_OK;
+}
+#endif
 
 static bool product_adc_dma_complete(void *user)
 {
@@ -935,6 +1064,10 @@ static const hw_metrology_measure_io_t g_product_measure_io = {
     .adc_start_capture = product_adc_start_capture,
     .adc_stop = product_adc_stop,
     .adc_restore = product_adc_restore,
+#if WTK_ENABLE_CONTINUOUS_SURVEY
+    .power_begin = product_power_begin,
+    .power_status = product_power_status,
+#endif
     .adc_dma_complete = product_adc_dma_complete,
     .adc_dma_error = product_adc_dma_error,
     .excitation_off = product_excitation_off,
@@ -968,6 +1101,7 @@ static bsp_status_t product_auto_start_attempt(const hw_metrology_measure_reques
                                                void *user)
 {
     (void)user;
+    bsp_uart_rx_set_blocked(BSP_UART_RX_APPLICATION, true);
     bool continuing = false;
 #if WTK_ENABLE_MEASURE_SESSION_HOLD
     continuing = hw_metrology_measure_state(&g_product_measure) == HW_METROLOGY_MEASURE_SESSION_HOLD;
@@ -1080,17 +1214,17 @@ static bsp_status_t product_auto_process_block(const hw_metrology_block_t *block
                                                           attempt->range_id,
                                                           attempt->frequency,
                                                           attempt->amplitude);
-    const bsp_status_t osl_status = measurement_cal_process_block(
+    const bsp_status_t osl_status = measurement_lead_process_block(
         block, app_calibration_service_active_set(&g_calibration_service),
-        &key, false, result);
+        &key, app_lead_active_profile(&g_lead), result);
 #if WTK_ENABLE_SUPPLEMENTARY_CURVES
     if ((osl_status != BSP_STATUS_OK) || !g_curve_store.active)
     {
         return osl_status;
     }
     measurement_cal_curve_t curve;
-    const bsp_status_t read_status = measurement_cal_curve_store_read(
-        &g_curve_store, &key,
+    const bsp_status_t read_status = app_curve_cache_get(
+        &g_curve_cache, &key,
         app_calibration_service_active_sequence(&g_calibration_service),
         product_active_osl_crc32(), &curve);
     if (read_status == BSP_STATUS_NOT_SUPPORTED)
@@ -1131,6 +1265,15 @@ static const app_measurement_session_io_t g_product_session_io = {
     .attempt_abort = product_auto_attempt_abort,
 #if WTK_ENABLE_MEASURE_SESSION_HOLD
     .finish_session = product_auto_finish_session,
+#if WTK_ENABLE_MEASUREMENT_TRIMMED
+    .trimmed_enabled = true,
+#if WTK_ENABLE_FREQUENCY_SURVEY
+    .frequency_survey_enabled = true,
+#if WTK_ENABLE_CONTINUOUS_SURVEY
+    .continuous_survey_enabled = true,
+#endif
+#endif
+#endif
 #endif
     .process_block = product_auto_process_block,
     .user = NULL,
@@ -1175,6 +1318,16 @@ static bsp_status_t product_init_controller(void)
 #endif
 }
 
+static bsp_status_t product_feedback_play(uint16_t hz, uint16_t ms, uint32_t now_ms, void *user)
+{
+    (void)user;
+    return hw_buzzer_play_tone(hz, ms, now_ms);
+}
+static void product_feedback_stop(void *user)
+{
+    (void)user;
+    hw_buzzer_mute();
+}
 static void product_apply_outputs(void)
 {
     app_product_outputs_t outputs;
@@ -1196,12 +1349,17 @@ static void product_apply_outputs(void)
     if ((outputs.tone_sequence != 0u) &&
         (outputs.tone_sequence != g_product_output_tone_sequence))
     {
-        g_product_output_tone_sequence = outputs.tone_sequence;
-        if (outputs.sound_enabled)
+        const bool quiet = hw_peripherals_quiet_requested();
+        if (!quiet || outputs.tone_event < APP_FEEDBACK_COMPLETE || !outputs.sound_enabled)
         {
-            (void)hw_buzzer_play_tone(outputs.tone_frequency_hz, outputs.tone_duration_ms, bsp_time_now_ms());
+            if (outputs.sound_enabled && !quiet)
+                (void)app_feedback_request(&g_product_feedback, outputs.tone_event);
+            g_product_output_tone_sequence = outputs.tone_sequence;
         }
     }
+    const app_feedback_io_t feedback_io = {.play = product_feedback_play, .stop = product_feedback_stop};
+    app_feedback_step(&g_product_feedback, &feedback_io, outputs.sound_enabled,
+                      hw_peripherals_quiet_requested(), bsp_time_now_ms());
 }
 #endif
 
@@ -1490,6 +1648,7 @@ static void app_step(void)
             (int32_t)(product_sensor_snapshot.ntc_temperature_c * 1000.0f) :
             0;
     app_product_inputs_t product_inputs = {
+        .sensors = &product_sensor_snapshot,
         .calibration_status = app_calibration_service_status(&g_calibration_service),
         .calibration_active_valid = app_calibration_service_active_valid(&g_calibration_service),
         .calibration_active_sequence = app_calibration_service_active_sequence(&g_calibration_service),
@@ -1502,6 +1661,7 @@ static void app_step(void)
         .display_fault = g_product_display_fault || (g_display.init_state == ILI9341_INIT_ERROR),
         .settings_storage_busy =
             !app_flash_access_allowed(&flash_access, APP_FLASH_ACCESS_SETTINGS_MUTATION),
+        .lead_storage_blocked = !app_flash_access_allowed(&flash_access, APP_FLASH_ACCESS_LEAD_MUTATION),
         .resource_status = g_resource_status,
     };
     app_product_step(&g_product,
@@ -1511,6 +1671,8 @@ static void app_step(void)
                      now_ms);
     ui_product_view_t product_view;
     app_product_make_view(&g_product, &product_view);
+    bsp_uart_rx_set_blocked(BSP_UART_RX_APPLICATION,
+        !app_product_serial_idle(&g_product) || hw_metrology_measure_active(&g_product_measure));
     product_apply_outputs();
     ui_product_request(&g_product_ui, &product_view);
     /* Keep polled UART responsive while the resource receiver owns Flash. */
@@ -1556,17 +1718,21 @@ void app_shell_run(void)
     app_calibration_service_attach_workspace(&g_calibration_service, &g_io_workspace);
     const bsp_status_t gpio_status = bsp_gpio_init_safe();
     app_record_status_fault(gpio_status, APP_SAFETY_FAULT_GPIO_INIT);
+    if (!bsp_reset_memory_profile_valid()) app_latch_fault(APP_SAFETY_FAULT_MEMORY_PROFILE);
     const bsp_status_t clock_status = bsp_clock_init();
     g_clock_status = clock_status;
     (void)bsp_time_init();
     (void)bsp_uart_init(115200u);
+#if !WTK_ENABLE_BRINGUP_CONSOLE
+    bsp_uart_rx_set_blocked(BSP_UART_RX_APPLICATION, true);
+#endif
 
     bsp_diagnostics_boot_banner(reset_reason, clock_status);
     if (!hw_metrology_clock_ready(bsp_clock_get_summary(), clock_status))
     {
         app_latch_fault(APP_SAFETY_FAULT_CLOCK);
     }
-    (void)bsp_watchdog_start();
+    app_record_status_fault(bsp_watchdog_start(), APP_SAFETY_FAULT_WATCHDOG);
 
     buttons_init(&g_buttons, NULL);
     const hw_k1_io_t k1_io = {
@@ -1638,6 +1804,7 @@ void app_shell_run(void)
 #endif
     g_resource_status = RESOURCE_STATUS_MISSING;
     g_product_output_tone_sequence = 0u;
+    app_feedback_init(&g_product_feedback);
     g_product_output_backlight_percent = UINT8_MAX;
     g_product_output_sound_valid = false;
     g_product_output_sound_enabled = true;
@@ -1705,6 +1872,13 @@ void app_shell_run(void)
             app_settings_service_use_defaults(&g_settings_service);
         }
         APP_VERBOSE_DIAG_TEXT("settings", bsp_status_string(settings_load_status));
+        uint8_t lead_uid[12]; bsp_reset_read_device_uid(lead_uid);
+        (void)app_lead_init(&g_lead,&g_calibration_service,&g_product_session_io,&settings_io,
+                            g_flash.part.capacity_bytes,lead_uid);
+#if WTK_ENABLE_SUPPLEMENTARY_CURVES
+        g_lead.supplementary_active=g_curve_store.active;
+#endif
+        app_product_attach_lead_service(&g_product,&g_lead);
         g_resource_status = product_mount_resource_pack();
         APP_VERBOSE_DIAG_TEXT("resources", resource_status_string(g_resource_status));
 #endif

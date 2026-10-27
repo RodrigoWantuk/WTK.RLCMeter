@@ -1,0 +1,190 @@
+{
+  "schema": "WTK_PRODUCTION_COMPLETION_DELIVERY_1",
+  "status": "SOFTWARE_VERIFIED_REQUIRES_BENCH_VALIDATION",
+  "image_source": {
+    "git_sha": "603f6715307c2b11f48b2f0470622139ca951728",
+    "dirty": false,
+    "git_status": "",
+    "input_sha256": "aca9d43ebf438c2d4d52ab71a88b68e072a8c0775c8642106748171c2c0b9e47"
+  },
+  "verification_followup_commit": "11add6a71b3a0855c503e73b199d511cd2f0a26b",
+  "profile": "FACTORY_PRODUCT_UNIT128",
+  "uid": "54ff70068370525760380567",
+  "hardware_programmed": false,
+  "hardware_measurements_performed": false,
+  "battery_voltage_v": null,
+  "battery_status": "NOT_READ_POWER_UNCONFIRMED",
+  "manifest_seal": "7558170d3733bd9e76431e8b8faa10a77ac803285f84056a6044cc63f5f65c0f",
+  "binary_sha256": "0340b3395adb95794e1fc9de41692cb04c0716eeb88d5184bac09965a2f2f170",
+  "linked": {
+    "flash_bytes": 75092,
+    "bss": 13104,
+    "ram_static_bytes": 13156,
+    "noinit_bytes": 0,
+    "reserved_stack_bytes": 2048,
+    "ram_accounted_bytes": 15204
+  },
+  "flash_capacity_bytes": 131072,
+  "flash_free_bytes": 55980,
+  "flash_budget_margin_bytes": 54956,
+  "ram_free_after_static_and_stack_bytes": 5276,
+  "ram_budget_margin_bytes": 2204,
+  "profiles": [
+    {
+      "profile": "unit-release",
+      "outcome": "PASS",
+      "flash": 75092,
+      "ram": 15204,
+      "stack": 2048,
+      "flash_capacity": 131072
+    },
+    {
+      "profile": "unit-debug",
+      "outcome": "PASS",
+      "flash": 74496,
+      "ram": 15124,
+      "stack": 2048,
+      "flash_capacity": 131072
+    },
+    {
+      "profile": "unit-no-serial",
+      "outcome": "PASS",
+      "flash": 72768,
+      "ram": 15200,
+      "stack": 2052,
+      "flash_capacity": 131072
+    },
+    {
+      "profile": "bringup",
+      "outcome": "PASS",
+      "flash": 64632,
+      "ram": 15708,
+      "stack": 2048,
+      "flash_capacity": 65536
+    },
+    {
+      "profile": "bringup-cal",
+      "outcome": "PASS",
+      "flash": 38284,
+      "ram": 14024,
+      "stack": 2048,
+      "flash_capacity": 65536
+    },
+    {
+      "profile": "bringup-k1",
+      "outcome": "PASS",
+      "flash": 61080,
+      "ram": 15716,
+      "stack": 2048,
+      "flash_capacity": 65536
+    },
+    {
+      "profile": "bringup-bench",
+      "outcome": "PASS",
+      "flash": 61264,
+      "ram": 15780,
+      "stack": 2048,
+      "flash_capacity": 65536
+    },
+    {
+      "profile": "bringup-peripheral",
+      "outcome": "PASS",
+      "flash": 15300,
+      "ram": 12532,
+      "stack": 2048,
+      "flash_capacity": 65536
+    },
+    {
+      "profile": "generic-product-budget",
+      "outcome": "EXPECTED_64K_BUDGET_STOP"
+    }
+  ],
+  "tests": {
+    "ctest_factory": "59/59",
+    "ctest_standard": "59/59",
+    "ctest_curves": "62/62",
+    "python": {
+      "cases": 531,
+      "skipped": 38,
+      "failed": 0,
+      "bridge_enabled": true
+    },
+    "gnu_strict_syntax": "3/3; cross compiler syntax only, not Linux host execution",
+    "simulated_programming": "SIMULATED_VERIFIED; 74 pages; outside pages preserved; wrong UID rejected; no W25Q access"
+  },
+  "stack": {
+    "reserved_bytes": 2048,
+    "largest_static_function_frames": [
+      {
+        "function": "C:/Users/rodri/source/repos/WTK.RLCMeter/Firmware/src/app/app_shell.c:1516:13:app_step",
+        "bytes": 672,
+        "kind": "static"
+      },
+      {
+        "function": "C:/Users/rodri/source/repos/WTK.RLCMeter/Firmware/src/app/app_lead_calibration.c:118:6:app_lead_step.part.0",
+        "bytes": 432,
+        "kind": "static"
+      },
+      {
+        "function": "C:/Users/rodri/source/repos/WTK.RLCMeter/Firmware/src/measurement/measurement_lead_compensation.c:121:14:measurement_lead_process_block",
+        "bytes": 424,
+        "kind": "static"
+      },
+      {
+        "function": "C:/Users/rodri/source/repos/WTK.RLCMeter/Firmware/src/measurement/measurement_engine.c:987:26:measurement_auto_submit_result.constprop",
+        "bytes": 368,
+        "kind": "static"
+      },
+      {
+        "function": "C:/Users/rodri/source/repos/WTK.RLCMeter/Firmware/src/app/app_shell.c:575:26:product_pc_link_decode_ready_frame",
+        "bytes": 352,
+        "kind": "static"
+      },
+      {
+        "function": "C:/Users/rodri/source/repos/WTK.RLCMeter/Firmware/src/app/app_measurement_session.c:354:25:app_measurement_session_step.constprop",
+        "bytes": 336,
+        "kind": "static"
+      },
+      {
+        "function": "C:/Users/rodri/source/repos/WTK.RLCMeter/Firmware/src/measurement/measurement_engine.c:841:13:finalize_result.constprop",
+        "bytes": 272,
+        "kind": "static"
+      },
+      {
+        "function": "C:/Users/rodri/source/repos/WTK.RLCMeter/Firmware/src/app/app_shell.c:293:39:product_mount_resource_pack",
+        "bytes": 240,
+        "kind": "static"
+      }
+    ],
+    "runtime_high_water": "NOT_MEASURED",
+    "limitation": "Single-function compiler reports do not prove transitive or interrupt stack high-water"
+  },
+  "preserved": {
+    "external_flash_access": false,
+    "ntc_profile_semantic_sha256": "9b3826a20b3c621a9e92be0035431b140c45d7a23acaba8ec237a63e4e8cad44",
+    "ntc_source_unchanged": true,
+    "factory_osl": "Existing sequence 1/all 33 not accessed or recaptured",
+    "assets": "Owner splash and installed resources not accessed or overwritten"
+  },
+  "physical_pending": [
+    "Confirm charged stable supply and actual UART battery/NTC",
+    "Back up external mutable tail/assets before any migration or profile write",
+    "Deploy sealed UID-bound image and verify SAFE/identity",
+    "Settings apply/cancel/save/reboot and interrupted-save behavior",
+    "Display/buttons/buzzer/idle/quiet operation",
+    "Lead-end OPEN/SHORT capture/save/reboot and independent R/C/L holdouts",
+    "Relay single ownership, seven samples, abort/charger/fault timing",
+    "Runtime stack high-water and worst cooperative latency",
+    "Accuracy, polarized envelope, extreme 10 mF and upper-Flash endurance remain unqualified"
+  ],
+  "archives": {
+    "firmware.zip": {
+      "bytes": 128771,
+      "sha256": "c76fefbcdaa0dbdd24a995581c139ff2051acfcc0b4250fe73face1b0023ca90"
+    },
+    "evidence.zip": {
+      "bytes": 233703,
+      "sha256": "5bf0f1dc2b008cd8fb6f8a8b5d81c9752b94e2976ae6545f9c50c99c84857923"
+    }
+  }
+}

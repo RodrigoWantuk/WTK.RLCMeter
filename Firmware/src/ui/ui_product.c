@@ -8,7 +8,7 @@
 
 #include "ui/ui_fallback_renderer.h"
 #include "ui/ui_format.h"
-#if WTK_PRODUCT_FACTORY_PROVISIONED
+#if WTK_PRODUCT_MODERN
 #include "ui/ui_utf8.h"
 #endif
 
@@ -448,7 +448,7 @@ static bool append_label_space(const ui_product_t *ui,
     return true;
 }
 
-#if WTK_PRODUCT_FACTORY_PROVISIONED
+#if WTK_PRODUCT_MODERN
 static bool result_pt(const ui_product_view_t *view)
 {
     return view->menu.language_id == (uint8_t)UI_LANGUAGE_PT_BR;
@@ -559,7 +559,7 @@ static bool prepare_result_details_line(const ui_product_t *ui,
         result_label(ui, view, line, 12u, UI_TEXT_ID_DETAILS, pt ? "DETALHES" : "DETAILS");
         return true;
     }
-    if (index > 11u) return false;
+    if (index > 12u) return false;
     char text[32] = {0};
     char value[24] = {0};
     size_t used = 0u;
@@ -592,18 +592,36 @@ static bool prepare_result_details_line(const ui_product_t *ui,
     else if (index == 8u)
     {
         (void)append_text(text, sizeof(text), &used, range_prompt_text((hw_range_id_t)result->range_id));
-        (void)append_text(text, sizeof(text), &used,
-            result->return_channel == (uint8_t)MEASUREMENT_RETURN_HG ? " / RET HG / " : " / RET 1X / ");
-        (void)ui_format_append_u32(text, sizeof(text), &used, result->attempt_count);
-        (void)append_text(text, sizeof(text), &used, pt ? " tent." : " att.");
+        (void)append_text(text, sizeof(text), &used,result->return_channel==(uint8_t)MEASUREMENT_RETURN_HG?" RET:HG N:":" RET:1X N:");
+        (void)ui_format_append_u32(text,sizeof(text),&used,result->attempt_count);
     }
-    else if (index == 9u) (void)write_literal(pt ? "Erro max.:" : "Max error:", text, sizeof(text));
-    else if (index == 10u) (void)write_literal(error_status_text(view, result->max_error_status), text, sizeof(text));
+    else if(index==9u) {
+#if WTK_ENABLE_MEASUREMENT_TRIMMED
+        (void)append_text(text,sizeof(text),&used,result->trimmed_applied?"AVG7/3 ":"AVG n/a ");
+#if WTK_ENABLE_FREQUENCY_SURVEY
+        const uint32_t mask=result->frequency_attempted_mask;
+        const uint32_t count=(mask&1u)+((mask>>1u)&1u)+((mask>>2u)&1u);
+        (void)append_text(text,sizeof(text),&used,"F");
+        (void)ui_format_append_u32(text,sizeof(text),&used,count);
+        (void)append_text(text,sizeof(text),&used,"/3");
+#endif
+#endif
+    }
+    else if(index==10u) {
+        (void)append_text(text,sizeof(text),&used,"OSL");
+        (void)ui_format_append_u32(text,sizeof(text),&used,result->calibration_sequence);
+        (void)append_text(text,sizeof(text),&used," L");
+        (void)ui_format_append_u32(text,sizeof(text),&used,result->lead_sequence);
+    }
+    else if(index==11u) {
+        (void)append_text(text,sizeof(text),&used,pt?"Erro: ":"Error: ");
+        (void)append_text(text,sizeof(text),&used,error_status_text(view,result->max_error_status));
+    }
     else (void)write_literal(pt ? "OK: PRONTO; UP/DOWN: voltar" : "OK: READY; UP/DOWN: back", text, sizeof(text));
     if (index <= 6u) localize_decimal(text, view->menu.language_id);
-    static const uint16_t y[] = {0u, 44u, 74u, 104u, 134u, 166u, 192u, 216u, 236u, 256u, 276u, 300u};
+    static const uint16_t y[] = {0u, 42u, 70u, 98u, 126u, 154u, 180u, 202u, 222u, 240u, 258u, 276u, 300u};
     line_set(line, 12u, y[index], index <= 4u ? 2u : 1u,
-             index == 9u || index == 10u ? UI_COLOR_AMBER : UI_COLOR_WHITE, text);
+             index == 11u ? UI_COLOR_AMBER : UI_COLOR_WHITE, text);
     return true;
 }
 
@@ -960,9 +978,11 @@ static bool prepare_display_menu_line(const ui_product_t *ui,
                     UI_TEXT_ID_BACK);
         return true;
     }
-    if ((index == 4u) && view->menu.save_failed)
+    if (index == 4u && (view->menu.save_failed || view->menu.saving))
     {
-        line_set_id(ui, view, line, 12u, 222u, 2u, UI_COLOR_AMBER, UI_TEXT_ID_SETTINGS_SAVE_FAILED);
+        if(view->menu.save_failed) line_set_id(ui,view,line,12u,222u,1u,UI_COLOR_AMBER,UI_TEXT_ID_SETTINGS_SAVE_FAILED);
+        else line_set(line,12u,222u,1u,UI_COLOR_AMBER,view->menu.saving?
+            (view->menu.language_id==(uint8_t)UI_LANGUAGE_PT_BR?"Salvando...":"Saving..."):"");
         return true;
     }
     return false;
@@ -1006,9 +1026,11 @@ static bool prepare_sound_menu_line(const ui_product_t *ui,
                     UI_TEXT_ID_BACK);
         return true;
     }
-    if ((index == 3u) && view->menu.save_failed)
+    if (index == 3u && (view->menu.save_failed || view->menu.saving))
     {
-        line_set_id(ui, view, line, 12u, 222u, 2u, UI_COLOR_AMBER, UI_TEXT_ID_SETTINGS_SAVE_FAILED);
+        if(view->menu.save_failed) line_set_id(ui,view,line,12u,222u,1u,UI_COLOR_AMBER,UI_TEXT_ID_SETTINGS_SAVE_FAILED);
+        else line_set(line,12u,222u,1u,UI_COLOR_AMBER,view->menu.saving?
+            (view->menu.language_id==(uint8_t)UI_LANGUAGE_PT_BR?"Salvando...":"Saving..."):"");
         return true;
     }
     return false;
@@ -1045,9 +1067,11 @@ static bool prepare_language_menu_line(const ui_product_t *ui,
                     ids[index - 1u]);
         return true;
     }
-    if ((index == 4u) && view->menu.save_failed)
+    if (index == 4u && (view->menu.save_failed || view->menu.saving))
     {
-        line_set_id(ui, view, line, 12u, 222u, 2u, UI_COLOR_AMBER, UI_TEXT_ID_SETTINGS_SAVE_FAILED);
+        if(view->menu.save_failed) line_set_id(ui,view,line,12u,222u,1u,UI_COLOR_AMBER,UI_TEXT_ID_SETTINGS_SAVE_FAILED);
+        else line_set(line,12u,222u,1u,UI_COLOR_AMBER,view->menu.saving?
+            (view->menu.language_id==(uint8_t)UI_LANGUAGE_PT_BR?"Salvando...":"Saving..."):"");
         return true;
     }
     return false;
@@ -1123,51 +1147,36 @@ static bool prepare_diagnostics_line(const ui_product_t *ui,
         line_set_id(ui, view, line, 12u, 20u, 2u, UI_COLOR_CYAN, UI_TEXT_ID_DIAGNOSTICS);
         return true;
     }
-    if (index == 1u)
-    {
-        char row[32] = {0};
-        size_t used = 0u;
-        (void)append_text(row, sizeof(row), &used, "FAULT ");
-        (void)append_hex8(row, sizeof(row), &used, view->safety_fault_mask);
-        line_set(line, 12u, 64u, 2u, view->safety_fault_mask == 0u ? UI_COLOR_WHITE : UI_COLOR_AMBER, row);
-        return true;
-    }
-    if (index == 2u)
-    {
-        char row[32] = {0};
-        size_t used = 0u;
-        resource_status_t status = RESOURCE_STATUS_OK;
-        if (!append_label_space(ui, view, UI_TEXT_ID_CALIBRATION, row, sizeof(row), &used, &status))
-        {
-            return line_set_resource_pending(line, 12u, 108u, 2u, UI_COLOR_WHITE, status);
+    if(index>8u) return false;
+    char row[40]={0};size_t used=0u;
+    if(index==1u) { (void)append_text(row,sizeof(row),&used,"FAULT ");(void)append_hex8(row,sizeof(row),&used,view->safety_fault_mask); }
+    else if(index==2u) { (void)append_text(row,sizeof(row),&used,view->calibration_active_valid?"OSL #":"NO OSL #");
+        (void)ui_format_append_u32(row,sizeof(row),&used,view->calibration_sequence); }
+    else if(index==3u) { (void)append_text(row,sizeof(row),&used,"Resources status ");
+        (void)ui_format_append_u32(row,sizeof(row),&used,view->resource_status); }
+    else if(index==4u || index==5u) {
+        const bool battery=index==4u,valid=battery?view->battery_valid:view->temperature_valid;
+        (void)append_text(row,sizeof(row),&used,battery?"BAT ":"NTC ");
+        if(!valid) (void)append_text(row,sizeof(row),&used,"n/a");
+        else {
+            int32_t value=battery?(int32_t)view->battery_mv:view->temperature_mC;
+            if(value<0) { (void)append_char(row,sizeof(row),&used,'-');value=-value; }
+            (void)ui_format_append_u32(row,sizeof(row),&used,(uint32_t)value);
+            (void)append_text(row,sizeof(row),&used,battery?"mV":"mC");
         }
-        status = append_label(ui,
-                              view,
-                              view->calibration_active_valid ? UI_TEXT_ID_ACTIVE : UI_TEXT_ID_REQUIRED,
-                              row,
-                              sizeof(row),
-                              &used);
-        if (status != RESOURCE_STATUS_OK)
-        {
-            return line_set_resource_pending(line, 12u, 108u, 2u, UI_COLOR_WHITE, status);
-        }
-        line_set(line, 12u, 108u, 2u, view->calibration_active_valid ? UI_COLOR_GREEN : UI_COLOR_AMBER, row);
-        return true;
-    }
-    if (index == 3u)
-    {
-        char row[32] = {0};
-        size_t used = 0u;
-        resource_status_t status = RESOURCE_STATUS_OK;
-        if (!append_label_space(ui, view, UI_TEXT_ID_RESOURCES, row, sizeof(row), &used, &status))
-        {
-            return line_set_resource_pending(line, 12u, 152u, 2u, UI_COLOR_WHITE, status);
-        }
-        (void)ui_format_append_u32(row, sizeof(row), &used, view->resource_status);
-        line_set(line, 12u, 152u, 2u, view->resource_status == RESOURCE_STATUS_OK ? UI_COLOR_GREEN : UI_COLOR_AMBER, row);
-        return true;
-    }
-    return false;
+        (void)append_text(row,sizeof(row),&used," age:");
+        (void)ui_format_append_u32(row,sizeof(row),&used,battery?view->battery_age_ms:view->temperature_age_ms);
+        (void)append_text(row,sizeof(row),&used,"ms");
+    } else if(index==6u) {
+        (void)append_text(row,sizeof(row),&used,"Save phase:");
+        (void)ui_format_append_u32(row,sizeof(row),&used,view->settings_phase);
+        (void)append_text(row,sizeof(row),&used," err:");
+        (void)ui_format_append_u32(row,sizeof(row),&used,view->settings_error);
+    } else if(index==7u) {
+        (void)append_text(row,sizeof(row),&used,view->lead_active?"Lead ON #":"Lead OFF #");
+        (void)ui_format_append_u32(row,sizeof(row),&used,view->lead_sequence);
+    } else (void)append_text(row,sizeof(row),&used,WTK_NTC_FACTORY_CALIBRATION?"NTC: engineering adjustment":"NTC: nominal model");
+    line_set(line,12u,(uint16_t)(20u+34u*index),1u,UI_COLOR_WHITE,row);return true;
 }
 
 static bool prepare_maintenance_line(const ui_product_t *ui,
@@ -1229,8 +1238,8 @@ static bool prepare_pc_link_status_line(const ui_product_t *ui,
                                         ui_product_line_t *line)
 {
     static const char *const labels[2][4] = {
-        {"PC LINK", "READY", "PC VIA COM", "SEND PACK"},
-        {"LINK PC", "PRONTO", "PC VIA COM", "ENVIE PACOTE"},
+        {"PC LINK", "UART 115200", "SAFE ONLY", "SEND PACK"},
+        {"LINK PC", "UART 115200", "SOMENTE SAFE", "ENVIE PACOTE"},
     };
     if ((view == NULL) || (line == NULL) || (index >= 4u))
     {
@@ -1274,15 +1283,75 @@ static bool prepare_resource_status_line(const ui_product_t *ui,
     }
     if (index == 2u)
     {
-        line_set_id(ui, view, line, 12u, 108u, 2u, UI_COLOR_WHITE, UI_TEXT_ID_PACK_API);
+        line_set(line,12u,108u,1u,UI_COLOR_WHITE,
+            view->resource_status==RESOURCE_STATUS_OK?"Format/API compatible":"Format/API not verified");
         return true;
     }
     if (index == 3u)
     {
-        line_set_id(ui, view, line, 12u, 152u, 2u, UI_COLOR_WHITE, UI_TEXT_ID_CRC_OK);
+        line_set(line,12u,152u,1u,UI_COLOR_WHITE,
+            view->resource_status==RESOURCE_STATUS_OK?"Header/table CRC OK":"CRC not verified");
         return true;
     }
     return false;
+}
+
+
+static bool prepare_lead_line(const ui_product_view_t *v,uint8_t index,ui_product_line_t *line)
+{
+    if(index>=8u) return false;
+    const bool pt=v->menu.language_id==(uint8_t)UI_LANGUAGE_PT_BR;
+    const bool menu=v->state==UI_PRODUCT_STATE_LEAD_MENU;
+    const char *text=NULL; char row[40]={0}; size_t used=0u;
+    if(index==0u) text=pt?"PONTAS OPEN/SHORT":"LEADS OPEN/SHORT";
+    else if(index==1u) {
+        (void)append_text(row,sizeof(row),&used,v->lead_active?"ON #":"OFF #");
+        (void)ui_format_append_u32(row,sizeof(row),&used,v->lead_sequence); text=row;
+    } else if(menu) {
+        static const char *const actions[2][4]={{"New OPEN/SHORT","Enable/disable","Clear profile","Back"},
+            {"Novo OPEN/SHORT","Ativar/desativar","Apagar perfil","Voltar"}};
+        if(index<6u) text=actions[pt?1u:0u][index-2u];
+        else if(index==6u && v->lead_curve_conflict) text=pt?"WCRV ativo: pontas OFF":"Active WCRV: leads OFF";
+        else if(index==6u && v->lead_error!=0u) text=pt?"ERRO: perfil indisponivel":"ERROR: profile unavailable";
+        else return false;
+    } else {
+        switch(v->lead_state) {
+        case UI_PRODUCT_LEAD_WAIT_OPEN:
+            text=index==2u?(pt?"Separe as pontas":"Separate lead tips"):
+                 index==3u?(pt?"OK: capturar OPEN":"OK: capture OPEN"):NULL; break;
+        case UI_PRODUCT_LEAD_WAIT_SHORT:
+            text=index==2u?(pt?"Una as pontas firmemente":"Join lead tips firmly"):
+                 index==3u?(pt?"OK: capturar SHORT":"OK: capture SHORT"):NULL; break;
+        case UI_PRODUCT_LEAD_REVIEW:
+            text=index==2u?(pt?"6 grupos x 7 capturas":"6 groups x 7 captures"):
+                 index==3u?(pt?"OK: salvar perfil":"OK: save profile"):NULL; break;
+        case UI_PRODUCT_LEAD_CONFIRM_CLEAR:
+            text=index==2u?(pt?"Apagar perfil das pontas?":"Clear the lead profile?"):
+                 index==3u?(pt?"OK: apagar / segure: voltar":"OK: clear / hold: back"):NULL; break;
+        case UI_PRODUCT_LEAD_SAVING: text=index==2u?(pt?"Gravando / nao desligue":"Saving / keep powered"):NULL; break;
+        case UI_PRODUCT_LEAD_COMPLETE: text=index==2u?(pt?"Perfil salvo e conferido":"Profile saved and verified"):NULL; break;
+        case UI_PRODUCT_LEAD_FAILED:
+            text=index==2u?(v->lead_uncertain?(pt?"Gravacao nao confirmada":"Save unconfirmed"):
+                (pt?"Captura/gravar falhou":"Capture/save failed")):NULL; break;
+        case UI_PRODUCT_LEAD_CANCELED: text=index==2u?(pt?"Cancelado / perfil anterior":"Canceled / prior profile"):NULL; break;
+        case UI_PRODUCT_LEAD_CANCELING: text=index==2u?(pt?"Cancelando / retorno SAFE":"Canceling / returning SAFE"):NULL; break;
+        default:
+            if(index==2u) text=v->lead_short?"SHORT":"OPEN";
+            else if(index==3u) {
+                (void)append_text(row,sizeof(row),&used,freq_token((hw_excitation_freq_t)v->lead_frequency));
+                (void)append_text(row,sizeof(row),&used,"  ");
+                (void)ui_format_append_u32(row,sizeof(row),&used,v->lead_samples);
+                (void)append_text(row,sizeof(row),&used,"/7"); text=row;
+            } break;
+        }
+        if(index==5u) text=pt?"Apenas passivos sem carga":"Passive discharged fixture";
+        if(index==6u) text=pt?"Experimental / sem LOAD":"Engineering / no LOAD";
+        if(index==7u) text=pt?"Segure OK: cancelar/voltar":"Hold OK: cancel/back";
+        if(text==NULL) text="";
+    }
+    line_set(line,8u,(uint16_t)(16u+34u*index),1u,index==0u?UI_COLOR_CYAN:
+        menu && index>=2u && index<6u && v->menu.selected_index==index-2u?UI_COLOR_GREEN:UI_COLOR_WHITE,text);
+    return true;
 }
 
 static bool prepare_calibration_status_line(const ui_product_t *ui,
@@ -1348,7 +1417,7 @@ static bool prepare_calibration_status_line(const ui_product_t *ui,
     if (index == 3u || index == 4u)
     {
         line_set(line, 8u, index == 3u ? 152u : 196u, 1u, UI_COLOR_WHITE,
-                 index == 3u ? "SWD: BRINGUP_CAL" :
+                 index == 3u ? "OK: OPEN/SHORT" :
                  view->menu.language_id == (uint8_t)UI_LANGUAGE_PT_BR ?
                      "OSL NO PC -> SWD: PRODUCT" : "PC OSL -> SWD: PRODUCT");
         line->emergency = true;
@@ -1704,6 +1773,9 @@ static UI_COMPACT_CALL bool prepare_line(const ui_product_t *ui,
         return prepare_resource_status_line(ui, view, index, line);
     case UI_PRODUCT_STATE_ABOUT:
         return prepare_about_line(ui, view, index, line);
+    case UI_PRODUCT_STATE_LEAD_MENU:
+    case UI_PRODUCT_STATE_LEAD_WIZARD:
+        return prepare_lead_line(view,index,line);
     case UI_PRODUCT_STATE_CALIBRATION_STATUS:
         return prepare_calibration_status_line(ui, view, index, line);
 #if !WTK_PRODUCT_FACTORY_PROVISIONED
@@ -1711,7 +1783,7 @@ static UI_COMPACT_CALL bool prepare_line(const ui_product_t *ui,
         return prepare_wizard_line(ui, view, &view->wizard, index, line);
 #endif
     case UI_PRODUCT_STATE_MEASURING:
-#if WTK_PRODUCT_FACTORY_PROVISIONED
+#if WTK_PRODUCT_MODERN
         if (index == 0u)
         {
             line_set(line, 12u, 12u, 1u, UI_COLOR_AMBER,
@@ -1808,8 +1880,9 @@ static uint8_t screen_family(uint8_t state)
 #if WTK_ENABLE_UI_ROW_CACHE
 static bool cached_menu_state(uint8_t state)
 {
-    return state >= UI_PRODUCT_STATE_MENU && state <= UI_PRODUCT_STATE_CALIBRATION_STATUS &&
-        state != UI_PRODUCT_STATE_RESOURCE_ERROR;
+    return state==UI_PRODUCT_STATE_LEAD_MENU || state==UI_PRODUCT_STATE_LEAD_WIZARD ||
+        (state >= UI_PRODUCT_STATE_MENU && state <= UI_PRODUCT_STATE_CALIBRATION_STATUS &&
+        state != UI_PRODUCT_STATE_RESOURCE_ERROR);
 }
 
 static bool cached_menu(const ui_product_t *ui)
@@ -1909,7 +1982,7 @@ static void start_clear_region(ui_product_t *ui)
     }
     else
     {
-#if WTK_PRODUCT_FACTORY_PROVISIONED
+#if WTK_PRODUCT_MODERN
         if (ui->pending.state == UI_PRODUCT_STATE_RESULT ||
             ui->pending.state == UI_PRODUCT_STATE_MEASURING)
         {
@@ -2215,7 +2288,7 @@ bsp_status_t ui_product_step(ui_product_t *ui, const ili9341_t *display, bool qu
         line.failed = false;
     }
     ui_font_role_t role = font_role_from_scale(line.scale);
-#if WTK_PRODUCT_FACTORY_PROVISIONED
+#if WTK_PRODUCT_MODERN
     if ((ui->pending.state == UI_PRODUCT_STATE_RESULT || ui->pending.state == UI_PRODUCT_STATE_MEASURING) &&
         !fit_result_line(ui, &line, &role)) return BSP_STATUS_BUSY;
 #endif
@@ -2237,7 +2310,7 @@ bsp_status_t ui_product_step(ui_product_t *ui, const ili9341_t *display, bool qu
         }
         return BSP_STATUS_BUSY;
     }
-#if !WTK_PRODUCT_FACTORY_PROVISIONED
+#if !WTK_PRODUCT_MODERN
     const size_t text_bytes = strlen(line.text);
     if ((role == UI_FONT_ROLE_LARGE) && (text_bytes > 12u))
     {
@@ -2302,6 +2375,8 @@ const char *ui_product_state_string(ui_product_state_t state)
         return "ABOUT";
     case UI_PRODUCT_STATE_RESOURCE_ERROR:
         return "RESOURCE_ERROR";
+    case UI_PRODUCT_STATE_LEAD_MENU: return "LEAD_MENU";
+    case UI_PRODUCT_STATE_LEAD_WIZARD: return "LEAD_WIZARD";
     case UI_PRODUCT_STATE_CALIBRATION_STATUS:
         return "CALIBRATION_STATUS";
     case UI_PRODUCT_STATE_CALIBRATION_WIZARD:

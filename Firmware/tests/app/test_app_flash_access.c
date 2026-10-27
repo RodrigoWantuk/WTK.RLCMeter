@@ -64,6 +64,15 @@ static int test_flash_access_policy(void)
     failures += expect_true(!app_flash_access_allowed(&resource, APP_FLASH_ACCESS_GENERIC_POLL),
                             "generic poll deferred during resource mutation");
     failures += expect_true(app_flash_access_context_size_bytes() == 0u, "policy has no runtime state");
+    for (unsigned mask=0u;mask<32u;++mask) {
+        app_flash_access_snapshot_t owners={.quiet=(mask&1u)!=0u,.calibration_mutation=(mask&2u)!=0u,
+            .settings_mutation=(mask&4u)!=0u,.resource_mutation=(mask&8u)!=0u,.lead_mutation=(mask&16u)!=0u};
+        failures += expect_true(app_flash_access_allowed(&owners,APP_FLASH_ACCESS_LEAD_MUTATION)==((mask&15u)==0u),
+                                "lead writer excludes every other owner and quiet");
+        if(owners.lead_mutation) for(unsigned op=0u;op<(unsigned)APP_FLASH_ACCESS_LEAD_MUTATION;++op)
+            failures += expect_true(!app_flash_access_allowed(&owners,(app_flash_access_operation_t)op),
+                                    "lead owner excludes competing access");
+    }
     return failures;
 }
 

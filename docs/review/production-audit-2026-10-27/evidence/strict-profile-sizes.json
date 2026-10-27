@@ -1,0 +1,156 @@
+{
+  "kind": "PRIOR_STRICT_MATRIX_NOT_REBUILT_FOR_THIS_AUDIT",
+  "source": "9ecaa696ec785e6c15f240df23f75bd07d40d5ff",
+  "profiles": [
+    {
+      "name": "factory-release",
+      "preset": "stm32-factory-release",
+      "prior_build_status": "PASS",
+      "flash_bytes": 61596,
+      "ram_static_bytes": 15068,
+      "ram_accounted_bytes": 17116,
+      "gates": {
+        "flash_hard_ok": true,
+        "flash_soft_ok": false,
+        "ram_hard_ok": true,
+        "ram_preferred_ok": false,
+        "ram_silicon_ok": true
+      }
+    },
+    {
+      "name": "bringup",
+      "preset": "stm32-bringup",
+      "prior_build_status": "PASS",
+      "flash_bytes": 63828,
+      "ram_static_bytes": 13332,
+      "ram_accounted_bytes": 15380,
+      "gates": {
+        "flash_hard_ok": true,
+        "flash_soft_ok": false,
+        "ram_hard_ok": true,
+        "ram_preferred_ok": true,
+        "ram_silicon_ok": true
+      }
+    },
+    {
+      "name": "product-debug",
+      "preset": "stm32-debug",
+      "prior_build_status": "PASS",
+      "flash_bytes": 64116,
+      "ram_static_bytes": 13404,
+      "ram_accounted_bytes": 15452,
+      "gates": {
+        "flash_hard_ok": true,
+        "flash_soft_ok": false,
+        "ram_hard_ok": true,
+        "ram_preferred_ok": true,
+        "ram_silicon_ok": true
+      }
+    },
+    {
+      "name": "product-release",
+      "preset": "stm32-release",
+      "prior_build_status": "PASS",
+      "flash_bytes": 64416,
+      "ram_static_bytes": 13484,
+      "ram_accounted_bytes": 15532,
+      "gates": {
+        "flash_hard_ok": true,
+        "flash_soft_ok": false,
+        "ram_hard_ok": true,
+        "ram_preferred_ok": true,
+        "ram_silicon_ok": true
+      }
+    },
+    {
+      "name": "factory-debug",
+      "preset": "stm32-factory-debug",
+      "prior_build_status": "PASS",
+      "flash_bytes": 61308,
+      "ram_static_bytes": 14988,
+      "ram_accounted_bytes": 17036,
+      "gates": {
+        "flash_hard_ok": true,
+        "flash_soft_ok": false,
+        "ram_hard_ok": true,
+        "ram_preferred_ok": true,
+        "ram_silicon_ok": true
+      }
+    },
+    {
+      "name": "bringup-cal",
+      "preset": "stm32-bringup-cal",
+      "prior_build_status": "PASS",
+      "flash_bytes": 37572,
+      "ram_static_bytes": 11696,
+      "ram_accounted_bytes": 13744,
+      "gates": {
+        "flash_hard_ok": true,
+        "flash_soft_ok": true,
+        "ram_hard_ok": true,
+        "ram_preferred_ok": true,
+        "ram_silicon_ok": true
+      }
+    },
+    {
+      "name": "bench-supply",
+      "preset": "stm32-bringup",
+      "prior_build_status": "PASS",
+      "flash_bytes": 65272,
+      "ram_static_bytes": 13420,
+      "ram_accounted_bytes": 15468,
+      "gates": {
+        "flash_hard_ok": true,
+        "flash_soft_ok": false,
+        "ram_hard_ok": true,
+        "ram_preferred_ok": true,
+        "ram_silicon_ok": true
+      }
+    },
+    {
+      "name": "k1-test",
+      "preset": "stm32-bringup",
+      "prior_build_status": "PASS",
+      "flash_bytes": 65392,
+      "ram_static_bytes": 13348,
+      "ram_accounted_bytes": 15396,
+      "gates": {
+        "flash_hard_ok": true,
+        "flash_soft_ok": false,
+        "ram_hard_ok": true,
+        "ram_preferred_ok": true,
+        "ram_silicon_ok": true
+      }
+    },
+    {
+      "name": "peripheral",
+      "preset": "stm32-bringup",
+      "prior_build_status": "PASS",
+      "flash_bytes": 14628,
+      "ram_static_bytes": 10204,
+      "ram_accounted_bytes": 12252,
+      "gates": {
+        "flash_hard_ok": true,
+        "flash_soft_ok": true,
+        "ram_hard_ok": true,
+        "ram_preferred_ok": true,
+        "ram_silicon_ok": true
+      }
+    },
+    {
+      "name": "factory-serial-off",
+      "preset": "stm32-factory-release",
+      "prior_build_status": "PASS",
+      "flash_bytes": 61136,
+      "ram_static_bytes": 15052,
+      "ram_accounted_bytes": 17104,
+      "gates": {
+        "flash_hard_ok": true,
+        "flash_soft_ok": false,
+        "ram_hard_ok": true,
+        "ram_preferred_ok": false,
+        "ram_silicon_ok": true
+      }
+    }
+  ]
+}

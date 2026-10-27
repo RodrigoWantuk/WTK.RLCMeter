@@ -1,0 +1,401 @@
+{
+  "status": "IMPLEMENTED_DEPLOYED_BASIC_CAPACITOR_INDUCTOR_CHECKS_PASS_REQUIRES_PHYSICAL_QUALIFICATION",
+  "source": {
+    "git_sha": "0443d3295bd92043493ae805c2763464109ec3fb",
+    "dirty": false,
+    "git_status": "",
+    "input_sha256": "dfd7d9946f45b1e5792770a8aa7dd675d9c020eaf44b1bda63dc289fbb6ac821"
+  },
+  "unit": "54ff70068370525760380567",
+  "firmware_readback": {
+    "start": 134217728,
+    "end_exclusive": 134277864,
+    "bytes": 60136,
+    "expected_sha256": "26cb50c86e798d0ca0b040ddd5ab3a6a1f8e9791145a504bd2e8c6f46fa8e20f",
+    "actual_sha256": "26cb50c86e798d0ca0b040ddd5ab3a6a1f8e9791145a504bd2e8c6f46fa8e20f",
+    "full_flash_sha256": "321829befee5f920c6d7246788c0e0497572102e207813715f31344ebf50dd75",
+    "full_flash_bytes": 65536
+  },
+  "host_tests": {
+    "factory": "49/49 PASS",
+    "standard": "47/47 PASS"
+  },
+  "strict_embedded_profiles": "9/9 PASS",
+  "boot": {
+    "utc": "2026-10-27T01:35:02.095847+00:00",
+    "operation": "STABLE_LIVE_DAP_METADATA_NO_HALT_NO_RESET_NO_RESUME",
+    "target": {
+      "uid": "54ff70068370525760380567"
+    },
+    "firmware_sha256": "26cb50c86e798d0ca0b040ddd5ab3a6a1f8e9791145a504bd2e8c6f46fa8e20f",
+    "exact_running_image_match": true,
+    "metadata": {
+      "product_state": 4,
+      "measurement_session_sequence": 0,
+      "product_initialized": 1,
+      "calibration_sequence": 1,
+      "calibration_record_count": 33,
+      "calibration_active_valid": 1,
+      "calibration_storage_available": 1,
+      "k1_commanded_state": 1,
+      "range_fsm_state": 0,
+      "range_enabled": 0,
+      "safety_fault_mask": 0,
+      "display_fault": 0,
+      "resource_status": 0,
+      "excitation_mode": 0,
+      "safety_blocker_flags": 8,
+      "display_slow_mode": 0,
+      "backlight_percent": 75,
+      "saved_brightness_percent": 75,
+      "measurement_hw_state": 0,
+      "measurement_hw_error": 0,
+      "session_connected": 0,
+      "session_capture_count": 0,
+      "session_deadline_ms": 0,
+      "wait_deadline_ms": 0,
+      "session_statistical_count": 0,
+      "workspace_owner": 0,
+      "quiet_requested": 0
+    },
+    "layout": [
+      {
+        "name": "product_state",
+        "address": 536877776,
+        "size": 1
+      },
+      {
+        "name": "measurement_session_sequence",
+        "address": 536877880,
+        "size": 4
+      },
+      {
+        "name": "product_initialized",
+        "address": 536877914,
+        "size": 1
+      },
+      {
+        "name": "calibration_sequence",
+        "address": 536879760,
+        "size": 4
+      },
+      {
+        "name": "calibration_record_count",
+        "address": 536879824,
+        "size": 1
+      },
+      {
+        "name": "calibration_active_valid",
+        "address": 536882443,
+        "size": 1
+      },
+      {
+        "name": "calibration_storage_available",
+        "address": 536885529,
+        "size": 1
+      },
+      {
+        "name": "k1_commanded_state",
+        "address": 536870984,
+        "size": 1
+      },
+      {
+        "name": "range_fsm_state",
+        "address": 536871000,
+        "size": 1
+      },
+      {
+        "name": "range_enabled",
+        "address": 536871009,
+        "size": 1
+      },
+      {
+        "name": "safety_fault_mask",
+        "address": 536871016,
+        "size": 4
+      },
+      {
+        "name": "display_fault",
+        "address": 536878900,
+        "size": 1
+      },
+      {
+        "name": "resource_status",
+        "address": 536870952,
+        "size": 1
+      },
+      {
+        "name": "excitation_mode",
+        "address": 536871014,
+        "size": 1
+      },
+      {
+        "name": "safety_blocker_flags",
+        "address": 536878424,
+        "size": 4
+      },
+      {
+        "name": "display_slow_mode",
+        "address": 536878283,
+        "size": 1
+      },
+      {
+        "name": "backlight_percent",
+        "address": 536870953,
+        "size": 1
+      },
+      {
+        "name": "saved_brightness_percent",
+        "address": 536871772,
+        "size": 1
+      },
+      {
+        "name": "measurement_hw_state",
+        "address": 536871148,
+        "size": 1
+      },
+      {
+        "name": "measurement_hw_error",
+        "address": 536871149,
+        "size": 1
+      },
+      {
+        "name": "session_connected",
+        "address": 536871350,
+        "size": 1
+      },
+      {
+        "name": "session_capture_count",
+        "address": 536871348,
+        "size": 1
+      },
+      {
+        "name": "session_deadline_ms",
+        "address": 536871336,
+        "size": 4
+      },
+      {
+        "name": "wait_deadline_ms",
+        "address": 536871316,
+        "size": 4
+      },
+      {
+        "name": "session_statistical_count",
+        "address": 536871349,
+        "size": 1
+      },
+      {
+        "name": "workspace_owner",
+        "address": 536875268,
+        "size": 1
+      },
+      {
+        "name": "quiet_requested",
+        "address": 536871358,
+        "size": 1
+      }
+    ],
+    "battery_voltage_read_via_swd": false,
+    "measurement_commanded": false,
+    "halt_requested": false,
+    "external_flash_written": false,
+    "uart_captured": true,
+    "uart_text": "\r\nWTK.RLCMeter SAFE_BOOT\r\n",
+    "profile_flags": {
+      "WTK_ENABLE_MEASURE_SESSION_HOLD": "1u",
+      "WTK_ENABLE_UI_ROW_CACHE": "1u",
+      "WTK_ENABLE_MEASUREMENT_TRIMMED": "1u",
+      "WTK_ENABLE_FREQUENCY_SURVEY": "1u"
+    },
+    "controlled_reset": true,
+    "postboot_halted": false,
+    "outcome": "CORRECTED_THREE_FREQUENCY_PRODUCT_UART_READY_SAFE_ZERO_SESSIONS",
+    "physical_qualification": false
+  },
+  "capacitor": {
+    "status": "THREE_FREQUENCY_CAPACITOR_FINAL_PUBLICATION_AND_SEVEN_SAMPLES_OBSERVED",
+    "source": "0443d3295bd92043493ae805c2763464109ec3fb",
+    "firmware_sha256": "26cb50c86e798d0ca0b040ddd5ab3a6a1f8e9791145a504bd2e8c6f46fa8e20f",
+    "fixture": "Owner-confirmed polarized 4700uF electrolytic, isolated passive fixture; owner initiated physical button test",
+    "session_sequence": 2,
+    "classification": "CAPACITIVE",
+    "final_status": "FINAL_OK",
+    "product_view": "RESULT_WITH_FINAL_NOT_PARTIAL",
+    "frequency_attempted_mask": 7,
+    "frequency_usable_mask": 7,
+    "primary_frequency_hz": 10,
+    "primary_rref_ohms": 10,
+    "ret_channel": "HG",
+    "search_captures": 5,
+    "extra_statistical_captures": 6,
+    "admitted_points": 7,
+    "logical_total_captures": 11,
+    "coordinate_masks": {
+      "r": 25,
+      "x": 73
+    },
+    "replayed_estimate_ohms": {
+      "r": 0.035145364701747894,
+      "x": -3.792463699976603
+    },
+    "published_capacitance_f": 0.004196610767394304,
+    "software_start_to_last_k1_safe_ms": 9428,
+    "duration_scope": "Firmware tick reconstruction; excludes final processing/publication and does not measure contact timing or summed connected time",
+    "hardware_last_segment_capture_count": 1,
+    "expected_relay_boundaries": "One held high-frequency segment plus seven individually SAFE 10Hz windows; owner reported multiple relay cycles, exact physical count not measured",
+    "postflight": {
+      "product_state": 20,
+      "measurement_session_sequence": 2,
+      "product_initialized": 1,
+      "calibration_sequence": 1,
+      "calibration_record_count": 33,
+      "calibration_active_valid": 1,
+      "calibration_storage_available": 1,
+      "k1_commanded_state": 1,
+      "range_fsm_state": 0,
+      "range_enabled": 0,
+      "safety_fault_mask": 0,
+      "display_fault": 0,
+      "resource_status": 0,
+      "excitation_mode": 0,
+      "safety_blocker_flags": 8,
+      "display_slow_mode": 0,
+      "backlight_percent": 75,
+      "saved_brightness_percent": 75,
+      "measurement_hw_state": 0,
+      "measurement_hw_error": 0,
+      "session_connected": 0,
+      "session_capture_count": 1,
+      "session_deadline_ms": 363697,
+      "wait_deadline_ms": 364434,
+      "session_statistical_count": 0,
+      "workspace_owner": 0,
+      "quiet_requested": 0
+    },
+    "calibration_preserved": {
+      "sequence": 1,
+      "records": 33
+    },
+    "measurement_commanded_by_agent": false,
+    "diagnostic_halt": false,
+    "battery_voltage_read_via_swd": false,
+    "physical_accuracy_qualified": false,
+    "polarized_mode_qualified": false,
+    "previous_attempt": {
+      "session": 1,
+      "status": "CANCELED",
+      "button_record": "Two complete OK cycles 165ms apart; second cancels; preserved evidence, not a hardware acquisition fault"
+    }
+  },
+  "inductor": {
+    "status": "THREE_FREQUENCY_INDUCTOR_CLASSIFICATION_AND_FINAL_PUBLICATION_OBSERVED",
+    "source": "0443d3295bd92043493ae805c2763464109ec3fb",
+    "firmware_sha256": "26cb50c86e798d0ca0b040ddd5ab3a6a1f8e9791145a504bd2e8c6f46fa8e20f",
+    "fixture": "Owner confirmed 470uH inductor and initiated OK; latest completed session is 5; intermediate sessions3/4 were not recovered or claimed",
+    "session_sequence": 5,
+    "classification": "INDUCTIVE",
+    "final_status": "FINAL_OK",
+    "product_view": "RESULT_WITH_FINAL_NOT_PARTIAL",
+    "frequency_attempted_mask": 7,
+    "frequency_usable_mask": 7,
+    "primary_frequency_hz": 1000,
+    "primary_rref_ohms": 10,
+    "ret_channel": "HG",
+    "search_captures": 3,
+    "extra_statistical_captures": 6,
+    "admitted_points": 7,
+    "logical_total_captures": 9,
+    "coordinate_masks": {
+      "r": 84,
+      "x": 22
+    },
+    "replayed_estimate_ohms": {
+      "r": 7.536089897155762,
+      "x": 2.933682600657145
+    },
+    "published_inductance_h": 0.0004669100744649768,
+    "software_start_to_last_k1_safe_ms": 1742,
+    "duration_scope": "Firmware ticks, not physical contact timing; excludes final processing/publication",
+    "low_frequency_observation": {
+      "frequency_hz": 10,
+      "local_interpretation": "RESISTIVE",
+      "r_ohms": 7.433173656463623,
+      "x_ohms": 0.05236387625336647
+    },
+    "postflight": {
+      "product_state": 20,
+      "measurement_session_sequence": 5,
+      "product_initialized": 1,
+      "calibration_sequence": 1,
+      "calibration_record_count": 33,
+      "calibration_active_valid": 1,
+      "calibration_storage_available": 1,
+      "k1_commanded_state": 1,
+      "range_fsm_state": 0,
+      "range_enabled": 0,
+      "safety_fault_mask": 0,
+      "display_fault": 0,
+      "resource_status": 0,
+      "excitation_mode": 0,
+      "safety_blocker_flags": 8,
+      "display_slow_mode": 0,
+      "backlight_percent": 75,
+      "saved_brightness_percent": 75,
+      "measurement_hw_state": 0,
+      "measurement_hw_error": 0,
+      "session_connected": 0,
+      "session_capture_count": 6,
+      "session_deadline_ms": 596841,
+      "wait_deadline_ms": 596577,
+      "session_statistical_count": 5,
+      "workspace_owner": 0,
+      "quiet_requested": 0
+    },
+    "calibration_preserved": {
+      "sequence": 1,
+      "records": 33
+    },
+    "measurement_commanded_by_agent": false,
+    "diagnostic_halt": false,
+    "battery_voltage_read_via_swd": false,
+    "physical_accuracy_qualified": false
+  },
+  "calibration": {
+    "active_sequence": 1,
+    "records": 33,
+    "external_flash_write_requested": false
+  },
+  "ntc_profile": "Firmware/config/units/54ff70068370525760380567-ntc-engineering.json",
+  "battery_voltage_read_via_swd": false,
+  "remote_acquisition_requested": false,
+  "physical_accuracy_qualified": false,
+  "discontinued_attempts": [
+    {
+      "source": "48bc949",
+      "issue": "Final internal 10Hz estimate remained a stale partial in PRODUCT; fixed and regressed at actual PRODUCT view level"
+    },
+    {
+      "run": "boot-survey-001/session1",
+      "issue": "Debug halt during active ADC; resumed, invalidated, preserved; corrected postboot/result procedures use live no-halt DAP"
+    },
+    {
+      "run": "pre-survey-002",
+      "issue": "OpenOCD initial unknown state caused safe refusal before programming; poll fixed observation"
+    },
+    {
+      "run": "corrected session1",
+      "issue": "Two complete OK cycles 165ms apart canceled search; preserved button records"
+    }
+  ],
+  "pending": [
+    "Independent accuracy/phase/loss and actual 10mF endpoint",
+    "Polarized-electrolytic excitation/settling/leakage qualification",
+    "Physical switching/contact/abort timing and stack high-water",
+    "Sub-microhenry capability",
+    "Physical TFT appearance of F3/3 and AVG7/3; final PRODUCT view is observed"
+  ],
+  "archives": {
+    "firmware-images.zip": "27750cf3fd2b74d2d236e6fcc138b54bb11a7ecf6259214c72f85ae4cb73dc94",
+    "validation-evidence.zip": "3e9358eb610a4a5b9241853656cadf887690f09708522c99478979d8590f4909"
+  }
+}

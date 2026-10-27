@@ -555,7 +555,8 @@ static int test_crc_and_layout(void)
                                                      &test),
                             "test partition");
     failures += expect_true(resource.start == 0u, "resource starts at zero");
-    failures += expect_true(resource.size == TEST_MUTABLE_BASE, "resource leaves mutable tail");
+    failures += expect_true(resource.size == TEST_MUTABLE_BASE - STORAGE_LAYOUT_LEAD_RESERVED_BYTES,
+                            "resource leaves legacy mutable tail and separate lead slots");
     failures += expect_true(cal_b.start == (cal_a.start + STORAGE_LAYOUT_CAL_SLOT_BYTES), "slots adjacent");
     failures += expect_true(test.start == (TEST_CAPACITY_BYTES - STORAGE_LAYOUT_W25Q_SECTOR_SIZE),
                             "final sector remains bring-up test");

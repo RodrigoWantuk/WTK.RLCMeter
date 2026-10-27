@@ -1,5 +1,9 @@
 # Technical Documentation
 
+Current production completion: the [corrected deployed image](../Firmware/releases/2026-10-27/production-completion/watchdog-startup-fix/README.md) boots READY/SAFE with genuine UART telemetry and zero faults. Settings/feedback, bounded UART and the native OPEN/SHORT lead workflow are implemented. The first deployment exposed the existing watchdog initialization order error; the corrected BSP follows ST startup order and retains failure blocking. The 128-KiB UID-bound image uses 75,092 Flash / 15,204 accounted RAM bytes. The complete 40-KiB mutable tail and factory OSL match before/after exactly. Physical UI/settings/lead acceptance and metrology qualification remain pending.
+
+See the [audit](review/production-audit-2026-10-27/README.md), [plan 30](../plans/30-Production-Firmware-Audit-and-Completion.md) and [execution log](review/production-completion-2026-10-27/README.md) for provenance and remaining gates. Chronological checkpoints below retain their original scope.
+
 Latest first-unit checkpoint: [calibrated PRODUCT READY handoff](../Firmware/releases/2026-10-25/calibrated-product-ready/README.md).
 The 33-condition engineering OSL is installed and persistent. PRODUCT now loads
 it and reaches READY with SAFE outputs. The owner confirms splash and READY;
@@ -49,6 +53,7 @@ The documentation deliberately separates **existing Rev.1 hardware**, **planned 
 14. [`14-Future-Extensions.md`](14-Future-Extensions.md) — Kelvin/4-wire, high voltage, USB, guard, K2, and other concepts outside Rev.1.
 15. [`15-Measurement-Operating-Modes.md`](15-Measurement-Operating-Modes.md) — Click and Live measurement semantics, scheduling, result publication, UI interaction, and safety boundaries.
 16. [`16-Rev1-MVP-Bench-Guide.md`](16-Rev1-MVP-Bench-Guide.md) — first-board BRINGUP/Product procedure for the bench-usable Rev.1 MVP.
+17. [`17-Product-Serial-Protocol.md`](17-Product-Serial-Protocol.md) — guarded UI input, bounded interrupt reception and genuine sensor/result telemetry.
 
 AI-assisted firmware execution is planned separately under [`../plans`](../plans/).
 
@@ -192,3 +197,26 @@ now records nine passing strict profiles and verified factory PRODUCT deployment
 56,260 B Flash / 16,040 B accounted RAM, actual READY/SAFE boot with OSL sequence 1
 and all 33 records preserved. No unattended DUT capture was triggered; physical
 relay-session and menu appearance checks remain pending.
+
+[Seven-sample trimmed estimates](../plans/25-Trimmed-Measurement-Estimate.md)
+add post-search statistical collection in factory PRODUCT without mixing
+conditions or changing calibration. The [physical relay follow-up](../Firmware/releases/2026-10-26/session-and-menu/physical-followup/README.md)
+records the owner's single-cycle confirmation; detailed qualification remains pending.
+
+[Trimmed-estimate delivery](../Firmware/releases/2026-10-26/trimmed-measurements/README.md)
+records all nine passing strict builds, 48 factory/47 standard host tests and
+verified deployment. The actual owner-triggered inductor run admitted all seven
+samples, produced 462.8 uH and reached SAFE in 386 ms by firmware ticks, preserving
+calibration and fault-free cleanup. Absolute accuracy and remaining physical
+qualification are not inferred from this basic check.
+
+[Three-frequency PRODUCT delivery](../Firmware/releases/2026-10-26/three-frequency-survey/README.md)
+records 1-kHz/10-kHz/10-Hz search, guarded SAFE/fresh-permit segmentation and
+seven-point final estimates. All nine strict builds and 49 factory/47 standard
+host tests pass. Owner-triggered final PRODUCT results are 4,196.6 uF for a marked
+4,700-uF electrolytic and 466.9 uH for a marked 470-uH inductor. The latter's
+10-Hz resistance dominance correctly coexists with an inductive final type.
+Both end SAFE with unchanged calibration; accuracy/polarized envelope, actual
+10-mF endpoint, physical contact timing and TFT appearance remain pending.
+
+Production completion: [sealed software image, memory and acceptance handoff](../Firmware/releases/2026-10-27/production-completion/README.md). Software checks passed; deployment and physical qualification are pending.

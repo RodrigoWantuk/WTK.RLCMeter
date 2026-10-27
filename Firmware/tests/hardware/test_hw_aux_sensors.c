@@ -500,6 +500,69 @@ static int test_install_waits_for_actual_residual_requalification(void)
     return failures;
 }
 
+#if WTK_ENABLE_CONTINUOUS_SURVEY
+static int test_paused_power_only_refresh(void)
+{
+    int failures = 0;
+    for (uint8_t variant = 0u; variant < 5u; variant++)
+    {
+        fake_adc_t fake = safe_fake_adc();
+        if (variant == 1u) fake.vmid_raw = raw_from_voltage(1.0f);
+        if (variant == 2u) fake.bat_raw = raw_from_voltage(1.55f);
+        if (variant == 3u) fake.bat_raw = BSP_ADC_RAW_MAX;
+        if (variant == 4u) {fake.fail_poll_index = 2u; fake.poll_failure = BSP_STATUS_TIMEOUT;}
+        hw_aux_sensors_t sensors;
+        const hw_aux_adc_io_t io = fake_io(&fake);
+        (void)hw_aux_sensors_init(&sensors, &io, 0u);
+        failures += expect_true(hw_aux_sensors_power_begin(&sensors, 17u) == BSP_STATUS_INVALID_ARG,
+                                "power check cannot take over active normal auxiliary sampling");
+        hw_aux_sensors_pause(&sensors);
+        failures += expect_true(hw_aux_sensors_power_begin(&sensors, 17u) == BSP_STATUS_OK,
+                                "hardware-lent paused ADC accepts explicit power-only refresh");
+        failures += expect_true(hw_aux_sensors_power_begin(&sensors, 17u) == BSP_STATUS_INVALID_ARG,
+                                "overlapping power group is rejected");
+        run_conversions(&sensors, 17u, 8u);
+        hw_aux_sensors_snapshot_t snapshot;
+        hw_aux_sensors_snapshot(&sensors, 18u, &snapshot);
+        failures += expect_true(fake.start_count[4] == 0u && fake.start_count[5] == 0u && fake.start_count[7] == 0u,
+                                "power group never samples disconnected SAFE inputs or NTC");
+        failures += expect_true(snapshot.residual_state == HW_RESIDUAL_UNKNOWN && snapshot.residual_safe_count == 0u &&
+                                !sensors.residual_published && sensors.paused,
+                                "real power update cannot manufacture residual SAFE or resume normal ADC owner");
+        if (variant == 4u)
+        {
+            failures += expect_true(hw_aux_sensors_power_status(&sensors) == BSP_STATUS_ERROR &&
+                                    hw_aux_sensors_fault_mask(&sensors) != 0u, "failed ADC group cannot become ready");
+            continue;
+        }
+        failures += expect_true(hw_aux_sensors_power_status(&sensors) == BSP_STATUS_OK &&
+                                fake.start_count[1] == 4u && fake.start_count[6] == 4u &&
+                                sensors.battery_timestamp_ms == 17u && snapshot.battery_age_ms == 1u,
+                                "four actual VMID and BAT conversions produce their true group timestamp");
+        if (variant == 0u) failures += expect_true(snapshot.vmid_valid && snapshot.battery_state == HW_BATTERY_OK,
+                                                 "nominal real power group is usable");
+        if (variant == 1u) failures += expect_true(!snapshot.vmid_valid, "bad VMID remains invalid");
+        if (variant == 2u) failures += expect_true(snapshot.battery_state == HW_BATTERY_CRITICAL, "critical battery is not hidden");
+        if (variant == 3u) failures += expect_true(snapshot.battery_state == HW_BATTERY_UNKNOWN, "saturation is not valid battery evidence");
+        hw_aux_sensors_resume(&sensors, 19u);
+        failures += expect_true(hw_aux_sensors_power_status(&sensors) == BSP_STATUS_ERROR &&
+                                !sensors.power_refreshing && !sensors.power_ready, "normal restore revokes power-only readiness");
+    }
+    fake_adc_t fake = safe_fake_adc();
+    script_channel(&fake, BSP_ADC_CHANNEL_VMID, 2040u, 2044u, 2048u, 2052u);
+    script_channel(&fake, BSP_ADC_CHANNEL_BAT, 2100u, 2200u, 2300u, 2400u);
+    hw_aux_sensors_t sensors;
+    const hw_aux_adc_io_t io = fake_io(&fake);
+    (void)hw_aux_sensors_init(&sensors, &io, 0u);
+    hw_aux_sensors_pause(&sensors);
+    (void)hw_aux_sensors_power_begin(&sensors, 20u);
+    run_conversions(&sensors, 20u, 8u);
+    failures += expect_true(sensors.snapshot.vmid_raw == 2046u && sensors.snapshot.battery_raw == 2250u,
+                            "power-only update averages actual four-conversion sequences");
+    return failures;
+}
+#endif
+
 int main(void)
 {
     int failures = 0;
@@ -509,5 +572,8 @@ int main(void)
     failures += test_battery_and_ntc();
     failures += test_adc_error_and_pause();
     failures += test_install_waits_for_actual_residual_requalification();
+#if WTK_ENABLE_CONTINUOUS_SURVEY
+    failures += test_paused_power_only_refresh();
+#endif
     return (failures == 0) ? 0 : 1;
 }

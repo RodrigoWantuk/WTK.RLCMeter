@@ -267,7 +267,8 @@ void app_shell_run(void)
     latch(clock_status, APP_SAFETY_FAULT_CLOCK);
     (void)bsp_time_init();
     (void)bsp_uart_init(115200u);
-    (void)bsp_watchdog_start();
+    latch(bsp_watchdog_start(), APP_SAFETY_FAULT_WATCHDOG);
+    if (!bsp_reset_memory_profile_valid()) latch(BSP_STATUS_ERROR, APP_SAFETY_FAULT_MEMORY_PROFILE);
     const hw_k1_io_t k1_io = {.write_cmd = k1_write};
     const hw_k2_io_t k2_io = {.write_cmd = k2_write};
     const hw_range_io_t range_io = {.write_enable = range_enable, .write_address = range_address};

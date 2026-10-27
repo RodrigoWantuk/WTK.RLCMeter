@@ -1,0 +1,2 @@
+# Preserve exact audit bytes so recorded hashes survive checkout on any OS.
+* -text

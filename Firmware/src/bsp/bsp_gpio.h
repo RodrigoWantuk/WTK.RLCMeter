@@ -30,6 +30,9 @@ typedef enum
 } bsp_gpio_input_t;
 
 bsp_status_t bsp_gpio_init_safe(void);
+/* Fatal exception only: disables interrupts and forces board outputs SAFE.
+ * Independent of initialized contexts, SPI, logging and application locks. */
+void bsp_gpio_emergency_safe(void);
 bool bsp_gpio_swd_preserved(void);
 bsp_status_t bsp_gpio_write_output(bsp_gpio_output_t output, bool high);
 bsp_status_t bsp_gpio_read_input(bsp_gpio_input_t input, bool *active);

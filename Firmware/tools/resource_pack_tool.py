@@ -101,10 +101,10 @@ def cmd_bundle(args: argparse.Namespace) -> int:
 def cmd_upload(args: argparse.Namespace) -> int:
     pack = args.pack.read_bytes()
     inspect_pack(pack)
-    frames = iter_resource_frames(pack, args.chunk_size)
+    frames = iter_resource_frames(pack, args.chunk_size,args.flash_capacity_bytes)
     send_serial(frames, args.port, args.baud, args.inter_frame_delay_ms / 1000.0,
                 args.inter_byte_delay_ms / 1000.0, args.settle_after_begin_ms / 1000.0, args.report,
-                args.begin_byte_delay_ms / 1000.0)
+                args.begin_byte_delay_ms / 1000.0,args.flash_capacity_bytes)
     print(f"uploaded frames={len(frames)} pack_bytes={len(pack)} port={args.port}")
     return 0
 

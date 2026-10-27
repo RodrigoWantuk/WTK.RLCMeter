@@ -114,7 +114,8 @@ def main():
         keys = ("CMAKE_BUILD_TYPE", "CMAKE_C_FLAGS", "CMAKE_C_FLAGS_DEBUG", "CMAKE_C_FLAGS_RELEASE",
                 "CMAKE_C_FLAGS_MINSIZEREL", "CMAKE_EXE_LINKER_FLAGS", "CMAKE_INTERPROCEDURAL_OPTIMIZATION",
                 "WTK_FIRMWARE_PROFILE", "WTK_PRODUCT_OPTIMIZATION_LEVEL", "WTK_FLASH_FORENSICS",
-                "WTK_ENABLE_SUPPLEMENTARY_CURVES", "WTK_PRODUCT_FACTORY_PROVISIONED")
+                "WTK_ENABLE_SUPPLEMENTARY_CURVES", "WTK_PRODUCT_FACTORY_PROVISIONED",
+                "WTK_INTERNAL_FLASH_KIB", "WTK_EXTENDED_FLASH_UID", "WTK_ENABLE_SERIAL_UI")
         report["configuration"] = dict(re.findall(r"^(" + "|".join(keys) + r"):[^=]+=(.*)$", cache, re.MULTILINE))
         for name, command in build_graph_commands(root, cache).items():
             write(raw / name, run(command))
