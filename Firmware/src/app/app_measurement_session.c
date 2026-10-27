@@ -73,7 +73,9 @@ static bool trim_sample_usable(const measurement_attempt_result_t *point,
          point->calibration.status == MEASUREMENT_CAL_RESOLVE_UNQUALIFIED) &&
         point->calibration.model_version == MEASUREMENT_CAL_MODEL_VERSION_CURRENT &&
         point->calibration.condition_id == measurement_cal_condition_id(&key) &&
-        !point->calibration.uncalibrated &&
+        /* The engineering set has applied persisted coefficients but remains
+         * UNQUALIFIED/uncalibrated until physical accuracy qualification. */
+        point->calibration.uncalibrated == primary->calibration.uncalibrated &&
         point->calibration.source == primary->calibration.source &&
         point->calibration.status == primary->calibration.status &&
         point->calibration.set_sequence == primary->calibration.set_sequence &&

@@ -39,6 +39,7 @@ typedef struct
     hw_metrology_measure_error_t error;
 #if WTK_ENABLE_MEASURE_SESSION_HOLD
     bool hold_mode;
+    bool qualified_calibration;
     bool hold_waiting;
     bool closing;
     bool cleanup_fail;
@@ -289,10 +290,11 @@ static bsp_status_t fake_process_block(const hw_metrology_block_t *block,
         const measurement_cal_key_t key = measurement_cal_key(MEASUREMENT_CAL_HARDWARE_REV1,
             MEASUREMENT_CAL_MODEL_VERSION_CURRENT, attempt->range_id, attempt->frequency, attempt->amplitude);
         processed->provenance.source = MEASUREMENT_CAL_SOURCE_PERSISTED;
-        processed->provenance.status = MEASUREMENT_CAL_RESOLVE_FOUND;
+        processed->provenance.status = fake->qualified_calibration ?
+            MEASUREMENT_CAL_RESOLVE_FOUND : MEASUREMENT_CAL_RESOLVE_UNQUALIFIED;
         processed->provenance.set_sequence = 1u + outcome->provenance_variant;
         processed->provenance.condition_id = measurement_cal_condition_id(&key);
-        processed->provenance.uncalibrated = false;
+        processed->provenance.uncalibrated = !fake->qualified_calibration;
     }
 #endif
     result->phasors.vexc_1_peak_v = outcome->source_peak_v;
@@ -717,6 +719,7 @@ static int test_trimmed_session(void)
         app_measurement_session_t session;
         fake_io_t fake = {0};
         fake.hold_mode = true;
+        fake.qualified_calibration = variant == 0u;
         fake.outcome_count = 9u;
         for (uint8_t i = 0u; i < fake.outcome_count; i++)
             fake.outcomes[i] = good_outcome(measurement_complex(1000.0f, 0.0f), MEASUREMENT_INTERPRET_RESISTIVE);

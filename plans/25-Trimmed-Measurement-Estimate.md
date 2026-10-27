@@ -72,3 +72,17 @@ Before touching another fixture, finish/preserve the already observed inductor
 sessions 3/4 (467.0 and 468.8 uH; nominal part unconfirmed) and the owner's
 single-relay-cycle confirmation. Branch codex/trimmed-measurements starts at
 the merged main rather than reuse the closed PR 24 branch.
+
+## First physical integration correction
+
+The first deployed filter image (source 7903edf) reached the primary result but
+rejected its seed: it incorrectly interpreted provenance.uncalibrated as missing
+applied coefficients. The existing engineering resolver deliberately sets that
+flag for persisted UNQUALIFIED records whose physical accuracy is not qualified.
+The first owner-triggered session therefore made four search captures, zero
+statistical samples and a rejected FAILED result, then completed SAFE cleanup.
+No seven-sample result is claimed for that run. The correction admits persisted
+FOUND or UNQUALIFIED records with matching status/flag/set/model/condition, while
+keeping their original confidence and refusing ideal/missing/corrupt records.
+Regression tests now exercise both qualified and actual engineering provenance.
+No calibration coefficient, qualification flag or persisted record was changed.
