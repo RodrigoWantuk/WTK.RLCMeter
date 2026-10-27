@@ -150,6 +150,7 @@ static uint32_t g_pc_link_rx_deadline_ms;
 #endif
 static uint16_t g_product_ccr_table[HW_EXCITATION_LUT_MAX_POINTS];
 static uint32_t g_product_output_tone_sequence = 0u;
+static app_feedback_t g_product_feedback;
 static uint8_t g_product_output_backlight_percent = UINT8_MAX;
 static bool g_product_output_sound_valid = false;
 static bool g_product_output_sound_enabled = true;
@@ -1253,6 +1254,16 @@ static bsp_status_t product_init_controller(void)
 #endif
 }
 
+static bsp_status_t product_feedback_play(uint16_t hz, uint16_t ms, uint32_t now_ms, void *user)
+{
+    (void)user;
+    return hw_buzzer_play_tone(hz, ms, now_ms);
+}
+static void product_feedback_stop(void *user)
+{
+    (void)user;
+    hw_buzzer_mute();
+}
 static void product_apply_outputs(void)
 {
     app_product_outputs_t outputs;
@@ -1274,12 +1285,17 @@ static void product_apply_outputs(void)
     if ((outputs.tone_sequence != 0u) &&
         (outputs.tone_sequence != g_product_output_tone_sequence))
     {
-        g_product_output_tone_sequence = outputs.tone_sequence;
-        if (outputs.sound_enabled)
+        const bool quiet = hw_peripherals_quiet_requested();
+        if (!quiet || outputs.tone_event < APP_FEEDBACK_COMPLETE || !outputs.sound_enabled)
         {
-            (void)hw_buzzer_play_tone(outputs.tone_frequency_hz, outputs.tone_duration_ms, bsp_time_now_ms());
+            if (outputs.sound_enabled && !quiet)
+                (void)app_feedback_request(&g_product_feedback, outputs.tone_event);
+            g_product_output_tone_sequence = outputs.tone_sequence;
         }
     }
+    const app_feedback_io_t feedback_io = {.play = product_feedback_play, .stop = product_feedback_stop};
+    app_feedback_step(&g_product_feedback, &feedback_io, outputs.sound_enabled,
+                      hw_peripherals_quiet_requested(), bsp_time_now_ms());
 }
 #endif
 
@@ -1634,6 +1650,7 @@ void app_shell_run(void)
     app_calibration_service_attach_workspace(&g_calibration_service, &g_io_workspace);
     const bsp_status_t gpio_status = bsp_gpio_init_safe();
     app_record_status_fault(gpio_status, APP_SAFETY_FAULT_GPIO_INIT);
+    if (!bsp_reset_memory_profile_valid()) app_latch_fault(APP_SAFETY_FAULT_MEMORY_PROFILE);
     const bsp_status_t clock_status = bsp_clock_init();
     g_clock_status = clock_status;
     (void)bsp_time_init();
@@ -1644,7 +1661,7 @@ void app_shell_run(void)
     {
         app_latch_fault(APP_SAFETY_FAULT_CLOCK);
     }
-    (void)bsp_watchdog_start();
+    app_record_status_fault(bsp_watchdog_start(), APP_SAFETY_FAULT_WATCHDOG);
 
     buttons_init(&g_buttons, NULL);
     const hw_k1_io_t k1_io = {
@@ -1716,6 +1733,7 @@ void app_shell_run(void)
 #endif
     g_resource_status = RESOURCE_STATUS_MISSING;
     g_product_output_tone_sequence = 0u;
+    app_feedback_init(&g_product_feedback);
     g_product_output_backlight_percent = UINT8_MAX;
     g_product_output_sound_valid = false;
     g_product_output_sound_enabled = true;

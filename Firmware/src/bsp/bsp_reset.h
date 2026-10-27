@@ -2,6 +2,7 @@
 #define WTK_BSP_RESET_H
 
 #include <stdint.h>
+#include <stdbool.h>
 
 typedef enum
 {
@@ -17,6 +18,7 @@ bsp_reset_reason_t bsp_reset_capture_reason(void);
 bsp_reset_reason_t bsp_reset_get_reason(void);
 uint32_t bsp_reset_get_raw_flags(void);
 void bsp_reset_read_device_uid(uint8_t uid[12]);
+bool bsp_reset_memory_profile_valid(void);
 const char *bsp_reset_reason_string(bsp_reset_reason_t reason);
 
 #endif

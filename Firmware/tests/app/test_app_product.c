@@ -869,6 +869,10 @@ static int test_backlight_timeout_wake_consumes_ok_gesture(void)
     failures += expect_true(init_product(&product, &fake) == BSP_STATUS_OK,
                             "product init backlight timeout");
     boot_to_ready(&product, &inputs);
+    inputs.range_disabled = true;
+    inputs.safety_result.measure_allowed = false;
+    inputs.safety_result.blocker_flags = HW_SAFETY_BLOCK_RANGE;
+    inputs.safety_result.primary_blocker = HW_SAFETY_BLOCKED_RANGE;
     app_product_step(&product, &inputs, &clock, BSP_STATUS_OK, 60005u);
     app_product_outputs_t outputs;
     app_product_make_outputs(&product, &outputs);

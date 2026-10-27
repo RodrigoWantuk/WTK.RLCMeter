@@ -45,14 +45,16 @@ def peripheral_composition_errors(symbols: str, enabled: bool) -> list[str]:
 
 def factory_composition_errors(symbols: str, commands: list[dict], enabled: bool) -> list[str]:
     present = {Path(row["file"].replace("\\", "/")).name for row in commands}
-    exclusive = {"app_calibration_wizard.c", "app_calibration_session.c", "measurement_calibration_solver.c"}
+    exclusive = {"app_calibration_wizard.c", "app_calibration_session.c", "measurement_calibration_solver.c",
+                 "app_calibration_service.c", "measurement_calibration_store.c"}
     if not enabled:
         return []
     errors = ["factory PRODUCT compiled wizard source: " + name for name in sorted(present & exclusive)]
     pattern = re.compile(r"app_calibration_wizard_|app_calibration_session_|measurement_cal_solver_|measurement_cal_store_(?:step|write_start)|prepare_wizard_line|calibration_load_preset_value|cal_load_preset_token")
     errors += [line for line in symbols.splitlines() if pattern.search(line)]
     for name in ("app_product.c", "app_calibration_runtime.c", "measurement_calibration.c",
-                 "measurement_calibration_store.c", "app_resource_update.c", "hw_safety.c"):
+                 "measurement_calibration_store_loadonly.c", "app_calibration_service_loadonly.c",
+                 "app_resource_update.c", "hw_safety.c"):
         if name not in present:
             errors.append("factory PRODUCT missing retained source: " + name)
     return errors

@@ -1094,3 +1094,41 @@ Calibration schema/model/hardware revision and stored OSL/NTC coefficients are
 unchanged. The unit's calibration remains engineering data, without a new
 accuracy or metrology qualification claim. No new resistor campaign is required
 for this policy/lifecycle change.
+
+## 2026-10-27 — Production completion foundation
+
+[Plan 30](../plans/30-Production-Firmware-Audit-and-Completion.md) now has owner
+authorization to implement the audited corrections. Generic C8 defaults remain
+64 KiB. `stm32-unit-release` is an explicit 128-KiB engineering PRODUCT profile
+bound to UID `54ff70068370525760380567`, whose upper half passed plan 29. It
+preserves the unit NTC profile, generates a matching linker, uses a 130,048-B
+PRODUCT hard Flash budget and retains the existing RAM/stack gates. The deploy
+tool separately checks configured geometry and the still-64-KiB factory register;
+unknown UIDs are rejected before programming. This does not qualify other C8s.
+
+Factory PRODUCT loads OSL through a read-only service with two candidate scans
+and a final verified read into the inactive runtime set. This removes the
+permanent duplicate scan set and unused full-workflow context. No stored OSL
+format changes; legacy full calibration/capture profiles keep their write path.
+
+Settings schema 4 retains the 36-byte layout and commit-last redundant slots,
+but covers header metadata (excluding the checksum field) and payload in its
+CRC. Schemas 2/3 remain readable; the next successful save upgrades via the
+inactive slot. Settings start OK means accepted/poll required; BUSY means not
+accepted. The W25Q adapter observes new operation ownership to distinguish them.
+The immutable write frame is verified independently of later RAM edits; a newer
+dirty value is saved afterward. The transaction has a 5,000-ms cooperative bound.
+
+Fatal exception handling directly disables interrupts, range enable, K1,
+excitation/trigger/DMA and buzzer without depending on initialized application
+contexts. Watchdog initialization failure is latched before measurement can be
+admitted. TIM4 tone stop clears pending sources under an interrupt critical
+section and the ISR checks the armed state. Physical shutdown and quiet timing
+remain REQUIRES_BENCH_VALIDATION.
+
+PRODUCT feedback uses bounded event patterns and a four-entry queue with
+duplicate coalescing, priority eviction and a 250-ms driver-BUSY retry bound.
+Mute/quiet drops queued old feedback; result/save/fault notifications requested
+while quiet wait at the output boundary until quiet ends. No hardware safety
+control is delegated to UI. SAFE idle disabled ranges no longer defeat the
+display timeout; actual hardware measurement permission is unchanged.

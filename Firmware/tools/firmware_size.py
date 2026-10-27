@@ -119,17 +119,20 @@ def ram_limits_for_budget(budget: str) -> tuple[int | None, int | None]:
     return None, None
 
 
-def flash_hard_limit_for_budget(budget: str) -> int:
+def flash_hard_limit_for_budget(budget: str, flash_bytes: int = FLASH_SILICON_BYTES) -> int:
+    if flash_bytes not in (65536, 131072):
+        raise ValueError("unsupported configured Flash geometry")
     budget_name = normalized_budget_name(budget)
     if budget_name == "bringup":
-        return BRINGUP_FLASH_HARD_BYTES
-    return PROJECT_FLASH_HARD_BYTES
+        return flash_bytes
+    return flash_bytes - 1024
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("elf", type=Path)
     parser.add_argument("--budget", choices=("none", "product", "release", "bringup"), default="none")
+    parser.add_argument("--flash-bytes", type=int, choices=(65536, 131072), default=FLASH_SILICON_BYTES)
     parser.add_argument("--json-out", type=Path)
     parser.add_argument("--size-tool")
     parser.add_argument("--objdump-tool")
@@ -157,13 +160,14 @@ def main() -> int:
     ram_remaining_bytes = RAM_SILICON_BYTES - ram_accounted_bytes
     budget_name = normalized_budget_name(args.budget)
     ram_preferred_bytes, ram_hard_bytes = ram_limits_for_budget(budget_name)
-    flash_hard_bytes = flash_hard_limit_for_budget(budget_name)
+    flash_hard_bytes = flash_hard_limit_for_budget(budget_name, args.flash_bytes)
     report = {
         "elf": str(args.elf),
         "budget": budget_name,
+        "capacity_basis": "FIRST_UNIT_ENGINEERING_128_NOT_GENERIC_C8" if args.flash_bytes > FLASH_SILICON_BYTES else "DECLARED_C8_64",
         **size,
         "size_bss_aggregate_bytes": size_bss_aggregate_bytes,
-        "flash_percent": percent(size["flash_bytes"], FLASH_SILICON_BYTES),
+        "flash_percent": percent(size["flash_bytes"], args.flash_bytes),
         "ram_static_percent": percent(size["ram_static_bytes"], RAM_SILICON_BYTES),
         "ram_accounted_bytes": ram_accounted_bytes,
         "ram_accounted_percent": percent(ram_accounted_bytes, RAM_SILICON_BYTES),
@@ -175,9 +179,10 @@ def main() -> int:
         "budgets": {
             "flash_soft_bytes": PROJECT_FLASH_SOFT_BYTES,
             "flash_hard_bytes": flash_hard_bytes,
-            "product_flash_hard_bytes": PROJECT_FLASH_HARD_BYTES,
-            "bringup_flash_hard_bytes": BRINGUP_FLASH_HARD_BYTES,
-            "flash_silicon_bytes": FLASH_SILICON_BYTES,
+            "product_flash_hard_bytes": args.flash_bytes - 1024,
+            "bringup_flash_hard_bytes": args.flash_bytes,
+            "flash_silicon_bytes": args.flash_bytes,
+            "factory_declared_flash_bytes": FLASH_SILICON_BYTES,
             "ram_silicon_bytes": RAM_SILICON_BYTES,
             "product_ram_preferred_bytes": PRODUCT_RAM_PREFERRED_BYTES,
             "product_ram_hard_bytes": PRODUCT_RAM_HARD_BYTES,
@@ -194,7 +199,7 @@ def main() -> int:
 
     print(f"Firmware size: {args.elf}")
     print(
-        f"  Flash: {size['flash_bytes']} B / {FLASH_SILICON_BYTES} B "
+        f"  Flash: {size['flash_bytes']} B / {args.flash_bytes} B "
         f"({report['flash_percent']:.2f}%)"
     )
     print(

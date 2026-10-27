@@ -639,6 +639,44 @@ if(WTK_WARNINGS_AS_ERRORS_HOST)
 endif()
 add_test(NAME wtk_app_settings_service_test COMMAND wtk_app_settings_service_test)
 
+add_executable(wtk_settings_w25q_contract_test storage/test_settings_w25q_contract.c
+    ../src/drivers/w25q_device.c ../src/storage/app_settings_w25q_adapter.c
+    ../src/storage/measurement_cal_w25q_adapter.c)
+target_link_libraries(wtk_settings_w25q_contract_test PRIVATE wtk_firmware_common)
+wtk_configure_c_target(wtk_settings_w25q_contract_test)
+wtk_apply_project_warnings(wtk_settings_w25q_contract_test)
+if(WTK_WARNINGS_AS_ERRORS_HOST)
+    wtk_treat_warnings_as_errors(wtk_settings_w25q_contract_test)
+endif()
+add_test(NAME wtk_settings_w25q_contract_test COMMAND wtk_settings_w25q_contract_test)
+
+add_executable(wtk_factory_calibration_loadonly_test app/test_factory_calibration_loadonly.c
+    ../src/app/app_calibration_service_loadonly.c ../src/measurement/measurement_calibration_store_loadonly.c)
+target_compile_definitions(wtk_factory_calibration_loadonly_test PRIVATE WTK_CAL_FACTORY_LOAD_ONLY=1)
+target_link_libraries(wtk_factory_calibration_loadonly_test PRIVATE wtk_firmware_common)
+wtk_configure_c_target(wtk_factory_calibration_loadonly_test)
+wtk_apply_project_warnings(wtk_factory_calibration_loadonly_test)
+if(WTK_WARNINGS_AS_ERRORS_HOST)
+    wtk_treat_warnings_as_errors(wtk_factory_calibration_loadonly_test)
+endif()
+add_test(NAME wtk_factory_calibration_loadonly_test COMMAND wtk_factory_calibration_loadonly_test)
+
+add_executable(wtk_app_feedback_test app/test_app_feedback.c)
+target_link_libraries(wtk_app_feedback_test PRIVATE wtk_firmware_common)
+wtk_configure_c_target(wtk_app_feedback_test)
+wtk_apply_project_warnings(wtk_app_feedback_test)
+if(WTK_WARNINGS_AS_ERRORS_HOST)
+    wtk_treat_warnings_as_errors(wtk_app_feedback_test)
+endif()
+add_test(NAME wtk_app_feedback_test COMMAND wtk_app_feedback_test)
+foreach(audit_regression wtk_settings_w25q_contract_test wtk_factory_calibration_loadonly_test wtk_app_feedback_test)
+    if(MSVC)
+        target_compile_options(${audit_regression} PRIVATE /UNDEBUG)
+    else()
+        target_compile_options(${audit_regression} PRIVATE -UNDEBUG)
+    endif()
+endforeach()
+
 add_executable(wtk_app_calibration_wizard_test
     app/test_app_calibration_wizard.c
 )

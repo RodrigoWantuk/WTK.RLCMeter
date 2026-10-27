@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include "bsp/bsp_gpio.h"
 
 extern uint32_t _estack;
 extern uint32_t _sidata;
@@ -161,6 +162,7 @@ void Reset_Handler(void)
 
 void Default_Handler(void)
 {
+    bsp_gpio_emergency_safe();
     while (1)
     {
     }

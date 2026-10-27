@@ -1,0 +1,27 @@
+{
+  "status": "FOUNDATION_IMPLEMENTED_SOFTWARE_TESTED_NOT_DEPLOYED",
+  "source_baseline": "bb9b2e3451c3d02fc43800a70cdd1cb36b82b818",
+  "source_modifications_at_build": true,
+  "target_access": false,
+  "factory_ctest": {
+    "pass": 53,
+    "total": 53
+  },
+  "standard_ctest": {
+    "pass": 51,
+    "total": 51
+  },
+  "deployment_unittest": {
+    "cases": 64,
+    "optional_skips": 5,
+    "outcome": "PASS"
+  },
+  "unit128_linked_flash_bytes": 62828,
+  "unit128_ram_accounted_bytes": 14204,
+  "evidence_sha256": "7a97b799a8f05dc45f0076ab1827dc73472c7098d81c18f1c190e6112d5d32a1",
+  "limits": [
+    "Physical fault/tone/timeout/persistence qualification pending",
+    "Full integration and endpoint wizard not yet implemented",
+    "No new target image installed"
+  ]
+}

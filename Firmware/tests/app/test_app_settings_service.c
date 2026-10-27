@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include "storage/storage_crc32.h"
 
 enum
 {
@@ -136,8 +137,9 @@ static app_settings_store_io_t make_io(fake_flash_t *fake)
 
 static bsp_status_t drain_save(app_settings_service_t *service)
 {
-    for (uint32_t now = 0u; now < 32u; now++)
+    for (uint32_t tick = 0u; tick < 32u; tick++)
     {
+        const uint32_t now = service->save_started_ms + tick;
         const bsp_status_t status = app_settings_service_step(service, now);
         if ((status != BSP_STATUS_OK) && (status != BSP_STATUS_BUSY))
         {
@@ -388,6 +390,87 @@ static int test_newest_wrap_safe_slot_selected(void)
     return failures;
 }
 
+static int test_legacy_upgrade_and_power_cuts(void)
+{
+    int failures = 0;
+    for (unsigned scenario = 0u; scenario < 18u; ++scenario)
+    {
+        fake_flash_t fake;
+        fake_flash_init(&fake);
+        const app_settings_store_io_t io = make_io(&fake);
+        app_settings_service_t service, loaded;
+        (void)app_settings_service_init(&service, &io, FAKE_FLASH_BYTES);
+        app_settings_t value = app_settings_defaults();
+        value.brightness_percent = 60u;
+        (void)app_settings_service_set(&service, &value);
+        (void)app_settings_service_save_start(&service, 0u);
+        failures += expect_true(drain_save(&service) == BSP_STATUS_OK, "power-cut baseline");
+        if (scenario < 2u)
+        {
+            uint8_t *frame = &fake.bytes[service.slots[0].start];
+            frame[4] = (uint8_t)(scenario + 2u);
+            const uint32_t crc = storage_crc32(frame + 24u, 8u);
+            for (unsigned i = 0u; i < 4u; ++i) frame[16u+i] = (uint8_t)(crc >> (8u*i));
+        }
+        else
+        {
+            value.brightness_percent = 65u;
+            (void)app_settings_service_set(&service, &value);
+            (void)app_settings_service_save_start(&service, 100u);
+            for (uint32_t tick = 0u; tick < scenario - 2u; ++tick)
+                (void)app_settings_service_step(&service, 100u + tick);
+        }
+        (void)app_settings_service_init(&loaded, &io, FAKE_FLASH_BYTES);
+        (void)app_settings_service_load(&loaded, NULL);
+        failures += expect_true(loaded.persisted_valid &&
+            (loaded.current.brightness_percent == 60u || loaded.current.brightness_percent == 65u),
+            "cut at each transaction step retains a complete committed version");
+        if (scenario < 2u)
+        {
+            failures += expect_u32(loaded.current.brightness_percent, 60u, "legacy schema 2/3 readable");
+            value.brightness_percent = 70u;
+            (void)app_settings_service_set(&loaded, &value);
+            (void)app_settings_service_save_start(&loaded, 200u);
+            failures += expect_true(drain_save(&loaded) == BSP_STATUS_OK, "legacy upgrades through inactive slot");
+            failures += expect_u32(fake.bytes[loaded.slots[(unsigned)loaded.active_slot].start+4u], 4u, "upgrade writes schema 4");
+        }
+    }
+    return failures;
+}
+
+static int test_snapshot_crc_and_timeout(void)
+{
+    int failures = 0;
+    fake_flash_t fake;
+    fake_flash_init(&fake);
+    const app_settings_store_io_t io = make_io(&fake);
+    app_settings_service_t service, loaded;
+    failures += expect_true(app_settings_service_init(&service, &io, FAKE_FLASH_BYTES) == BSP_STATUS_OK, "snapshot init");
+    app_settings_t value = app_settings_defaults();
+    value.brightness_percent = 60u;
+    (void)app_settings_service_set(&service, &value);
+    (void)app_settings_service_save_start(&service, UINT32_MAX - 100u);
+    (void)app_settings_service_step(&service, UINT32_MAX - 99u);
+    value.brightness_percent = 65u;
+    (void)app_settings_service_set(&service, &value);
+    failures += expect_true(drain_save(&service) == BSP_STATUS_OK, "immutable snapshot commits despite newer edit");
+    failures += expect_true(app_settings_service_dirty(&service) && !service.save_failed, "newest edit remains dirty, not failed");
+    (void)app_settings_service_save_start(&service, 20u);
+    failures += expect_true(drain_save(&service) == BSP_STATUS_OK, "latest dirty revision commits");
+    (void)app_settings_service_init(&loaded, &io, FAKE_FLASH_BYTES);
+    (void)app_settings_service_load(&loaded, NULL);
+    failures += expect_u32(loaded.current.brightness_percent, 65u, "latest edit survives reload");
+    fake.bytes[service.slots[(unsigned)service.active_slot].start + 12u] ^= 0x20u;
+    (void)app_settings_service_load(&loaded, NULL);
+    failures += expect_u32(loaded.current.brightness_percent, 60u, "corrupt newest sequence falls back to previous valid slot");
+    value.brightness_percent = 70u;
+    (void)app_settings_service_set(&service, &value);
+    (void)app_settings_service_save_start(&service, UINT32_MAX - 1000u);
+    failures += expect_true(app_settings_service_step(&service, 5000u) == BSP_STATUS_TIMEOUT, "whole save deadline handles tick wrap");
+    failures += expect_true(service.save_failed && !app_settings_service_busy(&service), "timeout releases service owner");
+    return failures;
+}
+
 int main(void)
 {
     int failures = 0;
@@ -396,6 +479,8 @@ int main(void)
     failures += test_failed_replacement_preserves_previous_slot();
     failures += test_failed_writes_stay_dirty();
     failures += test_newest_wrap_safe_slot_selected();
+    failures += test_snapshot_crc_and_timeout();
+    failures += test_legacy_upgrade_and_power_cuts();
     failures += expect_true(app_settings_service_context_size_bytes() <= 256u,
                             "settings context budget");
     return failures;

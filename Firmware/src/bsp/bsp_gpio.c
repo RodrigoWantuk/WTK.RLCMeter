@@ -100,6 +100,31 @@ bool bsp_gpio_swd_preserved(void)
     return g_swd_preserved;
 }
 
+void bsp_gpio_emergency_safe(void)
+{
+    __disable_irq();
+    RCC->APB2ENR |= RCC_APB2ENR_IOPAEN | RCC_APB2ENR_IOPBEN | RCC_APB2ENR_TIM1EN;
+    RCC->APB1ENR |= RCC_APB1ENR_TIM2EN | RCC_APB1ENR_TIM4EN;
+    /* Remove DUT connection first, including during partially initialized boot. */
+    GPIOB->BSRR = ((1u << 8u) | (1u << 9u) | (1u << 1u)) << 16u;
+    gpio_config_pin(GPIOB, 8u, GPIO_MODE_OUTPUT_PP_2MHZ);
+    gpio_config_pin(GPIOB, 9u, GPIO_MODE_OUTPUT_PP_2MHZ);
+    TIM1->BDTR = 0u;
+    TIM1->CCER = 0u;
+    TIM1->CR1 = 0u;
+    TIM2->CR1 = 0u;
+    TIM2->DIER = 0u;
+    RCC->AHBENR |= RCC_AHBENR_DMA1EN;
+    DMA1_Channel1->CCR = 0u;
+    TIM4->CR1 = 0u;
+    TIM4->DIER = 0u;
+    GPIOA->BSRR = ((1u << 8u) | (1u << 11u)) << 16u;
+    gpio_config_pin(GPIOA, 8u, GPIO_MODE_OUTPUT_PP_2MHZ);
+    gpio_config_pin(GPIOA, 11u, GPIO_MODE_OUTPUT_PP_2MHZ);
+    gpio_config_pin(GPIOB, 1u, GPIO_MODE_OUTPUT_PP_2MHZ);
+    __DSB();
+}
+
 bsp_status_t bsp_gpio_write_output(bsp_gpio_output_t output, bool high)
 {
     GPIO_TypeDef *port = NULL;

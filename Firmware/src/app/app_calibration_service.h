@@ -38,7 +38,9 @@ typedef struct
 {
     app_calibration_runtime_t runtime;
     measurement_cal_store_t store;
+#if !WTK_CAL_FACTORY_LOAD_ONLY
     app_calibration_workflow_t workflow;
+#endif
     app_cal_service_status_t status;
     app_cal_candidate_state_t candidate_state;
     bsp_status_t last_store_status;
@@ -67,6 +69,7 @@ bool app_calibration_service_active_valid(const app_calibration_service_t *servi
 uint32_t app_calibration_service_active_sequence(const app_calibration_service_t *service);
 const measurement_cal_set_t *app_calibration_service_active_set(
     const app_calibration_service_t *service);
+#if !WTK_CAL_FACTORY_LOAD_ONLY
 app_calibration_workflow_t *app_calibration_service_workflow(app_calibration_service_t *service);
 const app_calibration_workflow_t *app_calibration_service_workflow_const(
     const app_calibration_service_t *service);
@@ -86,6 +89,7 @@ app_cal_candidate_state_t app_calibration_service_candidate_state(const app_cali
 bsp_status_t app_calibration_service_candidate_commit_start(app_calibration_service_t *service);
 bsp_status_t app_calibration_service_candidate_commit_bound(app_calibration_service_t *service);
 bsp_status_t app_calibration_service_step(app_calibration_service_t *service, uint32_t now_ms);
+#endif
 uint32_t app_calibration_service_context_size_bytes(void);
 const char *app_calibration_service_status_string(app_cal_service_status_t status);
 const char *app_calibration_candidate_state_string(app_cal_candidate_state_t state);

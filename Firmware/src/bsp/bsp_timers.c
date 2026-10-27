@@ -13,7 +13,8 @@ enum
 };
 
 static uint16_t g_tim3_ch3_steps = 0u;
-static bool g_buzzer_pin_high = false;
+static volatile bool g_buzzer_pin_high = false;
+static volatile bool g_buzzer_armed = false;
 
 static void gpio_config_pin(GPIO_TypeDef *const port, uint32_t pin, uint32_t mode)
 {
@@ -121,23 +122,37 @@ bsp_status_t bsp_timer4_buzzer_start(uint16_t frequency_hz)
         return BSP_STATUS_INVALID_ARG;
     }
 
+    const uint32_t interrupt_state = __get_PRIMASK();
+    __disable_irq();
+    g_buzzer_armed = false;
     TIM4->CR1 = 0u;
     TIM4->ARR = (uint16_t)(half_period_ticks - 1u);
     TIM4->CNT = 0u;
-    TIM4->SR = 0u;
-    TIM4->DIER = TIM_DIER_UIE;
     TIM4->EGR = TIM_EGR_UG;
+    TIM4->SR = 0u;
+    NVIC_ClearPendingIRQ(TIM4_IRQn);
+    g_buzzer_pin_high = false;
+    (void)bsp_gpio_write_output(BSP_GPIO_OUTPUT_BUZZER, false);
+    g_buzzer_armed = true;
+    TIM4->DIER = TIM_DIER_UIE;
     TIM4->CR1 = TIM_CR1_CEN;
+    __set_PRIMASK(interrupt_state);
 
     return BSP_STATUS_OK;
 }
 
 void bsp_timer4_buzzer_stop(void)
 {
+    const uint32_t interrupt_state = __get_PRIMASK();
+    __disable_irq();
+    g_buzzer_armed = false;
     TIM4->CR1 = 0u;
     TIM4->DIER = 0u;
+    TIM4->SR = 0u;
+    NVIC_ClearPendingIRQ(TIM4_IRQn);
     (void)bsp_gpio_write_output(BSP_GPIO_OUTPUT_BUZZER, false);
     g_buzzer_pin_high = false;
+    __set_PRIMASK(interrupt_state);
 }
 
 void TIM4_IRQHandler(void)
@@ -145,7 +160,11 @@ void TIM4_IRQHandler(void)
     if ((TIM4->SR & TIM_SR_UIF) != 0u)
     {
         TIM4->SR &= ~TIM_SR_UIF;
-        g_buzzer_pin_high = !g_buzzer_pin_high;
-        (void)bsp_gpio_write_output(BSP_GPIO_OUTPUT_BUZZER, g_buzzer_pin_high);
+        if (g_buzzer_armed && (TIM4->DIER & TIM_DIER_UIE) != 0u &&
+            (TIM4->CR1 & TIM_CR1_CEN) != 0u)
+        {
+            g_buzzer_pin_high = !g_buzzer_pin_high;
+            (void)bsp_gpio_write_output(BSP_GPIO_OUTPUT_BUZZER, g_buzzer_pin_high);
+        }
     }
 }

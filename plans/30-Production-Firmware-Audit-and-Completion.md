@@ -1,12 +1,13 @@
 # Production completion and quick lead OPEN/SHORT compensation
 
-STATUS: AUDIT_COMPLETE_IMPLEMENTATION_NOT_STARTED
+STATUS: IMPLEMENTATION_IN_PROGRESS_PHYSICAL_QUALIFICATION_PENDING
 
 Owner scope: audit all firmware, especially PRODUCT; identify unimplemented or
 misleading behavior; complete usable settings/audible feedback; design a native
 quick OPEN/SHORT option after changing leads; account for verified memory.
-The immediate deliverable is the [audit and evidence](../docs/review/production-audit-2026-10-27/README.md)
-and this execution plan. Firmware corrections and the new menu remain pending.
+The initial [audit and evidence](../docs/review/production-audit-2026-10-27/README.md)
+and execution plan are complete. The owner has now authorized implementation.
+Foundation corrections are being tested; the endpoint wizard remains pending.
 This plan is not a release qualification or a claim that earlier bench checks
 were invalid: each check retains its narrow scope.
 
@@ -53,7 +54,8 @@ pending feature into one unreviewable implementation.
 
 A and B/C can be prepared independently. G can use host-only math while C is
 fixed. UART buffering and lead runtime integration must wait for proven RAM
-headroom. Every package remains NOT_STARTED until implemented and verified.
+headroom. Package status and actual evidence are tracked in the
+[execution log](../docs/review/production-completion-2026-10-27/README.md).
 
 ## A — memory and deployment contract (F11)
 
@@ -399,4 +401,5 @@ must not be reported as passed merely because a basic function works.
 
 Completion requires updating each package's actual evidence/status, release
 manifest, user controls/protocol/storage docs, remaining qualification list and
-the authorized Git/PR. This audit commits a reviewable plan; A–L are still pending.
+the authorized Git/PR. See the execution log for package progress and pending
+physical acceptance; no package is marked physically qualified by host tests.

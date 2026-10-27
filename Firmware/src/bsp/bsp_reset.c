@@ -1,6 +1,7 @@
 #include "bsp/bsp_reset.h"
 
 #include "stm32f1xx.h"
+#include "wtk_build_config.h"
 
 static bsp_reset_reason_t g_reset_reason = BSP_RESET_REASON_UNKNOWN;
 static uint32_t g_reset_raw_flags = 0u;
@@ -53,6 +54,19 @@ void bsp_reset_read_device_uid(uint8_t uid[12])
     if (uid == 0) return;
     const volatile uint8_t *source = (const volatile uint8_t *)UID_BASE;
     for (uint32_t i = 0u; i < 12u; i++) uid[i] = source[i];
+}
+
+bool bsp_reset_memory_profile_valid(void)
+{
+#if WTK_INTERNAL_FLASH_BYTES > 65536u
+    static const char expected[] = WTK_EXTENDED_FLASH_UID;
+    static const char hex[] = "0123456789abcdef";
+    uint8_t actual[12];
+    bsp_reset_read_device_uid(actual);
+    for (unsigned i = 0u; i < 12u; ++i)
+        if (expected[2u*i] != hex[actual[i] >> 4u] || expected[2u*i+1u] != hex[actual[i] & 15u]) return false;
+#endif
+    return true;
 }
 
 const char *bsp_reset_reason_string(bsp_reset_reason_t reason)

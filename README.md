@@ -17,6 +17,12 @@ and [ordered completion plan](plans/30-Production-Firmware-Audit-and-Completion.
 including separate native OPEN/SHORT lead compensation. Corrections and the new
 menu are planned, not installed by this documentation-only audit.
 
+Implementation is now authorized and in progress. The
+[production completion log](docs/review/production-completion-2026-10-27/README.md)
+tracks tested persistence/SAFE/feedback corrections, the explicit first-unit
+128-KiB build and pending serial/lead-wizard integration. Software checks are
+separate from deployment and physical qualification.
+
 > **Historical bring-up checkpoint — October 24, 2026:** basic R/C/L and display/buttons/buzzer observations are recorded. Current CAD includes six RGS gate-toGND pull-downs; shared firmware includes acquisition/phase/relay fixes and mounted display orientation. Calibration and battery/charger/metrology qualification remain pending. See [bring-up consolidation](docs/review/bringup-2026-10-24/README.md).
 
 October 25 first-unit update: [all 99 OSL captures](docs/review/bringup-2026-10-25/OSL-All-99.md)

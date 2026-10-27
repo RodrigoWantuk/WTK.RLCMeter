@@ -8,6 +8,11 @@ OPEN/SHORT lead compensation and these corrections are planned, not installed.
 Physical unit Flash capacity is 128 KiB verified; current image is 61,596 B,
 with only 292 B remaining under the present RAM hard budget.
 
+Subsequent implementation progress is in the
+[production completion log](review/production-completion-2026-10-27/README.md).
+The load-only factory OSL service frees RAM without changing persisted records;
+actual deployment and physical acceptance are tracked separately.
+
 Latest first-unit checkpoint: [calibrated PRODUCT READY handoff](../Firmware/releases/2026-10-25/calibrated-product-ready/README.md).
 The 33-condition engineering OSL is installed and persistent. PRODUCT now loads
 it and reaches READY with SAFE outputs. The owner confirms splash and READY;

@@ -46,6 +46,15 @@ enum
 static void mark_dirty(app_product_t *product);
 static void set_state(app_product_t *product, ui_product_state_t state);
 
+static void feedback_event(app_product_t *product, app_feedback_event_t event)
+{
+    if ((product->view.state == UI_PRODUCT_STATE_FAULT ||
+         product->view.state == UI_PRODUCT_STATE_SAFETY_BLOCKED) && event < APP_FEEDBACK_ERROR) return;
+    product->tone_event = event;
+    ++product->tone_sequence;
+    if (product->tone_sequence == 0u) ++product->tone_sequence;
+}
+
 #if !WTK_PRODUCT_FACTORY_PROVISIONED
 static float calibration_load_preset_value(uint8_t preset, hw_range_id_t range_id)
 {
@@ -242,6 +251,10 @@ static void set_state(app_product_t *product, ui_product_state_t state)
 {
     if ((product != NULL) && (product->view.state != state))
     {
+        if (state == UI_PRODUCT_STATE_FAULT) feedback_event(product, APP_FEEDBACK_FAULT);
+        else if (state == UI_PRODUCT_STATE_SAFETY_BLOCKED) feedback_event(product, APP_FEEDBACK_ERROR);
+        else if (state == UI_PRODUCT_STATE_RESULT) feedback_event(product,
+            product->view.measurement_result.derived_valid ? APP_FEEDBACK_COMPLETE : APP_FEEDBACK_ERROR);
         product->view.state = (uint8_t)state;
         mark_dirty(product);
     }
@@ -873,7 +886,10 @@ static WTK_NOINLINE void service_pending_settings_save(app_product_t *product,
         if ((status != BSP_STATUS_OK) && (status != BSP_STATUS_BUSY))
         {
             product->settings_save_requested = false;
+            feedback_event(product, APP_FEEDBACK_ERROR);
         }
+        else if (status == BSP_STATUS_OK && !app_settings_service_dirty(product->settings_service))
+            feedback_event(product, APP_FEEDBACK_SAVED);
         sync_settings_view(product);
         return;
     }
@@ -932,7 +948,8 @@ static WTK_NOINLINE void update_backlight_idle(app_product_t *product,
 #if !WTK_PRODUCT_FACTORY_PROVISIONED
         calibration_forces_awake(product) ||
 #endif
-        !inputs->safety_result.measure_allowed;
+        !app_product_schedule_allowed(&inputs->safety_result, inputs->range_disabled,
+                                      inputs->residual_refresh_pending, false);
     if (force_awake)
     {
         if (product->backlight_sleeping)
@@ -1047,12 +1064,15 @@ void app_product_handle_button_event(app_product_t *product, const button_event_
         {
             product->ok_long_seen = true;
             product->request_menu = true;
+            feedback_event(product, APP_FEEDBACK_BACK);
         }
         else if (event->type == BUTTON_EVENT_RELEASE)
         {
             if (product->ok_armed && !product->ok_long_seen)
             {
                 product->request_click = true;
+                if (product->view.state != UI_PRODUCT_STATE_MEASURING)
+                    feedback_event(product, APP_FEEDBACK_CONFIRM);
             }
             product->ok_armed = false;
             product->ok_long_seen = false;
@@ -1071,6 +1091,8 @@ void app_product_handle_button_event(app_product_t *product, const button_event_
     {
         product->request_page_next = true;
     }
+    if (product->view.state != UI_PRODUCT_STATE_MEASURING)
+        feedback_event(product, APP_FEEDBACK_NAVIGATE);
 }
 
 void app_product_step(app_product_t *product,
@@ -1301,7 +1323,7 @@ void app_product_step(app_product_t *product,
                     request_settings_save(product);
                     if (settings.sound_enabled)
                     {
-                        product->tone_sequence++;
+                        feedback_event(product, APP_FEEDBACK_CONFIRM);
                     }
                 }
                 else
@@ -1672,6 +1694,7 @@ void app_product_make_outputs(const app_product_t *product, app_product_outputs_
         .tone_frequency_hz = (product->tone_sequence != 0u) ? 2000u : 0u,
         .tone_duration_ms = (product->tone_sequence != 0u) ? 30u : 0u,
         .tone_sequence = product->tone_sequence,
+        .tone_event = product->tone_event,
     };
 }
 

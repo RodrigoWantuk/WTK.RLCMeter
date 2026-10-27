@@ -101,6 +101,17 @@
       "cacheVariables": {
         "WTK_PRODUCT_FACTORY_PROVISIONED": "ON"
       }
+    },
+    {
+      "name": "stm32-unit-release",
+      "inherits": "stm32-factory-release",
+      "displayName": "Verified first unit PRODUCT (128 KiB, UID bound)",
+      "binaryDir": "${sourceDir}/build/stm32-unit-release",
+      "cacheVariables": {
+        "WTK_INTERNAL_FLASH_KIB": "128",
+        "WTK_EXTENDED_FLASH_UID": "54ff70068370525760380567",
+        "WTK_NTC_FACTORY_PROFILE": "${sourceDir}/config/units/54ff70068370525760380567-ntc-engineering.json"
+      }
     }
   ],
   "buildPresets": [
@@ -140,6 +151,10 @@
     {
       "name": "stm32-factory-release",
       "configurePreset": "stm32-factory-release"
+    },
+    {
+      "name": "stm32-unit-release",
+      "configurePreset": "stm32-unit-release"
     }
   ],
   "testPresets": [

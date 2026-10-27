@@ -24,6 +24,7 @@ from pc_osl_install import validate_candidate
 TOOLS=Path(__file__).resolve().parent
 REPO=TOOLS.parents[1]
 BASE,FLASH,RAM_BASE,RAM=0x08000000,65536,0x20000000,20480
+UNIT128_UID="54ff70068370525760380567"
 HARDWARE="Rev1-STM32F103C8T6-BluePill"
 OPENOCD_VERSION="xPack Open On-Chip Debugger 0.12.0+dev-01850-geb6f2745b-dirty (2025-02-07-10:08)"
 OPENOCD_EXE_SHA256="0aa3936470f75969138b0ad72ea1496dd5324c59a771b7a7ddf132ff1f10f09e"
@@ -31,7 +32,8 @@ CONFIG_HASHES={"interface/stlink.cfg":"3ba77e7fd28e90d4fd04833e234a3b36fd961d56b
                "target/stm32f1x.cfg":"fe44c3ade7395db34a751c57401ebc2a176ed1ca793c47081cc9f06a8618125e"}
 PROFILES={"BRINGUP":("stm32-bringup","BRINGUP",False,"MinSizeRel"),
           "BRINGUP_CAL":("stm32-bringup-cal","BRINGUP_CAL",False,"MinSizeRel"),
-          "FACTORY_PRODUCT":("stm32-factory-release","PRODUCT",True,"Release")}
+          "FACTORY_PRODUCT":("stm32-factory-release","PRODUCT",True,"Release"),
+          "FACTORY_PRODUCT_UNIT128":("stm32-unit-release","PRODUCT",True,"Release")}
 WARNING="SWD init/reset-init resets/halts the core; upstream config freezes watchdogs while halted and uses SRAM. Confirm physical K1 SAFE, range/excitation OFF. Never debugger-power the target. No automatic boot/resume."
 
 
@@ -99,8 +101,23 @@ def source_state(repo=REPO):
     return dict(git_sha=head,dirty=bool(status),git_status=status,input_sha256=digest.hexdigest())
 
 
-def elf_info(data):
+def profile_flash_bytes(profile):
+    return 131072 if profile == "FACTORY_PRODUCT_UNIT128" else FLASH
+
+
+def validate_memory_binding(profile,flags):
+    capacity=profile_flash_bytes(profile)
+    if int(flags.get("WTK_INTERNAL_FLASH_BYTES", "65536u").removesuffix("u")) != capacity:
+        raise ValueError("configured Flash differs from selected deployment profile")
+    if capacity > FLASH and (flags.get("WTK_EXTENDED_FLASH_UID") != UNIT128_UID or
+                            flags.get("WTK_NTC_FACTORY_UID") != UNIT128_UID):
+        raise ValueError("extended Flash requires verified UID and preserved unit NTC identity")
+    return capacity
+
+
+def elf_info(data,flash_bytes=FLASH):
     """ELF32 ARM PT_LOAD/sections, independent from filenames or external size tools."""
+    if flash_bytes not in (FLASH,131072): raise ValueError("unsupported ELF Flash bounds")
     if len(data)<52 or data[:7]!=b"\x7fELF\x01\x01\x01": raise ValueError("expected ELF32 little-endian")
     header=struct.unpack_from("<16sHHIIIIIHHHHHH",data)
     if header[1:3]!=(2,40): raise ValueError("expected ARM executable")
@@ -113,8 +130,8 @@ def elf_info(data):
         kind,offset,vma,lma,size,mem,flags,align=struct.unpack_from("<8I",data,phoff+i*32)
         if kind!=1: continue
         if size>mem or offset+size>len(data): raise ValueError("bad ELF load segment")
-        if mem and not (BASE<=vma and vma+mem<=BASE+FLASH or RAM_BASE<=vma and vma+mem<=RAM_BASE+RAM): raise ValueError("ELF memory outside Rev1")
-        if size and not (BASE<=lma and lma+size<=BASE+FLASH): raise ValueError("ELF program data outside internal Flash")
+        if mem and not (BASE<=vma and vma+mem<=BASE+flash_bytes or RAM_BASE<=vma and vma+mem<=RAM_BASE+RAM): raise ValueError("ELF memory outside Rev1")
+        if size and not (BASE<=lma and lma+size<=BASE+flash_bytes): raise ValueError("ELF program data outside internal Flash")
         if size: segments.append((lma,data[offset:offset+size]))
     if not segments or min(s[0] for s in segments)!=BASE: raise ValueError("application must start at 0x08000000, no bootloader offset")
     end=max(addr+len(block) for addr,block in segments); binary=bytearray(end-BASE); occupied=set()
@@ -149,17 +166,18 @@ def boot_identity(profile,sha_value,version,detailed_bringup=True):
             git_prefix=None,limitation="Minimal SAFE_BOOT banner; use SWD byte verification and independent bench acceptance")
     return dict(interface="BRINGUP_UART" if profile=="BRINGUP" else "PLC1_IDENTIFY" if profile=="BRINGUP_CAL" else "LIMITED_UART_UI_REQUIRED",
         firmware_version=version,hardware=HARDWARE,git_prefix=sha_value[:12] if profile=="BRINGUP" else sha_value[:8] if profile=="BRINGUP_CAL" else None,
-        limitation="PRODUCT banner is only WTK.RLCMeter SAFE_BOOT; UI/bench acceptance separate" if profile=="FACTORY_PRODUCT" else "reported short Git identity is not binary authentication")
+        limitation="PRODUCT banner is only WTK.RLCMeter SAFE_BOOT; UI/bench acceptance separate" if profile.startswith("FACTORY_PRODUCT") else "reported short Git identity is not binary authentication")
 
 
 def manifest(build_dir,out,profile,state,preset):
     build_dir=Path(build_dir); out=Path(out); spec=PROFILES[profile]
     config=read(build_dir/"generated/wtk_build_config.h"); flags=parse_config(config)
+    capacity=validate_memory_binding(profile,flags)
     expected={"WTK_FIRMWARE_PROFILE":spec[1],"WTK_BUILD_TYPE":spec[3],"WTK_PRODUCT_FACTORY_PROVISIONED":"1u" if spec[2] else "0u",
               "WTK_ENABLE_SUPPLEMENTARY_CURVES":"0u","WTK_GIT_COMMIT":state["git_sha"][:12],"WTK_HARDWARE_COMPATIBILITY":HARDWARE}
     if any(flags.get(k)!=v for k,v in expected.items()): raise ValueError("wrong/stale firmware build configuration")
-    binary=read(build_dir/"WTK.RLCMeter.bin",FLASH); elf=read(build_dir/"WTK.RLCMeter.elf")
-    reconstructed,metrics=elf_info(elf)
+    binary=read(build_dir/"WTK.RLCMeter.bin",capacity); elf=read(build_dir/"WTK.RLCMeter.elf")
+    reconstructed,metrics=elf_info(elf,capacity)
     if binary!=reconstructed: raise ValueError("ELF/BIN bytes differ")
     sizes=load(build_dir/"WTK.RLCMeter.size.json")
     if any(metrics[k]!=sizes[k] for k in ("flash_bytes","ram_accounted_bytes","reserved_stack_bytes")): raise ValueError("linked-size evidence mismatch")
@@ -169,7 +187,7 @@ def manifest(build_dir,out,profile,state,preset):
     out.mkdir(exist_ok=True)
     files={}
     for name,raw in (("firmware.bin",binary),("firmware.elf",elf),("build_config.h",config),
-                     ("linker.ld",read(REPO/"Firmware/cmake/stm32/STM32F103C8Tx_FLASH.ld"))):
+                     ("linker.ld",read(build_dir/"generated/WTK_FLASH.ld" if (build_dir/"generated/WTK_FLASH.ld").exists() else REPO/"Firmware/cmake/stm32/STM32F103C8Tx_FLASH.ld"))):
         (out/name).write_bytes(raw); files[name]=dict(bytes=len(raw),sha256=sha(raw))
     identity=boot_identity(profile,state["git_sha"],flags["WTK_PROJECT_VERSION"],
         flags.get("WTK_DIAGNOSTIC_LOG_LEVEL_DEFAULT","5u") not in ("1u","2u","3u"))
@@ -180,7 +198,7 @@ def manifest(build_dir,out,profile,state,preset):
         bringup_peripheral_test=flags.get("WTK_ENABLE_PERIPHERAL_TEST","0u")=="1u",
         preset=preset,build_configuration=spec[3],hardware=HARDWARE,firmware_version=flags["WTK_PROJECT_VERSION"],expected_boot=identity,
         toolchain=dict(compiler_path=compiler,compiler_version=version,cmake=command(["cmake","--version"]).splitlines()[0],cache_sha256=sha(cache.encode())),
-        memory=dict(flash_base=BASE,flash_bytes=FLASH,ram_base=RAM_BASE,ram_bytes=RAM,internal_page_bytes=1024),linked=metrics,
+        memory=dict(flash_base=BASE,flash_bytes=capacity,ram_base=RAM_BASE,ram_bytes=RAM,internal_page_bytes=1024),linked=metrics,
         binary_size=len(binary),files=files,built_utc=utc())
     value["seal_sha256"]=seal(value); save(out/"manifest.json",value)
     inspect(out/"manifest.json")
@@ -191,20 +209,22 @@ def inspect(path,profile=None):
     path=Path(path); value=checked(load(path)); root=path.parent
     if value.get("schema") not in ("WTK_FIRMWARE_1","WTK_FIRMWARE_2") or value.get("profile") not in PROFILES: raise ValueError("unsupported image manifest")
     spec=PROFILES[value["profile"]]
+    capacity=profile_flash_bytes(value["profile"])
     if profile and value["profile"]!=profile: raise ValueError("selected profile differs from artifact")
     if (value["factory_provisioned"],value["supplementary_curves"],value["preset"],value["build_configuration"],value["hardware"])!=(spec[2],False,spec[0],spec[3],HARDWARE): raise ValueError("unsupported configuration")
-    if value["memory"]!=dict(flash_base=BASE,flash_bytes=FLASH,ram_base=RAM_BASE,ram_bytes=RAM,internal_page_bytes=1024): raise ValueError("wrong linker memory contract")
+    if value["memory"]!=dict(flash_base=BASE,flash_bytes=capacity,ram_base=RAM_BASE,ram_bytes=RAM,internal_page_bytes=1024): raise ValueError("wrong linker memory contract")
     if set(value["files"])!={"firmware.bin","firmware.elf","build_config.h","linker.ld"}: raise ValueError("artifact file set mismatch")
     for name,entry in value["files"].items():
         raw=read(root/name)
         if len(raw)!=entry["bytes"] or sha(raw)!=entry["sha256"]: raise ValueError("stale/tampered artifact: "+name)
-    binary,metrics=elf_info(read(root/"firmware.elf"))
-    if binary!=read(root/"firmware.bin",FLASH) or value["linked"]!=metrics or len(binary)!=value["binary_size"] or len(binary)%2:
+    binary,metrics=elf_info(read(root/"firmware.elf"),capacity)
+    if binary!=read(root/"firmware.bin",capacity) or value["linked"]!=metrics or len(binary)!=value["binary_size"] or len(binary)%2:
         raise ValueError("manifest/ELF/BIN/size mismatch")
-    budget=64512 if spec[2] else FLASH
+    budget=capacity-1024 if spec[2] else capacity
     ram_budget=17408 if spec[2] else 18432
     if len(binary)>budget or metrics["ram_accounted_bytes"]>ram_budget or metrics["reserved_stack_bytes"]<2048: raise ValueError("project memory gate violated")
     flags=parse_config(read(root/"build_config.h"))
+    validate_memory_binding(value["profile"],flags)
     ntc_factory.validate_binary(value.get("ntc_factory_profile"), binary, flags)
     if (value["schema"]=="WTK_FIRMWARE_2") != (value.get("ntc_factory_profile") is not None):
         raise ValueError("UID-bound NTC profiles require manifest schema 2")
@@ -223,12 +243,14 @@ def inspect(path,profile=None):
     if (flags["WTK_FIRMWARE_PROFILE"],flags["WTK_PRODUCT_FACTORY_PROVISIONED"],flags["WTK_GIT_COMMIT"],flags["WTK_ENABLE_SUPPLEMENTARY_CURVES"],flags["WTK_BUILD_TYPE"],flags["WTK_HARDWARE_COMPATIBILITY"])!=(spec[1],"1u" if spec[2] else "0u",value["source"]["git_sha"][:12],"0u",spec[3],HARDWARE): raise ValueError("generated configuration mismatch")
     if value.get("firmware_version")!=flags.get("WTK_PROJECT_VERSION") or value.get("expected_boot")!=boot_identity(value["profile"],value["source"]["git_sha"],flags["WTK_PROJECT_VERSION"],flags.get("WTK_DIAGNOSTIC_LOG_LEVEL_DEFAULT","5u") not in ("1u","2u","3u")): raise ValueError("boot/version metadata mismatch")
     linker=read(root/"linker.ld").decode()
-    if not re.search(r'FLASH\s*\(rx\)\s*:\s*ORIGIN\s*=\s*0x08000000,\s*LENGTH\s*=\s*64K',linker) or not re.search(r'RAM\s*\(xrw\)\s*:\s*ORIGIN\s*=\s*0x20000000,\s*LENGTH\s*=\s*20K',linker): raise ValueError("linker contract mismatch")
+    if not re.search(r'FLASH\s*\(rx\)\s*:\s*ORIGIN\s*=\s*0x08000000,\s*LENGTH\s*=\s*'+str(capacity//1024)+r'K',linker) or not re.search(r'RAM\s*\(xrw\)\s*:\s*ORIGIN\s*=\s*0x20000000,\s*LENGTH\s*=\s*20K',linker): raise ValueError("linker contract mismatch")
     if not re.fullmatch("[0-9a-f]{40}",value["source"]["git_sha"]): raise ValueError("full source SHA required")
     return value
 
 
 def build(profile,out,dry_run=False,k1_bench_test=False,bench_supply=False,peripheral_test=False,ntc_factory_profile=None):
+    if profile == "FACTORY_PRODUCT_UNIT128" and ntc_factory_profile is None:
+        ntc_factory_profile=REPO/"Firmware/config/units"/(UNIT128_UID+"-ntc-engineering.json")
     if k1_bench_test and profile!="BRINGUP": raise ValueError("K1 bench test requires BRINGUP")
     if bench_supply and (profile!="BRINGUP" or k1_bench_test): raise ValueError("bench supply requires a separate BRINGUP image")
     if peripheral_test and (profile!="BRINGUP" or k1_bench_test or bench_supply):
@@ -249,7 +271,7 @@ def build(profile,out,dry_run=False,k1_bench_test=False,bench_supply=False,perip
     return manifest(folder,out/"image",profile,before,spec[0])
 
 
-def parse_target(transcript):
+def parse_target(transcript,flash_bytes=FLASH):
     if len(transcript)>1024*1024: raise ValueError("programmer transcript bound")
     transcript=transcript.replace("\r\n","\n")
     matches=re.findall(r'^WTK_B011_TARGET\|([^\r\n]+)$',transcript,re.M)
@@ -261,13 +283,15 @@ def parse_target(transcript):
         flash_base=int(base),flash_bytes=int(size),driver=driver,state=state,target_voltage_v=None)
     volts=re.findall(r'^Info\s*:\s*Target voltage:\s*(\d+(?:\.\d+)?)\s*$',transcript,re.M)
     if len(volts)==1: target["target_voltage_v"]=float(volts[0])
-    validate_target(target)
+    validate_target(target,flash_bytes=flash_bytes)
     return target
 
 
-def validate_target(t,uid=None):
+def validate_target(t,uid=None,flash_bytes=FLASH):
+    if flash_bytes not in (FLASH,131072) or (flash_bytes > FLASH and t["uid"] != UNIT128_UID):
+        raise ValueError("unverified extended-Flash unit")
     if t["device_id"]&0xfff!=0x410 or t["cpuid"]>>24!=0x41 or (t["cpuid"]>>4)&0xfff!=0xc23: raise ValueError("unknown STM32 medium-density/Cortex-M3 identity")
-    if (t["flash_kib"],t["flash_base"],t["flash_bytes"],t["driver"],t["state"])!=(64,BASE,FLASH,"stm32f1x","halted"): raise ValueError("ambiguous/unsupported geometry or reset state")
+    if (t["flash_kib"],t["flash_base"],t["flash_bytes"],t["driver"],t["state"])!=(64,BASE,flash_bytes,"stm32f1x","halted"): raise ValueError("ambiguous/unsupported geometry or reset state")
     if t["obr"]&3 or t["wrpr"]!=0xffffffff: raise ValueError("readout/option/write protection: STOP, never unlock")
     if not re.fullmatch("[0-9a-f]{24}",t["uid"]) or (uid and t["uid"]!=uid): raise ValueError("target UID mismatch")
     if t["target_voltage_v"] is not None and not 3.0<=t["target_voltage_v"]<=3.6: raise ValueError("adapter-reported voltage outside existing A05 3V3 gate")
@@ -276,8 +300,10 @@ def validate_target(t,uid=None):
 
 class OpenOCD:
     simulated=False
-    def __init__(self,executable,scripts,serial):
+    def __init__(self,executable,scripts,serial,flash_bytes=FLASH):
         self.executable=Path(executable).resolve(); self.scripts=Path(scripts).resolve(); self.serial=serial
+        if flash_bytes not in (FLASH,131072): raise ValueError("unsupported programmer geometry")
+        self.flash_bytes=flash_bytes
         if not re.fullmatch("[A-Za-z0-9._-]{6,64}",serial): raise ValueError("explicit ST-Link serial selection required (supported ASCII serial)")
 
     def doctor(self):
@@ -295,15 +321,17 @@ class OpenOCD:
             toolkit_script_sha256=sha(read(TOOLS/"swd_deploy.tcl")),deployment_tool_sha256=sha(read(__file__)),adapter_serial_selection=self.serial)
 
     def plan(self,action,folder,image=None,uid=""):
+        if self.flash_bytes > FLASH and uid != UNIT128_UID: raise ValueError("extended Flash requires the verified expected UID")
+        if image and image.get("memory",{}).get("flash_bytes",FLASH) != self.flash_bytes: raise ValueError("image/programmer geometry differs")
         argv=[str(self.executable),"-s",str(self.scripts),"-c","source $::env(WTK_INTERFACE)","-c","transport select dapdirect_swd",
-            "-c","adapter serial $::env(WTK_SERIAL)","-c","source $::env(WTK_TARGET)",
+            "-c","adapter serial $::env(WTK_SERIAL)","-c","set FLASH_SIZE $::env(WTK_FLASH_BYTES)","-c","source $::env(WTK_TARGET)",
             "-c","gdb_port disabled; tcl_port disabled; telnet_port disabled","-c","source $::env(WTK_LIBRARY)",
             "-c",'if {[catch {init; reset init; wtk_operation} reason]} {echo "WTK_B011_FAILURE"; echo $reason; shutdown error} else {shutdown}']
-        return dict(argv=argv,environment=dict(WTK_SERIAL=self.serial,WTK_ACTION=action,WTK_UID=uid,WTK_LENGTH=str(image["binary_size"] if image else 0),
+        return dict(argv=argv,environment=dict(WTK_SERIAL=self.serial,WTK_ACTION=action,WTK_UID=uid,WTK_FLASH_BYTES=str(self.flash_bytes),WTK_LENGTH=str(image["binary_size"] if image else 0),
             WTK_INTERFACE=str(self.scripts/"interface/stlink.cfg"),WTK_TARGET=str(self.scripts/"target/stm32f1x.cfg"),WTK_LIBRARY=str(TOOLS/"swd_deploy.tcl"),
             WTK_IMAGE=str(Path(image.get("staged_binary",Path(image["manifest_path"]).parent/"firmware.bin")).resolve()) if image else "",
             WTK_BEFORE=str((Path(folder)/"before.bin").resolve()),WTK_READBACK=str((Path(folder)/"full-readback.bin").resolve())),
-            internal_flash_range=[BASE,BASE+FLASH],program_range=[BASE,BASE+image["binary_size"]] if image and action=="program" else None,
+            internal_flash_range=[BASE,BASE+self.flash_bytes],program_range=[BASE,BASE+image["binary_size"]] if image and action=="program" else None,
             erase_range=[BASE,BASE+math.ceil(image["binary_size"]/1024)*1024] if image and action=="program" else None,
             external_w25q_access=False,warning=WARNING)
 
@@ -320,45 +348,49 @@ class OpenOCD:
         transcript=read(path,1024*1024).decode("utf-8",errors="replace")
         if process.returncode or "WTK_B011_FAILURE" in transcript or transcript.count("WTK_B011_COMPLETE")!=1:
             raise ValueError("programmer failed or completion marker missing; inspect transcript")
-        target=parse_target(transcript); validate_target(target,uid)
+        target=parse_target(transcript,self.flash_bytes); validate_target(target,uid,self.flash_bytes)
         if action=="program" and transcript.count("WTK_B011_PROGRAMMED")!=1: raise ValueError("programming not confirmed")
-        if action!="probe" and transcript.count("WTK_B011_READBACK|134217728|65536|halted")!=1: raise ValueError("readback marker missing")
+        if action!="probe" and transcript.count(f"WTK_B011_READBACK|134217728|{self.flash_bytes}|halted")!=1: raise ValueError("readback marker missing")
         return target,provenance,plan
 
 
 class FakeSWD:
     """Toolkit contract simulation, NOT a fabricated native OpenOCD output parser."""
     simulated=True
-    def __init__(self,path,scenario="normal"):
+    def __init__(self,path,scenario="normal",flash_bytes=FLASH):
         self.path=Path(path); self.scenario=scenario; self.operations=[]
+        if flash_bytes not in (FLASH,131072): raise ValueError("unsupported simulated geometry")
+        self.flash_bytes=flash_bytes
         self.external_w25q=bytes.fromhex("1234567890abcdef")
 
     def plan(self,action,folder,image=None,uid=""):
-        return dict(SIMULATED=True,action=action,internal_flash_range=[BASE,BASE+FLASH],program_range=[BASE,BASE+image["binary_size"]] if image and action=="program" else None,
+        if self.flash_bytes > FLASH and uid != UNIT128_UID: raise ValueError("extended simulated profile requires verified UID binding")
+        return dict(SIMULATED=True,action=action,internal_flash_range=[BASE,BASE+self.flash_bytes],program_range=[BASE,BASE+image["binary_size"]] if image and action=="program" else None,
             erase_pages=list(range(math.ceil(image["binary_size"]/1024))) if image and action=="program" else [],external_w25q_access=False)
 
     def execute(self,action,folder,image=None,uid=""):
         if self.scenario in ("missing-adapter","unpowered"): raise OSError("SIMULATED adapter/target unavailable")
         if self.scenario=="timeout": raise TimeoutError("SIMULATED timeout, outcome UNKNOWN")
         self.path.mkdir(parents=True,exist_ok=True); file=self.path/"internal.bin"
-        data=bytearray(read(file,FLASH)) if file.exists() else bytearray(b"\xff"*FLASH)
-        if len(data)!=FLASH: raise ValueError("bad simulated target memory")
+        data=bytearray(read(file,self.flash_bytes)) if file.exists() else bytearray(b"\xff"*self.flash_bytes)
+        if len(data)!=self.flash_bytes: raise ValueError("bad simulated target memory")
         device=0x20036410 if self.scenario!="wrong-id" else 0x999
         kb=128 if self.scenario=="geometry" else 64; obr=2 if self.scenario=="rdp" else 0
-        line=f"WTK_B011_TARGET|{device:08x}|411fc231|{kb}|{obr:08x}|ffffffff|0102030405060708090a0b0c|134217728|{kb*1024}|stm32f1x|halted\n"
-        target=parse_target(line); validate_target(target,uid)
+        target_uid=UNIT128_UID if self.flash_bytes > FLASH else "0102030405060708090a0b0c"
+        line=f"WTK_B011_TARGET|{device:08x}|411fc231|{kb}|{obr:08x}|ffffffff|{target_uid}|134217728|{self.flash_bytes}|stm32f1x|halted\n"
+        target=parse_target(line,self.flash_bytes); validate_target(target,uid,self.flash_bytes)
         plan=self.plan(action,folder,image,uid)
         if action=="program":
             (Path(folder)/"before.bin").write_bytes(data)
             for page in plan["erase_pages"]:
                 self.operations.append(("erase_page",page,page)); data[page*1024:(page+1)*1024]=b"\xff"*1024
                 if self.scenario=="interrupted": file.write_bytes(data); raise OSError("SIMULATED interrupted erase; no automatic retry")
-            binary=read(image.get("staged_binary",Path(image["manifest_path"]).parent/"firmware.bin"),FLASH); data[:len(binary)]=binary
+            binary=read(image.get("staged_binary",Path(image["manifest_path"]).parent/"firmware.bin"),self.flash_bytes); data[:len(binary)]=binary
             file.write_bytes(data); line+="WTK_B011_PROGRAMMED\n"
             if self.scenario=="unexpected-reset": raise ValueError("SIMULATED unexpected reset after program")
         if action!="probe":
             if self.scenario=="readback-mismatch": data[0]^=1
-            (Path(folder)/"full-readback.bin").write_bytes(data); line+="WTK_B011_READBACK|134217728|65536|halted\n"
+            (Path(folder)/"full-readback.bin").write_bytes(data); line+=f"WTK_B011_READBACK|134217728|{self.flash_bytes}|halted\n"
         if self.scenario!="missing-complete": line+="WTK_B011_COMPLETE\n"
         (Path(folder)/"openocd.txt").write_text("SIMULATED toolkit contract\n"+line,encoding="utf-8")
         if "WTK_B011_COMPLETE" not in line: raise ValueError("SIMULATED zero exit without completion: UNKNOWN")
@@ -417,7 +449,7 @@ def authorize(image,session_path,board,operator,supply,previous,uid,accept,acks,
         expected_uid=uid,approval=accept,acknowledgements=acks,b01=imported,SIMULATED=simulated,
         image_sha256=image["files"]["firmware.bin"]["sha256"],manifest_seal=image["seal_sha256"],
         analog_clamp_risk=session["manual"]["bat54s_conduction"]["status"],resource_pack=dict(status="UNKNOWN",reference=None))
-    if image["profile"]=="FACTORY_PRODUCT":
+    if image["profile"].startswith("FACTORY_PRODUCT"):
         if previous not in ("BRINGUP_CAL","FACTORY_PRODUCT","RECOVERY_REVIEWED"): raise ValueError("factory PRODUCT requires reviewed BRINGUP_CAL provisioning stage")
         if not installation or not cal_readback: raise ValueError("separate OSL installation report AND canonical readback required")
         observed=evidence(installation); report=observed["value"]; frame=read(cal_readback,2760); summary=validate_candidate(frame)
@@ -440,6 +472,8 @@ def authorize(image,session_path,board,operator,supply,previous,uid,accept,acks,
 
 def deployment(action,manifest_path,backend,out,authorization=None,uid="",dry_run=False):
     image=inspect(manifest_path) if manifest_path else None
+    capacity=image["memory"]["flash_bytes"] if image else getattr(backend,"flash_bytes",FLASH)
+    if capacity != getattr(backend,"flash_bytes",FLASH): raise ValueError("image/backend Flash geometry mismatch")
     if image: image=dict(image,manifest_path=str(Path(manifest_path).resolve()))
     if action=="program" and image:
         ntc_factory.require_target(image.get("ntc_factory_profile"), uid)
@@ -459,7 +493,7 @@ def deployment(action,manifest_path,backend,out,authorization=None,uid="",dry_ru
     out.mkdir(parents=True,exist_ok=False)  # Atomic reservation prevents duplicate/colliding requests.
     expected_binary=None
     if image:
-        expected_binary=read(Path(manifest_path).parent/"firmware.bin",FLASH)
+        expected_binary=read(Path(manifest_path).parent/"firmware.bin",capacity)
         if sha(expected_binary)!=image["files"]["firmware.bin"]["sha256"]: raise ValueError("image changed before staging")
         (out/"staged-image.bin").write_bytes(expected_binary)
         image["staged_binary"]=str(out/"staged-image.bin")
@@ -475,27 +509,27 @@ def deployment(action,manifest_path,backend,out,authorization=None,uid="",dry_ru
             # Fresh non-programming preflight also validates reported voltage BEFORE writes.
             pre=out/"preflight"; pre.mkdir()
             target,provenance,plan=backend.execute("probe",pre,None,uid)
-            validate_target(target,uid)
+            validate_target(target,uid,capacity)
             record["preflight"]=dict(target=target,programmer=provenance,plan=plan)
             record["transcripts"].append(dict(path="preflight/openocd.txt",sha256=sha(read(pre/"openocd.txt"))))
             persist()
         if action=="program": record["programming"]="REQUESTED_OUTCOME_UNKNOWN"; persist()
-        if image and sha(read(out/"staged-image.bin",FLASH))!=image["files"]["firmware.bin"]["sha256"]: raise ValueError("staged image changed; STOP")
+        if image and sha(read(out/"staged-image.bin",capacity))!=image["files"]["firmware.bin"]["sha256"]: raise ValueError("staged image changed; STOP")
         target,provenance,plan=backend.execute(action,out,image,uid)
         record.update(target=target,programmer=provenance,plan=plan)
         record["transcripts"].append(dict(path="openocd.txt",sha256=sha(read(out/"openocd.txt"))))
         if action=="program": record["programming"]="CONFIRMED"
         if action!="probe":
-            full=read(out/"full-readback.bin",FLASH)
-            if len(full)!=FLASH: raise ValueError("incomplete internal-Flash readback")
+            full=read(out/"full-readback.bin",capacity)
+            if len(full)!=capacity: raise ValueError("incomplete internal-Flash readback")
             binary=expected_binary
             prefix=full[:len(binary)]; record["readback"]=dict(start=BASE,end_exclusive=BASE+len(binary),bytes=len(prefix),
-                expected_sha256=sha(binary),actual_sha256=sha(prefix),full_flash_sha256=sha(full),full_flash_bytes=FLASH)
+                expected_sha256=sha(binary),actual_sha256=sha(prefix),full_flash_sha256=sha(full),full_flash_bytes=capacity)
             (out/"image-readback.bin").write_bytes(prefix)
             if prefix!=binary: record["internal_readback"]="FAIL"; raise ValueError("programmed byte-for-byte readback mismatch")
             if action=="program":
-                before=read(out/"before.bin",FLASH); end=math.ceil(len(binary)/1024)*1024
-                if len(before)!=FLASH or before[end:]!=full[end:]: raise ValueError("bytes outside approved internal pages changed")
+                before=read(out/"before.bin",capacity); end=math.ceil(len(binary)/1024)*1024
+                if len(before)!=capacity or before[end:]!=full[end:]: raise ValueError("bytes outside approved internal pages changed")
                 record["unaffected_internal_pages_preserved"]=True
             record["internal_readback"]="PASS"
         record["outcome"]="SIMULATED_VERIFIED" if backend.simulated else "TARGET_IDENTIFIED" if action=="probe" else "INTERNAL_FLASH_VERIFIED"
@@ -605,12 +639,13 @@ def main(argv=None):
             if args.action!="probe":
                 if not args.manifest: raise ValueError("program/verify require a manifest even for dry-run")
                 inspect(args.manifest,args.profile)
+            capacity=profile_flash_bytes(inspect(args.manifest)["profile"] if args.manifest else args.profile)
             if args.backend=="fake":
                 if not args.fake_device: raise ValueError("fake backend needs --fake-device (always SIMULATED)")
-                backend=FakeSWD(args.fake_device,args.fake_scenario)
+                backend=FakeSWD(args.fake_device,args.fake_scenario,capacity)
             else:
                 if not args.openocd or not args.scripts or not args.adapter_serial: raise ValueError("select pinned --openocd, --scripts and --adapter-serial; no automatic adapter selection")
-                backend=OpenOCD(args.openocd,args.scripts,args.adapter_serial)
+                backend=OpenOCD(args.openocd,args.scripts,args.adapter_serial,capacity)
             approval=None
             acks=dict(safe_outputs=args.ack_safe_outputs,debug_halt_watchdog=args.ack_debug_halt_watchdog,no_app_bootloader=args.ack_no_app_bootloader,internal_flash=args.ack_internal_flash)
             if args.action in ("probe","verify") and not backend.simulated and not args.dry_run:

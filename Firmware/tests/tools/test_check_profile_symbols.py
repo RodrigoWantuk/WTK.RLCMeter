@@ -30,11 +30,12 @@ class CurveCompositionTest(unittest.TestCase):
 
     def test_factory_requires_runtime_safety_resources_and_excludes_fit(self):
         retained = [{"file": name} for name in ("app_product.c", "app_calibration_runtime.c",
-                    "measurement_calibration.c", "measurement_calibration_store.c",
+                    "measurement_calibration.c", "measurement_calibration_store_loadonly.c", "app_calibration_service_loadonly.c",
                     "app_resource_update.c", "hw_safety.c")]
         self.assertEqual(tool.factory_composition_errors("", retained, True), [])
         self.assertTrue(tool.factory_composition_errors("", retained[:-1], True))
-        for source in ("app_calibration_wizard.c", "app_calibration_session.c", "measurement_calibration_solver.c"):
+        for source in ("app_calibration_wizard.c", "app_calibration_session.c", "measurement_calibration_solver.c",
+                       "measurement_calibration_store.c", "app_calibration_service.c"):
             self.assertTrue(tool.factory_composition_errors("", retained + [{"file": source}], True))
         for symbol in ("app_calibration_wizard_start", "measurement_cal_solver_solve",
                        "measurement_cal_store_step", "prepare_wizard_line", "cal_load_preset_token"):

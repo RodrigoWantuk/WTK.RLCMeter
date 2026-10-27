@@ -11,6 +11,12 @@ SPEC.loader.exec_module(firmware_size)
 
 
 class FirmwareSizeToolTest(unittest.TestCase):
+    def test_explicit_extended_capacity_keeps_ram_and_default_c8_gates(self):
+        self.assertEqual(firmware_size.flash_hard_limit_for_budget("product", 131072), 130048)
+        self.assertEqual(firmware_size.flash_hard_limit_for_budget("bringup", 131072), 131072)
+        self.assertEqual(firmware_size.flash_hard_limit_for_budget("product"), 64512)
+        self.assertEqual(firmware_size.ram_limits_for_budget("product"), (16384, 17408))
+        with self.assertRaises(ValueError): firmware_size.flash_hard_limit_for_budget("product", 262144)
     def test_noload_stack_and_noinit_counted_once(self):
         result = firmware_size.ram_usage({".data": 48, ".bss": 12940,
                                           ".noinit": 16, "._user_heap_stack": 2052})

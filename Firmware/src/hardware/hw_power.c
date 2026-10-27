@@ -3,6 +3,7 @@
 
 #include <stdbool.h>
 #include <stddef.h>
+#include <math.h>
 
 typedef struct
 {
@@ -45,7 +46,7 @@ float hw_battery_vbat_from_adc_voltage(float adc_bat_v)
 
 hw_battery_state_t hw_battery_state_from_voltage(float vbat_v, bool valid)
 {
-    if (!valid)
+    if (!valid || !isfinite(vbat_v) || vbat_v < 0.0f)
     {
         return HW_BATTERY_UNKNOWN;
     }
@@ -77,7 +78,8 @@ uint16_t hw_battery_telemetry_mv(float vbat_v, hw_battery_state_t state)
 
 float hw_ntc_resistance_from_voltage(float adc_ntc_v, float vdd_v, bool *valid)
 {
-    if ((valid == NULL) || (vdd_v <= 0.0f) || (adc_ntc_v <= 0.0f) || (adc_ntc_v >= vdd_v))
+    if ((valid == NULL) || !isfinite(vdd_v) || !isfinite(adc_ntc_v) ||
+        (vdd_v <= 0.0f) || (adc_ntc_v <= 0.0f) || (adc_ntc_v >= vdd_v))
     {
         if (valid != NULL)
         {
@@ -92,7 +94,7 @@ float hw_ntc_resistance_from_voltage(float adc_ntc_v, float vdd_v, bool *valid)
 
 bool hw_ntc_temperature_from_resistance(float resistance_ohm, float *temperature_c)
 {
-    if ((temperature_c == NULL) || (resistance_ohm <= 0.0f))
+    if ((temperature_c == NULL) || !isfinite(resistance_ohm) || (resistance_ohm <= 0.0f))
     {
         return false;
     }

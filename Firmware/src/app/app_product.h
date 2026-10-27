@@ -9,6 +9,7 @@
 #include "app/app_measurement_session.h"
 #include "app/app_safety_fault.h"
 #include "app/app_settings_service.h"
+#include "app/app_feedback.h"
 #include "drivers/buttons.h"
 #include "hardware/hw_power.h"
 #include "hardware/hw_safety.h"
@@ -37,6 +38,7 @@ typedef struct
     uint16_t tone_frequency_hz;
     uint16_t tone_duration_ms;
     uint32_t tone_sequence;
+    app_feedback_event_t tone_event;
 } app_product_outputs_t;
 
 typedef struct
@@ -57,6 +59,7 @@ typedef struct
     uint32_t calibration_sequence;
     uint32_t last_activity_ms;
     uint32_t tone_sequence;
+    app_feedback_event_t tone_event;
     uint8_t menu_index;
     uint8_t calibration_load_preset;
     uint8_t runtime_kind;

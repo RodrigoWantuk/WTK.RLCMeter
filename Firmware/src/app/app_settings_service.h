@@ -80,6 +80,8 @@ typedef enum
 
 typedef struct
 {
+    /* start: OK means accepted (poll required); BUSY means not accepted.
+     * The adapter must distinguish device acceptance from bus contention. */
     bsp_status_t (*read)(uint32_t address, void *dst, size_t size, void *user);
     bsp_status_t (*erase_sector_start)(uint32_t address, uint32_t now_ms, void *user);
     bsp_status_t (*program_start)(uint32_t address, const void *src, size_t size, uint32_t now_ms, void *user);
@@ -103,6 +105,7 @@ typedef struct
     app_settings_t persisted;
     uint32_t persisted_sequence;
     uint32_t target_sequence;
+    uint32_t save_started_ms;
     app_settings_slot_t active_slot;
     app_settings_slot_t target_slot;
     app_settings_store_state_t state;
