@@ -31,7 +31,8 @@ bool storage_layout_partition(uint32_t capacity_bytes,
         *partition = (storage_partition_t){
             .id = id,
             .start = 0u,
-            .size = mutable_start,
+            .size = capacity_bytes >= STORAGE_LAYOUT_RESOURCE_RESERVED_BYTES ?
+                capacity_bytes - STORAGE_LAYOUT_RESOURCE_RESERVED_BYTES : mutable_start,
         };
         return true;
     case STORAGE_PARTITION_CALIBRATION_A:
@@ -40,6 +41,14 @@ bool storage_layout_partition(uint32_t capacity_bytes,
             .start = cal_a_start,
             .size = STORAGE_LAYOUT_CAL_SLOT_BYTES,
         };
+        return true;
+    case STORAGE_PARTITION_LEAD_A:
+    case STORAGE_PARTITION_LEAD_B:
+        if (capacity_bytes < STORAGE_LAYOUT_RESOURCE_RESERVED_BYTES) return false;
+        *partition = (storage_partition_t){.id = id,
+            .start = capacity_bytes - STORAGE_LAYOUT_RESOURCE_RESERVED_BYTES +
+                (id == STORAGE_PARTITION_LEAD_B ? STORAGE_LAYOUT_W25Q_SECTOR_SIZE : 0u),
+            .size = STORAGE_LAYOUT_W25Q_SECTOR_SIZE};
         return true;
     case STORAGE_PARTITION_CALIBRATION_B:
         *partition = (storage_partition_t){

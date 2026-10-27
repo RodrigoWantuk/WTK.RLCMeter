@@ -211,12 +211,17 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--out", type=Path, help="write a deterministic framed .wpc stream")
     parser.add_argument("--port", help="optional serial port, for example COM5")
     parser.add_argument("--baud", type=int, default=115200)
+    parser.add_argument("--flash-capacity-bytes", type=int, default=2*1024*1024,
+                        help="actual W25Q capacity; default smallest supported part (2 MiB)")
     parser.add_argument("--chunk-size", type=int, default=RESOURCE_CHUNK_DATA_BYTES)
     parser.add_argument("--inter-frame-delay-ms", type=float, default=2.0)
     add_serial_options(parser)
     args = parser.parse_args(argv)
 
     pack = args.resource_pack.read_bytes()
+    from storage_layout import resource_limit
+    if len(pack) > resource_limit(args.flash_capacity_bytes):
+        parser.error("resource pack overlaps protected lead/calibration/settings tail")
     frames = iter_resource_frames(pack, args.chunk_size)
 
     if args.out is not None:

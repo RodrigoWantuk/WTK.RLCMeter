@@ -90,3 +90,13 @@ Pending physical checks do not block source implementation. They do block claims
 of real-world shutdown latency, audible timing, SRAM high-water or complete
 product/metrology qualification. The existing OSL records and unit assets remain
 unchanged; a new six-resistor campaign is not part of these application fixes.
+
+### Lead model and separate persistence checkpoint
+
+The new pure model composes the existing factory OSL transform with signed series impedance and shunt admittance at 10 Hz, 1 kHz and 10 kHz. It works directly in the measured complex ratio plane, including the factory OPEN pole. 108 independent double-oracle cases exercise the production float implementation (maximum relative algebra error 2.746e-6); this is numerical verification, not physical accuracy qualification.
+
+Lead records use a 100-byte versioned little-endian frame, CRC over header and payload, a last-written commit marker and two independent 4 KiB sectors. The new sectors are immediately BEFORE the old 32 KiB mutable tail. All previous calibration, settings, supplementary-curve and diagnostic offsets remain unchanged. The resource-pack ceiling is now capacity minus 40 KiB. The PC resource uploader checks that ceiling before opening the port; its conservative default is the smallest supported W25Q (2 MiB).
+
+A profile is bound to MCU UID, factory OSL sequence and frame CRC, hardware revision and model. Disable and clear are new committed records; a clear tombstone prevents an older enabled slot from resurfacing. Failed pre-commit saves retain the prior profile. A lost verification after commit is explicitly uncertain: reboot may select the complete new record; no success is fabricated. Load read errors block writes to unknown slots. Host tests cover power cuts at every cooperative boundary, immutable snapshots, contention, CRC/header corruption, tombstones, wrap-safe timeout, unread slots and exact preservation of the legacy tail.
+
+Before first physical use, back up the last 40 KiB and verify that the installed resource pack ends below the new boundary. No existing external Flash has been migrated or overwritten by this implementation checkpoint. Endpoint capture, UI and runtime application remain the next integration package. **REQUIRES_BENCH_VALIDATION**.

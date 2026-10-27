@@ -193,6 +193,7 @@ set(WTK_COMMON_SOURCES
     src/drivers/ili9341_geometry.c
     src/drivers/w25q_core.c
     src/app/app_feedback.c
+    src/measurement/measurement_lead_compensation.c
     src/hardware/hw_aux_sensors.c
     src/hardware/hw_buzzer_policy.c
     src/hardware/hw_charger.c
@@ -219,6 +220,7 @@ set(WTK_COMMON_SOURCES
     src/storage/resource_store.c
     src/storage/storage_crc32.c
     src/storage/storage_layout.c
+    src/storage/lead_profile_store.c
     src/ui/ui_fallback_font.c
     src/ui/ui_peripheral_test.c
     src/ui/ui_font.c
