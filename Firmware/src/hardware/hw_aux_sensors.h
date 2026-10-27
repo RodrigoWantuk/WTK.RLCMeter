@@ -9,6 +9,7 @@
 #include "hardware/hw_power.h"
 #include "hardware/hw_residual.h"
 #include "hardware/hw_safety.h"
+#include "wtk_build_config.h"
 
 enum
 {
@@ -106,10 +107,20 @@ typedef struct
     bool residual_published;
     bool battery_published;
     bool ntc_published;
+#if WTK_ENABLE_CONTINUOUS_SURVEY
+    bool power_refreshing;
+    bool power_ready;
+#endif
 } hw_aux_sensors_t;
 
 bsp_status_t hw_aux_sensors_init(hw_aux_sensors_t *sensors, const hw_aux_adc_io_t *io, uint32_t now_ms);
 bsp_status_t hw_aux_sensors_step(hw_aux_sensors_t *sensors, uint32_t now_ms);
+#if WTK_ENABLE_CONTINUOUS_SURVEY
+/* While normal auxiliaries are paused and hardware lends the ADC. VMID/BAT
+ * only; never creates SAFE-network residual evidence. */
+bsp_status_t hw_aux_sensors_power_begin(hw_aux_sensors_t *sensors, uint32_t now_ms);
+bsp_status_t hw_aux_sensors_power_status(const hw_aux_sensors_t *sensors);
+#endif
 void hw_aux_sensors_pause(hw_aux_sensors_t *sensors);
 void hw_aux_sensors_resume(hw_aux_sensors_t *sensors, uint32_t now_ms);
 bool hw_aux_sensors_is_idle(const hw_aux_sensors_t *sensors);

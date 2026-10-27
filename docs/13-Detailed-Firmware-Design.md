@@ -1165,3 +1165,26 @@ continuous deadline or paused battery-evidence expiry is lengthened; a separate
 60-s overall app bound covers the finite workflow. Seven-sample aggregation uses
 the selected primary's actual frequency including 10 Hz. See plan 26 for exact
 memory, classification and pending bench contracts.
+
+## Continuous survey ownership and auxiliary ADC lending
+
+Plan 27 supersedes factory DRAINING segmentation through an explicit continuous
+option. App requests keep one active hardware owner across 1 kHz, 10 kHz,
+10 Hz and the seven-valid-sample estimate. Search is bounded to twelve captures;
+up to eight additional statistical attempts remain condition locked. No new
+initial permit is issued while K1 stays connected. One final SAFE cleanup precedes
+publication; cancel/fault cleanup remains mandatory.
+
+The continuous owner has a 30,000-ms connected deadline. It renews the unchanged
+1,000-ms battery deadline only with validated power-only ADC groups, scheduled
+every 250 ms outside capture. POWER_RESTORE/WAIT/ACQUIRE share a 100-ms deadline,
+restore the auxiliary ADC, collect four VMID and four BAT samples and reacquire
+the original dual-ADC profile. The source timer keeps running, DMA is stopped,
+and the original excitation-settling deadline is retained. No OV/NTC group runs
+and residual safety stays UNKNOWN. The app adapter returns power state and actual
+sample timestamp, without manufacturing new residual/permit evidence.
+
+Power-state/timestamp/VMID failures and existing dynamic hard blockers abort.
+Legacy opt-out requests, fixed captures, acquisition profiles, OSL model and
+unit NTC constants retain their contracts. See plan 27 and its release evidence
+for software checks and pending physical qualification.

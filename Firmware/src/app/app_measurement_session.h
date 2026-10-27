@@ -55,6 +55,9 @@ typedef struct
     bool trimmed_enabled;
 #if WTK_ENABLE_FREQUENCY_SURVEY
     bool frequency_survey_enabled;
+#if WTK_ENABLE_CONTINUOUS_SURVEY
+    bool continuous_survey_enabled;
+#endif
 #endif
 #endif
 #endif

@@ -171,3 +171,9 @@ single K1 engagement/release across four captures; independent qualification rem
 frequencies before final factory PRODUCT interpretation, guarded SAFE/fresh-
 permit segmentation for 10 Hz, twelve-record traceability and seven-point
 primary estimates without increasing the fast continuous authorization.
+
+[Plan 27](27-Single-Relay-Continuous-Survey.md) replaces factory segmentation
+with one K1 engagement and final release across the three-frequency/seven-sample
+survey, using real interleaved power sampling and unchanged evidence freshness.
+Legacy captures retain their authorization limits; physical acceptance is
+tracked separately from software tests.

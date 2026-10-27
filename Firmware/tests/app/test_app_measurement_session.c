@@ -182,6 +182,9 @@ static bsp_status_t fake_step_attempt(uint32_t now_ms, void *user)
     {
 #if WTK_ENABLE_FREQUENCY_SURVEY
         if (fake->synthetic_survey && fake->start_count != 0u &&
+#if WTK_ENABLE_CONTINUOUS_SURVEY
+            !fake->io.continuous_survey_enabled &&
+#endif
             fake->requests[fake->start_count - 1u].frequency == HW_EXCITATION_FREQ_10HZ)
         {
             fake->active = false;
@@ -947,6 +950,52 @@ static int test_complete_survey_and_statistical_segments(void)
 }
 #endif
 
+#if WTK_ENABLE_CONTINUOUS_SURVEY
+static int test_continuous_app_survey(void)
+{
+    int failures = 0;
+    for (uint8_t capacitor = 0u; capacitor < 2u; capacitor++)
+    {
+        app_measurement_session_t session;
+        fake_io_t fake = {0};
+        fake.hold_mode = true;
+        fake.synthetic_survey = true;
+        fake.survey_r = capacitor != 0u ? 0.07f : 7.5f;
+        fake.survey_c = capacitor != 0u ? 0.0047f : 0.0f;
+        fake.survey_l = capacitor != 0u ? 0.0f : 0.000470f;
+        fake.outcome_count = MEASUREMENT_AUTO_HISTORY_CAPACITY + MEASUREMENT_TRIMMED_MAX_EXTRA_CAPTURES;
+        for (uint8_t i = 0u; i < fake.outcome_count; i++)
+            fake.outcomes[i] = good_outcome(measurement_complex(10.0f, 0.0f), MEASUREMENT_INTERPRET_RESISTIVE);
+        failures += start_session(&session, &fake, MEASUREMENT_AUTO_MODE_CLICK, 70u, NULL);
+        fake.io.finish_session = fake_finish_session;
+        fake.io.trimmed_enabled = true;
+        fake.io.frequency_survey_enabled = true;
+        fake.io.continuous_survey_enabled = true;
+        const measurement_auto_start_t start = {.frequency_survey = true,
+            .qualification = MEASUREMENT_QUALIFICATION_UNQUALIFIED, .session_sequence = 70u};
+        (void)measurement_auto_start_session(&session.policy, &start);
+        uint32_t now = 1u;
+        for (uint32_t i = 0u; i < 512u && !app_measurement_session_final_ready(&session); i++)
+        {
+            (void)app_measurement_session_step(&session, now++);
+            failures += expect_true(session.state != APP_MEASUREMENT_SESSION_DRAINING,
+                                    "continuous mode never splits at 10Hz or six fast search captures");
+            if (fake.start_count != 0u && session.state != APP_MEASUREMENT_SESSION_DONE)
+                failures += expect_true(fake.active, "one hardware owner spans frequency and statistical handoffs");
+        }
+        const measurement_session_result_t *result = app_measurement_session_final(&session);
+        failures += expect_true(result != NULL && result->status == MEASUREMENT_AUTO_STATUS_FINAL_OK &&
+                                result->trimmed.applied && result->trimmed.samples == 7u &&
+                                result->frequency_attempted_mask == 7u && !fake.active,
+                                "single-owner path preserves all-frequency seven-valid-point final after cleanup");
+        for (uint8_t i = 0u; i < fake.start_count; i++)
+            failures += expect_true(fake.requests[i].continuous_survey && fake.requests[i].session_hold,
+                                    "every capture explicitly retains continuous survey ownership");
+    }
+    return failures;
+}
+#endif
+
 int main(int argc, char **argv)
 {
     if ((argc == 2) && (strcmp(argv[1], "--sizes") == 0))
@@ -972,6 +1021,9 @@ int main(int argc, char **argv)
     failures += test_trimmed_primary_after_second_frequency();
 #if WTK_ENABLE_FREQUENCY_SURVEY
     failures += test_complete_survey_and_statistical_segments();
+#if WTK_ENABLE_CONTINUOUS_SURVEY
+    failures += test_continuous_app_survey();
+#endif
 #endif
 #endif
 #endif

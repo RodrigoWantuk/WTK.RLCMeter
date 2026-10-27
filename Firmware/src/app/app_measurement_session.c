@@ -19,6 +19,9 @@ static bool io_ready(const app_measurement_session_io_t *io)
            (io->process_block != NULL)
 #if WTK_ENABLE_FREQUENCY_SURVEY
            && (!io->frequency_survey_enabled || io->finish_session != NULL)
+#if WTK_ENABLE_CONTINUOUS_SURVEY
+           && (!io->continuous_survey_enabled || io->frequency_survey_enabled)
+#endif
 #endif
            ;
 }
@@ -265,6 +268,9 @@ static void make_request(const app_measurement_session_t *session,
         .range_id = session->current_attempt.range_id,
 #if WTK_ENABLE_MEASURE_SESSION_HOLD
         .session_hold = session->io->finish_session != NULL,
+#if WTK_ENABLE_CONTINUOUS_SURVEY
+        .continuous_survey = session->policy.frequency_survey && session->io->continuous_survey_enabled,
+#endif
 #if WTK_ENABLE_MEASUREMENT_TRIMMED
         /* A fresh segment always enters through ordinary fresh authorization;
          * only already-held extra windows use the statistical continuation. */
@@ -424,6 +430,9 @@ app_measurement_event_t app_measurement_session_step(app_measurement_session_t *
         make_request(session, &request);
 #if WTK_ENABLE_FREQUENCY_SURVEY
         if (session->policy.frequency_survey && session->io->attempt_active(session->io->user) &&
+#if WTK_ENABLE_CONTINUOUS_SURVEY
+            !session->io->continuous_survey_enabled &&
+#endif
             (request.frequency == HW_EXCITATION_FREQ_10HZ ||
              (!session->trimming && session->segment_captures >= HW_METROLOGY_SESSION_MAX_CAPTURES)))
         {

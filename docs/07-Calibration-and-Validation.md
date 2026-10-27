@@ -416,6 +416,10 @@ statistical filtering does not qualify absolute accuracy.
 
 ## Three-frequency survey acceptance
 
+The segmented transaction details below describe plan 26. Plan 27 adds one
+continuous factory transaction with actual interleaved power supervision; it
+does not alter OSL records, the seven-point estimator or accuracy qualification.
+
 Plan 26 completes automatic use of the existing 10-Hz/1-kHz/10-kHz calibration
 conditions. No coefficient or persistent format is changed, no old captures are
 relabeled, and no resistor recapture campaign is required. Preserve active OSL

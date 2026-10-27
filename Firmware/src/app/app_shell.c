@@ -791,6 +791,27 @@ static bsp_status_t product_adc_restore(uint32_t now_ms, void *user)
     return bsp_metrology_adc_restore(now_ms);
 }
 
+#if WTK_ENABLE_CONTINUOUS_SURVEY
+static bsp_status_t product_power_begin(uint32_t now_ms, void *user)
+{
+    (void)user;
+    return hw_aux_sensors_power_begin(&g_aux_sensors, now_ms);
+}
+
+static bsp_status_t product_power_status(hw_metrology_power_sample_t *sample, void *user)
+{
+    (void)user;
+    const bsp_status_t status = hw_aux_sensors_power_status(&g_aux_sensors);
+    if (status != BSP_STATUS_OK || sample == NULL) return status != BSP_STATUS_OK ? status : BSP_STATUS_INVALID_ARG;
+    *sample = (hw_metrology_power_sample_t){
+        .timestamp_ms = g_aux_sensors.battery_timestamp_ms,
+        .battery = g_aux_sensors.snapshot.battery_state,
+        .vmid_valid = g_aux_sensors.snapshot.vmid_valid,
+    };
+    return BSP_STATUS_OK;
+}
+#endif
+
 static bool product_adc_dma_complete(void *user)
 {
     (void)user;
@@ -935,6 +956,10 @@ static const hw_metrology_measure_io_t g_product_measure_io = {
     .adc_start_capture = product_adc_start_capture,
     .adc_stop = product_adc_stop,
     .adc_restore = product_adc_restore,
+#if WTK_ENABLE_CONTINUOUS_SURVEY
+    .power_begin = product_power_begin,
+    .power_status = product_power_status,
+#endif
     .adc_dma_complete = product_adc_dma_complete,
     .adc_dma_error = product_adc_dma_error,
     .excitation_off = product_excitation_off,
@@ -1135,6 +1160,9 @@ static const app_measurement_session_io_t g_product_session_io = {
     .trimmed_enabled = true,
 #if WTK_ENABLE_FREQUENCY_SURVEY
     .frequency_survey_enabled = true,
+#if WTK_ENABLE_CONTINUOUS_SURVEY
+    .continuous_survey_enabled = true,
+#endif
 #endif
 #endif
 #endif

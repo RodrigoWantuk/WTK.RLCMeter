@@ -402,3 +402,27 @@ ordinary permit, then repeat at one exact primary condition. Acquired DSP
 rejection can inform another condition; missing/invalid processing output and
 hardware faults still fail closed. BSP, drivers, timer/ADC profiles, calibration
 model/storage formats and unit NTC coefficients are unchanged.
+
+## Continuous factory power handoff (plan 27)
+
+The factory adapter now opts into WTK_ENABLE_CONTINUOUS_SURVEY and sets
+continuous_survey on held requests. It bypasses plan 26's DRAINING segmentation
+while preserving terminal FINISHING and all seven-point admission/trim rules.
+The hardware owner admits twelve search captures plus eight statistical extras
+under one consumed initial permit, with a 30-s connected bound. Legacy opt-out
+requests retain their previous limits and SAFE transactions.
+
+POWER_RESTORE, POWER_WAIT and POWER_ACQUIRE lend the stopped metrology ADC to
+hw_aux_sensors_power_begin/status while normal auxiliaries stay paused. The
+existing main loop advances four VMID/four BAT conversions, excluding OV/NTC;
+residual evidence remains UNKNOWN. ADC restoration/reacquisition uses existing
+BSP paths and the identical coherent profile, without changing excitation,
+K1, ranges, quiet or workspace ownership. Sampling is scheduled about every
+250 ms outside DMA, bounded by 100 ms including both handoffs. Validated actual
+timestamps renew the existing 1,000-ms battery deadline. Settling resumes at its
+original deadline. Failure always enters normal SAFE cleanup.
+
+The development factory image accounts for 17,104 B RAM including the 2,052-B
+stack reservation. The existing 17,408-B hard gate remains enforced; inspect
+the release matrix for final sizes. No additional ADC buffer, heap, calibration
+record or persistent-format change is introduced.
