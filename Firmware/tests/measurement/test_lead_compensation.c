@@ -44,7 +44,7 @@ int main(void)
                 const dc_t fixture=add(zs,divc(duts[c],add((dc_t){1.0,0.0},mul(yo,duts[c]))));
                 measurement_complex_t out;
                 assert(measurement_lead_apply_ratio(&factory,&lead,fp(ratio(fixture,&factory)),&out)==MEASUREMENT_STATUS_OK);
-                const double error=hypot(out.re-duts[c].re,out.im-duts[c].im)/hypot(duts[c].re,duts[c].im);
+                const double error=hypot((double)out.re-duts[c].re,(double)out.im-duts[c].im)/hypot(duts[c].re,duts[c].im);
                 if (error>maximum) maximum=error;
                 assert(error<0.002); /* Float/model conditioning tolerance, not a metrology specification. */
                 ++cases;
@@ -53,10 +53,10 @@ int main(void)
         const measurement_cal_osl_coefficients_t short_factory=factory_for(10.0f), open_factory=factory_for(1000000.0f);
         measurement_complex_t series, shunt;
         assert(measurement_lead_series(&short_factory,fp(ratio(zs,&short_factory)),&series)==MEASUREMENT_STATUS_OK);
-        assert(hypot(series.re-zs.re,series.im-zs.im)<0.0001);
+        assert(hypot((double)series.re-zs.re,(double)series.im-zs.im)<0.0001);
         const dc_t zopen=add(zs,divc((dc_t){1.0,0.0},yo));
         assert(measurement_lead_shunt(&open_factory,fp(ratio(zopen,&open_factory)),series,&shunt)==MEASUREMENT_STATUS_OK);
-        assert(hypot(shunt.re-yo.re,shunt.im-yo.im)/hypot(yo.re,yo.im)<0.002);
+        assert(hypot((double)shunt.re-yo.re,(double)shunt.im-yo.im)/hypot(yo.re,yo.im)<0.002);
     }
     const measurement_cal_osl_coefficients_t ideal={.k={-1000.0f,0.0f},.t_short={0.0f,0.0f},.t_open={1.0f,0.0f}};
     measurement_lead_frequency_t lead={.series_ohms={0.5f,0.0f},.shunt_siemens={0.0f,1e-6f}};
