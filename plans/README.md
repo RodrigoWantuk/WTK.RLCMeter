@@ -182,3 +182,8 @@ tracked separately from software tests.
 control through the ordinary UI path for an owner-confirmed unchanged passive
 DUT, preserving real permission, duplicate rejection and quiet acquisition.
 Diagnostic profiles retain their existing protocols.
+
+[Plan 29](29-Unit-Extended-Flash-Capacity.md) records the owner-authorized first-unit
+upper-Flash experiment: complete patterns, reset persistence and execution near
+128 KiB pass despite the 64-KiB factory register. Contents and calibrated SAFE
+boot are restored; normal C8 build/programming limits remain 64 KiB.

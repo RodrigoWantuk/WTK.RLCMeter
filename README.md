@@ -6,6 +6,8 @@ The project combines a custom mixed-signal PCB, an **STM32 Blue Pill** module, a
 
 > **Current factory PRODUCT status — October 27, 2026:** one continuous K1 transaction covers all three frequencies and the seven-sample estimate with real interleaved power supervision. Guarded serial OK is implemented and tested: the unchanged nominal 470-uH inductor returned 472.656 uH, seven accepted samples and five actual power refreshes, ending SAFE without faults. Physical contact count, independent accuracy, actual 10-mF endpoint and polarized-envelope qualification remain pending. The MCU declares 64 KiB Flash; the installed image uses 61,596 B. See [the current delivery](Firmware/releases/2026-10-27/serial-ok-control/README.md).
 
+First-unit capacity experiment: despite its 64-KiB factory register, this MCU passed full upper-half erase/program/readback/reset tests and instruction fetching near the 128-KiB boundary. **At least 128 KiB is experimentally usable on this unit.** Original contents and READY/SAFE calibration state are restored; production linkers/budgets remain at 64 KiB. See [the capacity evidence](Firmware/releases/2026-10-27/extended-flash-capacity/README.md).
+
 > **Historical bring-up checkpoint — October 24, 2026:** basic R/C/L and display/buttons/buzzer observations are recorded. Current CAD includes six RGS gate-toGND pull-downs; shared firmware includes acquisition/phase/relay fixes and mounted display orientation. Calibration and battery/charger/metrology qualification remain pending. See [bring-up consolidation](docs/review/bringup-2026-10-24/README.md).
 
 October 25 first-unit update: [all 99 OSL captures](docs/review/bringup-2026-10-25/OSL-All-99.md)
