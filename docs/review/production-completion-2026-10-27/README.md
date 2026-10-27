@@ -38,14 +38,14 @@ No hardware access or deployment was performed for this checkpoint.
 
 | Package | Software state | Physical acceptance |
 | --- | --- | --- |
-| A: explicit unit memory profile | 128-KiB CMake/linker/build/manifest/programmer bounds implemented; load-only OSL saves RAM | New deployment/boot and stack high-water pending |
+| A: explicit unit memory profile | 128-KiB CMake/linker/build/manifest/programmer bounds implemented; load-only OSL saves RAM | Deployment/READY/SAFE/UART verified after watchdog correction; stack high-water pending |
 | B: emergency SAFE/watchdog | Direct fatal-output shutdown; watchdog failure latched in both shells | Controlled fault injection/timing pending |
 | C: settings | Accepted-start adapter, immutable snapshot, CRC schema 4, timeout and legacy migration implemented | Actual save/reboot/interrupted-write pending |
 | D: display/feedback | Idle RANGE blocker fixed; product patterns/queue and armed TIM4 stop implemented | Display timeout, tones and quiet interference pending |
 | E: UART/telemetry | Interrupt RX, busy/quiet epochs, CRC/request guards, numeric telemetry and PC client implemented; software tests pass | Burst/error/quiet behavior on target pending |
-| F: unified product contract | Shared measurement/UI feature macros independent of OSL provisioning; manifests enumerate features | Unit deployment pending; generic 64-KiB overflow remains an explicit gate |
+| F: unified product contract | Shared measurement/UI feature macros independent of OSL provisioning; manifests enumerate features | Unit deployment verified; generic 64-KiB overflow remains an explicit gate |
 | G: lead math | Production float composition, pole handling and 108 independent oracle cases implemented | Fixture range/amplitude invariance requires bench validation |
-| H: lead storage | Separate 100-byte A/B record, CRC/commit/binding/tombstone; legacy offsets preserved | Snapshot/readback and physical interrupted-save pending |
+| H: lead storage | Separate 100-byte A/B record, CRC/commit/binding/tombstone; legacy offsets preserved | Exact 40-KiB snapshot/readback preservation verified; physical interrupted-save pending |
 | I: endpoint service/runtime | Packed-ADC capture, 7-point groups, bounded OPEN retries, DSP composition/provenance implemented | Physical endpoint quality and holdouts pending |
 | J: production OPEN/SHORT wizard | Native menu, OPEN/SHORT/review/save, cancellation, toggle and confirmed clear implemented | Display/buttons/reboot checks pending |
 | K: truthful diagnostics/UI | Actual freshness/save state/lead status; bounded result detail rows; honest CRC labels | Visual acceptance pending |
@@ -152,3 +152,9 @@ The sealed archive was extracted and inspected again. FakeSWD alone verifies pag
 The owner confirms power is still present and explicitly authorizes programming to obtain numeric UART battery telemetry. The sealed 603f671 image programs/readbacks exactly; UART reports 3.701 V with actual age 269 ms, but boot correctly latches WATCHDOG fault 0x100. K1 remains SAFE, range disabled and no acquisition starts. Live read-only non-halting register evidence shows LSI ready, PR/RLR still at reset defaults and PVU/RVU both pending. The existing BSP waited for those update flags before enabling IWDG; the newly checked return exposes the earlier ignored failure.
 
 The correction matches the pinned STM32CubeF1 HAL_IWDG_Init ordering: enable IWDG, unlock/write PR/RLR, wait boundedly for updates, then reload and mark started. The fault latch is retained. An actual-BSP register-model test covers successful ordering, missing LSI and stuck update flags; only completed initialization permits normal servicing. The three new checks and related safety/load/telemetry regressions pass. Physical boot after this correction, independent watchdog timing and all broader qualification remain separately tracked. See the [ST HAL source](https://github.com/STMicroelectronics/stm32f1xx-hal-driver/blob/master/Src/stm32f1xx_hal_iwdg.c) and the pinned copy under third_party.
+
+### Corrected physical handoff
+
+The [6bb3a68 correction and indexed physical evidence](../../../Firmware/releases/2026-10-27/production-completion/watchdog-startup-fix/README.md) supersede the initially prepared image. Programming/full internal readback match the new binary exactly. One controlled SAFE_BOOT reaches READY, fault mask zero, K1 commanded SAFE, range disabled and zero measurement sessions. Actual UART battery is 3.688 V, then 3.689 V in the preservation snapshot at 19:32 America/Sao_Paulo; no numeric battery value is read via SWD. Non-halting register reads show PR=4, RLR=1250 and SR=0. This verifies startup/configuration, not forced watchdog-expiry timing.
+
+Before/after UART snapshots match the entire 40-KiB mutable tail exactly, including the original 2,760-byte OSL frame and unchanged resource header. The resource pack ends at 104,499, below the actual 4-MiB device limit 4,153,344. No external Flash write or new calibration capture occurs. The final eight-profile matrix passes with clean 6bb3a68 provenance; current optional-curves host suite passes 65/65 and focused checks 6/6. All broader physical UI/settings/native lead/holdout/fault-timing and stack/latency acceptance remains pending.

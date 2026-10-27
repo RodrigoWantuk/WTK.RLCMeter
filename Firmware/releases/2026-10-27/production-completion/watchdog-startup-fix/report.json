@@ -1,0 +1,145 @@
+{
+  "schema": "WTK_WATCHDOG_STARTUP_FIX_DELIVERY_1",
+  "status": "DEPLOYED_READY_SAFE_UART_TELEMETRY_VERIFIED_BROADER_BENCH_PENDING",
+  "source": {
+    "git_sha": "6bb3a680b9baa141be9db6f446d003dae429a633",
+    "dirty": false,
+    "git_status": "",
+    "input_sha256": "f6bf6fd56308d1c55b186267b41471281455722dd275cdff057f9ff59bf5007c"
+  },
+  "uid": "54ff70068370525760380567",
+  "binary": {
+    "bytes": 75092,
+    "sha256": "b101b86452cc834fa88a30431c8406188fd7d9ff67b053451ec8ef2732d08824"
+  },
+  "manifest_seal": "f3e3699b67224221bcc8140ce29e343dd96877157532f136dab2717b2451feb0",
+  "linked": {
+    "flash_bytes": 75092,
+    "bss": 13104,
+    "ram_static_bytes": 13156,
+    "noinit_bytes": 0,
+    "reserved_stack_bytes": 2048,
+    "ram_accounted_bytes": 15204
+  },
+  "programming": "INTERNAL_FLASH_VERIFIED",
+  "readback": {
+    "start": 134217728,
+    "end_exclusive": 134292820,
+    "bytes": 75092,
+    "expected_sha256": "b101b86452cc834fa88a30431c8406188fd7d9ff67b053451ec8ef2732d08824",
+    "actual_sha256": "b101b86452cc834fa88a30431c8406188fd7d9ff67b053451ec8ef2732d08824",
+    "full_flash_sha256": "6ef0d8e0cf8caa5143fe530dee153b1df26ef0555ef1eb6796c4e5d15b965782",
+    "full_flash_bytes": 131072
+  },
+  "boot": {
+    "utc": "2026-10-27T22:32:07.001288+00:00",
+    "uart_text": "\r\nWTK.RLCMeter SAFE_BOOT\r\n",
+    "safe_boot_banners": 1,
+    "measurement_commanded": false,
+    "battery_voltage_read_via_swd": false
+  },
+  "telemetry": {
+    "status": "ACCEPTED",
+    "request_id": 2138979545,
+    "ui_state": 4,
+    "session_sequence": 0,
+    "uptime_ms": 25453,
+    "safety_blocker_flags": 8,
+    "fault_mask": 0,
+    "factory_calibration_sequence": 1,
+    "capability_flags": 127,
+    "uid": "54ff70068370525760380567",
+    "git": "6bb3a680b9ba",
+    "battery_mv": 3688,
+    "battery_v": 3.688,
+    "battery_state": 0,
+    "battery_age_ms": 434,
+    "charger_state": 0,
+    "ntc_temperature_c": 22.064,
+    "ntc_age_ms": 932,
+    "ntc_experimental": true,
+    "battery_raw": 2288,
+    "ntc_raw": 1974,
+    "uart_errors": 0,
+    "uart_overflows": 0,
+    "lead_active": false,
+    "lead_sequence": 0,
+    "settings_status": 0,
+    "settings_error": 0,
+    "k1_commanded_state": 1,
+    "range_state": 0,
+    "feedback_dropped": 0,
+    "feedback_error": 0,
+    "primary_accepted_samples": 0,
+    "frequency_attempted_mask": 0,
+    "configured_flash_kib": 128,
+    "last_result": {
+      "valid": false,
+      "resistance_ohms": null,
+      "reactance_ohms": null,
+      "capacitance_f": null,
+      "inductance_h": null,
+      "frequency_id": 0,
+      "range_id": 0,
+      "return_channel": 0
+    },
+    "measurement_completion_observed": false,
+    "limitations": "Nominal VDDA conversion; loaded engineering OSL and experimental NTC are not independent accuracy qualification"
+  },
+  "last_serial_snapshot_utc": "2026-10-27T22:32:34.771855+00:00",
+  "last_serial_snapshot_battery_v": 3.689,
+  "watchdog": {
+    "initial_fault_mask": 256,
+    "initial_registers": {
+      "PR": 0,
+      "RLR": 4095,
+      "SR": 3
+    },
+    "corrected_registers": {
+      "PR": 4,
+      "RLR": 1250,
+      "SR": 0
+    },
+    "correction": "Enable before unlock/configure/update wait, matching pinned ST HAL; failure latch retained",
+    "physical_reset_timeout": "NOT_TESTED"
+  },
+  "preservation": {
+    "full_mutable_tail_bytes": 40960,
+    "exact_before_after_equal": true,
+    "tail_sha256": "ddefec8ae8b4e979470a6597eb6a6d2a91b506acf87b6e8716e6744538487bc7",
+    "canonical_osl_sha256": "af76d19b15a510dff0c880a4ab6e86893e0065ac7e845b9930111680752da78c",
+    "factory_sequence": 1,
+    "factory_records": 33,
+    "resource_header_unchanged": true,
+    "resource_pack_end": 104499,
+    "resource_limit": 4153344,
+    "external_flash_written": false,
+    "ntc_profile_sha256": "9b3826a20b3c621a9e92be0035431b140c45d7a23acaba8ec237a63e4e8cad44"
+  },
+  "measurement_commanded": false,
+  "battery_voltage_read_via_swd": false,
+  "tests": {
+    "current_curves_host": "65/65",
+    "focused_watchdog_safety_load_telemetry": "6/6",
+    "strict_gnu_syntax": "PASS",
+    "embedded_matrix": "8 PASS plus expected generic 64-KiB budget stop",
+    "previous_full_python": "531 cases/38 skips; not repeated for this BSP-only correction"
+  },
+  "physical_pending": [
+    "Actual watchdog reset interval/fault-injection timing",
+    "Display/buttons/audible/idle and saved-settings reboot acceptance",
+    "Native lead OPEN/SHORT capture/save/reboot and independent R/C/L holdouts",
+    "Stack high-water and worst cooperative latency",
+    "Accuracy, extreme/polarized envelope, extended Flash endurance"
+  ],
+  "archives": {
+    "firmware.zip": {
+      "bytes": 128772,
+      "sha256": "92a32c83bd2c676e08b85018319339419d60ca247343fc8485554507df0e2696"
+    },
+    "evidence.zip": {
+      "bytes": 748878,
+      "sha256": "ad04a56b43eb1be2fa17b7ad2b391bb0fb0af32568ab46f82ccebe18cc61e036"
+    }
+  }
+}

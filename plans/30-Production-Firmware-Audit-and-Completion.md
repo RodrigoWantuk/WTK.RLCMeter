@@ -7,7 +7,7 @@ misleading behavior; complete usable settings/audible feedback; design a native
 quick OPEN/SHORT option after changing leads; account for verified memory.
 The initial [audit and evidence](../docs/review/production-audit-2026-10-27/README.md)
 and execution plan are complete. The owner has now authorized implementation.
-The software packages, including the endpoint wizard, passed the final profile/artifact checks. The sealed [software delivery](../Firmware/releases/2026-10-27/production-completion/README.md) is prepared but not deployed. Physical acceptance remains pending; the owner reports possible battery depletion while away.
+The software packages, including the endpoint wizard, passed the profile/artifact checks. The owner subsequently confirms power and authorizes programming. The [corrected deployment](../Firmware/releases/2026-10-27/production-completion/watchdog-startup-fix/README.md) boots READY/SAFE, reads real UART battery telemetry and preserves the complete mutable tail. Initial IWDG startup failure was diagnosed, corrected and regression-tested without bypassing its fault latch. Broader physical acceptance remains pending.
 This plan is not a release qualification or a claim that earlier bench checks
 were invalid: each check retains its narrow scope.
 

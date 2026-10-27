@@ -1,17 +1,8 @@
 # Technical Documentation
 
-Current production-completion review: [October 27 audit](review/production-audit-2026-10-27/README.md)
-and [plan 30](../plans/30-Production-Firmware-Audit-and-Completion.md) identify
-reproducible settings/timeout defects, incomplete feedback/diagnostics and
-profile differences. The active ADC measurement path is real. Native quick
-OPEN/SHORT lead compensation and these corrections are planned, not installed.
-Physical unit Flash capacity is 128 KiB verified; current image is 61,596 B,
-with only 292 B remaining under the present RAM hard budget.
+Current production completion: the [corrected deployed image](../Firmware/releases/2026-10-27/production-completion/watchdog-startup-fix/README.md) boots READY/SAFE with genuine UART telemetry and zero faults. Settings/feedback, bounded UART and the native OPEN/SHORT lead workflow are implemented. The first deployment exposed the existing watchdog initialization order error; the corrected BSP follows ST startup order and retains failure blocking. The 128-KiB UID-bound image uses 75,092 Flash / 15,204 accounted RAM bytes. The complete 40-KiB mutable tail and factory OSL match before/after exactly. Physical UI/settings/lead acceptance and metrology qualification remain pending.
 
-Subsequent implementation progress is in the
-[production completion log](review/production-completion-2026-10-27/README.md).
-The load-only factory OSL service frees RAM without changing persisted records;
-actual deployment and physical acceptance are tracked separately.
+See the [audit](review/production-audit-2026-10-27/README.md), [plan 30](../plans/30-Production-Firmware-Audit-and-Completion.md) and [execution log](review/production-completion-2026-10-27/README.md) for provenance and remaining gates. Chronological checkpoints below retain their original scope.
 
 Latest first-unit checkpoint: [calibrated PRODUCT READY handoff](../Firmware/releases/2026-10-25/calibrated-product-ready/README.md).
 The 33-condition engineering OSL is installed and persistent. PRODUCT now loads

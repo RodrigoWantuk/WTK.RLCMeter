@@ -1,5 +1,7 @@
 # Production completion software delivery — October 27, 2026
 
+**Superseded:** use the [deployed watchdog-startup correction](watchdog-startup-fix/README.md). The image below is the historical preparation checkpoint; its first real boot exposed an IWDG startup fault and it was replaced.
+
 Status: **SOFTWARE_VERIFIED / REQUIRES_BENCH_VALIDATION**. This image is prepared, sealed and archived; **it has not been programmed into the instrument**. The owner is away and reports possible battery depletion. No fresh battery value, boot observation or physical measurement is claimed.
 
 ## Implemented behavior
