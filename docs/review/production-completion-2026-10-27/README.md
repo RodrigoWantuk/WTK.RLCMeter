@@ -49,7 +49,7 @@ No hardware access or deployment was performed for this checkpoint.
 | I: endpoint service/runtime | Packed-ADC capture, 7-point groups, bounded OPEN retries, DSP composition/provenance implemented | Physical endpoint quality and holdouts pending |
 | J: production OPEN/SHORT wizard | Native menu, OPEN/SHORT/review/save, cancellation, toggle and confirmed clear implemented | Display/buttons/reboot checks pending |
 | K: truthful diagnostics/UI | Actual freshness/save state/lead status; bounded result detail rows; honest CRC labels | Visual acceptance pending |
-| L: integrated qualification | Host tests passed; final profile matrix/artifact preparation in progress | REQUIRES_BENCH_VALIDATION; battery/power not confirmed |
+| L: integrated qualification | Host tests and eight-profile matrix passed; sealed unit image archived | REQUIRES_BENCH_VALIDATION; battery/power not confirmed |
 
 The read-only factory service uses the active set as temporary load output while
 it is invalid/inactive, scans both slots and rereads the best fully usable slot
@@ -138,3 +138,11 @@ The optional cache regression covers a complete 33-condition qualified frame, in
 The complete-domain test also exposed an older WCRV table overflow: 33 supported keys use sparse condition indices up to 35. Both the store index and optional RAM cache now reserve the complete 36-position domain; unsupported keys remain rejected. This does not change the on-Flash schema or condition mapping.
 
 Software closure checkpoint: host CTest passed 59/59 with factory provisioning ON, 59/59 OFF, and 62/62 with optional WCRV ON. The optional unit target links at 77,976 Flash bytes and 17,052 accounted RAM bytes, including 2,052 bytes reserved/aligned stack (356 bytes below the unchanged hard RAM gate). Default production does not include this optional cache. The first Python run passed 531 cases with 113 unavailable optional/bridge skips; the final evidence must distinguish that run from a bridge-enabled rerun. No physical tests or programming were performed.
+
+## Final software delivery
+
+The [sealed release and indexed evidence](../../../Firmware/releases/2026-10-27/production-completion/README.md) are archived at clean runtime source `603f6715307c2b11f48b2f0470622139ca951728`. All eight supported profiles pass; generic full PRODUCT correctly stops at its unchanged 64-KiB memory gate. The release and forensics unit binaries match exactly: 75,092 Flash bytes, 13,156 static RAM bytes, 2,048 reserved stack bytes, 15,204 accounted RAM bytes. Physical Flash remainder is 55,980 bytes; hard-budget margins are 54,956 Flash and 2,204 RAM bytes. Optional WCRV's map is separate and is not the delivered configuration.
+
+Final host results: 59/59 factory, 59/59 standard, 62/62 curves. The bridge-enabled Python rerun passes 531 cases with 38 explicit skips; its raw log is distinct from the initial bridge-disabled run. Strict GNU warning checks exposed implicit double promotions in the independent host oracle; test-only follow-up `11add6a` makes those conversions explicit, passes all three new test translation units under warning-as-error syntax checks, and executes the oracle again. Embedded runtime code is unchanged after the image source.
+
+The sealed archive was extracted and inspected again. FakeSWD alone verifies page bounds/readback/outside-page preservation and wrong-UID rejection. No target was flashed, reset or measured, no fresh battery value was obtained, and external calibration/resources were not read or modified. Runtime stack high-water, cooperative latency and all listed physical acceptance remain pending. This closes software preparation, not plan 30's physical release gate.

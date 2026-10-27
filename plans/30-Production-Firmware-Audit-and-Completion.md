@@ -1,13 +1,13 @@
 # Production completion and quick lead OPEN/SHORT compensation
 
-STATUS: IMPLEMENTATION_IN_PROGRESS_PHYSICAL_QUALIFICATION_PENDING
+STATUS: SOFTWARE_CHECKS_PASSED_PHYSICAL_ACCEPTANCE_PENDING
 
 Owner scope: audit all firmware, especially PRODUCT; identify unimplemented or
 misleading behavior; complete usable settings/audible feedback; design a native
 quick OPEN/SHORT option after changing leads; account for verified memory.
 The initial [audit and evidence](../docs/review/production-audit-2026-10-27/README.md)
 and execution plan are complete. The owner has now authorized implementation.
-The software packages, including the endpoint wizard, are implemented and undergoing the final profile/artifact checks. Physical acceptance remains pending; the owner reports possible battery depletion while away.
+The software packages, including the endpoint wizard, passed the final profile/artifact checks. The sealed [software delivery](../Firmware/releases/2026-10-27/production-completion/README.md) is prepared but not deployed. Physical acceptance remains pending; the owner reports possible battery depletion while away.
 This plan is not a release qualification or a claim that earlier bench checks
 were invalid: each check retains its narrow scope.
 
@@ -20,7 +20,7 @@ were invalid: each check retains its narrow scope.
 - Preserve UID `54ff70068370525760380567`, OSL sequence 1/all 33, owner splash,
   resource pack and UID-bound experimental NTC profile
   `Firmware/config/units/54ff70068370525760380567-ntc-engineering.json`
-  (SHA-256 `9b3826a20b3c621a9e92be0035431b140c45d7a23acaba8ec237a63e4e8cad44`).
+  (canonical semantic profile SHA-256 `9b3826a20b3c621a9e92be0035431b140c45d7a23acaba8ec237a63e4e8cad44`; not the Windows raw file hash).
 - No repeated manual resistor campaign for application fixes. Quick lead
   compensation requires OPEN/SHORT at the ends of the final leads, not six LOADs.
 - Retain actual hardware safety permits, residual/power freshness, charger

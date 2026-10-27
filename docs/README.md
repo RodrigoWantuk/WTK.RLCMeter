@@ -227,3 +227,5 @@ host tests pass. Owner-triggered final PRODUCT results are 4,196.6 uF for a mark
 10-Hz resistance dominance correctly coexists with an inductive final type.
 Both end SAFE with unchanged calibration; accuracy/polarized envelope, actual
 10-mF endpoint, physical contact timing and TFT appearance remain pending.
+
+Production completion: [sealed software image, memory and acceptance handoff](../Firmware/releases/2026-10-27/production-completion/README.md). Software checks passed; deployment and physical qualification are pending.

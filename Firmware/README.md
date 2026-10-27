@@ -602,11 +602,10 @@ Current size tooling enforces PRODUCT 64512-byte Flash/17408-byte accounted RAM 
 BRINGUP 65536-byte Flash/18432-byte accounted RAM; historical stage budgets above
 are retained for traceability. See plan 19 for source-bound final build evidence.
 
-Bench-supply and empty-fixture K1 variants retain their full command sets but use
+Bench-supply and empty-fixture K1 variants retain their sensing/acquisition commands but exclude the complete factory campaign as specified below. They use
 log level3 and the minimal SAFE_BOOT banner instead of unsolicited verbose boot,
 button and safety-transition messages. Standard BRINGUP keeps its detailed banner
-and logs. This bounds those splash-enabled diagnostic images without removing
-measurement/calibration commands or changing safety policy.
+and logs. This bounds those splash-enabled diagnostic images without changing electrical safety policy.
 
 
 The optional `WTK_BRINGUP_K1_TEST=ON` once-only relay diagnostic retains its empty-fixture authorization, power/residual interlocks and cleanup, but intentionally excludes the factory calibration campaign solver/commit command family. It returns `CAL_CMP_UNAVAILABLE use=BRINGUP_CAL` for those commands. Use the dedicated BRINGUP_CAL image for factory work; normal BRINGUP keeps its campaign capability. This keeps the relay diagnostic inside generic 64 KiB without changing measurement safety, factory records, the NTC profile or the shared boot splash. Build composition checks enforce that declared restriction.
@@ -617,3 +616,5 @@ The same factory-campaign restriction applies to `WTK_BRINGUP_BENCH_SUPPLY=ON`. 
 Optional WCRV builds prefetch all available qualified curves into a fixed RAM cache before acquisition, using the existing shared 3-KiB workspace to verify the complete selected frame again. The cache adds approximately 1.74 KiB only when WCRV is compiled ON. Quiet-window DSP never reads W25Q. Missing conditions remain absent, a changed OSL binding invalidates cached data, and corrupt/incomplete prefetch fails closed. Lead compensation remains explicitly disabled while an active WCRV profile is selected; combining those corrections is not qualified. Default production retains WCRV OFF and does not allocate that cache.
 
 CI uses the explicit first-unit production matrix and keeps a negative generic 64-KiB product budget test. Historical baseline builds remain separately identified. Host oracle/capture tests link the platform math library on non-MSVC hosts; that library is not added to the embedded image. Physical acceptance is separate from CI/build success.
+
+The prepared first-unit [production-completion release](releases/2026-10-27/production-completion/README.md) contains the sealed 128-KiB UID-bound image and software evidence. It is not physically deployed or qualified.
