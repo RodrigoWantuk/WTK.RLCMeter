@@ -4,7 +4,9 @@ WTK.RLCMeter is a portable two-wire RLC meter based on the **STM32F103C8T6**, de
 
 The project combines a custom mixed-signal PCB, an **STM32 Blue Pill** module, an **ILI9341** TFT display, external **W25Q** SPI Flash, a 1-cell Li-ion power subsystem, and dedicated firmware for measurement, safety, user interface, storage, and diagnostics.
 
-> **Current status — October24,2026:** basic R/C/L and display/buttons/buzzer observations are recorded. Current CAD includes six RGS gate-toGND pull-downs; shared firmware includes acquisition/phase/relay fixes and mounted display orientation. Calibration and battery/charger/metrology qualification remain pending. See [bring-up consolidation](docs/review/bringup-2026-10-24/README.md).
+> **Current factory PRODUCT status — October 26, 2026:** all three existing frequencies (1 kHz -> 10 kHz -> 10 Hz) are surveyed before final interpretation, followed by a seven-sample trimmed primary estimate. Owner-triggered basic capacitor/inductor results and verified deployment are recorded; independent accuracy, actual 10-mF endpoint and polarized-envelope qualification remain pending. See [the current delivery](Firmware/releases/2026-10-26/three-frequency-survey/README.md).
+
+> **Historical bring-up checkpoint — October 24, 2026:** basic R/C/L and display/buttons/buzzer observations are recorded. Current CAD includes six RGS gate-toGND pull-downs; shared firmware includes acquisition/phase/relay fixes and mounted display orientation. Calibration and battery/charger/metrology qualification remain pending. See [bring-up consolidation](docs/review/bringup-2026-10-24/README.md).
 
 October 25 first-unit update: [all 99 OSL captures](docs/review/bringup-2026-10-25/OSL-All-99.md)
 are preserved, with 30 valid fits and three high-Z/10-kHz fits still blocked.

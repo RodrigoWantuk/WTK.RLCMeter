@@ -1,6 +1,6 @@
 # Three-frequency product survey
 
-STATUS: IN_PROGRESS
+STATUS: IMPLEMENTED_DEPLOYED_BASIC_CAPACITOR_AND_INDUCTOR_OBSERVED; REQUIRES_BENCH_VALIDATION (accuracy/polarized envelope/timing/UI)
 
 The owner requests all existing frequencies before R/C/L classification, including
 low frequency last for large capacitors and inductors. The 10-mF upper target is
@@ -109,3 +109,54 @@ no faults, restored ownership and unchanged calibration. Replace postboot/result
 reads with nonhalting DAP snapshots and stable sequence/output guards; serial
 boot can be captured now that the owner reconnected COM4. No debugger battery
 voltage read is introduced. A clean corrected boot remains to be confirmed.
+
+## Corrected delivery and owner-triggered basic checks
+
+Final source 0443d3295bd92043493ae805c2763464109ec3fb passes 49 factory and
+47 standard host tests and all nine strict unit-bound embedded profiles.
+Factory PRODUCT is 60,136 B Flash / 17,080 B accounted RAM, above the preferred
+16,384-B RAM target but within the unchanged 17,408-B hard gate with a 2-KiB
+stack reservation. No low-level BSP/driver/hardware/profile, DSP equation,
+calibration coefficient/format or NTC unit-profile change occurred.
+
+Verified internal programming/readback SHA-256 is
+26cb50c86e798d0ca0b040ddd5ab3a6a1f8e9791145a504bd2e8c6f46fa8e20f.
+Clean controlled boot captured exactly one SAFE_BOOT banner on COM4, READY/SAFE,
+zero sessions/captures, no faults and active OSL1/all33. All postboot/result
+inspection used live DAP with identity/image/output/sequence guards, never
+pausing/resetting the core or reading battery voltage via SWD. One preflight
+attempt deferred safely on an unpolled OpenOCD unknown state; poll corrected the
+observation without reset/resume. No programming occurred in that deferred step.
+
+The first corrected owner-triggered attempt was CANCELED: retained button events
+show two complete OK cycles 165 ms apart. No hardware/calculation fault was
+claimed and that canceled run is preserved separately. The next owner-triggered
+4700-uF electrolytic run (session2) completed five search captures, all three
+frequencies and six extra windows/seven accepted primary samples at
+10Hz/RREF10/HG. It published a final nonpartial 4,196.611 uF to the PRODUCT view;
+replayed masks R=25/X=73 and complex mean match. App-start-to-last-K1-SAFE time
+from firmware ticks was 9,428 ms. The owner observed repeated relay cycles,
+expected from fresh-permit SAFE boundaries; exact physical contact count/timing
+was not measured. This is functional observation, not accuracy or polarized-mode
+qualification; the actual component capacitance is not independently known.
+
+The owner then connected the marked 470-uH inductor and initiated measurement.
+The latest completed result (session5; intermediate sessions3/4 not recovered)
+completed three frequency probes plus six extra windows/seven accepted primary
+samples at 1kHz/RREF10/HG. Final nonpartial result is 466.910 uH, with replayed
+masks R=84/X=22. Its 10-Hz observation is locally RESISTIVE (about 7.433+j0.0524
+Ohm), while 1/10 kHz support INDUCTIVE. Combined classification correctly stays
+INDUCTIVE and does not average the low-frequency scalar L into publication.
+Software start-to-last-SAFE duration was 1,742 ms. Both completed checks ended
+hardware IDLE, K1 SAFE, range/excitation OFF, quiet/workspace free, no hardware
+fault and unchanged active calibration. No resistor campaign was repeated.
+
+Remaining: independent accuracy/phase/loss, actual 10 mF upper endpoint, polarized
+excitation envelope, switching/abort/contact timing, sub-uH sensitivity and
+physical display appearance of F3/3/AVG7/3. Current UI data publication is observed;
+TFT was disconnected in favor of COM4 during the corrected tests. New serial
+measurement/result commands were not invented: UART boot is captured, completed
+result/metadata is live SWD, and all acquisitions were owner-triggered buttons.
+
+The functional specification's stale 100-Hz baseline entry is corrected to the
+existing 10-Hz/model-5 baseline; no new frequency profile is introduced.

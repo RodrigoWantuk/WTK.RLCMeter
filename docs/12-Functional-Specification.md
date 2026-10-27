@@ -19,7 +19,7 @@ At the current stage, many functions are between PLANNED and first bring-up.
 - derivation of resistance, capacitance, and inductance;
 - magnitude `|Z|` and phase;
 - ESR, Q, and D when mathematically and metrologically meaningful;
-- baseline frequencies of 100 Hz, 1 kHz, and 10 kHz;
+- baseline frequencies of 10 Hz, 1 kHz, and 10 kHz;
 - baseline excitation amplitudes of 100 mVrms and 500 mVrms;
 - automatic selection among six RREF values;
 - automatic selection between `RET_1X` and `RET_HG`;
@@ -34,7 +34,7 @@ Initial targets for Rev.1 characterization:
 | R | ~1 Ω to 10 MΩ |
 | C | ~1 nF to 10 mF |
 | L | ~10 µH to 10 H |
-| Frequencies | 100 Hz / 1 kHz / 10 kHz |
+| Frequencies | 10 Hz / 1 kHz / 10 kHz |
 | Excitation | 100 mVrms / 500 mVrms |
 
 These are not accuracy guarantees. Qualification will define actual usable sub-ranges and allowed operating combinations.
@@ -235,3 +235,14 @@ Calibration corrects stable/repeatable error. It does not correct unstable conta
 - Arduino/INO firmware.
 
 See [`14-Future-Extensions.md`](14-Future-Extensions.md) for future-revision concepts.
+
+## Current factory frequency coverage
+
+The current model-5 baseline is 10 Hz / 1 kHz / 10 kHz; the old 100-Hz entry in
+this specification was stale. Factory PRODUCT now surveys all three in the
+order 1 kHz -> 10 kHz -> 10 Hz before normal final interpretation, with guarded
+SAFE/fresh-permit boundaries for low-frequency captures and a seven-sample
+trimmed primary estimate. The documented 10-mF target remains an engineering
+target pending physical endpoint/accuracy/polarized-envelope qualification;
+synthetic coverage or one basic 4,700-uF observation does not certify that limit.
+See [plan 26](../plans/26-Three-Frequency-Product-Survey.md).

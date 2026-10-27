@@ -204,3 +204,12 @@ verified deployment. The actual owner-triggered inductor run admitted all seven
 samples, produced 462.8 uH and reached SAFE in 386 ms by firmware ticks, preserving
 calibration and fault-free cleanup. Absolute accuracy and remaining physical
 qualification are not inferred from this basic check.
+
+[Three-frequency PRODUCT delivery](../Firmware/releases/2026-10-26/three-frequency-survey/README.md)
+records 1-kHz/10-kHz/10-Hz search, guarded SAFE/fresh-permit segmentation and
+seven-point final estimates. All nine strict builds and 49 factory/47 standard
+host tests pass. Owner-triggered final PRODUCT results are 4,196.6 uF for a marked
+4,700-uF electrolytic and 466.9 uH for a marked 470-uH inductor. The latter's
+10-Hz resistance dominance correctly coexists with an inductive final type.
+Both end SAFE with unchanged calibration; accuracy/polarized envelope, actual
+10-mF endpoint, physical contact timing and TFT appearance remain pending.
