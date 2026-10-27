@@ -337,9 +337,9 @@ elseif(WTK_TARGET_PLATFORM STREQUAL "stm32")
         target_compile_options(wtk_firmware_common PRIVATE -fstack-usage)
     endif()
     if(WTK_FIRMWARE_PROFILE STREQUAL "PRODUCT")
-        # PRODUCT Debug intentionally uses -Os + debug symbols: the complete
-        # firmware must fit the guaranteed 64 KiB STM32F103C8T6 Flash while
-        # still preserving symbols for SWD/GDB inspection. Release may also
+        # PRODUCT Debug intentionally uses -Os + debug symbols. Each variant
+        # must pass its explicit generic-64 or verified-unit-128 memory gate
+        # while preserving symbols for SWD/GDB inspection. Release may also
         # enable preset-level LTO for additional dead-code folding.
         target_compile_options(wtk_firmware_common PRIVATE ${WTK_PRODUCT_OPTIMIZATION_LEVEL} -fno-unwind-tables -fno-asynchronous-unwind-tables)
     endif()
@@ -476,6 +476,7 @@ elseif(WTK_TARGET_PLATFORM STREQUAL "stm32")
                     $<TARGET_FILE:wtk_rlcmeter>
                     --profile ${WTK_FIRMWARE_PROFILE}
                     --factory-provisioned $<IF:$<BOOL:${WTK_PRODUCT_FACTORY_PROVISIONED_VALUE}>,ON,OFF>
+                    --k1-bench-test $<IF:$<BOOL:${WTK_BRINGUP_K1_TEST}>,ON,OFF>
                     --peripheral-test $<IF:$<BOOL:${WTK_ENABLE_PERIPHERAL_TEST_VALUE}>,ON,OFF>
                     --supplementary-curves $<IF:$<BOOL:${WTK_ENABLE_SUPPLEMENTARY_CURVES}>,ON,OFF>
                     --compile-commands "${CMAKE_CURRENT_BINARY_DIR}/compile_commands.json"

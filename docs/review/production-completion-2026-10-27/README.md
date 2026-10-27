@@ -120,3 +120,7 @@ Diagnostics now show actual sensor freshness, settings state/errors and lead sta
 ### Hardware deferral
 
 The owner confirms TTL/COM4 and ST-Link with a nominal 470-uH inductor, then reports possible depleted battery while away. Do not flash, reset or start acquisition based on that old fixture confirmation alone. Complete software/artifact/Git work now. Next physical session: confirm stable charged power, preserve tail/assets, flash the sealed UID-bound image, verify READY/SAFE and real UART battery/NTC/OSL, then perform scoped tests. No hardware acceptance is inferred from host tests.
+
+### Optional K1 diagnostic memory correction
+
+The final matrix exposed a 608-byte overflow in the optional 64-KiB K1 pulse image. Size-only compiler switches did not solve it and were not adopted. The once-only empty-fixture relay diagnostic now explicitly excludes the unrelated factory campaign solver/commit command family, referring those requests to BRINGUP_CAL. Normal BRINGUP and the dedicated factory service retain their calibration paths. Safety authorization/interlocks, measurements, NTC profile, assets and boot behavior are unchanged. The scoped image links at 61,080 bytes before final commit metadata; binary-composition checks verify both the unavailable message and solver exclusion. No threshold or generic Flash gate was relaxed.

@@ -607,3 +607,6 @@ log level3 and the minimal SAFE_BOOT banner instead of unsolicited verbose boot,
 button and safety-transition messages. Standard BRINGUP keeps its detailed banner
 and logs. This bounds those splash-enabled diagnostic images without removing
 measurement/calibration commands or changing safety policy.
+
+
+The optional `WTK_BRINGUP_K1_TEST=ON` once-only relay diagnostic retains its empty-fixture authorization, power/residual interlocks and cleanup, but intentionally excludes the factory calibration campaign solver/commit command family. It returns `CAL_CMP_UNAVAILABLE use=BRINGUP_CAL` for those commands. Use the dedicated BRINGUP_CAL image for factory work; normal BRINGUP keeps its campaign capability. This keeps the relay diagnostic inside generic 64 KiB without changing measurement safety, factory records, the NTC profile or the shared boot splash. Build composition checks enforce that declared restriction.
