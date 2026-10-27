@@ -1295,6 +1295,60 @@ static bool prepare_resource_status_line(const ui_product_t *ui,
     return false;
 }
 
+
+static bool prepare_lead_line(const ui_product_view_t *v,uint8_t index,ui_product_line_t *line)
+{
+    if(index>=8u) return false;
+    const bool pt=v->menu.language_id==(uint8_t)UI_LANGUAGE_PT_BR;
+    const bool menu=v->state==UI_PRODUCT_STATE_LEAD_MENU;
+    const char *text=NULL; char row[40]={0}; size_t used=0u;
+    if(index==0u) text=pt?"PONTAS OPEN/SHORT":"LEADS OPEN/SHORT";
+    else if(index==1u) {
+        (void)append_text(row,sizeof(row),&used,v->lead_active?"ON #":"OFF #");
+        (void)ui_format_append_u32(row,sizeof(row),&used,v->lead_sequence); text=row;
+    } else if(menu) {
+        static const char *const actions[2][4]={{"New OPEN/SHORT","Enable/disable","Clear profile","Back"},
+            {"Novo OPEN/SHORT","Ativar/desativar","Apagar perfil","Voltar"}};
+        if(index<6u) text=actions[pt?1u:0u][index-2u];
+        else if(index==6u && v->lead_error!=0u) text=pt?"ERRO: perfil indisponivel":"ERROR: profile unavailable";
+        else return false;
+    } else {
+        switch(v->lead_state) {
+        case UI_PRODUCT_LEAD_WAIT_OPEN:
+            text=index==2u?(pt?"Separe as pontas":"Separate lead tips"):
+                 index==3u?(pt?"OK: capturar OPEN":"OK: capture OPEN"):NULL; break;
+        case UI_PRODUCT_LEAD_WAIT_SHORT:
+            text=index==2u?(pt?"Una as pontas firmemente":"Join lead tips firmly"):
+                 index==3u?(pt?"OK: capturar SHORT":"OK: capture SHORT"):NULL; break;
+        case UI_PRODUCT_LEAD_REVIEW:
+            text=index==2u?(pt?"6 grupos x 7 capturas":"6 groups x 7 captures"):
+                 index==3u?(pt?"OK: salvar perfil":"OK: save profile"):NULL; break;
+        case UI_PRODUCT_LEAD_SAVING: text=index==2u?(pt?"Gravando / nao desligue":"Saving / keep powered"):NULL; break;
+        case UI_PRODUCT_LEAD_COMPLETE: text=index==2u?(pt?"Perfil salvo e conferido":"Profile saved and verified"):NULL; break;
+        case UI_PRODUCT_LEAD_FAILED:
+            text=index==2u?(v->lead_uncertain?(pt?"Gravacao nao confirmada":"Save unconfirmed"):
+                (pt?"Captura/gravação falhou":"Capture/save failed")):NULL; break;
+        case UI_PRODUCT_LEAD_CANCELED: text=index==2u?(pt?"Cancelado / perfil anterior":"Canceled / prior profile"):NULL; break;
+        case UI_PRODUCT_LEAD_CANCELING: text=index==2u?(pt?"Cancelando / retorno SAFE":"Canceling / returning SAFE"):NULL; break;
+        default:
+            if(index==2u) text=v->lead_short?"SHORT":"OPEN";
+            else if(index==3u) {
+                (void)append_text(row,sizeof(row),&used,freq_token((hw_excitation_freq_t)v->lead_frequency));
+                (void)append_text(row,sizeof(row),&used,"  ");
+                (void)ui_format_append_u32(row,sizeof(row),&used,v->lead_samples);
+                (void)append_text(row,sizeof(row),&used,"/7"); text=row;
+            } break;
+        }
+        if(index==5u) text=pt?"Apenas passivos sem carga":"Passive discharged fixture";
+        if(index==6u) text=pt?"Experimental / sem LOAD":"Engineering / no LOAD";
+        if(index==7u) text=pt?"Segure OK: cancelar/voltar":"Hold OK: cancel/back";
+        if(text==NULL) text="";
+    }
+    line_set(line,8u,(uint16_t)(16u+34u*index),1u,index==0u?UI_COLOR_CYAN:
+        menu && index>=2u && index<6u && v->menu.selected_index==index-2u?UI_COLOR_GREEN:UI_COLOR_WHITE,text);
+    return true;
+}
+
 static bool prepare_calibration_status_line(const ui_product_t *ui,
                                             const ui_product_view_t *view,
                                             uint8_t index,
@@ -1358,7 +1412,7 @@ static bool prepare_calibration_status_line(const ui_product_t *ui,
     if (index == 3u || index == 4u)
     {
         line_set(line, 8u, index == 3u ? 152u : 196u, 1u, UI_COLOR_WHITE,
-                 index == 3u ? "SWD: BRINGUP_CAL" :
+                 index == 3u ? "OK: OPEN/SHORT" :
                  view->menu.language_id == (uint8_t)UI_LANGUAGE_PT_BR ?
                      "OSL NO PC -> SWD: PRODUCT" : "PC OSL -> SWD: PRODUCT");
         line->emergency = true;
@@ -1714,6 +1768,9 @@ static UI_COMPACT_CALL bool prepare_line(const ui_product_t *ui,
         return prepare_resource_status_line(ui, view, index, line);
     case UI_PRODUCT_STATE_ABOUT:
         return prepare_about_line(ui, view, index, line);
+    case UI_PRODUCT_STATE_LEAD_MENU:
+    case UI_PRODUCT_STATE_LEAD_WIZARD:
+        return prepare_lead_line(view,index,line);
     case UI_PRODUCT_STATE_CALIBRATION_STATUS:
         return prepare_calibration_status_line(ui, view, index, line);
 #if !WTK_PRODUCT_FACTORY_PROVISIONED
@@ -1818,8 +1875,9 @@ static uint8_t screen_family(uint8_t state)
 #if WTK_ENABLE_UI_ROW_CACHE
 static bool cached_menu_state(uint8_t state)
 {
-    return state >= UI_PRODUCT_STATE_MENU && state <= UI_PRODUCT_STATE_CALIBRATION_STATUS &&
-        state != UI_PRODUCT_STATE_RESOURCE_ERROR;
+    return state==UI_PRODUCT_STATE_LEAD_MENU || state==UI_PRODUCT_STATE_LEAD_WIZARD ||
+        (state >= UI_PRODUCT_STATE_MENU && state <= UI_PRODUCT_STATE_CALIBRATION_STATUS &&
+        state != UI_PRODUCT_STATE_RESOURCE_ERROR);
 }
 
 static bool cached_menu(const ui_product_t *ui)
@@ -2312,6 +2370,8 @@ const char *ui_product_state_string(ui_product_state_t state)
         return "ABOUT";
     case UI_PRODUCT_STATE_RESOURCE_ERROR:
         return "RESOURCE_ERROR";
+    case UI_PRODUCT_STATE_LEAD_MENU: return "LEAD_MENU";
+    case UI_PRODUCT_STATE_LEAD_WIZARD: return "LEAD_WIZARD";
     case UI_PRODUCT_STATE_CALIBRATION_STATUS:
         return "CALIBRATION_STATUS";
     case UI_PRODUCT_STATE_CALIBRATION_WIZARD:

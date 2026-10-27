@@ -31,4 +31,13 @@ bool measurement_lead_frequency_valid(const measurement_lead_frequency_t *lead, 
 bool measurement_lead_profile_valid(const measurement_lead_profile_t *profile);
 bool measurement_lead_profile_bound(const measurement_lead_profile_t *profile,
     const uint8_t uid[12], uint32_t factory_sequence, uint32_t factory_crc32);
+/* A supplied profile must already be bound to this MCU and factory frame CRC. */
+bsp_status_t measurement_lead_process_block(const hw_metrology_block_t *block,
+    const measurement_cal_set_t *factory, const measurement_cal_key_t *key,
+    const measurement_lead_profile_t *lead, measurement_calibrated_result_t *result);
+/* Endpoint capture accepts a quiet SHORT signal below the DUT return threshold.
+ * Channel is fixed for all seven samples; source and per-stream clipping remain checked. */
+bsp_status_t measurement_lead_endpoint_ratio(const hw_metrology_block_t *block,
+    const measurement_cal_set_t *factory, const measurement_cal_key_t *key,
+    measurement_return_channel_t channel, measurement_complex_t *ratio);
 #endif

@@ -10,6 +10,7 @@
 #include "app/app_safety_fault.h"
 #include "app/app_settings_service.h"
 #include "app/app_feedback.h"
+#include "app/app_lead_calibration.h"
 #include "drivers/buttons.h"
 #include "hardware/hw_power.h"
 #include "hardware/hw_safety.h"
@@ -27,6 +28,7 @@ typedef struct
     bool residual_refresh_pending; /* Scheduling only; real permit still requires SAFE. */
     uint32_t safety_fault_mask;
     bool display_fault;
+    bool lead_storage_blocked;
     bool settings_storage_busy;
     resource_status_t resource_status;
 } app_product_inputs_t;
@@ -52,6 +54,8 @@ typedef struct
     const app_cal_session_io_t *calibration_io;
     app_calibration_service_t *calibration_service;
     app_settings_service_t *settings_service;
+    app_lead_calibration_t *lead_service;
+    uint32_t lead_sequence_seen;
     measurement_auto_hint_t next_hint;
     app_settings_t edit_entry_settings;
     ui_product_view_t view;
@@ -86,6 +90,7 @@ bsp_status_t app_product_init(app_product_t *product,
                               app_settings_service_t *settings_service,
                               const app_measurement_session_io_t *measurement_io,
                               const app_cal_session_io_t *calibration_io);
+void app_product_attach_lead_service(app_product_t *product, app_lead_calibration_t *lead);
 void app_product_handle_button_event(app_product_t *product, const button_event_t *event);
 /* Host RESOURCE_BEGIN may enter maintenance only from an idle presentation. */
 bool app_product_request_resource_upload(app_product_t *product);

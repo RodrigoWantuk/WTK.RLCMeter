@@ -1454,6 +1454,31 @@ static int test_serial_ok_contract(void)
     return failures;
 }
 
+
+static int test_lead_menu_guards(void)
+{
+    fake_io_t fake={0};app_product_t product;app_product_inputs_t inputs=inputs_ready();int failures=0;
+    failures+=expect_true(init_product(&product,&fake)==BSP_STATUS_OK,"lead UI init");
+    boot_to_ready(&product,&inputs);
+    app_lead_calibration_t lead={.factory=&g_service,.io=&fake.measurement_io};
+    app_product_attach_lead_service(&product,&lead);
+    product.view.state=UI_PRODUCT_STATE_CALIBRATION_STATUS;click_ok(&product);
+    app_product_step(&product,&inputs,NULL,BSP_STATUS_OK,100u);
+    failures+=expect_true(product.view.state==UI_PRODUCT_STATE_LEAD_MENU,"native lead menu from calibration status");
+    failures+=expect_true(!app_product_serial_idle(&product) && !app_product_request_resource_upload(&product),
+                         "lead UI cannot admit serial activation or external updater");
+    click_ok(&product);app_product_step(&product,&inputs,NULL,BSP_STATUS_OK,101u);
+    failures+=expect_true(product.view.state==UI_PRODUCT_STATE_LEAD_MENU && fake.start_count==0u,
+                         "unavailable lead store cannot energize capture");
+    lead.state=APP_LEAD_WAIT_OPEN;lead.store.initialized=true;lead.store.loaded=true;
+    product.view.state=UI_PRODUCT_STATE_LEAD_WIZARD;
+    inputs.safety_fault_mask=APP_SAFETY_FAULT_METROLOGY_RUNTIME;
+    app_product_step(&product,&inputs,NULL,BSP_STATUS_OK,102u);
+    failures+=expect_true(lead.state==APP_LEAD_CANCELED && product.view.state==UI_PRODUCT_STATE_FAULT && fake.start_count==0u,
+                         "fault cancels waiting standard without a capture");
+    return failures;
+}
+
 int main(int argc, char **argv)
 {
     if ((argc == 2) && (strcmp(argv[1], "--sizes") == 0))
@@ -1483,6 +1508,7 @@ int main(int argc, char **argv)
     }
     int failures = 0;
     failures += test_serial_ok_contract();
+    failures += test_lead_menu_guards();
 #if WTK_PRODUCT_FACTORY_PROVISIONED
     const char *directory = argc==3 && strcmp(argv[1],"--ac-snapshots")==0 ? argv[2] : NULL;
     failures += test_factory_ac_results(directory);

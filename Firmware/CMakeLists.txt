@@ -183,6 +183,7 @@ set(WTK_COMMON_SOURCES
     src/app/app_serial_ui.c
     src/app/app_product.c
     src/app/app_resource_update.c
+    src/app/app_lead_calibration.c
     src/app/app_settings_service.c
     src/app/app_version.c
     src/bsp/bsp_adc_common.c

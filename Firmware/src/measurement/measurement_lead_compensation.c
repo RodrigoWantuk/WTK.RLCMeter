@@ -13,7 +13,7 @@ static measurement_status_t divide_conditioned(measurement_complex_t numerator,
     if (out == NULL) return MEASUREMENT_STATUS_INVALID_ARG;
     if (!measurement_complex_is_finite(numerator) || !measurement_complex_is_finite(denominator) ||
         !isfinite(scale)) return MEASUREMENT_STATUS_NONFINITE;
-    if (measurement_complex_mag(denominator) <= 1.0e-5f * fmaxf(1.0f, scale))
+    if (measurement_complex_mag(denominator) <= 1.0e-5f * (scale > 1.0f ? scale : 1.0f))
         return MEASUREMENT_STATUS_DENOMINATOR_TOO_SMALL;
     return measurement_complex_div(numerator, denominator, out);
 }
@@ -87,4 +87,65 @@ bool measurement_lead_profile_bound(const measurement_lead_profile_t *profile,
 {
     return uid != NULL && measurement_lead_profile_valid(profile) && memcmp(profile->uid, uid, 12u) == 0 &&
         profile->factory_sequence == factory_sequence && profile->factory_crc32 == factory_crc32;
+}
+
+static uint32_t lead_frequency_hz(hw_excitation_freq_t frequency)
+{
+    switch(frequency) { case HW_EXCITATION_FREQ_10HZ:return 10u;
+    case HW_EXCITATION_FREQ_1KHZ:return 1000u; case HW_EXCITATION_FREQ_10KHZ:return 10000u;
+    default:return 0u; }
+}
+bsp_status_t measurement_lead_endpoint_ratio(const hw_metrology_block_t *block,
+    const measurement_cal_set_t *factory, const measurement_cal_key_t *key,
+    measurement_return_channel_t channel, measurement_complex_t *ratio)
+{
+    if(block==NULL || factory==NULL || key==NULL || ratio==NULL ||
+       (channel!=MEASUREMENT_RETURN_1X && channel!=MEASUREMENT_RETURN_HG)) return BSP_STATUS_INVALID_ARG;
+    measurement_cal_resolved_t r;
+    const measurement_cal_resolve_status_t status=measurement_cal_resolve_condition(factory,key,false,&r);
+    if(status!=MEASUREMENT_CAL_RESOLVE_FOUND && status!=MEASUREMENT_CAL_RESOLVE_UNQUALIFIED) return BSP_STATUS_ERROR;
+    const bool hg=channel==MEASUREMENT_RETURN_HG;
+    if(hg && (r.correction.flags&MEASUREMENT_CAL_FLAG_HG_OBSERVED)==0u) return BSP_STATUS_NOT_SUPPORTED;
+    if(block->streams[HW_METROLOGY_STREAM_VMID_ADC1].hard_clipped ||
+       block->streams[HW_METROLOGY_STREAM_VMID_ADC2].hard_clipped ||
+       block->streams[hg?HW_METROLOGY_STREAM_VEXC_2:HW_METROLOGY_STREAM_VEXC_1].hard_clipped ||
+       block->streams[hg?HW_METROLOGY_STREAM_RET_HG:HW_METROLOGY_STREAM_RET_1X].hard_clipped) return BSP_STATUS_ERROR;
+    measurement_phasor_set_t p;
+    if(measurement_extract_phasors(block,&r.adc,&r.config,&p)!=BSP_STATUS_OK || !p.valid) return BSP_STATUS_ERROR;
+    const measurement_complex_t vs=measurement_complex_sub(hg?p.vexc_2:p.vexc_1,p.vmid);
+    const measurement_complex_t vx=measurement_complex_sub(hg?p.ret_hg_reconstructed:p.ret_1x,p.vmid);
+    if(!measurement_complex_is_finite(vs) || measurement_complex_near_zero(vs,r.config.source_min_v_peak)) return BSP_STATUS_ERROR;
+    return measurement_complex_div(vx,vs,ratio)==MEASUREMENT_STATUS_OK && measurement_complex_is_finite(*ratio)?
+        BSP_STATUS_OK:BSP_STATUS_ERROR;
+}
+bsp_status_t measurement_lead_process_block(const hw_metrology_block_t *block,
+    const measurement_cal_set_t *factory, const measurement_cal_key_t *key,
+    const measurement_lead_profile_t *lead, measurement_calibrated_result_t *result)
+{
+    const bsp_status_t original=measurement_cal_process_block(block,factory,key,false,result);
+    if(lead==NULL || !lead->enabled || lead->cleared) return original;
+    if(result==NULL || key==NULL || !measurement_lead_profile_valid(lead) || factory==NULL ||
+       lead->factory_sequence!=factory->sequence || (unsigned)key->frequency>=MEASUREMENT_LEAD_FREQUENCIES)
+        return BSP_STATUS_INVALID_ARG;
+    /* A channel/source failure cannot be repaired by fixture compensation.
+     * A factory OPEN pole can be: compose in ratio space before division. */
+    if(result->result.status!=MEASUREMENT_STATUS_OK &&
+       result->result.status!=MEASUREMENT_STATUS_DENOMINATOR_TOO_SMALL) return original;
+    measurement_cal_resolved_t r;
+    measurement_cal_osl_coefficients_t coefficients;
+    const measurement_cal_resolve_status_t resolved=measurement_cal_resolve_condition(factory,key,false,&r);
+    if((resolved!=MEASUREMENT_CAL_RESOLVE_FOUND && resolved!=MEASUREMENT_CAL_RESOLVE_UNQUALIFIED) ||
+        !measurement_cal_get_osl_coefficients(&r.correction,&coefficients)) return BSP_STATUS_ERROR;
+    measurement_complex_t ratio={0},z={0};
+    measurement_status_t status=measurement_complex_div(result->result.impedance.vx_v,result->result.impedance.vs_v,&ratio);
+    if(status==MEASUREMENT_STATUS_OK)
+        status=measurement_lead_apply_ratio(&coefficients,&lead->frequencies[(unsigned)key->frequency],ratio,&z);
+    result->provenance.lead_compensated=true; result->provenance.lead_sequence=lead->sequence;
+    result->result.status=status; result->result.impedance.status=status;
+    result->result.derived=(measurement_derived_result_t){0};
+    if(status!=MEASUREMENT_STATUS_OK) return BSP_STATUS_ERROR;
+    result->result.impedance.z_ohms=z;
+    result->result.impedance.open_like=false; result->result.impedance.short_like=false;
+    result->result.derived=measurement_derive_quantities(z,lead_frequency_hz(key->frequency),&r.config,status);
+    return result->result.derived.valid?BSP_STATUS_OK:BSP_STATUS_ERROR;
 }

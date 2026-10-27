@@ -160,6 +160,8 @@ typedef struct
     uint16_t model_version;
     uint32_t condition_id;
     bool uncalibrated;
+    bool lead_compensated;
+    uint32_t lead_sequence;
 } measurement_calibration_provenance_t;
 
 typedef struct

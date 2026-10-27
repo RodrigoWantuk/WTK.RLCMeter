@@ -37,7 +37,16 @@ typedef enum
     UI_PRODUCT_STATE_RESULT,
     UI_PRODUCT_STATE_SAFETY_BLOCKED,
     UI_PRODUCT_STATE_FAULT,
+    UI_PRODUCT_STATE_LEAD_MENU,
+    UI_PRODUCT_STATE_LEAD_WIZARD,
 } ui_product_state_t;
+
+/* Presentation-only stage IDs; app mapping is asserted in its translation unit. */
+typedef enum {
+    UI_PRODUCT_LEAD_IDLE=0, UI_PRODUCT_LEAD_WAIT_OPEN, UI_PRODUCT_LEAD_START, UI_PRODUCT_LEAD_WAIT,
+    UI_PRODUCT_LEAD_DRAIN, UI_PRODUCT_LEAD_WAIT_SHORT, UI_PRODUCT_LEAD_REVIEW, UI_PRODUCT_LEAD_SAVING,
+    UI_PRODUCT_LEAD_COMPLETE, UI_PRODUCT_LEAD_FAILED, UI_PRODUCT_LEAD_CANCELING, UI_PRODUCT_LEAD_CANCELED
+} ui_product_lead_stage_t;
 
 typedef enum
 {
@@ -121,6 +130,7 @@ typedef struct
     float d;
     uint32_t session_sequence;
     uint32_t calibration_sequence;
+    uint32_t lead_sequence;
     measurement_error_status_t max_error_status;
     uint8_t range_id;
     uint8_t return_channel;
@@ -183,6 +193,9 @@ typedef struct
     bool calibration_active_valid;
     uint32_t calibration_sequence;
     uint32_t safety_fault_mask;
+    uint32_t lead_sequence;
+    uint8_t lead_state, lead_frequency, lead_samples, lead_error;
+    bool lead_active, lead_short, lead_uncertain;
     uint32_t generation;
 } ui_product_view_t;
 

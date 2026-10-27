@@ -118,6 +118,7 @@ static bool g_display_ready_reported = false;
 #else
 static app_settings_service_t g_settings_service;
 static app_product_t g_product;
+static app_lead_calibration_t g_lead;
 static ui_product_t g_product_ui;
 static hw_metrology_measure_t g_product_measure;
 static resource_catalog_t g_resource_catalog;
@@ -232,6 +233,7 @@ static app_flash_access_snapshot_t product_flash_access_snapshot(void *user)
         .quiet = hw_peripherals_quiet_requested(),
         .calibration_mutation = app_calibration_service_busy(&g_calibration_service),
         .settings_mutation = app_settings_service_busy(&g_settings_service),
+        .lead_mutation = lead_profile_store_busy(&g_lead.store),
 #if WTK_ENABLE_PRODUCT_RESOURCE_UPDATE
         .resource_mutation = app_resource_update_active(&g_resource_update),
 #else
@@ -582,6 +584,8 @@ static APP_NOINLINE void product_pc_link_decode_ready_frame(uint32_t now_ms)
         bsp_reset_read_device_uid(uid);
         app_serial_telemetry_t telemetry = {.sensors = &snapshot, .uid = uid, .now_ms = sampled_now,
             .feedback_dropped = g_product_feedback.dropped, .feedback_error = g_product_feedback.last_error,
+            .lead_active = app_lead_active_profile(&g_lead)!=NULL,
+            .lead_sequence = app_lead_active_profile(&g_lead)!=NULL?g_lead.store.active.sequence:0u,
             .blocker_flags = g_safety_result.blocker_flags, .charger = hw_charger_get_state(&g_charger),
             .k1_commanded = (uint8_t)hw_k1_commanded_state(&g_k1), .range_state = (uint8_t)hw_range_get_state(&g_range)};
         bsp_uart_rx_counters(&telemetry.uart_errors, &telemetry.uart_overflows);
@@ -1188,9 +1192,9 @@ static bsp_status_t product_auto_process_block(const hw_metrology_block_t *block
                                                           attempt->range_id,
                                                           attempt->frequency,
                                                           attempt->amplitude);
-    const bsp_status_t osl_status = measurement_cal_process_block(
+    const bsp_status_t osl_status = measurement_lead_process_block(
         block, app_calibration_service_active_set(&g_calibration_service),
-        &key, false, result);
+        &key, app_lead_active_profile(&g_lead), result);
 #if WTK_ENABLE_SUPPLEMENTARY_CURVES
     if ((osl_status != BSP_STATUS_OK) || !g_curve_store.active)
     {
@@ -1634,6 +1638,7 @@ static void app_step(void)
         .display_fault = g_product_display_fault || (g_display.init_state == ILI9341_INIT_ERROR),
         .settings_storage_busy =
             !app_flash_access_allowed(&flash_access, APP_FLASH_ACCESS_SETTINGS_MUTATION),
+        .lead_storage_blocked = !app_flash_access_allowed(&flash_access, APP_FLASH_ACCESS_LEAD_MUTATION),
         .resource_status = g_resource_status,
     };
     app_product_step(&g_product,
@@ -1844,6 +1849,10 @@ void app_shell_run(void)
             app_settings_service_use_defaults(&g_settings_service);
         }
         APP_VERBOSE_DIAG_TEXT("settings", bsp_status_string(settings_load_status));
+        uint8_t lead_uid[12]; bsp_reset_read_device_uid(lead_uid);
+        (void)app_lead_init(&g_lead,&g_calibration_service,&g_product_session_io,&settings_io,
+                            g_flash.part.capacity_bytes,lead_uid);
+        app_product_attach_lead_service(&g_product,&g_lead);
         g_resource_status = product_mount_resource_pack();
         APP_VERBOSE_DIAG_TEXT("resources", resource_status_string(g_resource_status));
 #endif

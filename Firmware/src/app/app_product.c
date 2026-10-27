@@ -9,6 +9,8 @@
 
 #define WTK_NOINLINE
 
+_Static_assert((APP_LEAD_CANCELED+0)==(UI_PRODUCT_LEAD_CANCELED+0),"lead view stage mapping");
+
 enum
 {
     APP_PRODUCT_RUNTIME_NONE = 0,
@@ -432,7 +434,9 @@ bool app_product_request_resource_upload(app_product_t *product)
 {
     if (product == NULL || !product->initialized || runtime_active(product) ||
         product->runtime_teardown_kind != APP_PRODUCT_RUNTIME_TEARDOWN_NONE ||
-        product->settings_save_requested) return false;
+        product->settings_save_requested || product->view.state==UI_PRODUCT_STATE_LEAD_MENU ||
+        product->view.state==UI_PRODUCT_STATE_LEAD_WIZARD ||
+        (product->lead_service!=NULL && app_lead_busy(product->lead_service))) return false;
     switch (product->view.state)
     {
     case UI_PRODUCT_STATE_CALIBRATION_REQUIRED:
@@ -561,6 +565,7 @@ static ui_product_measurement_t ui_measurement_from_result(const measurement_ses
         attempt->config.frequency, attempt->config.amplitude);
     out.session_sequence = result->session_sequence;
     out.calibration_sequence = attempt->calibration.set_sequence;
+    out.lead_sequence = attempt->calibration.lead_sequence;
     out.range_id = (uint8_t)attempt->config.range_id;
     out.return_channel = (uint8_t)attempt->selected_channel;
     out.confidence = (uint8_t)result->confidence.publication_confidence;
@@ -1095,6 +1100,87 @@ void app_product_handle_button_event(app_product_t *product, const button_event_
         feedback_event(product, APP_FEEDBACK_NAVIGATE);
 }
 
+
+void app_product_attach_lead_service(app_product_t *product,app_lead_calibration_t *lead)
+{
+    if(product!=NULL && !runtime_active(product)) product->lead_service=lead;
+}
+static void sync_lead_view(app_product_t *product)
+{
+    app_lead_calibration_t *lead=product->lead_service;
+    if(lead==NULL) return;
+    const measurement_lead_profile_t *active=app_lead_active_profile(lead);
+    const uint32_t seq=active!=NULL?active->sequence:0u;
+    if(product->lead_sequence_seen!=seq) {
+        product->lead_sequence_seen=seq;
+        product->next_hint=(measurement_auto_hint_t){0};
+        product->view.has_measurement_result=false;
+    }
+    const uint32_t stored_sequence=lead->store.active_valid?lead->store.active.sequence:0u;
+    if(product->view.lead_sequence!=stored_sequence || product->view.lead_active!=(active!=NULL) ||
+       product->view.lead_state!=(uint8_t)lead->state || product->view.lead_frequency!=lead->frequency ||
+       product->view.lead_samples!=lead->samples.summary.samples || product->view.lead_error!=(uint8_t)lead->error ||
+       product->view.lead_short!=lead->short_stage || product->view.lead_uncertain!=lead->store.commit_uncertain) {
+        product->view.lead_sequence=stored_sequence; product->view.lead_active=active!=NULL;
+        product->view.lead_state=(uint8_t)lead->state; product->view.lead_frequency=lead->frequency;
+        product->view.lead_samples=lead->samples.summary.samples; product->view.lead_error=(uint8_t)lead->error;
+        product->view.lead_short=lead->short_stage; product->view.lead_uncertain=lead->store.commit_uncertain;
+        mark_dirty(product);
+    }
+}
+/* Lead captures use the same app-owned metrology IO and hardware permits as DUT
+ * sessions. This controller owns only sequencing and presentation. */
+static bool step_lead_ui(app_product_t *product,const app_product_inputs_t *inputs,
+    const bsp_clock_summary_t *clock,bsp_status_t clock_status,uint32_t now_ms)
+{
+    app_lead_calibration_t *lead=product->lead_service;
+    if(lead==NULL) return false;
+    sync_lead_view(product);
+    if(product->view.state!=UI_PRODUCT_STATE_LEAD_MENU && product->view.state!=UI_PRODUCT_STATE_LEAD_WIZARD)
+        return false;
+    product->backlight_sleeping=false; product->last_activity_ms=now_ms;
+    const bool fault=inputs->safety_fault_mask!=0u || inputs->display_fault;
+    const bool blocked=fault || !inputs->calibration_active_valid ||
+        resource_status_requires_upload(inputs->resource_status);
+    if(blocked) app_lead_cancel(lead);
+    if(product->view.state==UI_PRODUCT_STATE_LEAD_MENU && !blocked) {
+        if(product->request_menu) set_state(product,UI_PRODUCT_STATE_CALIBRATION_STATUS);
+        else if(product->request_page_next || product->request_page_prev) {
+            product->menu_index=(uint8_t)((product->menu_index+(product->request_page_next?1u:3u))%4u);
+            product->view.menu.selected_index=product->menu_index; mark_dirty(product);
+        } else if(product->request_click && !product->settings_save_requested &&
+                  !app_settings_service_busy(product->settings_service) && !inputs->lead_storage_blocked) {
+            bsp_status_t status=BSP_STATUS_OK;
+            if(product->menu_index==0u) status=app_lead_begin(lead);
+            else if(product->menu_index==1u) status=app_lead_set_enabled(lead,!product->view.lead_active,false,now_ms);
+            else if(product->menu_index==2u) status=app_lead_set_enabled(lead,false,true,now_ms);
+            else set_state(product,UI_PRODUCT_STATE_CALIBRATION_STATUS);
+            if(product->menu_index<3u) {
+                if(status==BSP_STATUS_OK) { product->next_hint=(measurement_auto_hint_t){0};
+                    product->view.has_measurement_result=false; set_state(product,UI_PRODUCT_STATE_LEAD_WIZARD); }
+                else { lead->error=status; feedback_event(product,APP_FEEDBACK_ERROR); }
+            }
+        }
+    } else if(product->view.state==UI_PRODUCT_STATE_LEAD_WIZARD && !blocked) {
+        if(product->request_menu) {
+            if(app_lead_busy(lead)) app_lead_cancel(lead);
+            else set_menu(product,UI_PRODUCT_STATE_LEAD_MENU,0u);
+        } else if(product->request_click) {
+            if(!app_lead_busy(lead)) set_menu(product,UI_PRODUCT_STATE_LEAD_MENU,0u);
+            else if(lead->state==APP_LEAD_WAIT_OPEN || lead->state==APP_LEAD_WAIT_SHORT ||
+                    (lead->state==APP_LEAD_REVIEW && !inputs->lead_storage_blocked))
+                app_lead_confirm(lead,now_ms);
+        }
+    }
+    const app_lead_state_t before=lead->state;
+    app_lead_step(lead,clock,clock_status,!inputs->lead_storage_blocked,now_ms);
+    if(before!=lead->state && lead->state==APP_LEAD_COMPLETE) feedback_event(product,APP_FEEDBACK_SAVED);
+    if(before!=lead->state && lead->state==APP_LEAD_FAILED) feedback_event(product,APP_FEEDBACK_ERROR);
+    sync_lead_view(product);
+    if(blocked && !app_lead_busy(lead)) set_state(product,fault?UI_PRODUCT_STATE_FAULT:UI_PRODUCT_STATE_CALIBRATION_REQUIRED);
+    clear_requests(product); return true;
+}
+
 void app_product_step(app_product_t *product,
                       const app_product_inputs_t *inputs,
                       const bsp_clock_summary_t *clock_summary,
@@ -1105,6 +1191,8 @@ void app_product_step(app_product_t *product,
     {
         return;
     }
+
+    if(step_lead_ui(product,inputs,clock_summary,clock_status,now_ms)) return;
 
     const ui_product_calibration_state_t next_cal =
         ui_cal_state(inputs->calibration_status, inputs->calibration_active_valid);
@@ -1434,6 +1522,10 @@ void app_product_step(app_product_t *product,
         {
             set_state(product, UI_PRODUCT_STATE_MENU);
         }
+        else if (product->request_click && product->lead_service!=NULL && inputs->calibration_active_valid)
+        {
+            set_menu(product,UI_PRODUCT_STATE_LEAD_MENU,0u);
+        }
 #if !WTK_PRODUCT_FACTORY_PROVISIONED
         else if (product->request_page_next || product->request_page_prev)
         {
@@ -1705,6 +1797,8 @@ void app_product_make_outputs(const app_product_t *product, app_product_outputs_
 bool app_product_serial_idle(const app_product_t *product)
 {
     if (product == NULL || !product->initialized || runtime_active(product) ||
+        (product->lead_service!=NULL && app_lead_busy(product->lead_service)) ||
+        product->view.state==UI_PRODUCT_STATE_LEAD_MENU || product->view.state==UI_PRODUCT_STATE_LEAD_WIZARD ||
         product->runtime_teardown_kind != APP_PRODUCT_RUNTIME_TEARDOWN_NONE) return false;
     if (product->view.state == UI_PRODUCT_STATE_FAULT) return true;
     if (product->settings_save_requested || app_settings_service_busy(product->settings_service)) return false;

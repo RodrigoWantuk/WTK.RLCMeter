@@ -86,6 +86,8 @@ static bool trim_sample_usable(const measurement_attempt_result_t *point,
         point->calibration.source == primary->calibration.source &&
         point->calibration.status == primary->calibration.status &&
         point->calibration.set_sequence == primary->calibration.set_sequence &&
+        point->calibration.lead_compensated == primary->calibration.lead_compensated &&
+        point->calibration.lead_sequence == primary->calibration.lead_sequence &&
         point->calibration.model_version == primary->calibration.model_version &&
         point->calibration.condition_id == primary->calibration.condition_id &&
         point->supplementary_applied == primary->supplementary_applied;
