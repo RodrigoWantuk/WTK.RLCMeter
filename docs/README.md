@@ -1,5 +1,13 @@
 # Technical Documentation
 
+Current production-completion review: [October 27 audit](review/production-audit-2026-10-27/README.md)
+and [plan 30](../plans/30-Production-Firmware-Audit-and-Completion.md) identify
+reproducible settings/timeout defects, incomplete feedback/diagnostics and
+profile differences. The active ADC measurement path is real. Native quick
+OPEN/SHORT lead compensation and these corrections are planned, not installed.
+Physical unit Flash capacity is 128 KiB verified; current image is 61,596 B,
+with only 292 B remaining under the present RAM hard budget.
+
 Latest first-unit checkpoint: [calibrated PRODUCT READY handoff](../Firmware/releases/2026-10-25/calibrated-product-ready/README.md).
 The 33-condition engineering OSL is installed and persistent. PRODUCT now loads
 it and reaches READY with SAFE outputs. The owner confirms splash and READY;

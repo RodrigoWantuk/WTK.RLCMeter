@@ -8,6 +8,15 @@ The project combines a custom mixed-signal PCB, an **STM32 Blue Pill** module, a
 
 First-unit capacity experiment: despite its 64-KiB factory register, this MCU passed full upper-half erase/program/readback/reset tests and instruction fetching near the 128-KiB boundary. **At least 128 KiB is experimentally usable on this unit.** Original contents and READY/SAFE calibration state are restored; production linkers/budgets remain at 64 KiB. See [the capacity evidence](Firmware/releases/2026-10-27/extended-flash-capacity/README.md).
 
+**Production audit — October 27:** the instrument is not a completed product.
+Source review and host reproductions confirm broken asynchronous settings
+persistence, edit/save and idle-timeout defects, incomplete audible feedback and
+different feature sets across production presets. The active RLC path uses real
+ADC data. See the [audit, capability inventory and evidence](docs/review/production-audit-2026-10-27/README.md)
+and [ordered completion plan](plans/30-Production-Firmware-Audit-and-Completion.md),
+including separate native OPEN/SHORT lead compensation. Corrections and the new
+menu are planned, not installed by this documentation-only audit.
+
 > **Historical bring-up checkpoint — October 24, 2026:** basic R/C/L and display/buttons/buzzer observations are recorded. Current CAD includes six RGS gate-toGND pull-downs; shared firmware includes acquisition/phase/relay fixes and mounted display orientation. Calibration and battery/charger/metrology qualification remain pending. See [bring-up consolidation](docs/review/bringup-2026-10-24/README.md).
 
 October 25 first-unit update: [all 99 OSL captures](docs/review/bringup-2026-10-25/OSL-All-99.md)

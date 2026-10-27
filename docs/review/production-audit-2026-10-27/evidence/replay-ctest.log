@@ -1,0 +1,30 @@
+UpdateCTestConfiguration  from :C:/Users/rodri/source/repos/WTK.RLCMeter/Firmware/build/production-audit-20261027/replay/DartConfiguration.tcl
+Test project C:/Users/rodri/source/repos/WTK.RLCMeter/Firmware/build/production-audit-20261027/replay
+Constructing a list of tests
+Done constructing a list of tests
+Updating test list for fixtures
+Added 0 tests to meet fixture requirements
+Checking test dependency graph...
+Checking test dependency graph end
+test 1
+    Start 1: audit_confirms_settings_defects
+
+1: Test command: C:\Users\rodri\source\repos\WTK.RLCMeter\Firmware\build\production-audit-20261027\replay\Debug\settings_contract.exe
+1: Working Directory: C:/Users/rodri/source/repos/WTK.RLCMeter/Firmware/build/production-audit-20261027/replay
+1: Test timeout computed to be: 10000000
+1: CONFIRMED accepted-start BUSY stall: erase_calls=128 poll_calls=0 state=1
+1: CONFIRMED edit-during-save mismatch: current=65 persisted_after_reload=60 failed=1
+1: CONFIRMED sequence header outside CRC: changed_sequence=33 accepted_valid=1
+1/2 Test #1: audit_confirms_settings_defects ...   Passed    0.07 sec
+test 2
+    Start 2: audit_confirms_idle_defect
+
+2: Test command: C:\Users\rodri\source\repos\WTK.RLCMeter\Firmware\build\production-audit-20261027\replay\Debug\product_idle.exe
+2: Working Directory: C:/Users/rodri/source/repos/WTK.RLCMeter/Firmware/build/production-audit-20261027/replay
+2: Test timeout computed to be: 10000000
+2: CONFIRMED idle timeout suppressed: READY=4 range_block=8 timeout_s=15 now_ms=20000 last_activity=20000 sleeping=0
+2/2 Test #2: audit_confirms_idle_defect ........   Passed    0.06 sec
+
+100% tests passed out of 2
+
+Total Test time (real) =   0.21 sec

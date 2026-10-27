@@ -1,0 +1,151 @@
+{
+  "baseline": "842276976c7f44a5fcb3b7ed287325428f01668d",
+  "sources": [
+    {
+      "path": "Firmware/CMakePresets.json",
+      "sha256": "3e66e9ac86c006b1aff68eebbded227ce843c2327ea42bef6c30ff17e73158e1",
+      "git_blob_sha256": "9467c9ba1374bfc681e610e25b611b3237b67113222a3f63d736618e17501403"
+    },
+    {
+      "path": "Firmware/assets/resource_manifest.json",
+      "sha256": "37496192ef6aef6469095df7629bf001c9d817304c6acc222c90e9f54ee63ba6",
+      "git_blob_sha256": "37496192ef6aef6469095df7629bf001c9d817304c6acc222c90e9f54ee63ba6"
+    },
+    {
+      "path": "Firmware/config/wtk_build_config.h.in",
+      "sha256": "ad711260c5d536dfed55404423a32a0cbd177e50c6c129c6ccd3186c7d519618",
+      "git_blob_sha256": "f190fe43cce82b9cbc5618400a7b13222bcec2673bd3a12c720ba0e948674514"
+    },
+    {
+      "path": "Firmware/src/app/app_flash_access.c",
+      "sha256": "052d4f0f57330e0cab76078cae901ed3ef6fba1bbaf39caab421388c5c83a953",
+      "git_blob_sha256": "052d4f0f57330e0cab76078cae901ed3ef6fba1bbaf39caab421388c5c83a953"
+    },
+    {
+      "path": "Firmware/src/app/app_product.c",
+      "sha256": "aee43f405ea214ade7b84115f31a503f4294c5f3aa56a8d8ae0f310a134f7a57",
+      "git_blob_sha256": "8af1ea4952576f6fb4db401da3e3d2e14c01554c56444e72ddc56787f43b7163"
+    },
+    {
+      "path": "Firmware/src/app/app_product.h",
+      "sha256": "632ccf4fab5d829972ab8daf059b9a8af53d15ddebf3d122429253f022d9b509",
+      "git_blob_sha256": "632ccf4fab5d829972ab8daf059b9a8af53d15ddebf3d122429253f022d9b509"
+    },
+    {
+      "path": "Firmware/src/app/app_product_scheduling.h",
+      "sha256": "9fbb289d46ab39254938e8ddf23df8c4be34f606bc931432ec3b2602b6a56de1",
+      "git_blob_sha256": "9fbb289d46ab39254938e8ddf23df8c4be34f606bc931432ec3b2602b6a56de1"
+    },
+    {
+      "path": "Firmware/src/app/app_serial_ui.c",
+      "sha256": "ff331534677a62b30c0e26d939d266fa107682492c5fc0fbc3c7dcf1a680621b",
+      "git_blob_sha256": "f089e21cbedbd5f30aac86a180065ea9361048b6b6a442a11055c7be745c0096"
+    },
+    {
+      "path": "Firmware/src/app/app_settings_service.c",
+      "sha256": "6385303d9337ee10afc728eb68da2533851d8b420e98f5b1c7fb16b2bd80ee33",
+      "git_blob_sha256": "6385303d9337ee10afc728eb68da2533851d8b420e98f5b1c7fb16b2bd80ee33"
+    },
+    {
+      "path": "Firmware/src/app/app_shell.c",
+      "sha256": "9ae3c32c9281183c0d23676eed823a3586a0f5dfaccdbea31f4a633980e1927b",
+      "git_blob_sha256": "44f9a932aaa21dac4fc2238cde620f25a4f9a24b9eafddf99ff6de4a2d23cea6"
+    },
+    {
+      "path": "Firmware/src/bsp/bsp_timers.c",
+      "sha256": "e45dd3216e8bb56a0204d0c0e44d01ff8a87a5be3e5604431c282ebb268a89bc",
+      "git_blob_sha256": "e45dd3216e8bb56a0204d0c0e44d01ff8a87a5be3e5604431c282ebb268a89bc"
+    },
+    {
+      "path": "Firmware/src/bsp/bsp_uart.c",
+      "sha256": "fd9928a8c13411f643ca694b7d8735ffdd14ea277ffd0b4609b4115e15c75c2b",
+      "git_blob_sha256": "71ec2f1a17bc74307981eeda5e45664fba013c5f2e1a24c81e3cc0b757f6e372"
+    },
+    {
+      "path": "Firmware/src/bsp/bsp_watchdog.c",
+      "sha256": "4b18593e04970a81eedbf895d2c905a7b84633f9d79bd3f2d1808963d35aca87",
+      "git_blob_sha256": "4b18593e04970a81eedbf895d2c905a7b84633f9d79bd3f2d1808963d35aca87"
+    },
+    {
+      "path": "Firmware/src/bsp/startup_stm32f103c8tx.c",
+      "sha256": "613a8a971cb1ba64bbbe9cb043632fed44010f2df70cc92610dd3a1f97a851d3",
+      "git_blob_sha256": "613a8a971cb1ba64bbbe9cb043632fed44010f2df70cc92610dd3a1f97a851d3"
+    },
+    {
+      "path": "Firmware/src/drivers/w25q_device.c",
+      "sha256": "23ab0acd305233c803fbd8fa9a02f77dbad6fe77e2c738bf834ca201452f1518",
+      "git_blob_sha256": "23ab0acd305233c803fbd8fa9a02f77dbad6fe77e2c738bf834ca201452f1518"
+    },
+    {
+      "path": "Firmware/src/hardware/hw_aux_sensors.c",
+      "sha256": "70264db765ebfa74a9634cc753d873e22418570f288991891ccb2b1f0d1ec472",
+      "git_blob_sha256": "b68819d645d4c71b1e92b264bfc5001ac7b6399b6253d9cd01e9350d5c2423cf"
+    },
+    {
+      "path": "Firmware/src/hardware/hw_buzzer.c",
+      "sha256": "8474ac41e1c7822d95d6d691d03c42c06a5c3e527f58351f282e36e2541602cd",
+      "git_blob_sha256": "8474ac41e1c7822d95d6d691d03c42c06a5c3e527f58351f282e36e2541602cd"
+    },
+    {
+      "path": "Firmware/src/hardware/hw_buzzer_policy.c",
+      "sha256": "6d757364ad11b5b86ef60727bee0f6d2823948155b047140741c266b3a856774",
+      "git_blob_sha256": "6d757364ad11b5b86ef60727bee0f6d2823948155b047140741c266b3a856774"
+    },
+    {
+      "path": "Firmware/src/hardware/hw_metrology_measure.c",
+      "sha256": "b022b5db116cdabe65865cf1c8329fc2832df853a1f99341454255a6fc0786fd",
+      "git_blob_sha256": "1bab240d4d79af8d3aa0fb43ee7820763750ab7380f9f688ca4cbdf173f7caa0"
+    },
+    {
+      "path": "Firmware/src/hardware/hw_power.c",
+      "sha256": "5c68a547559f20aecf0f486357afdb3c0090353e5795841de9224af070434c81",
+      "git_blob_sha256": "5c68a547559f20aecf0f486357afdb3c0090353e5795841de9224af070434c81"
+    },
+    {
+      "path": "Firmware/src/measurement/measurement_calibration.c",
+      "sha256": "fddb648b892a4f8e0d64690378f5a6e3ee581696dc9ddc998ae375f1d59560c3",
+      "git_blob_sha256": "7093cdf6bd229308502232f03a76f5fb150e37b440807f902b3ad3bb621cc203"
+    },
+    {
+      "path": "Firmware/src/measurement/measurement_calibration_store.c",
+      "sha256": "a5045e4a783f1314909fb7774ce3d0ac70f365cb56d6c4f2ec53c13f749ffc83",
+      "git_blob_sha256": "2b816605a594982be2e1415e02b58eee9dc54ab6fd5934b37fca0171cf44792b"
+    },
+    {
+      "path": "Firmware/src/measurement/measurement_engine.c",
+      "sha256": "d633eb3e3f09d0c7a08da1cdf5384a8ce807c9b2a598112e12c165fde23f1a4c",
+      "git_blob_sha256": "4b4e741067e9a970ab766be1574bf8823ae7ed54fc3e365b71b60a04ee203a88"
+    },
+    {
+      "path": "Firmware/src/storage/app_settings_w25q_adapter.c",
+      "sha256": "c5c11fed1e77f89ba7c36ee06f4e3817d26b6da70166501f6881d39c0a9463d2",
+      "git_blob_sha256": "c5c11fed1e77f89ba7c36ee06f4e3817d26b6da70166501f6881d39c0a9463d2"
+    },
+    {
+      "path": "Firmware/src/storage/measurement_cal_w25q_adapter.c",
+      "sha256": "48267eaa0baaabddcb1c8a026f4266381b620c1902fbfa3b2b931c187820d2f9",
+      "git_blob_sha256": "48267eaa0baaabddcb1c8a026f4266381b620c1902fbfa3b2b931c187820d2f9"
+    },
+    {
+      "path": "Firmware/src/storage/storage_layout.c",
+      "sha256": "927dc7be03e9abc789fdcb6b93a5fba5346e4c28914c0172687e99dd6f95ba72",
+      "git_blob_sha256": "927dc7be03e9abc789fdcb6b93a5fba5346e4c28914c0172687e99dd6f95ba72"
+    },
+    {
+      "path": "Firmware/src/ui/ui_product.c",
+      "sha256": "3812ba4ebd8bad81373d32cd2afef8e2cc0f3014d541603caa1e8b7d4acecec8",
+      "git_blob_sha256": "6c877f457b892a2d2c537c18c0742ac024a2752c47d7f122405e87cee128bc72"
+    },
+    {
+      "path": "Firmware/src/ui/ui_product.h",
+      "sha256": "782670ea5c47f5b5498c7f218d35bba0bbfd2f80dfbe4f6e563a2af8a1905ad5",
+      "git_blob_sha256": "1cc62f67d327329e687aff74ad4b363317c09a3c0d0385916dde53e6d73b4791"
+    },
+    {
+      "path": "Firmware/tests/app/test_app_settings_service.c",
+      "sha256": "04401776443209528c3a3f133b73695ee7b32c8f531d79a62820d476c7122af7",
+      "git_blob_sha256": "04401776443209528c3a3f133b73695ee7b32c8f531d79a62820d476c7122af7"
+    }
+  ],
+  "hash_semantics": "sha256 is captured Windows worktree bytes; git_blob_sha256 is portable baseline Git object content"
+}

@@ -187,3 +187,11 @@ Diagnostic profiles retain their existing protocols.
 upper-Flash experiment: complete patterns, reset persistence and execution near
 128 KiB pass despite the 64-KiB factory register. Contents and calibrated SAFE
 boot are restored; normal C8 build/programming limits remain 64 KiB.
+
+[Plan 30](30-Production-Firmware-Audit-and-Completion.md) records a complete
+production audit and ordered completion work: real asynchronous settings saves,
+idle/backlight policy, audible feedback, fault/watchdog handling, consistent
+production profiles, bounded UART diagnostics, explicit unit-only 128-KiB
+deployment and native quick OPEN/SHORT lead compensation. The audit is complete;
+the correction work and new menu are NOT_STARTED. Existing engineering OSL and
+owner assets must be preserved, without another factory LOAD campaign.
