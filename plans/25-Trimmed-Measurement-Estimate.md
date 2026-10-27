@@ -1,6 +1,6 @@
 # Seven-sample trimmed complex estimate
 
-STATUS: IN_PROGRESS
+STATUS: IMPLEMENTED_DEPLOYED_BASIC_BENCH_OBSERVED; REQUIRES_BENCH_VALIDATION (accuracy/transients/UI)
 
 The owner requests seven readings, discarding the two highest and two lowest
 and averaging the remaining three for measurement quantities. Observed speed
@@ -86,3 +86,32 @@ FOUND or UNQUALIFIED records with matching status/flag/set/model/condition, whil
 keeping their original confidence and refusing ideal/missing/corrupt records.
 Regression tests now exercise both qualified and actual engineering provenance.
 No calibration coefficient, qualification flag or persisted record was changed.
+
+## Delivery and observed basic check
+
+Final source 1b25fe38dd05a704e90d8635e2fd3cf92a3278df passes 48 factory host tests,
+47 standard host tests, focused final guards and all nine strict UID-bound
+embedded profiles. Factory PRODUCT uses 57,964 B Flash and 16,136 B accounted
+RAM. Internal programming/readback matches SHA-256
+a6d1ac882dcda35111e09e5d82ceccb4738677345c937050cbb0f50ed20b1a38.
+Controlled boot is READY/SAFE with OSL sequence 1/all 33 records and the
+experimental NTC profile preserved; no external-Flash write or SWD battery
+voltage read was requested.
+
+An owner-triggered short OK on the same passive inductor completed four search
+conditions and six additional statistical windows: seven valid same-primary
+samples, no rejected extras, masks R=69/X=74, aggregate 7.412449 + j2.907871 ohms
+at 1 kHz/RREF10/HG and published 462.802 uH. An independent replay of the seven
+stored points reproduces the masks/mean/L. Final metadata is hardware IDLE,
+K1 SAFE, ranges/excitation OFF, quiet/workspace released, no hardware faults and
+unchanged active calibration. Connected duration reconstructed from the firmware
+K1/release deadlines is 386 ms, below the unchanged 500-ms budget. This is a
+software-tick observation, not scope qualification of physical relay latency.
+The owner reported that the corrected measurement appeared to work. No explicit
+new relay-count witness was given for this run; the prior four-capture session
+has the explicit single-cycle witness preserved separately.
+
+No resistor recapture campaign was required. Physical capacitor filtering,
+independent accuracy, phase/loss, switching/abort timing, sub-uH capability and
+AVG7/3 display appearance remain REQUIRES_BENCH_VALIDATION. See the release
+artifacts under Firmware/releases/2026-10-26/trimmed-measurements/.

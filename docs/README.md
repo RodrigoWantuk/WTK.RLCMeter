@@ -197,3 +197,10 @@ relay-session and menu appearance checks remain pending.
 add post-search statistical collection in factory PRODUCT without mixing
 conditions or changing calibration. The [physical relay follow-up](../Firmware/releases/2026-10-26/session-and-menu/physical-followup/README.md)
 records the owner's single-cycle confirmation; detailed qualification remains pending.
+
+[Trimmed-estimate delivery](../Firmware/releases/2026-10-26/trimmed-measurements/README.md)
+records all nine passing strict builds, 48 factory/47 standard host tests and
+verified deployment. The actual owner-triggered inductor run admitted all seven
+samples, produced 462.8 uH and reached SAFE in 386 ms by firmware ticks, preserving
+calibration and fault-free cleanup. Absolute accuracy and remaining physical
+qualification are not inferred from this basic check.
