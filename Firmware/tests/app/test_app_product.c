@@ -1455,6 +1455,11 @@ static int test_serial_ok_contract(void)
 }
 
 
+static unsigned lead_menu_poll_count;
+static bsp_status_t lead_menu_busy_poll(uint32_t now_ms,void *user)
+{
+    (void)now_ms;(void)user;lead_menu_poll_count++;return BSP_STATUS_BUSY;
+}
 static int test_lead_menu_guards(void)
 {
     fake_io_t fake={0};app_product_t product;app_product_inputs_t inputs=inputs_ready();int failures=0;
@@ -1470,6 +1475,12 @@ static int test_lead_menu_guards(void)
     click_ok(&product);app_product_step(&product,&inputs,NULL,BSP_STATUS_OK,101u);
     failures+=expect_true(product.view.state==UI_PRODUCT_STATE_LEAD_MENU && fake.start_count==0u,
                          "unavailable lead store cannot energize capture");
+    g_settings.initialized=true;g_settings.storage_available=true;g_settings.state=APP_SETTINGS_STORE_ERASE_WAIT;
+    g_settings.save_started_ms=100u;g_settings.io.poll=lead_menu_busy_poll;lead_menu_poll_count=0u;
+    app_product_step(&product,&inputs,NULL,BSP_STATUS_OK,102u);
+    failures+=expect_true(lead_menu_poll_count==1u && fake.start_count==0u,
+                         "lead menu drains an accepted settings write without capture");
+    g_settings.state=APP_SETTINGS_STORE_IDLE;
     lead.state=APP_LEAD_WAIT_OPEN;lead.store.initialized=true;lead.store.loaded=true;
     product.view.state=UI_PRODUCT_STATE_LEAD_WIZARD;
     inputs.safety_fault_mask=APP_SAFETY_FAULT_METROLOGY_RUNTIME;

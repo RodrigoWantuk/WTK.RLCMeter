@@ -1144,6 +1144,13 @@ static bool step_lead_ui(app_product_t *product,const app_product_inputs_t *inpu
     const bool fault=inputs->safety_fault_mask!=0u || inputs->display_fault;
     const bool blocked=fault || !inputs->calibration_active_valid ||
         resource_status_requires_upload(inputs->resource_status);
+    /* Entering this menu while a previous settings write is accepted must not
+     * strand that owner. Captures still wait for all pending settings to drain. */
+    if(product->view.state==UI_PRODUCT_STATE_LEAD_MENU &&
+       (!fault || app_settings_service_busy(product->settings_service))) {
+        service_pending_settings_save(product,inputs,now_ms);
+        sync_settings_view(product);
+    }
     if(blocked) app_lead_cancel(lead);
     if(product->view.state==UI_PRODUCT_STATE_LEAD_MENU && !blocked) {
         if(product->request_menu) set_state(product,UI_PRODUCT_STATE_CALIBRATION_STATUS);

@@ -86,15 +86,15 @@ def curve_composition_errors(symbols: str, commands: list[dict], enabled: bool) 
     return errors
 
 
-def k1_campaign_composition_errors(binary: bytes, enabled: bool) -> list[str]:
+def campaign_composition_errors(binary: bytes, enabled: bool) -> list[str]:
     unavailable=b"CAL_CMP_UNAVAILABLE use=BRINGUP_CAL"
     solver=b"CAL_CMP_SOLVE st="
     if enabled:
         errors=[]
-        if unavailable not in binary:errors.append("K1 diagnostic lacks explicit factory-campaign unavailability")
-        if solver in binary:errors.append("K1 diagnostic links factory campaign solver")
+        if unavailable not in binary:errors.append("restricted diagnostic lacks explicit factory-campaign unavailability")
+        if solver in binary:errors.append("restricted diagnostic links factory campaign solver")
         return errors
-    return ["non-K1 profile links K1 campaign limitation"] if unavailable in binary else []
+    return ["unrestricted profile links campaign limitation"] if unavailable in binary else []
 
 
 def main() -> int:
@@ -106,6 +106,7 @@ def main() -> int:
     parser.add_argument("--compile-commands", type=Path)
     parser.add_argument("--factory-provisioned", choices=("ON", "OFF"), default="OFF")
     parser.add_argument("--k1-bench-test", choices=("ON", "OFF"))
+    parser.add_argument("--bench-supply", choices=("ON", "OFF"))
     parser.add_argument("--peripheral-test", choices=("ON", "OFF"), default="OFF")
     args = parser.parse_args()
 
@@ -124,8 +125,8 @@ def main() -> int:
         return completed.returncode
 
     matches: list[str] = []
-    if args.k1_bench_test is not None:
-        matches.extend(k1_campaign_composition_errors(args.elf.read_bytes(), args.k1_bench_test=="ON"))
+    if args.k1_bench_test is not None or args.bench_supply is not None:
+        matches.extend(campaign_composition_errors(args.elf.read_bytes(), args.k1_bench_test=="ON" or args.bench_supply=="ON"))
     if args.peripheral_test == "ON" and args.profile != "BRINGUP":
         parser.error("peripheral diagnostic requires BRINGUP")
     matches.extend(peripheral_composition_errors(completed.stdout, args.peripheral_test == "ON"))

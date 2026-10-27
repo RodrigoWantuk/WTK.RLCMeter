@@ -477,6 +477,7 @@ elseif(WTK_TARGET_PLATFORM STREQUAL "stm32")
                     --profile ${WTK_FIRMWARE_PROFILE}
                     --factory-provisioned $<IF:$<BOOL:${WTK_PRODUCT_FACTORY_PROVISIONED_VALUE}>,ON,OFF>
                     --k1-bench-test $<IF:$<BOOL:${WTK_BRINGUP_K1_TEST}>,ON,OFF>
+                    --bench-supply $<IF:$<BOOL:${WTK_BRINGUP_BENCH_SUPPLY}>,ON,OFF>
                     --peripheral-test $<IF:$<BOOL:${WTK_ENABLE_PERIPHERAL_TEST_VALUE}>,ON,OFF>
                     --supplementary-curves $<IF:$<BOOL:${WTK_ENABLE_SUPPLEMENTARY_CURVES}>,ON,OFF>
                     --compile-commands "${CMAKE_CURRENT_BINARY_DIR}/compile_commands.json"

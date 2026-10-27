@@ -67,6 +67,11 @@ def host_matrix(firmware, out):
 
 def current_matrix(firmware, out):
     """Current deployable unit/recovery profiles and an explicit generic budget stop."""
+    from pc_firmware_deploy import source_state
+    before=source_state(firmware.parent)
+    provenance=out/'current-source.json'
+    provenance.write_text(json.dumps(dict(source_before=before,complete=False),indent=2)+'\n',encoding='utf-8')
+    (out/'current-matrix.json').write_text('[]\n',encoding='utf-8')
     ntc=firmware/'config/units/54ff70068370525760380567-ntc-engineering.json'
     cases=[('unit-release','stm32-unit-release',[],False),
            ('unit-debug','stm32-unit-release',['-DCMAKE_BUILD_TYPE=Debug','-DCMAKE_C_FLAGS_DEBUG=-g3'],False),
@@ -99,6 +104,9 @@ def current_matrix(firmware, out):
                      stack=size['reserved_stack_bytes'],flash_capacity=size['budgets']['flash_silicon_bytes'])
         rows.append(row);(out/'current-matrix.json').write_text(json.dumps(rows,indent=2)+'\n',encoding='utf-8')
         print(name,row['outcome'],flush=True)
+    after=source_state(firmware.parent)
+    if after!=before:raise RuntimeError('source changed during profile matrix; evidence is incomplete')
+    provenance.write_text(json.dumps(dict(source_before=before,source_after=after,complete=True),indent=2)+'\n',encoding='utf-8')
 
 
 def main():

@@ -107,12 +107,15 @@ static void write_fixed3(float value)
     write_u32(frac);
 }
 
+#if !(WTK_ENABLE_K1_BENCH_TEST || WTK_ENABLE_BENCH_SUPPLY)
 static void write_complex_milli(measurement_complex_t value)
 {
     write_i32(milli_from_float(value.re));
     write_text(",");
     write_i32(milli_from_float(value.im));
 }
+
+#endif
 
 static uint32_t lab_frequency_hz(hw_excitation_freq_t frequency)
 {
@@ -1579,7 +1582,7 @@ static bool parse_cal_acquire_tokens(const char *line,
     return true;
 }
 
-#if !WTK_ENABLE_K1_BENCH_TEST
+#if !(WTK_ENABLE_K1_BENCH_TEST || WTK_ENABLE_BENCH_SUPPLY)
 static bool parse_cal_campaign_begin_tokens(const char *line, measurement_cal_key_t *key)
 {
     if ((key == NULL) || !text_starts_with(line, "lab cal campaign begin "))
@@ -2683,7 +2686,7 @@ static void lab_cal_write_terminal(app_bringup_console_t *console)
     }
 }
 
-#if !WTK_ENABLE_K1_BENCH_TEST
+#if !(WTK_ENABLE_K1_BENCH_TEST || WTK_ENABLE_BENCH_SUPPLY)
 static void lab_cal_campaign_status(app_bringup_console_t *console)
 {
     if (console == NULL)
@@ -2971,7 +2974,7 @@ static void run_command(app_bringup_console_t *console,
     hw_excitation_amp_t measure_amp = HW_EXCITATION_AMP_INVALID;
     hw_range_id_t measure_range = HW_RANGE_ID_INVALID;
     app_cal_workflow_request_t cal_request = {0};
-#if !WTK_ENABLE_K1_BENCH_TEST
+#if !(WTK_ENABLE_K1_BENCH_TEST || WTK_ENABLE_BENCH_SUPPLY)
     measurement_cal_key_t cal_campaign_key = {0};
 #endif
 
@@ -3250,10 +3253,10 @@ static void run_command(app_bringup_console_t *console,
             (console != NULL) ? console->cal_service : NULL)));
         write_text("\r\n");
     }
-#if WTK_ENABLE_K1_BENCH_TEST
+#if WTK_ENABLE_K1_BENCH_TEST || WTK_ENABLE_BENCH_SUPPLY
     else if (text_starts_with(line,"lab cal campaign"))
     {
-        /* The optional once-only relay diagnostic does not install factory OSL.
+        /* The relay/external-supply diagnostics do not install factory OSL.
          * Keep that workflow in the dedicated BRINGUP_CAL image. */
         write_text("CAL_CMP_UNAVAILABLE use=BRINGUP_CAL\r\n");
     }

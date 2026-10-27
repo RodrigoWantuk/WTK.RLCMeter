@@ -12,11 +12,11 @@ SPEC.loader.exec_module(tool)
 class CurveCompositionTest(unittest.TestCase):
     def test_k1_campaign_contract(self):
         message=b"CAL_CMP_UNAVAILABLE use=BRINGUP_CAL"
-        self.assertEqual(tool.k1_campaign_composition_errors(message,True),[])
-        self.assertTrue(tool.k1_campaign_composition_errors(message+b"CAL_CMP_SOLVE st=",True))
-        self.assertTrue(tool.k1_campaign_composition_errors(b"",True))
-        self.assertTrue(tool.k1_campaign_composition_errors(message,False))
-        self.assertEqual(tool.k1_campaign_composition_errors(b"CAL_CMP_SOLVE st=",False),[])
+        self.assertEqual(tool.campaign_composition_errors(message,True),[])
+        self.assertTrue(tool.campaign_composition_errors(message+b"CAL_CMP_SOLVE st=",True))
+        self.assertTrue(tool.campaign_composition_errors(b"",True))
+        self.assertTrue(tool.campaign_composition_errors(message,False))
+        self.assertEqual(tool.campaign_composition_errors(b"CAL_CMP_SOLVE st=",False),[])
 
     def test_peripheral_diagnostic_rejects_active_operations(self):
         for name in ("app_bringup_console_step", "run_command.constprop.0", "hw_metrology_measure_start",
