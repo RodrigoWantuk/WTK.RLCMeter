@@ -552,6 +552,9 @@ static ui_product_measurement_t ui_measurement_from_result(const measurement_ses
     out.return_channel = (uint8_t)attempt->selected_channel;
     out.confidence = (uint8_t)result->confidence.publication_confidence;
     out.attempt_count = result->attempt_count;
+#if WTK_ENABLE_MEASUREMENT_TRIMMED
+    out.trimmed_applied = result->trimmed.applied;
+#endif
     /* Unresolved phase/loss can put estimated R below zero while a dominant
        reactance still supports C/L. Preserve R; never turn it into valid loss. */
     const bool reactive_dominant =

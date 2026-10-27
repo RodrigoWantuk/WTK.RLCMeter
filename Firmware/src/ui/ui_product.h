@@ -126,6 +126,9 @@ typedef struct
     uint8_t return_channel;
     uint8_t confidence;
     uint8_t attempt_count;
+#if WTK_ENABLE_MEASUREMENT_TRIMMED
+    bool trimmed_applied;
+#endif
     bool esr_valid;
     bool q_valid;
     bool d_valid;

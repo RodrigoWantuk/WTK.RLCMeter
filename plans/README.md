@@ -160,3 +160,9 @@ classification/trend evidence, bounded hardware-owned K1 continuation and exact
 incremental menus in PC-provisioned PRODUCT. Raw captures/calibration are
 preserved; unattended validation cannot replace pending physical switching/UI
 checks. Legacy full-wizard and fixed-capture profiles retain their safe paths.
+
+[Plan 25](25-Trimmed-Measurement-Estimate.md) implements a bounded seven-sample
+coordinate-wise trimmed complex estimate after autorange, preserving raw search
+history, calibration provenance and the original K1/battery deadlines. Physical
+follow-up to plan 24 now records two valid inductive results and an owner-confirmed
+single K1 engagement/release across four captures; independent qualification remains pending.

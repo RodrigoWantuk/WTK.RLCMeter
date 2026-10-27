@@ -192,3 +192,8 @@ now records nine passing strict profiles and verified factory PRODUCT deployment
 56,260 B Flash / 16,040 B accounted RAM, actual READY/SAFE boot with OSL sequence 1
 and all 33 records preserved. No unattended DUT capture was triggered; physical
 relay-session and menu appearance checks remain pending.
+
+[Seven-sample trimmed estimates](../plans/25-Trimmed-Measurement-Estimate.md)
+add post-search statistical collection in factory PRODUCT without mixing
+conditions or changing calibration. The [physical relay follow-up](../Firmware/releases/2026-10-26/session-and-menu/physical-followup/README.md)
+records the owner's single-cycle confirmation; detailed qualification remains pending.

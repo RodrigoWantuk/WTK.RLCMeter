@@ -8,6 +8,7 @@
 #include "hardware/hw_range.h"
 #include "measurement/measurement_calibration.h"
 #include "measurement/measurement_dsp.h"
+#include "measurement/measurement_trimmed.h"
 
 enum
 {
@@ -218,6 +219,9 @@ typedef struct
     measurement_auto_mode_t mode;
     bool partial;
     bool final;
+#if WTK_ENABLE_MEASUREMENT_TRIMMED
+    measurement_trimmed_summary_t trimmed;
+#endif
 } measurement_session_result_t;
 
 typedef struct

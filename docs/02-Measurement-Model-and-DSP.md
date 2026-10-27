@@ -193,3 +193,31 @@ is used for frequency-trend pairs, so weak rerange attempts cannot poison that
 trend either. Primary quality ordering and conservative handling of genuinely
 contradictory usable captures remain unchanged. This is an evidence policy,
 not a new calibrated accuracy bound. See plan 24.
+
+## Seven-sample estimate after autorange
+
+PC-provisioned PRODUCT uses the primary calibrated impedance plus six further
+valid coherent captures at exactly the same RREF/frequency/amplitude/RET path
+and calibration set/model/condition. Each capture still runs the original
+phasor extraction and complex calibration. R and signed X are sorted separately;
+the two highest and two lowest of each coordinate are discarded, and the middle
+three coordinates are averaged. Different R/X retained-index masks are allowed
+and stored with all seven raw complex points in session RAM. This is a
+coordinate-wise trimmed estimate, not three retained whole captures.
+
+Magnitude, wrapped phase, conditional C/L and Q/D are recomputed from that one
+impedance. Wrapped angles and independently derived C/L/Q/D are never averaged.
+The original up-to-six-condition search history remains unchanged; final primary
+metadata explicitly marks the aggregate. Selected/source/denominator peak metadata
+uses minima across admitted points. Confidence cannot improve merely from
+averaging, and a contrary aggregate cannot override unresolved classification
+or assert an incompatible reactive sign. Existing loss guards still apply.
+
+At most eight additional windows allow two rejected captures. Clipped, weak
+(selected RET below 2 mV), nonfinite, failed, wrong-path or mismatched-calibration
+captures cannot enter the seven points. All seven are required: failure is
+explicit, with SAFE cleanup and no silent single-reading fallback. This rejects
+spikes, not systematic error; no new accuracy or sub-microhenry claim is made.
+Safety/interlock/residual/battery monitoring is not delayed or statistically
+filtered by this metrology estimator. Fixed calibration and diagnostic captures
+retain their original behavior. See [plan 25](../plans/25-Trimmed-Measurement-Estimate.md).

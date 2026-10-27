@@ -581,3 +581,14 @@ connection during unattended work. See
 A custom medium font taller than the 28-pixel minimum menu row pitch uses a
 full repaint so clearing one row cannot damage cached neighbors. Provider
 invalidation is honored even when the view generation has not changed.
+
+## Trimmed-result details
+
+Factory PRODUCT details append AVG7/3 only after seven valid calibrated complex
+samples have completed coordinate-wise two-per-tail trimming and SAFE cleanup.
+The adjacent attempt count remains the raw autorange-condition count; it does
+not include the six or up-to-eight extra statistical windows. Diagnostic session
+metadata carries admitted/extra counts, independent R/X retained masks and all
+seven raw complex points. An incomplete or hardware-aborted collection is not
+presented as an averaged measurement. No asset-pack or persistent-settings update
+is needed for this indicator.

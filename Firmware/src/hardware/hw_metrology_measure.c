@@ -431,8 +431,19 @@ bsp_status_t hw_metrology_measure_start(hw_metrology_measure_t *measure,
 #if WTK_ENABLE_MEASURE_SESSION_HOLD
     if (measure->state == HW_METROLOGY_MEASURE_SESSION_HOLD)
     {
+        bool capture_allowed = measure->session_capture_count < HW_METROLOGY_SESSION_MAX_CAPTURES;
+#if WTK_ENABLE_MEASUREMENT_TRIMMED
+        const bool same_condition = request->range_id == measure->request.range_id &&
+            request->frequency == measure->request.frequency && request->amplitude == measure->request.amplitude;
+        if (request->statistical_capture)
+        {
+            capture_allowed = measure->session_statistical_count < HW_METROLOGY_SESSION_MAX_STATISTICAL_CAPTURES &&
+                (measure->session_statistical_count == 0u || same_condition);
+        }
+        else if (measure->session_statistical_count != 0u) capture_allowed = false;
+#endif
         if (!request->session_hold || !measure->session_connected ||
-            (measure->session_capture_count >= HW_METROLOGY_SESSION_MAX_CAPTURES) ||
+            !capture_allowed ||
             measure_dynamic_abort(measure, now_ms) ||
             !hw_metrology_clock_ready(request->clock_summary, request->clock_init_status) ||
             ((request->frequency != HW_EXCITATION_FREQ_1KHZ) &&
@@ -451,6 +462,9 @@ bsp_status_t hw_metrology_measure_start(hw_metrology_measure_t *measure,
         measure->request = *request;
         measure->sequence++;
         measure->session_capture_count++;
+#if WTK_ENABLE_MEASUREMENT_TRIMMED
+        if (request->statistical_capture) measure->session_statistical_count++;
+#endif
         prepare_block_metadata(measure);
         measure->block.permit_issue_ms = measure->permit.issued_at_ms;
         measure->block.permit_validate_ms = measure->session_validate_ms;
@@ -458,6 +472,12 @@ bsp_status_t hw_metrology_measure_start(hw_metrology_measure_t *measure,
         measure->block.k1_release_guard_ms = 0u;
         measure->dumpable = false;
         measure->state = HW_METROLOGY_MEASURE_RANGE_REQUEST;
+#if WTK_ENABLE_MEASUREMENT_TRIMMED
+        /* HOLD guarantees DMA stopped and neutral settled. Repeated windows
+         * need no address transition, but retain ADC/excitation settling. */
+        if (request->statistical_capture && same_condition)
+            measure->state = HW_METROLOGY_MEASURE_ADC_ACQUIRE;
+#endif
         sync_k1_globals(measure);
         return BSP_STATUS_BUSY;
     }
@@ -479,6 +499,16 @@ bsp_status_t hw_metrology_measure_start(hw_metrology_measure_t *measure,
 #if WTK_ENABLE_MEASURE_SESSION_HOLD
     measure->session_connected = false;
     measure->session_capture_count = 0u;
+#if WTK_ENABLE_MEASUREMENT_TRIMMED
+    measure->session_statistical_count = 0u;
+    /* Statistical windows can only continue an already authorized session. */
+    if (request->statistical_capture)
+    {
+        measure->error = HW_METROLOGY_MEASURE_ERR_INVALID;
+        sync_k1_globals(measure);
+        return BSP_STATUS_INVALID_ARG;
+    }
+#endif
 #endif
     hw_measure_permit_init(&measure->permit);
 

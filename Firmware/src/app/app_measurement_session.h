@@ -48,6 +48,9 @@ typedef struct
     bsp_status_t (*attempt_abort)(void *user);
 #if WTK_ENABLE_MEASURE_SESSION_HOLD
     bsp_status_t (*finish_session)(void *user);
+#if WTK_ENABLE_MEASUREMENT_TRIMMED
+    bool trimmed_enabled;
+#endif
 #endif
     bsp_status_t (*process_block)(const hw_metrology_block_t *block,
                                   const measurement_attempt_config_t *attempt,
@@ -73,6 +76,10 @@ typedef struct
     bool have_final;
     bool cancel_requested;
     bool attempt_started;
+#if WTK_ENABLE_MEASUREMENT_TRIMMED
+    measurement_trimmed_t trimmed;
+    bool trimming;
+#endif
 } app_measurement_session_t;
 
 bsp_status_t app_measurement_session_init(app_measurement_session_t *session,

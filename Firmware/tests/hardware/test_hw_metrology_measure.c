@@ -1016,6 +1016,77 @@ static int test_session_capture_limit_and_range_timeout(void)
     return failures;
 }
 
+#if WTK_ENABLE_MEASUREMENT_TRIMMED
+static int test_statistical_continuation_boundaries(void)
+{
+    int failures = 0;
+    for (uint8_t variant = 0u; variant < 6u; variant++)
+    {
+        uint32_t raw[HW_METROLOGY_RAW_WORD_COUNT] = {0};
+        fake_io_t fake = {.k1 = HW_K1_STATE_SAFE, .charger = HW_CHARGER_ABSENT};
+        hw_metrology_measure_io_t io;
+        hw_metrology_measure_t measure;
+        bind_default_permit_inputs(&fake, HW_RANGE_ID_1K);
+        bind_io(&io, &fake);
+        (void)hw_metrology_measure_init(&measure, &io, raw, HW_METROLOGY_RAW_WORD_COUNT);
+        const bsp_clock_summary_t clock = production_clock();
+        hw_metrology_measure_request_t request = make_request(&clock, HW_RANGE_ID_1K, HW_EXCITATION_AMP_100MVRMS);
+        request.session_hold = true;
+        uint32_t now = UINT32_MAX - 80u;
+        if (variant == 5u)
+        {
+            request.statistical_capture = true;
+            failures += expect_true(hw_metrology_measure_start(&measure, &request, now) == BSP_STATUS_INVALID_ARG &&
+                                    fake.k1_request_calls == 0u, "statistical role cannot initiate a relay session");
+            continue;
+        }
+        (void)hw_metrology_measure_start(&measure, &request, now);
+        for (uint8_t i = 0u; i < HW_METROLOGY_SESSION_MAX_CAPTURES; i++)
+        {
+            failures += expect_true(run_until_hold(&measure, &fake, &now) == 0, "search budget remains six captures");
+            hw_metrology_measure_acknowledge(&measure);
+            if (i + 1u < HW_METROLOGY_SESSION_MAX_CAPTURES)
+                (void)hw_metrology_measure_start(&measure, &request, now);
+        }
+        const uint32_t connected_deadline = measure.session_deadline_ms;
+        const uint32_t battery_deadline = measure.session_battery_deadline_ms;
+        request.statistical_capture = true;
+        request.frequency = HW_EXCITATION_FREQ_10KHZ;
+        failures += expect_true(hw_metrology_measure_start(&measure, &request, now) == BSP_STATUS_BUSY &&
+                                measure.state == HW_METROLOGY_MEASURE_RANGE_REQUEST,
+                                "first statistical continuation may return to another primary condition");
+        failures += expect_true(run_until_hold(&measure, &fake, &now) == 0, "first statistical capture completes");
+        hw_metrology_measure_acknowledge(&measure);
+        if (variant == 0u)
+        {
+            for (uint8_t i = 1u; i < HW_METROLOGY_SESSION_MAX_STATISTICAL_CAPTURES; i++)
+            {
+                failures += expect_true(hw_metrology_measure_start(&measure, &request, now) == BSP_STATUS_BUSY &&
+                                        measure.state == HW_METROLOGY_MEASURE_ADC_ACQUIRE,
+                                        "same-condition repeat skips redundant range transition");
+                failures += expect_true(run_until_hold(&measure, &fake, &now) == 0, "bounded repeat reaches HOLD");
+                hw_metrology_measure_acknowledge(&measure);
+            }
+            failures += expect_true(measure.session_capture_count == 14u && measure.session_statistical_count == 8u,
+                                    "six search plus eight statistical windows have explicit separate bounds");
+        }
+        if (variant == 1u) request.amplitude = HW_EXCITATION_AMP_500MVRMS;
+        if (variant == 2u) request.statistical_capture = false;
+        if (variant == 3u) now = measure.session_deadline_ms;
+        if (variant == 4u) fake.charger = HW_CHARGER_PRESENT;
+        failures += expect_true(hw_metrology_measure_start(&measure, &request, now) == BSP_STATUS_ERROR,
+                                "budget lock deadline and charger reject further statistical continuations");
+        failures += expect_true(measure.session_deadline_ms == connected_deadline &&
+                                measure.session_battery_deadline_ms == battery_deadline,
+                                "statistical role never refreshes authorization time");
+        failures += expect_true(run_until_idle(&measure, &fake, &now) == 0 &&
+                                fake.k1 == HW_K1_STATE_SAFE && !fake.quiet && fake.restore_calls == 1u &&
+                                fake.k1_request_calls == 1u, "all statistical rejection paths clean up without relay reentry");
+    }
+    return failures;
+}
+#endif
+
 static int test_held_session_fault_matrix(void)
 {
     int failures = 0;
@@ -1077,6 +1148,9 @@ int main(void)
     failures += test_bounded_relay_session();
     failures += test_held_session_fault_matrix();
     failures += test_session_capture_limit_and_range_timeout();
+#if WTK_ENABLE_MEASUREMENT_TRIMMED
+    failures += test_statistical_continuation_boundaries();
+#endif
 #endif
 #if WTK_ENABLE_BENCH_SUPPLY
     failures += test_external_bench_supply();

@@ -395,3 +395,21 @@ Actual relay counts/timing, analog settling and phase consistency with continuou
 connection remain REQUIRES_BENCH_VALIDATION; no owner button/fixture interaction
 is available during this work. No debugger state injection or reset-triggered
 DUT measurement is an acceptable substitute for a supported measurement command.
+
+## Physical follow-up and robust estimate
+
+The [session/menu physical follow-up](../Firmware/releases/2026-10-26/session-and-menu/physical-followup/README.md)
+records 467.0/468.8-uH results from the same passive inductor (nominal unconfirmed)
+and an owner-confirmed single K1 engagement/release during a four-capture session.
+This supersedes the earlier lack of an owner relay-count observation; switching
+transients, phase/accuracy and fault/deadline timing remain unqualified.
+
+Plan 25 adds post-search seven-sample trimming to factory PRODUCT, not a new
+calibration campaign or calibration record format. OSL coefficients and all
+33 active engineering conditions, assets and UID-bound NTC calibration must be
+preserved. Host evidence covers deterministic signed-coordinate trimming,
+separate masks, wrapped phase, nonfinite values, same-condition/provenance
+admission, bounded rejections, original raw history, cancellation, cleanup
+faults, role/condition locks, timers and one authorization. Actual seven-window
+completion time, fixture stability and repeated C/L results require board evidence;
+statistical filtering does not qualify absolute accuracy.

@@ -733,6 +733,9 @@ static void finalize_result(measurement_auto_session_t *session,
     session->has_final = true;
     session->last_result.status = status;
     session->last_result.primary_attempt = primary_copy;
+#if WTK_ENABLE_MEASUREMENT_TRIMMED
+    session->last_result.trimmed = (measurement_trimmed_summary_t){0};
+#endif
     session->last_result.primary_attempt_index = primary_index;
     session->last_result.confidence = measurement_auto_evaluate_confidence(primary, session->qualification);
     session->last_result.classification =

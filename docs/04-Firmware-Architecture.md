@@ -361,3 +361,24 @@ existing footprint gate and bounded renderer; its common language/error recovery
 and evidence-admission fixes still apply. Full BRINGUP now omits unsolicited
 verbose boot/button logs (INFO default), preserving commands and safety logs to
 make room for the common measurement policy within guaranteed C8 Flash.
+
+## Post-search statistical capture role
+
+WTK_ENABLE_MEASUREMENT_TRIMMED is enabled only with PC-provisioned PRODUCT.
+The app adapter explicitly opts into collecting seven valid impedances after
+primary selection. The hardware owner separately bounds search captures (six)
+and statistical continuations (eight extra), for at most 14 captures under the
+same consumed initial permit. The first statistical continuation may return
+from the secondary frequency to the primary; subsequent requests are locked
+to that range/frequency/amplitude, and search cannot resume. Same-condition
+statistical repeats skip redundant range addressing while retaining ADC and
+excitation settling, neutral inter-window ownership and all dynamic aborts.
+The original 500-ms connected limit and 1,000-ms battery-evidence expiry are
+unchanged and are never refreshed by these extra captures.
+
+The fixed-size pure estimator stores seven complex points and coordinate masks;
+there are no seven ADC buffers, heap or new persistent records. App FINISHING
+still withholds publication until complete SAFE cleanup. An incomplete or late
+faulted estimate is rejected. Calibration coefficients, assets and NTC profile
+are unchanged. Legacy/full-wizard PRODUCT and fixed diagnostics are not enlarged
+by enabling this feature.

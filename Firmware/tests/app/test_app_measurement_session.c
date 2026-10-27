@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <math.h>
 
 typedef struct
 {
@@ -18,14 +19,15 @@ typedef struct
     bool open_like;
     bool short_like;
     bool phase05_fail;
+    uint8_t provenance_variant;
     hw_metrology_measure_error_t phase05_error;
 } fake_outcome_t;
 
 typedef struct
 {
     app_measurement_session_io_t io;
-    fake_outcome_t outcomes[MEASUREMENT_AUTO_MAX_ATTEMPTS];
-    hw_metrology_measure_request_t requests[MEASUREMENT_AUTO_MAX_ATTEMPTS];
+    fake_outcome_t outcomes[MEASUREMENT_AUTO_MAX_ATTEMPTS + MEASUREMENT_TRIMMED_MAX_EXTRA_CAPTURES];
+    hw_metrology_measure_request_t requests[MEASUREMENT_AUTO_MAX_ATTEMPTS + MEASUREMENT_TRIMMED_MAX_EXTRA_CAPTURES];
     hw_metrology_block_t block;
     uint8_t outcome_count;
     uint8_t start_count;
@@ -281,6 +283,18 @@ static bsp_status_t fake_process_block(const hw_metrology_block_t *block,
         .uncalibrated = true,
     };
     result->status = outcome->dsp_status;
+#if WTK_ENABLE_MEASUREMENT_TRIMMED
+    if (fake->io.trimmed_enabled)
+    {
+        const measurement_cal_key_t key = measurement_cal_key(MEASUREMENT_CAL_HARDWARE_REV1,
+            MEASUREMENT_CAL_MODEL_VERSION_CURRENT, attempt->range_id, attempt->frequency, attempt->amplitude);
+        processed->provenance.source = MEASUREMENT_CAL_SOURCE_PERSISTED;
+        processed->provenance.status = MEASUREMENT_CAL_RESOLVE_FOUND;
+        processed->provenance.set_sequence = 1u + outcome->provenance_variant;
+        processed->provenance.condition_id = measurement_cal_condition_id(&key);
+        processed->provenance.uncalibrated = false;
+    }
+#endif
     result->phasors.vexc_1_peak_v = outcome->source_peak_v;
     result->phasors.vexc_2_peak_v = outcome->source_peak_v;
     result->phasors.clipped = outcome->clipped;
@@ -372,7 +386,7 @@ static app_measurement_event_t run_until_event(app_measurement_session_t *sessio
                                                app_measurement_event_t wanted,
                                                uint32_t *now_ms)
 {
-    for (uint32_t i = 0u; i < 32u; i++)
+    for (uint32_t i = 0u; i < 128u; i++)
     {
         const app_measurement_event_t event = app_measurement_session_step(session, (*now_ms)++);
         if ((event != APP_MEASUREMENT_EVENT_NONE) && ((wanted == APP_MEASUREMENT_EVENT_NONE) || (event == wanted)))
@@ -694,6 +708,111 @@ static int test_held_partial_continuation_and_cancel(void)
 }
 #endif
 
+#if WTK_ENABLE_MEASUREMENT_TRIMMED
+static int test_trimmed_session(void)
+{
+    int failures = 0;
+    for (uint8_t variant = 0u; variant < 6u; variant++)
+    {
+        app_measurement_session_t session;
+        fake_io_t fake = {0};
+        fake.hold_mode = true;
+        fake.outcome_count = 9u;
+        for (uint8_t i = 0u; i < fake.outcome_count; i++)
+            fake.outcomes[i] = good_outcome(measurement_complex(1000.0f, 0.0f), MEASUREMENT_INTERPRET_RESISTIVE);
+        fake.outcomes[1].z.re = 9000.0f;
+        fake.outcomes[2].z.re = -9000.0f;
+        fake.outcomes[3].z.re = 1002.0f;
+        fake.outcomes[4].z.re = 1001.0f;
+        fake.outcomes[5].z.re = 9100.0f;
+        fake.outcomes[6].z.re = -9100.0f;
+        if (variant == 1u)
+        {
+            fake.outcomes[1].selected = MEASUREMENT_RETURN_HG;
+            fake.outcomes[2].provenance_variant = 1u;
+        }
+        if (variant == 2u)
+            for (uint8_t i = 1u; i < fake.outcome_count; i++) fake.outcomes[i].clipped = true;
+        failures += start_session(&session, &fake, MEASUREMENT_AUTO_MODE_CLICK, 31u + variant, NULL);
+        fake.io.finish_session = fake_finish_session;
+        fake.io.trimmed_enabled = true;
+        uint32_t now = 1u;
+        for (uint32_t i = 0u; i < 128u && !app_measurement_session_final_ready(&session); i++)
+        {
+            (void)app_measurement_session_step(&session, now++);
+            if (session.trimming && variant == 3u) (void)app_measurement_session_cancel(&session);
+            if (session.trimming && variant == 5u) fake.supervision_fail = true;
+            if (variant == 4u && session.state == APP_MEASUREMENT_SESSION_FINISHING) fake.cleanup_fail = true;
+            if (fake.active)
+                failures += expect_true(!app_measurement_session_final_ready(&session), "filtered final waits for SAFE cleanup");
+        }
+        const measurement_session_result_t *result = app_measurement_session_final(&session);
+        failures += expect_true(result != NULL && !fake.active, "trimmed session always terminates and releases owner");
+        if (result == NULL) continue;
+        failures += expect_true(result->trimmed.requested && result->attempt_count == 1u &&
+                                session.policy.history[0].z_ohms.re == 1000.0f,
+                                "statistical windows never overwrite raw search history");
+        const bool success = variant <= 1u;
+        failures += expect_true(result->trimmed.applied == success, "only a complete safe estimate is marked applied");
+        if (success)
+        {
+            failures += expect_u32(result->trimmed.samples, 7u, "exactly seven admitted samples");
+            failures += expect_u32(fake.start_count, variant == 0u ? 7u : 9u, "bounded mismatched-path and provenance rejection");
+            failures += expect_true(result->status == MEASUREMENT_AUTO_STATUS_FINAL_OK &&
+                result->primary_attempt.derived.valid &&
+                result->confidence.publication_confidence == MEASUREMENT_CONFIDENCE_LOW_CONFIDENCE,
+                "averaging preserves unqualified confidence and derives one result");
+            if (variant == 0u)
+                failures += expect_true(fabsf(result->primary_attempt.z_ohms.re - 1001.0f) < 0.001f &&
+                                        result->trimmed.r_retained_mask == 25u,
+                                        "two high and two low coordinates excluded");
+        }
+        else
+        {
+            failures += expect_true(result->confidence.publication_confidence == MEASUREMENT_CONFIDENCE_REJECTED,
+                                    "incomplete canceled or faulty filter cannot fall back to raw result");
+            const measurement_auto_status_t expected = variant == 2u ? MEASUREMENT_AUTO_STATUS_FAILED :
+                variant == 3u ? MEASUREMENT_AUTO_STATUS_CANCELED : MEASUREMENT_AUTO_STATUS_SAFETY_ABORT;
+            failures += expect_true(result->status == expected, "filtered failure has explicit terminal disposition");
+        }
+        for (uint8_t i = 1u; i < fake.start_count; i++)
+            failures += expect_true(fake.requests[i].statistical_capture && fake.requests[i].session_hold &&
+                fake.requests[i].range_id == HW_RANGE_ID_1K && fake.requests[i].frequency == HW_EXCITATION_FREQ_1KHZ,
+                "all statistical windows use explicit role and primary condition");
+        failures += expect_true(!fake.requests[0].statistical_capture, "initial search is never a statistical authorization");
+    }
+    return failures;
+}
+
+static int test_trimmed_primary_after_second_frequency(void)
+{
+    int failures = 0;
+    app_measurement_session_t session;
+    fake_io_t fake = {0};
+    fake.hold_mode = true;
+    fake.outcome_count = 8u;
+    for (uint8_t i = 0u; i < fake.outcome_count; i++)
+        fake.outcomes[i] = good_outcome(measurement_complex(20.0f, -3000.0f), MEASUREMENT_INTERPRET_CAPACITIVE);
+    fake.outcomes[1].z.im = -300.0f;
+    failures += start_session(&session, &fake, MEASUREMENT_AUTO_MODE_CLICK, 38u, NULL);
+    fake.io.finish_session = fake_finish_session;
+    fake.io.trimmed_enabled = true;
+    uint32_t now = 1u;
+    failures += expect_true(run_until_event(&session, APP_MEASUREMENT_EVENT_FINAL_RESULT, &now) ==
+                            APP_MEASUREMENT_EVENT_FINAL_RESULT, "reactive aggregate completes after frequency refinement");
+    const measurement_session_result_t *result = app_measurement_session_final(&session);
+    failures += expect_true(result != NULL && result->trimmed.applied && result->attempt_count == 2u &&
+                            result->primary_attempt.config.frequency == HW_EXCITATION_FREQ_1KHZ &&
+                            result->classification.interpretation == MEASUREMENT_INTERPRET_CAPACITIVE &&
+                            result->primary_attempt.derived.capacitance_valid,
+                            "C derives from selected primary while secondary evidence remains raw");
+    failures += expect_true(fake.requests[1].frequency == HW_EXCITATION_FREQ_10KHZ &&
+                            fake.requests[2].frequency == HW_EXCITATION_FREQ_1KHZ &&
+                            fake.requests[2].statistical_capture, "first statistical window returns to primary frequency");
+    return failures;
+}
+#endif
+
 int main(int argc, char **argv)
 {
     if ((argc == 2) && (strcmp(argv[1], "--sizes") == 0))
@@ -714,6 +833,10 @@ int main(int argc, char **argv)
 #if WTK_ENABLE_MEASURE_SESSION_HOLD
     failures += test_final_result_waits_for_session_cleanup();
     failures += test_held_partial_continuation_and_cancel();
+#if WTK_ENABLE_MEASUREMENT_TRIMMED
+    failures += test_trimmed_session();
+    failures += test_trimmed_primary_after_second_frequency();
+#endif
 #endif
     return (failures == 0) ? 0 : 1;
 }

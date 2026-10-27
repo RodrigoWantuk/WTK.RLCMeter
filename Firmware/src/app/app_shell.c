@@ -1131,6 +1131,9 @@ static const app_measurement_session_io_t g_product_session_io = {
     .attempt_abort = product_auto_attempt_abort,
 #if WTK_ENABLE_MEASURE_SESSION_HOLD
     .finish_session = product_auto_finish_session,
+#if WTK_ENABLE_MEASUREMENT_TRIMMED
+    .trimmed_enabled = true,
+#endif
 #endif
     .process_block = product_auto_process_block,
     .user = NULL,

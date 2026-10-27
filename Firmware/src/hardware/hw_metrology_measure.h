@@ -24,6 +24,7 @@ enum
     HW_METROLOGY_MEASURE_DC_PILOT_SETTLE_MS = 2u,
     HW_METROLOGY_SESSION_MAX_CONNECTED_MS = 500u,
     HW_METROLOGY_SESSION_MAX_CAPTURES = 6u,
+    HW_METROLOGY_SESSION_MAX_STATISTICAL_CAPTURES = 8u,
 };
 
 typedef enum
@@ -135,6 +136,9 @@ typedef struct
     hw_range_id_t range_id;
 #if WTK_ENABLE_MEASURE_SESSION_HOLD
     bool session_hold;
+#if WTK_ENABLE_MEASUREMENT_TRIMMED
+    bool statistical_capture;
+#endif
 #endif
 #if WTK_ENABLE_DC_PILOT
     bool dc_pilot;
@@ -171,6 +175,9 @@ typedef struct
     uint32_t session_battery_deadline_ms;
     uint32_t session_validate_ms;
     uint8_t session_capture_count;
+#if WTK_ENABLE_MEASUREMENT_TRIMMED
+    uint8_t session_statistical_count;
+#endif
     bool session_connected;
 #endif
 } hw_metrology_measure_t;

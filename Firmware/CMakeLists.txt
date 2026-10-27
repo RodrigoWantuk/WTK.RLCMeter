@@ -187,6 +187,7 @@ set(WTK_COMMON_SOURCES
     src/measurement/measurement_calibration_solver.c
     src/measurement/measurement_calibration_store.c
     src/measurement/measurement_engine.c
+    src/measurement/measurement_trimmed.c
     src/storage/resource_store.c
     src/storage/storage_crc32.c
     src/storage/storage_layout.c

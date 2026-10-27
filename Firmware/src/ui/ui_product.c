@@ -596,6 +596,9 @@ static bool prepare_result_details_line(const ui_product_t *ui,
             result->return_channel == (uint8_t)MEASUREMENT_RETURN_HG ? " / RET HG / " : " / RET 1X / ");
         (void)ui_format_append_u32(text, sizeof(text), &used, result->attempt_count);
         (void)append_text(text, sizeof(text), &used, pt ? " tent." : " att.");
+#if WTK_ENABLE_MEASUREMENT_TRIMMED
+        if (result->trimmed_applied) (void)append_text(text, sizeof(text), &used, " AVG7/3");
+#endif
     }
     else if (index == 9u) (void)write_literal(pt ? "Erro max.:" : "Max error:", text, sizeof(text));
     else if (index == 10u) (void)write_literal(error_status_text(view, result->max_error_status), text, sizeof(text));
