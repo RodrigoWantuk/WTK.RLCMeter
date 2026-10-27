@@ -166,3 +166,8 @@ coordinate-wise trimmed complex estimate after autorange, preserving raw search
 history, calibration provenance and the original K1/battery deadlines. Physical
 follow-up to plan 24 now records two valid inductive results and an owner-confirmed
 single K1 engagement/release across four captures; independent qualification remains pending.
+
+[Plan 26](26-Three-Frequency-Product-Survey.md) integrates all three existing
+frequencies before final factory PRODUCT interpretation, guarded SAFE/fresh-
+permit segmentation for 10 Hz, twelve-record traceability and seven-point
+primary estimates without increasing the fast continuous authorization.

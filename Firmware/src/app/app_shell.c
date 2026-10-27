@@ -1133,6 +1133,9 @@ static const app_measurement_session_io_t g_product_session_io = {
     .finish_session = product_auto_finish_session,
 #if WTK_ENABLE_MEASUREMENT_TRIMMED
     .trimmed_enabled = true,
+#if WTK_ENABLE_FREQUENCY_SURVEY
+    .frequency_survey_enabled = true,
+#endif
 #endif
 #endif
     .process_block = product_auto_process_block,

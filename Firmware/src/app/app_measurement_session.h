@@ -20,6 +20,9 @@ typedef enum
     APP_MEASUREMENT_SESSION_CANCELING,
 #if WTK_ENABLE_MEASURE_SESSION_HOLD
     APP_MEASUREMENT_SESSION_FINISHING,
+#if WTK_ENABLE_FREQUENCY_SURVEY
+    APP_MEASUREMENT_SESSION_DRAINING,
+#endif
 #endif
 } app_measurement_session_state_t;
 
@@ -50,6 +53,9 @@ typedef struct
     bsp_status_t (*finish_session)(void *user);
 #if WTK_ENABLE_MEASUREMENT_TRIMMED
     bool trimmed_enabled;
+#if WTK_ENABLE_FREQUENCY_SURVEY
+    bool frequency_survey_enabled;
+#endif
 #endif
 #endif
     bsp_status_t (*process_block)(const hw_metrology_block_t *block,
@@ -79,6 +85,10 @@ typedef struct
 #if WTK_ENABLE_MEASUREMENT_TRIMMED
     measurement_trimmed_t trimmed;
     bool trimming;
+#if WTK_ENABLE_FREQUENCY_SURVEY
+    uint32_t survey_deadline_ms;
+    uint8_t segment_captures;
+#endif
 #endif
 } app_measurement_session_t;
 

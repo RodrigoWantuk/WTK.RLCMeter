@@ -598,6 +598,13 @@ static bool prepare_result_details_line(const ui_product_t *ui,
         (void)append_text(text, sizeof(text), &used, pt ? " tent." : " att.");
 #if WTK_ENABLE_MEASUREMENT_TRIMMED
         if (result->trimmed_applied) (void)append_text(text, sizeof(text), &used, " AVG7/3");
+#if WTK_ENABLE_FREQUENCY_SURVEY
+        const uint32_t mask = result->frequency_attempted_mask;
+        const uint32_t count = (mask & 1u) + ((mask >> 1u) & 1u) + ((mask >> 2u) & 1u);
+        (void)append_text(text, sizeof(text), &used, " F");
+        (void)ui_format_append_u32(text, sizeof(text), &used, count);
+        (void)append_text(text, sizeof(text), &used, "/3");
+#endif
 #endif
     }
     else if (index == 9u) (void)write_literal(pt ? "Erro max.:" : "Max error:", text, sizeof(text));

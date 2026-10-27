@@ -1148,3 +1148,20 @@ persistent record format is introduced.
 
 Metrology IO initialization also requires the live charger callback; all board
 adapters provide it. Missing runtime charger supervision must fail closed.
+
+## Factory three-frequency execution
+
+Factory-only opt-in schedules 1 kHz -> 10 kHz -> 10 Hz, bounded to four distinct
+conditions per stage and twelve raw search records. Frequency interpretation
+combines usable evidence after coverage; early SHORT/OPEN/RESISTIVE does not
+skip the later stages. Actual acquisition fault/cancel still wins immediately.
+Weak acquired DSP returns may rerange; processing output is invalidated before
+use to prevent stale accepted data. Separate attempted/usable masks are exposed.
+
+App DRAINING performs nonterminal SAFE cleanup before slower/new segments,
+then starts through real fresh authorization. FINISHING remains terminal-only.
+Ten Hz and its statistical repeats retain fixed capture SAFE cycles. No hardware
+continuous deadline or paused battery-evidence expiry is lengthened; a separate
+60-s overall app bound covers the finite workflow. Seven-sample aggregation uses
+the selected primary's actual frequency including 10 Hz. See plan 26 for exact
+memory, classification and pending bench contracts.

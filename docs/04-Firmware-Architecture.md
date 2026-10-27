@@ -382,3 +382,23 @@ still withholds publication until complete SAFE cleanup. An incomplete or late
 faulted estimate is rejected. Calibration coefficients, assets and NTC profile
 are unchanged. Legacy/full-wizard PRODUCT and fixed diagnostics are not enlarged
 by enabling this feature.
+
+## Three-frequency factory orchestration
+
+WTK_ENABLE_FREQUENCY_SURVEY is generated only for PC-provisioned PRODUCT and
+its adapter opts into measurement_auto_start_t.frequency_survey. Preserve the
+legacy six-attempt policy for other callers/profiles. Factory history capacity
+is twelve (six extra 156-byte raw attempt records = 936 B); the active survey
+bounds each frequency to four conditions. This deliberate traceability allocation
+can exceed the preferred 16-KiB accounted-RAM budget but must stay below the
+existing 17,408-B hard budget including the reserved 2-KiB stack. No extra ADC
+buffer or heap is introduced.
+
+App DRAINING is a nonpublishing cleanup/reauthorization handoff, distinct from
+terminal FINISHING. Cancel, late cleanup error and the 60-s overall deadline
+revoke the transaction. Fixed 10-Hz captures retain their existing owner and
+SAFE teardown. Statistical collection after SAFE is allowed to acquire a new
+ordinary permit, then repeat at one exact primary condition. Acquired DSP
+rejection can inform another condition; missing/invalid processing output and
+hardware faults still fail closed. BSP, drivers, timer/ADC profiles, calibration
+model/storage formats and unit NTC coefficients are unchanged.

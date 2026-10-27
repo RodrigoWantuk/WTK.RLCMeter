@@ -16,7 +16,11 @@ static bool io_ready(const app_measurement_session_io_t *io)
            (io->attempt_error != NULL) &&
            (io->attempt_acknowledge != NULL) &&
            (io->attempt_abort != NULL) &&
-           (io->process_block != NULL);
+           (io->process_block != NULL)
+#if WTK_ENABLE_FREQUENCY_SURVEY
+           && (!io->frequency_survey_enabled || io->finish_session != NULL)
+#endif
+           ;
 }
 
 static float max_float(float a, float b)
@@ -105,7 +109,11 @@ static bool begin_trimming(app_measurement_session_t *session)
         session->trimmed.summary.requested || final->status != MEASUREMENT_AUTO_STATUS_FINAL_OK)
         return false;
     session->trimmed.summary.requested = true;
-    if (!session->io->attempt_active(session->io->user) ||
+    if ((!session->io->attempt_active(session->io->user)
+#if WTK_ENABLE_FREQUENCY_SURVEY
+         && !session->policy.frequency_survey
+#endif
+        ) ||
         !trim_sample_usable(&final->primary_attempt, &final->primary_attempt))
     {
         (void)measurement_auto_stop_session(&session->policy, MEASUREMENT_AUTO_STATUS_FAILED);
@@ -155,7 +163,7 @@ static bool trim_submit(app_measurement_session_t *session, const measurement_at
     const measurement_interpretation_t original_local = primary->derived.interpretation;
     primary->z_ohms = session->trimmed.estimate;
     const measurement_dsp_config_t config = measurement_dsp_config_ideal(primary->config.range_id);
-    const uint32_t hz = primary->config.frequency == HW_EXCITATION_FREQ_10KHZ ? 10000u : 1000u;
+    const uint32_t hz = hw_excitation_frequency_hz(primary->config.frequency);
     primary->derived = measurement_derive_quantities(primary->z_ohms, hz, &config, primary->dsp_status);
     primary->dut_zref_ratio = measurement_complex_mag(primary->z_ohms) / measurement_complex_mag(config.zref_ohms);
     trim_record_confidence(session, primary);
@@ -258,7 +266,9 @@ static void make_request(const app_measurement_session_t *session,
 #if WTK_ENABLE_MEASURE_SESSION_HOLD
         .session_hold = session->io->finish_session != NULL,
 #if WTK_ENABLE_MEASUREMENT_TRIMMED
-        .statistical_capture = session->trimming,
+        /* A fresh segment always enters through ordinary fresh authorization;
+         * only already-held extra windows use the statistical continuation. */
+        .statistical_capture = session->trimming && session->io->attempt_active(session->io->user),
 #endif
 #endif
     };
@@ -297,6 +307,9 @@ bsp_status_t app_measurement_session_start(app_measurement_session_t *session,
         .qualification = qualification,
         .session_sequence = sequence,
         .hint = (hint != NULL) ? *hint : (measurement_auto_hint_t){0},
+#if WTK_ENABLE_FREQUENCY_SURVEY
+        .frequency_survey = session->io->frequency_survey_enabled,
+#endif
     };
     if (!measurement_auto_start_session(&session->policy, &start))
     {
@@ -313,6 +326,10 @@ bsp_status_t app_measurement_session_start(app_measurement_session_t *session,
 #if WTK_ENABLE_MEASUREMENT_TRIMMED
     measurement_trimmed_init(&session->trimmed);
     session->trimming = false;
+#if WTK_ENABLE_FREQUENCY_SURVEY
+    session->survey_deadline_ms = now_ms + 60000u;
+    session->segment_captures = 0u;
+#endif
 #endif
     session->state = APP_MEASUREMENT_SESSION_START_ATTEMPT;
     session->pending_event = APP_MEASUREMENT_EVENT_AUTO_BEGIN;
@@ -333,6 +350,17 @@ app_measurement_event_t app_measurement_session_step(app_measurement_session_t *
     {
         return APP_MEASUREMENT_EVENT_ERROR;
     }
+#if WTK_ENABLE_FREQUENCY_SURVEY
+    if (session->policy.frequency_survey && app_measurement_session_active(session) &&
+        (int32_t)(now_ms - session->survey_deadline_ms) >= 0 &&
+        session->state != APP_MEASUREMENT_SESSION_CANCELING && session->state != APP_MEASUREMENT_SESSION_FINISHING)
+    {
+        (void)session->io->attempt_abort(session->io->user);
+        session->pending_event = APP_MEASUREMENT_EVENT_NONE;
+        session->have_partial = false;
+        session->state = APP_MEASUREMENT_SESSION_CANCELING;
+    }
+#endif
 #if WTK_ENABLE_MEASURE_SESSION_HOLD
     /* Held results remain under the hardware owner's supervision while DSP,
      * policy events and the next-condition handoff run in the foreground. */
@@ -394,6 +422,16 @@ app_measurement_event_t app_measurement_session_step(app_measurement_session_t *
         }
         hw_metrology_measure_request_t request = {0};
         make_request(session, &request);
+#if WTK_ENABLE_FREQUENCY_SURVEY
+        if (session->policy.frequency_survey && session->io->attempt_active(session->io->user) &&
+            (request.frequency == HW_EXCITATION_FREQ_10HZ ||
+             (!session->trimming && session->segment_captures >= HW_METROLOGY_SESSION_MAX_CAPTURES)))
+        {
+            session->state = APP_MEASUREMENT_SESSION_DRAINING;
+            return APP_MEASUREMENT_EVENT_NONE;
+        }
+        if (!session->io->attempt_active(session->io->user)) session->segment_captures = 0u;
+#endif
         const bsp_status_t started = session->io->start_attempt(&request, now_ms, session->io->user);
         if ((started != BSP_STATUS_OK) && (started != BSP_STATUS_BUSY))
         {
@@ -401,6 +439,9 @@ app_measurement_event_t app_measurement_session_step(app_measurement_session_t *
             return take_pending_event(session);
         }
         session->attempt_started = true;
+#if WTK_ENABLE_FREQUENCY_SURVEY
+        session->segment_captures++;
+#endif
         session->state = APP_MEASUREMENT_SESSION_WAIT_ATTEMPT;
         session->pending_event = APP_MEASUREMENT_EVENT_ATTEMPT_BEGIN;
         return take_pending_event(session);
@@ -447,13 +488,30 @@ app_measurement_event_t app_measurement_session_step(app_measurement_session_t *
             return take_pending_event(session);
         }
         const hw_metrology_block_t *block = session->io->attempt_block(session->io->user);
+#if WTK_ENABLE_FREQUENCY_SURVEY
+        if (session->policy.frequency_survey)
+            session->dsp_result = (measurement_calibrated_result_t){.result.status = MEASUREMENT_STATUS_INVALID_ARG};
+#endif
         const bsp_status_t dsp_status =
             session->io->process_block(block, &session->current_attempt, &session->dsp_result, session->io->user);
+#if WTK_ENABLE_FREQUENCY_SURVEY
+        if (session->policy.frequency_survey && dsp_status != BSP_STATUS_OK &&
+            session->dsp_result.result.status == MEASUREMENT_STATUS_OK)
+            session->dsp_result.result.status = MEASUREMENT_STATUS_INVALID_ARG;
+#endif
         attempt_result = app_measurement_attempt_from_dsp(&session->current_attempt,
                                                           &session->dsp_result,
                                                           dsp_status != BSP_STATUS_OK,
                                                           false,
                                                           false);
+#if WTK_ENABLE_FREQUENCY_SURVEY
+        /* The hardware delivered a complete block. DSP rejection (weak return,
+         * clipping, near-OPEN or unavailable condition) is evidence for another
+         * condition, not an acquisition fault that terminates the survey. */
+        if (session->policy.frequency_survey)
+            attempt_result.phase05_failed = dsp_status != BSP_STATUS_OK &&
+                session->dsp_result.result.status == MEASUREMENT_STATUS_INVALID_ARG;
+#endif
         session->io->attempt_acknowledge(session->io->user);
 #if WTK_ENABLE_MEASUREMENT_TRIMMED
         if (session->trimming)
@@ -503,6 +561,23 @@ app_measurement_event_t app_measurement_session_step(app_measurement_session_t *
     }
 
 #if WTK_ENABLE_MEASURE_SESSION_HOLD
+#if WTK_ENABLE_FREQUENCY_SURVEY
+    case APP_MEASUREMENT_SESSION_DRAINING:
+        (void)session->io->finish_session(session->io->user);
+        (void)session->io->step_attempt(now_ms, session->io->user);
+        if (!session->io->attempt_active(session->io->user))
+        {
+            const hw_metrology_measure_error_t error = session->io->attempt_error(session->io->user);
+            session->io->attempt_acknowledge(session->io->user);
+            session->attempt_started = false;
+            session->segment_captures = 0u;
+            if (error != HW_METROLOGY_MEASURE_OK || session->cancel_requested)
+                store_policy_event(session, measurement_auto_stop_session(&session->policy,
+                    session->cancel_requested ? MEASUREMENT_AUTO_STATUS_CANCELED : MEASUREMENT_AUTO_STATUS_SAFETY_ABORT));
+            else session->state = APP_MEASUREMENT_SESSION_START_ATTEMPT;
+        }
+        return APP_MEASUREMENT_EVENT_NONE;
+#endif
     case APP_MEASUREMENT_SESSION_FINISHING:
     {
         (void)session->io->finish_session(session->io->user);
@@ -726,6 +801,10 @@ const char *app_measurement_session_state_string(app_measurement_session_state_t
 #if WTK_ENABLE_MEASURE_SESSION_HOLD
     case APP_MEASUREMENT_SESSION_FINISHING:
         return "FINISHING";
+#if WTK_ENABLE_FREQUENCY_SURVEY
+    case APP_MEASUREMENT_SESSION_DRAINING:
+        return "DRAINING";
+#endif
 #endif
     case APP_MEASUREMENT_SESSION_CANCELING:
     default:

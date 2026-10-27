@@ -413,3 +413,20 @@ admission, bounded rejections, original raw history, cancellation, cleanup
 faults, role/condition locks, timers and one authorization. Actual seven-window
 completion time, fixture stability and repeated C/L results require board evidence;
 statistical filtering does not qualify absolute accuracy.
+
+## Three-frequency survey acceptance
+
+Plan 26 completes automatic use of the existing 10-Hz/1-kHz/10-kHz calibration
+conditions. No coefficient or persistent format is changed, no old captures are
+relabeled, and no resistor recapture campaign is required. Preserve active OSL
+sequence 1/all 33 records and the experimental UID-bound NTC profile.
+
+Host tests exercise all three frequencies for R/C/L, 4,700/10,000-uF synthetic
+recovery from unusable high-frequency returns, 470-uH low-frequency resistance
+versus higher-frequency inductance, 10-H, small-C, true OPEN/SHORT, clipping,
+weak coverage, opposing signs and sub-ohm ambiguity. App tests cover guarded
+segment drains, fresh-statistical and repeated 10-Hz captures, seven-point
+aggregation, exact frequency derivation, cancel/cleanup faults and overall
+expiry. These are synthetic/IO tests, not physical 10-mF or polarized-capacitor
+qualification. Physical settling, leakage, phase/accuracy, relay/abort timing
+and large-electrolytic excitation remain REQUIRES_BENCH_VALIDATION.

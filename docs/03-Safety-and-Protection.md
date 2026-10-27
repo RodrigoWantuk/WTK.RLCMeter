@@ -168,3 +168,27 @@ session requires real residual requalification and a new initial permit.
 
 See [plan 24](../plans/24-Measurement-Evidence-Session-and-UI.md). This change
 does not extend the de-energized-passive-component or voltage envelope.
+
+## Three-frequency survey segmentation
+
+Factory PRODUCT includes 10 Hz last, without extending continuous authorization.
+App DRAINING completes SAFE/ADC/auxiliary/quiet/workspace cleanup before a
+10-Hz capture or another fast segment after its search-capture budget. Cleanup
+fault/cancel prevents restarting. Each new segment obtains fresh real residual,
+power, clock, charger and range permission. The first statistical window after
+SAFE uses the normal initial-permit path; later fast repeats use the bounded,
+condition-locked continuation role. The 500-ms connected and original battery
+expiry remain unchanged.
+
+Existing 10-Hz fixed capture uses 800-ms sine settling and 400-ms coherent ADC
+capture, live charger/fault checks and full SAFE cleanup. It remains outside the
+fast held-session optimization. Every repeated 10-Hz statistical capture renews
+permission after real auxiliary/residual sampling. Multiple relay cycles are
+intentional under this contract; no fresh battery/residual evidence is invented
+while ADC auxiliaries are paused. An overall 60-s application survey bound
+limits the at-most-twelve search/eight-extra workflow; it does not grant a
+60-s continuous K1 authorization or supersede hardware timeouts.
+
+Unpowered passive DUT and existing residual/polarized-component restrictions
+remain. All-frequency software coverage does not qualify the bipolar AC mode
+for 4,700/10,000-uF electrolytics. No automatic boot measurement is added.

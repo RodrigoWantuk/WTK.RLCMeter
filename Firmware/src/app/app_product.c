@@ -554,6 +554,9 @@ static ui_product_measurement_t ui_measurement_from_result(const measurement_ses
     out.attempt_count = result->attempt_count;
 #if WTK_ENABLE_MEASUREMENT_TRIMMED
     out.trimmed_applied = result->trimmed.applied;
+#if WTK_ENABLE_FREQUENCY_SURVEY
+    out.frequency_attempted_mask = result->frequency_attempted_mask;
+#endif
 #endif
     /* Unresolved phase/loss can put estimated R below zero while a dominant
        reactance still supports C/L. Preserve R; never turn it into valid loss. */

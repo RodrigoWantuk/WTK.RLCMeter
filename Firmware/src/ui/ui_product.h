@@ -128,6 +128,9 @@ typedef struct
     uint8_t attempt_count;
 #if WTK_ENABLE_MEASUREMENT_TRIMMED
     bool trimmed_applied;
+#if WTK_ENABLE_FREQUENCY_SURVEY
+    uint8_t frequency_attempted_mask;
+#endif
 #endif
     bool esr_valid;
     bool q_valid;

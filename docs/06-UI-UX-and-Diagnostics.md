@@ -592,3 +592,14 @@ metadata carries admitted/extra counts, independent R/X retained masks and all
 seven raw complex points. An incomplete or hardware-aborted collection is not
 presented as an averaged measurement. No asset-pack or persistent-settings update
 is needed for this indicator.
+
+## Frequency-survey coverage
+
+Factory PRODUCT details append F<n>/3 for attempted frequency coverage, alongside
+AVG7/3 for a successfully completed primary-condition estimator. Separate raw
+attempted/usable masks remain in diagnostic result metadata; F3/3 does not claim
+three usable/qualified observations or absolute accuracy. Low-frequency surveys
+can take seconds and intentionally use SAFE/fresh-permit relay boundaries.
+Below the ~1-ohm lower engineering target, resistance-dominated uncertain data
+uses IMPEDANCE/unknown instead of asserting RESISTOR. No asset-pack change is
+required for these compact indicators.

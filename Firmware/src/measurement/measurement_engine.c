@@ -261,7 +261,13 @@ static bool can_append_attempt(const measurement_auto_session_t *session,
                                measurement_attempt_config_t attempt)
 {
     return (session != NULL) &&
-           (session->attempt_count < MEASUREMENT_AUTO_MAX_ATTEMPTS) &&
+           (session->attempt_count <
+#if WTK_ENABLE_FREQUENCY_SURVEY
+            (session->frequency_survey ? MEASUREMENT_AUTO_HISTORY_CAPACITY : MEASUREMENT_AUTO_MAX_ATTEMPTS)
+#else
+            MEASUREMENT_AUTO_MAX_ATTEMPTS
+#endif
+           ) &&
            measurement_auto_condition_allowed(attempt.range_id, attempt.frequency, attempt.amplitude) &&
            !condition_was_attempted(session, attempt);
 }
@@ -275,7 +281,13 @@ static bool choose_next_range(const measurement_auto_session_t *session,
     uint8_t current = 0u;
     if ((session == NULL) || (base == NULL) || (out == NULL) ||
         !range_index(base->range_id, &current) || (direction == 0) ||
-        (session->range_transition_count >= MEASUREMENT_AUTO_MAX_RANGE_TRANSITIONS))
+        (session->range_transition_count >=
+#if WTK_ENABLE_FREQUENCY_SURVEY
+         (session->frequency_survey ? 9u : MEASUREMENT_AUTO_MAX_RANGE_TRANSITIONS)
+#else
+         MEASUREMENT_AUTO_MAX_RANGE_TRANSITIONS
+#endif
+        ))
     {
         return false;
     }
@@ -336,6 +348,9 @@ static bool choose_frequency_refinement(const measurement_auto_session_t *sessio
                                         const measurement_attempt_result_t *result,
                                         measurement_attempt_config_t *out)
 {
+#if WTK_ENABLE_FREQUENCY_SURVEY
+    if (session != NULL && session->frequency_survey) return false;
+#endif
     if ((session == NULL) || (result == NULL) || (out == NULL) ||
         (session->frequency_refinement_count >= MEASUREMENT_AUTO_MAX_FREQUENCY_REFINEMENTS))
     {
@@ -546,12 +561,17 @@ static policy_decision_t decide_next(const measurement_auto_session_t *session,
         decision.final_status = MEASUREMENT_AUTO_STATUS_FAILED;
         return decision;
     }
-    if ((session->attempt_count >= MEASUREMENT_AUTO_MAX_ATTEMPTS) ||
+    const uint8_t limit =
+#if WTK_ENABLE_FREQUENCY_SURVEY
+        session->frequency_survey ? MEASUREMENT_AUTO_HISTORY_CAPACITY :
+#endif
+        MEASUREMENT_AUTO_MAX_ATTEMPTS;
+    if ((session->attempt_count >= limit) ||
         result->canceled ||
         result->safety_abort ||
         result->phase05_failed)
     {
-        if (session->attempt_count >= MEASUREMENT_AUTO_MAX_ATTEMPTS)
+        if (session->attempt_count >= limit)
         {
             decision.final_status = result_math_ok(result) ? MEASUREMENT_AUTO_STATUS_FINAL_OK :
                                                              terminal_status_from_result(result);
@@ -666,6 +686,111 @@ static policy_decision_t decide_next(const measurement_auto_session_t *session,
     return decision;
 }
 
+#if WTK_ENABLE_FREQUENCY_SURVEY
+static uint8_t survey_mask(const measurement_auto_session_t *session, bool usable)
+{
+    uint8_t mask = 0u;
+    for (uint8_t i = 0u; i < session->attempt_count; i++)
+    {
+        const measurement_attempt_result_t *point = &session->history[i];
+        uint8_t index = 0u;
+        if (frequency_index(point->config.frequency, &index) &&
+            (!usable || (classification_evidence_usable(point) && !point->open_like && !point->short_like)))
+            mask |= (uint8_t)(1u << index);
+    }
+    return mask;
+}
+
+static policy_decision_t decide_survey(const measurement_auto_session_t *session,
+                                      const measurement_attempt_result_t *result)
+{
+    policy_decision_t decision = decide_next(session, result);
+    if (result->canceled || result->safety_abort || result->phase05_failed)
+    {
+        decision.decision = NEXT_DECISION_FINAL;
+        decision.final_status = terminal_status_from_result(result);
+        return decision;
+    }
+    /* An acquired but mathematically unusable return is not a hardware fault.
+     * With a present source, lower RREF before spending a stage on amplitude. */
+    if (!result->clipped && result->source_peak_v >= 0.001f &&
+        (result->dsp_status == MEASUREMENT_STATUS_CHANNEL_UNUSABLE ||
+         result->dsp_status == MEASUREMENT_STATUS_RETURN_TOO_SMALL))
+    {
+        measurement_attempt_config_t lower;
+        if (choose_next_range(session, &result->config, -1, MEASUREMENT_ATTEMPT_IMPROVE_SNR, &lower))
+        {
+            decision.decision = NEXT_DECISION_ATTEMPT;
+            decision.attempt = lower;
+            decision.continuation_reason = MEASUREMENT_ATTEMPT_IMPROVE_SNR;
+        }
+    }
+    uint8_t stage_count = 0u;
+    for (uint8_t i = 0u; i < session->attempt_count; i++)
+        if (session->history[i].config.frequency == result->config.frequency) stage_count++;
+    if (stage_count < MEASUREMENT_SURVEY_STAGE_MAX_ATTEMPTS &&
+        decision.decision == NEXT_DECISION_ATTEMPT) return decision;
+    decision.decision = NEXT_DECISION_FINAL;
+    hw_excitation_freq_t next = HW_EXCITATION_FREQ_INVALID;
+    if (result->config.frequency == HW_EXCITATION_FREQ_1KHZ) next = HW_EXCITATION_FREQ_10KHZ;
+    else if (result->config.frequency == HW_EXCITATION_FREQ_10KHZ) next = HW_EXCITATION_FREQ_10HZ;
+    if (next != HW_EXCITATION_FREQ_INVALID)
+    {
+        decision.attempt = make_attempt(session, result->config.range_id, next,
+            HW_EXCITATION_AMP_100MVRMS, MEASUREMENT_ATTEMPT_CHECK_SECOND_FREQUENCY);
+        if (can_append_attempt(session, decision.attempt))
+        {
+            decision.decision = NEXT_DECISION_ATTEMPT;
+            decision.continuation_reason = MEASUREMENT_ATTEMPT_CHECK_SECOND_FREQUENCY;
+            decision.publish_partial = true;
+            return decision;
+        }
+    }
+    decision.final_status = MEASUREMENT_AUTO_STATUS_NO_VALID_CONDITION;
+    if (survey_mask(session, false) != 7u) return decision;
+    if (survey_mask(session, true) != 0u)
+    {
+        decision.final_status = MEASUREMENT_AUTO_STATUS_FINAL_OK;
+        return decision;
+    }
+    uint8_t short_mask = 0u;
+    uint8_t open_mask = 0u;
+    for (uint8_t i = 0u; i < session->attempt_count; i++)
+    {
+        const measurement_attempt_result_t *point = &session->history[i];
+        uint8_t index = 0u;
+        if (!frequency_index(point->config.frequency, &index) || point->clipped ||
+            point->phase05_failed || point->safety_abort || point->canceled) continue;
+        const float ratio = measurement_complex_mag(point->z_ohms) / ideal_zref_mag(point->config.range_id);
+        if (point->short_like || (result_math_ok(point) && at_lowest_range(point->config.range_id) &&
+                                 ratio <= AUTO_RATIO_SHORT_LIKE)) short_mask |= (uint8_t)(1u << index);
+        if (point->open_like || (result_math_ok(point) && at_highest_range(point->config.range_id) &&
+                                ratio >= AUTO_RATIO_OPEN_LIKE)) open_mask |= (uint8_t)(1u << index);
+    }
+    if (short_mask == 7u) decision.final_status = MEASUREMENT_AUTO_STATUS_SHORT_LIKE;
+    else if (open_mask == 7u) decision.final_status = MEASUREMENT_AUTO_STATUS_OPEN_LIKE;
+    return decision;
+}
+
+static uint8_t survey_primary(const measurement_auto_session_t *session)
+{
+    const measurement_session_classification_t classification =
+        measurement_auto_classify_survey(session->history, session->attempt_count);
+    uint8_t best = MEASUREMENT_AUTO_INDEX_NONE;
+    for (uint8_t i = 0u; i < session->attempt_count; i++)
+    {
+        const measurement_attempt_result_t *point = &session->history[i];
+        if (!classification_evidence_usable(point) || point->short_like || point->open_like) continue;
+        if ((classification.interpretation == MEASUREMENT_INTERPRET_CAPACITIVE && point->z_ohms.im >= 0.0f) ||
+            (classification.interpretation == MEASUREMENT_INTERPRET_INDUCTIVE && point->z_ohms.im <= 0.0f)) continue;
+        if (best == MEASUREMENT_AUTO_INDEX_NONE ||
+            primary_score_better(primary_score(point, session->qualification),
+                                 primary_score(&session->history[best], session->qualification))) best = i;
+    }
+    return best;
+}
+#endif
+
 static void fill_result_metrics(measurement_attempt_result_t *result)
 {
     if (result == NULL)
@@ -721,6 +846,9 @@ static void finalize_result(measurement_auto_session_t *session,
     {
         return;
     }
+#if WTK_ENABLE_FREQUENCY_SURVEY
+    if (session->frequency_survey) session->primary_attempt_index = survey_primary(session);
+#endif
     uint8_t primary_index = MEASUREMENT_AUTO_INDEX_NONE;
     const measurement_attempt_result_t *primary = primary_attempt(session, &primary_index);
     measurement_attempt_result_t primary_copy = {0};
@@ -740,6 +868,14 @@ static void finalize_result(measurement_auto_session_t *session,
     session->last_result.confidence = measurement_auto_evaluate_confidence(primary, session->qualification);
     session->last_result.classification =
         measurement_auto_classify_session(session->history, session->attempt_count);
+#if WTK_ENABLE_FREQUENCY_SURVEY
+    if (session->frequency_survey)
+    {
+        session->last_result.frequency_attempted_mask = survey_mask(session, false);
+        session->last_result.frequency_usable_mask = survey_mask(session, true);
+        session->last_result.classification = measurement_auto_classify_survey(session->history, session->attempt_count);
+    }
+#endif
     if ((status == MEASUREMENT_AUTO_STATUS_OPEN_LIKE) || (status == MEASUREMENT_AUTO_STATUS_SHORT_LIKE))
     {
         session->last_result.confidence.publication_confidence = MEASUREMENT_CONFIDENCE_LOW_CONFIDENCE;
@@ -779,6 +915,14 @@ static void publish_partial(measurement_auto_session_t *session,
     session->last_result.confidence = measurement_auto_evaluate_confidence(primary, session->qualification);
     session->last_result.classification =
         measurement_auto_classify_session(session->history, session->attempt_count);
+#if WTK_ENABLE_FREQUENCY_SURVEY
+    if (session->frequency_survey)
+    {
+        session->last_result.frequency_attempted_mask = survey_mask(session, false);
+        session->last_result.frequency_usable_mask = survey_mask(session, true);
+        session->last_result.classification = measurement_auto_classify_survey(session->history, session->attempt_count);
+    }
+#endif
     session->last_result.continuation_reason = continuation_reason;
     session->last_result.attempt_count = session->attempt_count;
     session->last_result.session_sequence = session->session_sequence;
@@ -813,6 +957,14 @@ bool measurement_auto_start_session(measurement_auto_session_t *session,
     session->qualification = start->qualification;
     session->session_sequence = start->session_sequence;
     session->hint = hint;
+#if WTK_ENABLE_FREQUENCY_SURVEY
+    session->frequency_survey = start->frequency_survey;
+    if (session->frequency_survey)
+    {
+        hint.frequency = HW_EXCITATION_FREQ_1KHZ;
+        hint.amplitude = HW_EXCITATION_AMP_100MVRMS;
+    }
+#endif
     session->status = MEASUREMENT_AUTO_STATUS_RUNNING;
     session->next_attempt = initial_attempt(session, &hint);
     session->has_next_attempt = true;
@@ -838,7 +990,13 @@ measurement_auto_event_t measurement_auto_submit_result(measurement_auto_session
     if ((session == NULL) || (result == NULL) ||
         (session->status != MEASUREMENT_AUTO_STATUS_RUNNING) ||
         !session->has_next_attempt ||
-        (session->attempt_count >= MEASUREMENT_AUTO_MAX_ATTEMPTS))
+        (session->attempt_count >=
+#if WTK_ENABLE_FREQUENCY_SURVEY
+         (session->frequency_survey ? MEASUREMENT_AUTO_HISTORY_CAPACITY : MEASUREMENT_AUTO_MAX_ATTEMPTS)
+#else
+         MEASUREMENT_AUTO_MAX_ATTEMPTS
+#endif
+        ))
     {
         return MEASUREMENT_AUTO_EVENT_NONE;
     }
@@ -852,11 +1010,21 @@ measurement_auto_event_t measurement_auto_submit_result(measurement_auto_session
     session->attempted_conditions |= condition_mask(stored.config);
     session->has_next_attempt = false;
 
-    const policy_decision_t decision = decide_next(session, &stored);
+    const policy_decision_t decision =
+#if WTK_ENABLE_FREQUENCY_SURVEY
+        session->frequency_survey ? decide_survey(session, &stored) :
+#endif
+        decide_next(session, &stored);
     set_primary_if_needed(session, &stored, stored_index, &decision);
 
     if ((decision.decision == NEXT_DECISION_ATTEMPT) &&
-        (session->attempt_count < MEASUREMENT_AUTO_MAX_ATTEMPTS))
+        (session->attempt_count <
+#if WTK_ENABLE_FREQUENCY_SURVEY
+         (session->frequency_survey ? MEASUREMENT_AUTO_HISTORY_CAPACITY : MEASUREMENT_AUTO_MAX_ATTEMPTS)
+#else
+         MEASUREMENT_AUTO_MAX_ATTEMPTS
+#endif
+        ))
     {
         if (decision.attempt.range_id != stored.config.range_id)
         {
@@ -1251,6 +1419,50 @@ measurement_session_classification_t measurement_auto_classify_session(
     }
     return out;
 }
+
+#if WTK_ENABLE_FREQUENCY_SURVEY
+measurement_session_classification_t measurement_auto_classify_survey(
+    const measurement_attempt_result_t *history, uint8_t count)
+{
+    measurement_session_classification_t out = {0};
+    out.interpretation = MEASUREMENT_INTERPRET_MIXED_OR_UNKNOWN;
+    uint8_t usable_mask = 0u;
+    uint8_t capacitive = 0u;
+    uint8_t inductive = 0u;
+    bool subohm = false;
+    if (history == NULL) return out;
+    for (uint8_t i = 0u; i < count; i++)
+    {
+        const measurement_attempt_result_t *point = &history[i];
+        measurement_interpretation_t local;
+        uint8_t frequency = 0u;
+        if (point->open_like || point->short_like ||
+            !attempt_local_interpretation(point, &local, &out.reason_flags) ||
+            !frequency_index(point->config.frequency, &frequency)) continue;
+        usable_mask |= (uint8_t)(1u << frequency);
+        if (measurement_complex_mag(point->z_ohms) < 1.0f) subohm = true;
+        if (local == MEASUREMENT_INTERPRET_CAPACITIVE) capacitive++;
+        else if (local == MEASUREMENT_INTERPRET_INDUCTIVE) inductive++;
+    }
+    if (capacitive != 0u && inductive != 0u)
+    {
+        out.reason_flags |= MEASUREMENT_AUTO_REASON_INCONSISTENT;
+        return out;
+    }
+    if (capacitive != 0u) out.interpretation = MEASUREMENT_INTERPRET_CAPACITIVE;
+    else if (inductive != 0u) out.interpretation = MEASUREMENT_INTERPRET_INDUCTIVE;
+    /* Below the documented ~1-ohm target, resistance dominance cannot rule
+     * out a small unresolved choke under the 10-kHz frequency ceiling. */
+    else if (!subohm && usable_mask == 7u && (out.reason_flags & MEASUREMENT_AUTO_REASON_AMBIGUOUS) == 0u)
+        out.interpretation = MEASUREMENT_INTERPRET_RESISTIVE;
+    else out.reason_flags |= MEASUREMENT_AUTO_REASON_AMBIGUOUS;
+    out.supporting_attempts = capacitive + inductive;
+    evaluate_frequency_trend(history, count, out.interpretation, &out.reason_flags);
+    if ((out.reason_flags & MEASUREMENT_AUTO_REASON_FREQUENCY_TREND_INCONSISTENT) != 0u)
+        out.interpretation = MEASUREMENT_INTERPRET_MIXED_OR_UNKNOWN;
+    return out;
+}
+#endif
 
 const measurement_session_result_t *measurement_auto_last_result(
     const measurement_auto_session_t *session)

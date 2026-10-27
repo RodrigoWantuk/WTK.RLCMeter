@@ -27,6 +27,19 @@ if(WTK_WARNINGS_AS_ERRORS_HOST)
 endif()
 add_test(NAME wtk_measurement_trimmed_test COMMAND wtk_measurement_trimmed_test)
 
+if(WTK_PRODUCT_FACTORY_PROVISIONED)
+    add_executable(wtk_measurement_survey_test measurement/test_measurement_survey.c)
+    target_link_libraries(wtk_measurement_survey_test PRIVATE wtk_firmware_common)
+    target_include_directories(wtk_measurement_survey_test PRIVATE "${PROJECT_SOURCE_DIR}/src")
+    wtk_configure_c_target(wtk_measurement_survey_test)
+    wtk_apply_project_warnings(wtk_measurement_survey_test)
+    wtk_apply_common_compile_options(wtk_measurement_survey_test)
+    if(WTK_WARNINGS_AS_ERRORS_HOST)
+        wtk_treat_warnings_as_errors(wtk_measurement_survey_test)
+    endif()
+    add_test(NAME wtk_measurement_survey_test COMMAND wtk_measurement_survey_test)
+endif()
+
 add_executable(wtk_buttons_test
     drivers/test_buttons.c
 )

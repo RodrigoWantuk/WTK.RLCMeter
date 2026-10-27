@@ -221,3 +221,29 @@ spikes, not systematic error; no new accuracy or sub-microhenry claim is made.
 Safety/interlock/residual/battery monitoring is not delayed or statistically
 filtered by this metrology estimator. Fixed calibration and diagnostic captures
 retain their original behavior. See [plan 25](../plans/25-Trimmed-Measurement-Estimate.md).
+
+## Three-frequency classification in factory PRODUCT
+
+Factory PRODUCT surveys the existing 1-kHz, 10-kHz and 10-Hz profiles before
+normal final interpretation, including resistive and near-OPEN/SHORT probes.
+No new frequency or OSL model is introduced. Acquired DSP rejection is distinct
+from acquisition failure; with a present source and weak return, lower RREF
+before increasing amplitude, then try other frequencies under explicit bounds.
+A failed/unchanged processing output cannot reuse preceding DSP data.
+
+Usable low-frequency resistance dominance does not contradict inductive evidence
+at higher frequency, and usable high-frequency resistance dominance does not
+contradict capacitive evidence at lower frequency. Preserve sign/trend/quality
+checks and reject opposite reactive signs. Only usable unambiguous evidence at
+all three frequencies can confirm a resistance-dominated result. Below the
+~1-ohm engineering lower target, such a result remains unknown/impedance to avoid
+asserting that an unresolved small choke is physically a resistor.
+
+Primary selection uses one supported, usable condition after the combined
+classification, then the existing seven-sample coordinate estimator applies at
+that exact condition and frequency. At 10 Hz C/L derivation uses 10 Hz, not a
+1-kHz default. No averaging across frequencies, raw-history replacement,
+calibration changes, qualification upgrades or synthetic accuracy claims occur.
+Synthetic 4,700/10,000-uF cases demonstrate algorithmic low-frequency recovery;
+actual large electrolytics, excitation/polarity, settling and accuracy remain
+REQUIRES_BENCH_VALIDATION.
