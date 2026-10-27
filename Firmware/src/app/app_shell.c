@@ -65,6 +65,7 @@ static volatile struct
 #include "storage/measurement_cal_w25q_adapter.h"
 #if !WTK_ENABLE_BRINGUP_CONSOLE && WTK_ENABLE_SUPPLEMENTARY_CURVES
 #include "measurement/measurement_cal_curve_store.h"
+#include "app/app_curve_cache.h"
 #endif
 #include "storage/resource_store.h"
 #include "storage/resource_w25q_adapter.h"
@@ -131,6 +132,7 @@ static resource_w25q_reader_t g_resource_reader;
 static resource_status_t g_resource_status = RESOURCE_STATUS_MISSING;
 #if WTK_ENABLE_SUPPLEMENTARY_CURVES
 static measurement_cal_curve_store_t g_curve_store;
+static app_curve_cache_t g_curve_cache;
 #endif
 #if WTK_ENABLE_PRODUCT_RESOURCE_UPDATE
 static app_resource_update_t g_resource_update;
@@ -278,6 +280,12 @@ static void product_load_curve_store(void)
         product_active_osl_crc32(),
         app_io_workspace_calibration_frame(&g_io_workspace),
         app_io_workspace_calibration_frame_bytes());
+    if (g_curve_store.active)
+    {
+        (void)app_curve_cache_load(&g_curve_cache, &g_curve_store,
+            app_io_workspace_calibration_frame(&g_io_workspace),
+            app_io_workspace_calibration_frame_bytes());
+    }
     (void)app_io_workspace_release(&g_io_workspace, APP_IO_WORKSPACE_OWNER_CAL_CURVE);
 }
 #endif
@@ -1215,8 +1223,8 @@ static bsp_status_t product_auto_process_block(const hw_metrology_block_t *block
         return osl_status;
     }
     measurement_cal_curve_t curve;
-    const bsp_status_t read_status = measurement_cal_curve_store_read(
-        &g_curve_store, &key,
+    const bsp_status_t read_status = app_curve_cache_get(
+        &g_curve_cache, &key,
         app_calibration_service_active_sequence(&g_calibration_service),
         product_active_osl_crc32(), &curve);
     if (read_status == BSP_STATUS_NOT_SUPPORTED)

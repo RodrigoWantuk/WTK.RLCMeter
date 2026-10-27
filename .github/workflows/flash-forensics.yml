@@ -12,7 +12,7 @@ permissions:
 jobs:
   evidence:
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
         with:
@@ -52,59 +52,52 @@ jobs:
               done
             done
           done
-      - name: Build base and candidate with the same installed compiler
+      - name: Build and capture the generic baseline
         shell: bash
         run: |
           set -euo pipefail
-          for tree in baseline candidate; do
-            for preset in stm32-debug stm32-release stm32-bringup; do
-              mkdir -p "$tree/Firmware/build"
-              cmake --preset "$preset" -S "$tree/Firmware" -DWTK_FLASH_FORENSICS=ON
-              cmake --build "$tree/Firmware/build/$preset" --parallel 2 2>&1 | tee "$tree/Firmware/build/$preset-build.log"
-            done
-          done
-      - name: Build and capture PRODUCT with supplementary curves enabled
-        working-directory: candidate/Firmware
-        run: |
-          cmake --preset stm32-release -B build/stm32-release-curves-on \
-            -DWTK_ENABLE_SUPPLEMENTARY_CURVES=ON -DWTK_FLASH_FORENSICS=ON
-          cmake --build build/stm32-release-curves-on --parallel 2
-          python3 tools/collect_flash_evidence.py build/stm32-release-curves-on \
-            --profile stm32-release-curves-on --git-sha "$(git rev-parse HEAD)"
-      - name: Capture per-commit evidence and regression deltas
-        # The development calibration image has no baseline preset before A06.2a.
-        shell: bash
-        run: |
-          set -euo pipefail
-          for preset in stm32-debug stm32-release stm32-bringup; do
+          if python3 -c 'import json; assert any(p["name"]=="stm32-unit-release" for p in json.load(open("baseline/Firmware/CMakePresets.json"))["configurePresets"])'; then
+            presets="stm32-unit-release stm32-bringup stm32-bringup-cal"
+          else
+            presets="stm32-debug stm32-release stm32-bringup"
+          fi
+          for preset in $presets; do
+            cmake --preset "$preset" -S baseline/Firmware -DWTK_FLASH_FORENSICS=ON
+            cmake --build "baseline/Firmware/build/$preset" --parallel 2 2>&1 | tee "baseline/Firmware/build/$preset-build.log"
             python3 candidate/Firmware/tools/collect_flash_evidence.py "baseline/Firmware/build/$preset" \
               --profile "$preset-base" --git-sha "$(git -C baseline rev-parse HEAD)"
-            python3 candidate/Firmware/tools/collect_flash_evidence.py "candidate/Firmware/build/$preset" \
-              --profile "$preset" --git-sha "$(git -C candidate rev-parse HEAD)" \
-              --baseline "baseline/Firmware/build/$preset/forensics/attribution.json"
           done
-      - name: Build bounded calibration service OFF and ON
+      - name: Build current production and recovery contracts
+        working-directory: candidate/Firmware
+        run: python3 tools/product_factory_matrix.py --out build/ci-profiles
+      - name: Capture the current profile matrix
+        working-directory: candidate/Firmware
+        shell: bash
+        run: |
+          set -euo pipefail
+          for profile in unit-release unit-debug unit-no-serial bringup bringup-cal bringup-k1 bringup-bench bringup-peripheral; do
+            python3 tools/collect_flash_evidence.py "build/ci-profiles/$profile" \
+              --profile "$profile" --git-sha "$(git rev-parse HEAD)"
+          done
+      - name: Build optional curves within the explicit unit memory contract
         working-directory: candidate/Firmware
         run: |
-          for curves in OFF ON; do
-            build="build/stm32-bringup-cal-$curves"
-            cmake --preset stm32-bringup-cal -B "$build" \
-              -DWTK_ENABLE_SUPPLEMENTARY_CURVES="$curves" -DWTK_FLASH_FORENSICS=ON
+          for kind in Debug Release; do
+            build="build/unit-curves-$kind"
+            cmake --preset stm32-unit-release -B "$build" \
+              -DCMAKE_BUILD_TYPE="$kind" -DWTK_ENABLE_SUPPLEMENTARY_CURVES=ON -DWTK_FLASH_FORENSICS=ON
             cmake --build "$build" --parallel 2
             python3 tools/collect_flash_evidence.py "$build" \
-              --profile "stm32-bringup-cal-$curves" --git-sha "$(git rev-parse HEAD)"
+              --profile "unit-curves-$kind" --git-sha "$(git rev-parse HEAD)"
           done
-      - name: Build experimental factory PRODUCT Debug/Release OFF/ON
+      - name: Build bounded calibration recovery with optional curves
         working-directory: candidate/Firmware
         run: |
-          for preset in stm32-factory-debug stm32-factory-release; do
-            for curves in OFF ON; do
-              build="build/$preset-$curves"
-              cmake --preset "$preset" -B "$build" -DWTK_ENABLE_SUPPLEMENTARY_CURVES="$curves" -DWTK_FLASH_FORENSICS=ON
-              cmake --build "$build" --parallel 2
-              python3 tools/collect_flash_evidence.py "$build" --profile "$preset-$curves" --git-sha "$(git rev-parse HEAD)"
-            done
-          done
+          cmake --preset stm32-bringup-cal -B build/recovery-curves-on \
+            -DWTK_ENABLE_SUPPLEMENTARY_CURVES=ON -DWTK_FLASH_FORENSICS=ON
+          cmake --build build/recovery-curves-on --parallel 2
+          python3 tools/collect_flash_evidence.py build/recovery-curves-on \
+            --profile recovery-curves-on --git-sha "$(git rev-parse HEAD)"
       - name: Retain evidence even on a build-gate failure
         if: always()
         uses: actions/upload-artifact@v4
@@ -125,3 +118,5 @@ jobs:
             candidate/Firmware/build/**/*.su
             candidate/Firmware/build/*-build.log
             baseline/Firmware/build/*-build.log
+            candidate/Firmware/build/ci-profiles/*.json
+            candidate/Firmware/build/ci-profiles/*.log

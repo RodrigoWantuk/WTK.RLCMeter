@@ -301,6 +301,7 @@ if(WTK_TARGET_PLATFORM STREQUAL "host" OR WTK_FIRMWARE_PROFILE STREQUAL "BRINGUP
 endif()
 if(WTK_ENABLE_SUPPLEMENTARY_CURVES)
     target_sources(wtk_firmware_common PRIVATE
+        src/app/app_curve_cache.c
         src/measurement/measurement_cal_curve.c
         src/measurement/measurement_cal_curve_frame.c
         src/measurement/measurement_cal_curve_store.c

@@ -10,6 +10,8 @@
 enum
 {
     MEASUREMENT_CONDITION_REV1_MAX_SUPPORTED = 33u,
+    /* Sparse range * 6 + frequency * 2 + amplitude index; three keys are forbidden. */
+    MEASUREMENT_CONDITION_REV1_INDEX_COUNT = 36u,
 };
 
 typedef enum

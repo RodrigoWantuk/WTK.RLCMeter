@@ -1,4 +1,5 @@
 #include "measurement/measurement_cal_curve_store.h"
+#include "app/app_curve_cache.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -10,6 +11,8 @@ enum { FLASH_BYTES = 65536u, FRAME_BYTES = MEASUREMENT_CAL_CURVE_FRAME_HEADER_BY
     MEASUREMENT_CAL_CURVE_FRAME_RECORD_BYTES + MEASUREMENT_CAL_CURVE_FRAME_TRAILER_BYTES };
 
 static uint8_t flash[FLASH_BYTES];
+static unsigned read_count;
+static bool quiet;
 
 static int expect_true(bool value, const char *message)
 {
@@ -68,9 +71,30 @@ static void make_frame(uint8_t dst[FRAME_BYTES], uint32_t curve_sequence, bool q
     write_u32(&dst[FRAME_BYTES - 4u], MEASUREMENT_CAL_COMMIT_MARKER);
 }
 
+static void make_full_frame(uint8_t *dst)
+{
+    memset(dst,0,MEASUREMENT_CAL_CURVE_FRAME_MAX_BYTES);
+    make_frame(dst,11u,true);
+    const measurement_cal_requirements_t required=measurement_cal_requirements_rev1_full();
+    write_u16(dst+6u,required.count);
+    for(unsigned i=0u;i<required.count;++i) {
+        uint8_t *record=dst+MEASUREMENT_CAL_CURVE_FRAME_HEADER_BYTES+(size_t)i*MEASUREMENT_CAL_CURVE_FRAME_RECORD_BYTES;
+        memset(record,0,MEASUREMENT_CAL_CURVE_FRAME_RECORD_BYTES);
+        record[0]=(uint8_t)required.keys[i].range_id;record[1]=(uint8_t)required.keys[i].frequency;
+        record[2]=(uint8_t)required.keys[i].amplitude;
+        for(unsigned knot=0u;knot<3u;++knot) {
+            write_f32(record+4u+knot*16u,1.0f);write_f32(record+16u+knot*16u,1.0f);
+        }
+        write_u32(record+52u,storage_crc32(record,52u));
+    }
+    write_u32(dst+MEASUREMENT_CAL_CURVE_FRAME_MAX_BYTES-8u,storage_crc32(dst,MEASUREMENT_CAL_CURVE_FRAME_MAX_BYTES-8u));
+    write_u32(dst+MEASUREMENT_CAL_CURVE_FRAME_MAX_BYTES-4u,MEASUREMENT_CAL_COMMIT_MARKER);
+}
+
 static bsp_status_t fake_read(uint32_t address, void *dst, size_t size, void *user)
 {
-    (void)user;
+    (void)user;read_count++;
+    if(quiet) return BSP_STATUS_BUSY;
     if ((address > FLASH_BYTES) || (size > FLASH_BYTES - address))
     {
         return BSP_STATUS_INVALID_ARG;
@@ -120,10 +144,24 @@ int main(void)
     failures += expect_true(measurement_cal_curve_store_read(&store, &missing_key, 42u, 0x12345678u,
                                                              &curve) == BSP_STATUS_NOT_SUPPORTED,
                             "missing condition cannot reuse another curve");
+    app_curve_cache_t cache;
+    failures+=expect_true(app_curve_cache_load(&cache,&store,scratch,sizeof(scratch))==BSP_STATUS_OK,
+                          "whole qualified active frame is prefetched before quiet");
+    const unsigned before_quiet=read_count;quiet=true;
+    failures+=expect_true(app_curve_cache_get(&cache,&key,42u,0x12345678u,&curve)==BSP_STATUS_OK &&
+        read_count==before_quiet,"quiet DSP curve lookup never touches external Flash");
+    failures+=expect_true(app_curve_cache_get(&cache,&missing_key,42u,0x12345678u,&curve)==BSP_STATUS_NOT_SUPPORTED,
+                          "missing cached condition is not fabricated");
+    failures+=expect_true(app_curve_cache_get(&cache,&key,43u,0x12345678u,&curve)==BSP_STATUS_NOT_SUPPORTED,
+                          "factory binding is checked without Flash IO");
+    quiet=false;
     flash[slot_a.start + MEASUREMENT_CAL_CURVE_FRAME_HEADER_BYTES + 4u] ^= 1u;
     failures += expect_true(measurement_cal_curve_store_read(&store, &key, 42u, 0x12345678u,
                                                              &curve) == BSP_STATUS_ERROR,
                             "record corruption detected after boot");
+    failures+=expect_true(app_curve_cache_load(&cache,&store,scratch,sizeof(scratch))==BSP_STATUS_ERROR &&
+        app_curve_cache_get(&cache,&key,42u,0x12345678u,&curve)==BSP_STATUS_ERROR,
+        "corrupted prefetch fails closed rather than claiming a ready curve");
     make_frame(&flash[slot_a.start], 7u, true);
     make_frame(&flash[slot_b.start], 8u, true);
     failures += expect_true(measurement_cal_curve_store_load(&store, fake_read, NULL,
@@ -156,6 +194,16 @@ int main(void)
         !store.active, "stale provisioned slots leave curve inactive");
     failures += expect_true(storage_crc32(flash, sizeof(flash)) == flash_crc,
                             "stale records are preserved for inspection or compatible firmware");
+    make_full_frame(flash+slot_a.start);memset(flash+slot_b.start,255,4096u);
+    failures+=expect_true(measurement_cal_curve_store_load(&store,fake_read,NULL,FLASH_BYTES,42u,0x12345678u,
+        scratch,sizeof(scratch))==BSP_STATUS_OK && app_curve_cache_load(&cache,&store,scratch,sizeof(scratch))==BSP_STATUS_OK,
+        "complete 33-condition qualified frame fits the bounded RAM cache");
+    const measurement_cal_requirements_t all=measurement_cal_requirements_rev1_full();
+    const unsigned all_reads=read_count;quiet=true;
+    for(unsigned i=0u;i<all.count;++i)
+        failures+=expect_true(app_curve_cache_get(&cache,&all.keys[i],42u,0x12345678u,&curve)==BSP_STATUS_OK &&
+            curve.knot[2].m11==1.0f,"all cached keys including sparse condition 35 stay independent of Flash IO");
+    quiet=false;failures+=expect_true(read_count==all_reads,"full-cache lookup never reads Flash");
     flash[slot_a.start + FRAME_BYTES - 4u] ^= 1u;
     flash[slot_b.start + FRAME_BYTES - 4u] ^= 1u;
     failures += expect_true(measurement_cal_curve_store_load(&store, fake_read, NULL,
