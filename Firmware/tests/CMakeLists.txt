@@ -134,6 +134,16 @@ if(WTK_WARNINGS_AS_ERRORS_HOST)
 endif()
 add_test(NAME wtk_ili9341_readback_test COMMAND wtk_ili9341_readback_test)
 
+add_executable(wtk_ili9341_window_test drivers/test_ili9341_window.c ../src/drivers/ili9341.c)
+target_link_libraries(wtk_ili9341_window_test PRIVATE wtk_firmware_common)
+target_include_directories(wtk_ili9341_window_test PRIVATE "${PROJECT_SOURCE_DIR}/src")
+wtk_configure_c_target(wtk_ili9341_window_test)
+wtk_apply_project_warnings(wtk_ili9341_window_test)
+if(WTK_WARNINGS_AS_ERRORS_HOST)
+    wtk_treat_warnings_as_errors(wtk_ili9341_window_test)
+endif()
+add_test(NAME wtk_ili9341_window_test COMMAND wtk_ili9341_window_test)
+
 add_executable(wtk_spi_bus_clock_test drivers/test_spi_bus_clock.c ../src/drivers/spi_bus.c)
 target_include_directories(wtk_spi_bus_clock_test PRIVATE "${PROJECT_SOURCE_DIR}/src")
 wtk_configure_c_target(wtk_spi_bus_clock_test)
@@ -773,6 +783,7 @@ endif()
 add_test(NAME wtk_ui_utf8_test COMMAND wtk_ui_utf8_test)
 
 add_executable(wtk_ui_font_test
+    ../src/ui/ui_fallback_renderer.c
     ui/test_ui_font.c
 )
 target_link_libraries(wtk_ui_font_test PRIVATE wtk_firmware_common)
