@@ -41,6 +41,9 @@ bsp_status_t bsp_watchdog_start(void)
         return BSP_STATUS_TIMEOUT;
     }
 
+    /* Match STM32CubeF1 HAL_IWDG_Init: the running IWDG clocks PR/RLR updates.
+     * Waiting for PVU/RVU before ENABLE leaves those updates pending forever. */
+    IWDG->KR = WTK_IWDG_KEY_ENABLE;
     IWDG->KR = WTK_IWDG_KEY_WRITE_ACCESS;
     IWDG->PR = WTK_IWDG_PRESCALER_64;
     IWDG->RLR = WTK_IWDG_RELOAD_FOR_2S;
@@ -51,7 +54,6 @@ bsp_status_t bsp_watchdog_start(void)
     }
 
     IWDG->KR = WTK_IWDG_KEY_RELOAD;
-    IWDG->KR = WTK_IWDG_KEY_ENABLE;
     g_watchdog_started = true;
 
     return BSP_STATUS_OK;

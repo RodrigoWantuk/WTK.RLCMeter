@@ -677,6 +677,20 @@ if(WTK_WARNINGS_AS_ERRORS_HOST)
     wtk_treat_warnings_as_errors(wtk_bsp_uart_rx_test)
 endif()
 add_test(NAME wtk_bsp_uart_rx_test COMMAND wtk_bsp_uart_rx_test)
+
+add_executable(wtk_bsp_watchdog_test bsp/test_bsp_watchdog.c
+    "${PROJECT_SOURCE_DIR}/src/bsp/bsp_watchdog.c")
+target_include_directories(wtk_bsp_watchdog_test PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/bsp/watchdog_mock" "${PROJECT_SOURCE_DIR}/src")
+wtk_configure_c_target(wtk_bsp_watchdog_test)
+wtk_apply_project_warnings(wtk_bsp_watchdog_test)
+if(WTK_WARNINGS_AS_ERRORS_HOST)
+    wtk_treat_warnings_as_errors(wtk_bsp_watchdog_test)
+endif()
+foreach(watchdog_case success lsi-timeout update-timeout)
+    add_test(NAME wtk_bsp_watchdog_${watchdog_case}
+        COMMAND wtk_bsp_watchdog_test ${watchdog_case})
+endforeach()
 add_executable(wtk_serial_telemetry_test app/test_serial_telemetry.c)
 target_link_libraries(wtk_serial_telemetry_test PRIVATE wtk_firmware_common)
 wtk_configure_c_target(wtk_serial_telemetry_test)
