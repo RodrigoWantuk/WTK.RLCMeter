@@ -1,6 +1,6 @@
 # Single-relay continuous survey with real power supervision
 
-STATUS: IN_PROGRESS
+STATUS: IMPLEMENTED_DEPLOYED_REQUIRES_BENCH_VALIDATION
 
 The owner rejects plan 26's repeated K1 SAFE/re-entry cycles and reasserts one
 engagement and one final release for the entire three-frequency, seven-sample
@@ -59,5 +59,22 @@ seven admitted points, three frequencies, actual power refreshes, final result
 and SAFE cleanup; request a single-engagement/release witness. Basic C/L checks
 do not qualify accuracy, contact/abort timing, polarized envelope or 10-mF endpoint.
 
-Software checkpoint: both full host suites and all nine strict embedded builds
-must pass on clean committed source. Final physical acceptance is pending.
+Software checkpoint: 49/49 factory and 47/47 standard host tests pass, as do all
+nine strict UID-bound embedded profiles on clean source 40a0b420ef60. The actual
+auxiliary FSM is integrated into the synthetic continuous hardware test; failure
+coverage includes 21 monitor/ADC/time/power/cancel contract variants, capture
+limits and mode locks. The installed factory image is 61,136 B Flash / 17,104 B
+accounted RAM and passes the unchanged hard gates.
+
+Internal programming and full readback match. COM4 captured one SAFE_BOOT and
+nonhalting live DAP observed READY/SAFE with zero sessions/captures, active OSL
+sequence 1/all 33 and no fault. No W25Q write or SWD numeric battery read occurred.
+The factory-size register returned 64 KiB. Readable all-FF probes above that
+range do not qualify writable additional capacity. Current unused declared
+Flash is 4,400 B; no destructive extra-capacity test was performed.
+
+New owner-triggered C/L captures, actual power-refresh telemetry and physical
+single-engagement/release witness remain pending. Prior plan 26 capacitor/inductor
+results are historical, not acceptance of this image. No final physical acceptance
+or independent accuracy/polarized/10-mF qualification is claimed. See the
+[delivery and evidence](../Firmware/releases/2026-10-27/single-relay-continuous-survey/README.md).
