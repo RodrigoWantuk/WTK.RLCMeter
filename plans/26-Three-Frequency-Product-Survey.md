@@ -88,3 +88,24 @@ Acquired weak/near-endpoint DSP failures must not be confused with hardware
 capture failures: rerange low when source exists, then visit the other frequencies.
 Invalidate DSP output before processing; missing or falsely successful output
 cannot reuse older data. Actual DMA/permit/safety failures still abort immediately.
+
+## First-board integration findings
+
+Source 48bc949 passes algorithmic survey tests but has a final-event integration
+bug for already-SAFE statistical completion. Internal session 3 (owner-triggered
+attempts, later confirmed 4,700-uF electrolytic) has all three frequencies, five
+raw search captures, seven valid 10-Hz/RREF10/HG samples and an aggregate near
+4,224 uF. PRODUCT retained the preceding 1-kHz partial value because the session
+entered DONE while returning NONE instead of FINAL_RESULT. The same pattern
+existed for a drained cancel/cleanup failure. Correct both terminal-step returns
+and regress the actual PRODUCT view transition, not just final_ready metadata.
+This is an observed internal calculation, not calibrated accuracy or polarized-
+mode qualification. No remote capacitor measurement is requested.
+
+The initial boot diagnostic also paused the MCU during session 1 acquisition.
+That was a tooling error, the core was resumed, and that run is explicitly
+invalidated and preserved. Live DAP snapshots subsequently confirmed READY/SAFE,
+no faults, restored ownership and unchanged calibration. Replace postboot/result
+reads with nonhalting DAP snapshots and stable sequence/output guards; serial
+boot can be captured now that the owner reconnected COM4. No debugger battery
+voltage read is introduced. A clean corrected boot remains to be confirmed.

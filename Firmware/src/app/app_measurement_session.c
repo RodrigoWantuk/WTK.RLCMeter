@@ -518,7 +518,11 @@ app_measurement_event_t app_measurement_session_step(app_measurement_session_t *
         {
             if (trim_submit(session, &attempt_result))
                 store_policy_event(session, MEASUREMENT_AUTO_EVENT_FINAL_RESULT);
-            return APP_MEASUREMENT_EVENT_NONE;
+            /* A fixed 10-Hz capture is already SAFE: store_policy_event can
+             * complete immediately. Deliver its final event before callers
+             * stop stepping this now-inactive session. */
+            return session->pending_event != APP_MEASUREMENT_EVENT_NONE ? take_pending_event(session) :
+                                                                          APP_MEASUREMENT_EVENT_NONE;
         }
 #endif
         const measurement_auto_event_t policy_event =
@@ -576,7 +580,8 @@ app_measurement_event_t app_measurement_session_step(app_measurement_session_t *
                     session->cancel_requested ? MEASUREMENT_AUTO_STATUS_CANCELED : MEASUREMENT_AUTO_STATUS_SAFETY_ABORT));
             else session->state = APP_MEASUREMENT_SESSION_START_ATTEMPT;
         }
-        return APP_MEASUREMENT_EVENT_NONE;
+        return session->pending_event != APP_MEASUREMENT_EVENT_NONE ? take_pending_event(session) :
+                                                                      APP_MEASUREMENT_EVENT_NONE;
 #endif
     case APP_MEASUREMENT_SESSION_FINISHING:
     {

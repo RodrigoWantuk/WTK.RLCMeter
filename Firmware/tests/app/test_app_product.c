@@ -26,8 +26,8 @@ typedef struct
 {
     app_measurement_session_io_t measurement_io;
     app_cal_session_io_t calibration_io;
-    fake_outcome_t outcomes[MEASUREMENT_AUTO_MAX_ATTEMPTS];
-    hw_metrology_measure_request_t requests[MEASUREMENT_AUTO_MAX_ATTEMPTS];
+    fake_outcome_t outcomes[MEASUREMENT_AUTO_HISTORY_CAPACITY + MEASUREMENT_TRIMMED_MAX_EXTRA_CAPTURES];
+    hw_metrology_measure_request_t requests[MEASUREMENT_AUTO_HISTORY_CAPACITY + MEASUREMENT_TRIMMED_MAX_EXTRA_CAPTURES];
     hw_metrology_block_t block;
     uint8_t outcome_count;
     uint8_t start_count;
@@ -1342,6 +1342,52 @@ static int test_actual_idle_and_owned_safety_scheduling(void)
     return failures;
 }
 
+#if WTK_ENABLE_FREQUENCY_SURVEY
+static bsp_status_t fake_finish_already_safe(void *user)
+{
+    return ((const fake_io_t *)user)->active ? BSP_STATUS_BUSY : BSP_STATUS_OK;
+}
+
+static int test_survey_low_frequency_final_reaches_product_view(void)
+{
+    int failures = 0;
+    fake_io_t fake = {0};
+    fake.outcome_count = MEASUREMENT_AUTO_HISTORY_CAPACITY + MEASUREMENT_TRIMMED_MAX_EXTRA_CAPTURES;
+    for (uint8_t i = 0u; i < fake.outcome_count; i++)
+    {
+        fake.outcomes[i] = good_outcome(measurement_complex(0.05f, 0.0f), MEASUREMENT_INTERPRET_CAPACITIVE);
+        fake.outcomes[i].electrical_model = 1u;
+        fake.outcomes[i].reactive_value = 0.0047f;
+    }
+    app_product_t product;
+    const app_product_inputs_t inputs = inputs_ready();
+    const bsp_clock_summary_t clock = {.source = BSP_CLOCK_SOURCE_HSE_PLL,
+        .sysclk_hz = 72000000u, .hse_ready = true};
+    failures += expect_true(init_product(&product, &fake) == BSP_STATUS_OK, "low-frequency final product init");
+    fake.measurement_io.finish_session = fake_finish_already_safe;
+    fake.measurement_io.trimmed_enabled = true;
+    fake.measurement_io.frequency_survey_enabled = true;
+    boot_to_ready(&product, &inputs);
+    click_ok(&product);
+    for (uint32_t now = 3u; now < 512u; now++)
+    {
+        app_product_step(&product, &inputs, &clock, BSP_STATUS_OK, now);
+        if (product.view.state == UI_PRODUCT_STATE_RESULT && !product.view.measurement_result_partial) break;
+    }
+    const ui_product_measurement_t *result = &product.view.measurement_result;
+    failures += expect_true(product.view.state == UI_PRODUCT_STATE_RESULT && product.view.has_measurement_result &&
+                            !product.view.measurement_result_partial && result->status == MEASUREMENT_AUTO_STATUS_FINAL_OK,
+                            "already-SAFE statistical completion delivers final event to PRODUCT, replacing partial");
+    failures += expect_true(result->frequency == (uint8_t)HW_EXCITATION_FREQ_10HZ &&
+                            result->capacitance_valid && result->trimmed_applied && result->frequency_attempted_mask == 7u &&
+                            fabsf(result->capacitance_f - 0.0047f) < 0.000001f,
+                            "PRODUCT displays seven-sample 10-Hz capacitance and full survey coverage");
+    failures += expect_true(!fake.active && app_io_workspace_owner(&g_workspace) == APP_IO_WORKSPACE_OWNER_FREE,
+                            "final display implies released measurement workspace");
+    return failures;
+}
+#endif
+
 int main(int argc, char **argv)
 {
     if ((argc == 2) && (strcmp(argv[1], "--sizes") == 0))
@@ -1377,6 +1423,9 @@ int main(int argc, char **argv)
 #endif
     failures += test_boot_calibration_gate();
     failures += test_actual_idle_and_owned_safety_scheduling();
+#if WTK_ENABLE_FREQUENCY_SURVEY
+    failures += test_survey_low_frequency_final_reaches_product_view();
+#endif
 #if WTK_PRODUCT_FACTORY_PROVISIONED
     failures += test_reactive_value_survives_unresolved_negative_loss();
 #endif

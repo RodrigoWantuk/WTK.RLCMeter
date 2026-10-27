@@ -897,7 +897,10 @@ static int test_complete_survey_and_statistical_segments(void)
         bool saw_draining = false;
         for (uint32_t i = 0u; i < 512u && !app_measurement_session_final_ready(&session); i++)
         {
-            (void)app_measurement_session_step(&session, now++);
+            const app_measurement_event_t event = app_measurement_session_step(&session, now++);
+            if (app_measurement_session_final_ready(&session))
+                failures += expect_true(event == APP_MEASUREMENT_EVENT_FINAL_RESULT,
+                    "final event is delivered on terminal step, including already-SAFE 10-Hz capture");
             if (session.state == APP_MEASUREMENT_SESSION_DRAINING)
             {
                 saw_draining = true;
