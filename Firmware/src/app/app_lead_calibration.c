@@ -16,7 +16,7 @@ static bool bound(const app_lead_calibration_t *lead,const measurement_lead_prof
 }
 const measurement_lead_profile_t *app_lead_active_profile(const app_lead_calibration_t *lead)
 {
-    return lead!=NULL && lead->store.loaded && lead->store.active_valid &&
+    return lead!=NULL && !lead->supplementary_active && lead->store.loaded && lead->store.active_valid &&
         bound(lead,&lead->store.active) && lead->store.active.enabled && !lead->store.active.cleared?
         &lead->store.active:NULL;
 }
@@ -39,6 +39,7 @@ bool app_lead_busy(const app_lead_calibration_t *lead)
 }
 bsp_status_t app_lead_begin(app_lead_calibration_t *lead)
 {
+    if(lead!=NULL && lead->supplementary_active) return BSP_STATUS_NOT_SUPPORTED;
     if(lead==NULL || !lead->store.initialized || !lead->store.loaded || app_lead_busy(lead) ||
        !app_calibration_service_active_valid(lead->factory) || lead->io->attempt_active(lead->io->user))
         return BSP_STATUS_ERROR;
@@ -58,7 +59,7 @@ void app_lead_confirm(app_lead_calibration_t *lead,uint32_t now_ms)
 {
     if(lead==NULL) return;
     if(lead->state==APP_LEAD_WAIT_OPEN || lead->state==APP_LEAD_WAIT_SHORT) begin_group(lead,now_ms);
-    else if(lead->state==APP_LEAD_REVIEW) {
+    else if(lead->state==APP_LEAD_REVIEW || lead->state==APP_LEAD_CONFIRM_CLEAR) {
         lead->error=lead_profile_store_save(&lead->store,&lead->candidate,now_ms);
         lead->state=lead->error==BSP_STATUS_OK?APP_LEAD_SAVING:APP_LEAD_FAILED;
     }
@@ -135,7 +136,7 @@ void app_lead_step(app_lead_calibration_t *lead,const bsp_clock_summary_t *clock
         return;
     }
     if(!bound(lead,&lead->candidate)) { stop_error(lead,BSP_STATUS_ERROR); return; }
-    if(lead->state==APP_LEAD_WAIT_OPEN || lead->state==APP_LEAD_WAIT_SHORT || lead->state==APP_LEAD_REVIEW) return;
+    if(lead->state==APP_LEAD_WAIT_OPEN || lead->state==APP_LEAD_WAIT_SHORT || (lead->state==APP_LEAD_REVIEW || lead->state==APP_LEAD_CONFIRM_CLEAR)) return;
     if((uint32_t)(now_ms-lead->started_ms)>=25000u) { stop_error(lead,BSP_STATUS_TIMEOUT); return; }
     switch(lead->state) {
     case APP_LEAD_START: {
@@ -209,10 +210,12 @@ void app_lead_step(app_lead_calibration_t *lead,const bsp_clock_summary_t *clock
 }
 bsp_status_t app_lead_set_enabled(app_lead_calibration_t *lead,bool enabled,bool clear,uint32_t now_ms)
 {
+    if(lead!=NULL && enabled && lead->supplementary_active) return BSP_STATUS_NOT_SUPPORTED;
     if(lead==NULL || app_lead_busy(lead) || !lead->store.active_valid || !bound(lead,&lead->store.active) ||
        (enabled && lead->store.active.cleared)) return BSP_STATUS_ERROR;
     measurement_lead_profile_t candidate=lead->store.active;
     candidate.enabled=enabled && !clear; candidate.cleared=clear || candidate.cleared;
+    if(clear) { lead->candidate=candidate; lead->error=BSP_STATUS_OK;lead->state=APP_LEAD_CONFIRM_CLEAR;return BSP_STATUS_OK; }
     const bsp_status_t status=lead_profile_store_save(&lead->store,&candidate,now_ms);
     lead->error=status; lead->state=status==BSP_STATUS_OK?APP_LEAD_SAVING:APP_LEAD_FAILED; return status;
 }

@@ -44,7 +44,7 @@ typedef enum
 /* Presentation-only stage IDs; app mapping is asserted in its translation unit. */
 typedef enum {
     UI_PRODUCT_LEAD_IDLE=0, UI_PRODUCT_LEAD_WAIT_OPEN, UI_PRODUCT_LEAD_START, UI_PRODUCT_LEAD_WAIT,
-    UI_PRODUCT_LEAD_DRAIN, UI_PRODUCT_LEAD_WAIT_SHORT, UI_PRODUCT_LEAD_REVIEW, UI_PRODUCT_LEAD_SAVING,
+    UI_PRODUCT_LEAD_DRAIN, UI_PRODUCT_LEAD_WAIT_SHORT, UI_PRODUCT_LEAD_REVIEW, UI_PRODUCT_LEAD_CONFIRM_CLEAR, UI_PRODUCT_LEAD_SAVING,
     UI_PRODUCT_LEAD_COMPLETE, UI_PRODUCT_LEAD_FAILED, UI_PRODUCT_LEAD_CANCELING, UI_PRODUCT_LEAD_CANCELED
 } ui_product_lead_stage_t;
 
@@ -125,7 +125,7 @@ typedef struct
     bool derived_valid;
     bool capacitance_valid;
     bool inductance_valid;
-#if WTK_PRODUCT_FACTORY_PROVISIONED
+#if WTK_PRODUCT_MODERN
     float q;
     float d;
     uint32_t session_sequence;
@@ -156,7 +156,7 @@ typedef struct
     bool sound_enabled;
     uint8_t language_id;
     uint8_t calibration_load_preset;
-    bool save_failed;
+    bool save_failed, saving;
 } ui_product_menu_t;
 
 typedef struct
@@ -185,7 +185,7 @@ typedef struct
     ui_product_wizard_t wizard;
     bool has_measurement_result;
     bool measurement_result_partial;
-#if WTK_PRODUCT_FACTORY_PROVISIONED
+#if WTK_PRODUCT_MODERN
     bool measurement_canceling;
 #endif
     bool storage_unavailable;
@@ -193,9 +193,14 @@ typedef struct
     bool calibration_active_valid;
     uint32_t calibration_sequence;
     uint32_t safety_fault_mask;
+    uint16_t battery_mv;
+    int32_t temperature_mC;
+    uint32_t battery_age_ms, temperature_age_ms;
+    uint8_t settings_phase, settings_error;
+    bool battery_valid, temperature_valid;
     uint32_t lead_sequence;
     uint8_t lead_state, lead_frequency, lead_samples, lead_error;
-    bool lead_active, lead_short, lead_uncertain;
+    bool lead_active, lead_short, lead_uncertain, lead_curve_conflict;
     uint32_t generation;
 } ui_product_view_t;
 

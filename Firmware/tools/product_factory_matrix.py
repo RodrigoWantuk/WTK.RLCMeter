@@ -65,6 +65,42 @@ def host_matrix(firmware, out):
                 print(name, 'CTest and Python passed', flush=True)
 
 
+def current_matrix(firmware, out):
+    """Current deployable unit/recovery profiles and an explicit generic budget stop."""
+    ntc=firmware/'config/units/54ff70068370525760380567-ntc-engineering.json'
+    cases=[('unit-release','stm32-unit-release',[],False),
+           ('unit-debug','stm32-unit-release',['-DCMAKE_BUILD_TYPE=Debug','-DCMAKE_C_FLAGS_DEBUG=-g3'],False),
+           ('unit-no-serial','stm32-unit-release',['-DWTK_ENABLE_SERIAL_UI=OFF'],False),
+           ('bringup','stm32-bringup',[],False),
+           ('bringup-cal','stm32-bringup-cal',[],False),
+           ('bringup-k1','stm32-bringup',['-DWTK_BRINGUP_K1_TEST=ON'],False),
+           ('bringup-bench','stm32-bringup',['-DWTK_BRINGUP_BENCH_SUPPLY=ON'],False),
+           ('bringup-peripheral','stm32-bringup',['-DWTK_BRINGUP_PERIPHERAL_TEST=ON'],False),
+           ('generic-product-budget','stm32-factory-release',[],True)]
+    rows=[]
+    for name,preset,extra,budget_stop in cases:
+        build=out/name
+        run(['cmake','--preset',preset,'-B',build,'-DWTK_FLASH_FORENSICS=ON',
+             '-DWTK_ENABLE_SUPPLEMENTARY_CURVES=OFF',f'-DWTK_NTC_FACTORY_PROFILE={ntc}',*extra],
+            firmware,out/(name+'-configure.log'))
+        log=out/(name+'-build.log')
+        with log.open('w',encoding='utf-8') as stream:
+            result=subprocess.run(['cmake','--build',str(build),'-j','6'],cwd=firmware,
+                                  stdout=stream,stderr=subprocess.STDOUT)
+        if budget_stop:
+            text=log.read_text(encoding='utf-8',errors='replace')
+            if result.returncode==0 or not any(token in text for token in ('overflowed','will not fit','project size budget exceeded')):
+                raise RuntimeError('generic 64-KiB stop must be a proven memory gate, not a compile error')
+            row=dict(profile=name,outcome='EXPECTED_64K_BUDGET_STOP')
+        else:
+            if result.returncode:raise RuntimeError('profile failed: '+name)
+            size=json.loads((build/'WTK.RLCMeter.size.json').read_text())
+            row=dict(profile=name,outcome='PASS',flash=size['flash_bytes'],ram=size['ram_accounted_bytes'],
+                     stack=size['reserved_stack_bytes'],flash_capacity=size['budgets']['flash_silicon_bytes'])
+        rows.append(row);(out/'current-matrix.json').write_text(json.dumps(rows,indent=2)+'\n',encoding='utf-8')
+        print(name,row['outcome'],flush=True)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--out', type=Path, required=True)
@@ -79,6 +115,9 @@ def main():
         if args.baseline:
             parser.error('--host cannot be combined with --baseline')
         host_matrix(firmware, out)
+        return
+    if not args.baseline:
+        current_matrix(firmware,out)
         return
     sha = subprocess.check_output(['git', 'rev-parse', '--verify',
                                    (args.baseline or 'HEAD') + '^{commit}'], cwd=repo, text=True).strip()

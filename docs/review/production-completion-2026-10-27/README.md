@@ -1,13 +1,13 @@
 # Production completion execution log
 
-STATUS: IN_PROGRESS_NOT_DEPLOYED
+STATUS: SOFTWARE_IMPLEMENTED_VALIDATION_IN_PROGRESS_HARDWARE_DEFERRED
 
 The owner authorized implementation after the
 [audit](../production-audit-2026-10-27/README.md).
 [Plan 30](../../../plans/30-Production-Firmware-Audit-and-Completion.md) defines
 the complete scope. This log records actual progress; unfinished packages are
 not release-complete. The physical unit still runs the previously recorded image.
-No target access or automatic DUT measurement has occurred during this work.
+A read-only legacy serial STATUS returned READY with the expected disabled-range blocker. No SWD, programming or automatic DUT measurement was performed. The owner later reported possible battery depletion while away; hardware work is deferred until power is confirmed.
 
 ## Serial checkpoint
 
@@ -43,13 +43,13 @@ No hardware access or deployment was performed for this checkpoint.
 | C: settings | Accepted-start adapter, immutable snapshot, CRC schema 4, timeout and legacy migration implemented | Actual save/reboot/interrupted-write pending |
 | D: display/feedback | Idle RANGE blocker fixed; product patterns/queue and armed TIM4 stop implemented | Display timeout, tones and quiet interference pending |
 | E: UART/telemetry | Interrupt RX, busy/quiet epochs, CRC/request guards, numeric telemetry and PC client implemented; software tests pass | Burst/error/quiet behavior on target pending |
-| F: unified product contract | NOT_STARTED | Pending |
-| G: lead math | NOT_STARTED (audit prototype only) | Pending |
-| H: lead storage | NOT_STARTED | Pending |
-| I: endpoint service/runtime | NOT_STARTED | Pending |
-| J: production OPEN/SHORT wizard | NOT_STARTED | Pending |
-| K: truthful diagnostics/UI | NOT_STARTED | Pending |
-| L: integrated qualification | IN_PROGRESS, no release claim | REQUIRES_BENCH_VALIDATION |
+| F: unified product contract | Shared measurement/UI feature macros independent of OSL provisioning; manifests enumerate features | Unit deployment pending; generic 64-KiB overflow remains an explicit gate |
+| G: lead math | Production float composition, pole handling and 108 independent oracle cases implemented | Fixture range/amplitude invariance requires bench validation |
+| H: lead storage | Separate 100-byte A/B record, CRC/commit/binding/tombstone; legacy offsets preserved | Snapshot/readback and physical interrupted-save pending |
+| I: endpoint service/runtime | Packed-ADC capture, 7-point groups, bounded OPEN retries, DSP composition/provenance implemented | Physical endpoint quality and holdouts pending |
+| J: production OPEN/SHORT wizard | Native menu, OPEN/SHORT/review/save, cancellation, toggle and confirmed clear implemented | Display/buttons/reboot checks pending |
+| K: truthful diagnostics/UI | Actual freshness/save state/lead status; bounded result detail rows; honest CRC labels | Visual acceptance pending |
+| L: integrated qualification | Host tests passed; final profile matrix/artifact preparation in progress | REQUIRES_BENCH_VALIDATION; battery/power not confirmed |
 
 The read-only factory service uses the active set as temporary load output while
 it is invalid/inactive, scans both slots and rereads the best fully usable slot
@@ -108,3 +108,15 @@ PRODUCT now attaches a separate lead service to the existing app-owned acquisiti
 The endpoint extractor uses packed ADC samples, calibrated HG transfer, selected-stream clipping and source checks. It accepts a quiet SHORT below ordinary finite-DUT return thresholds. Runtime composition happens in measured ratio space before derived R/C/L; every result carries the applied lead sequence. Trimmed samples require identical factory and lead provenance. Activating/disabling a profile invalidates the cached range hint and prior result. Competing external-Flash work is blocked by the lead mutation owner; serial activation and resource maintenance cannot interrupt an endpoint workflow.
 
 Focused host checks pass for lead math/store/capture, production controller, UI and measurement sessions. The new capture test executes 42 packed-ADC windows, six complete SAFE group teardowns, review/commit, toggle, cancel while connected, OSL invalidation and actual DSP correction of a separate synthetic DUT while preserving the uncorrected factory value. This is synthetic integration evidence, not physical lead calibration acceptance. The provisional unit image linked at 73,244 Flash bytes and 15,164 accounted RAM bytes before subsequent diagnostics/profile work. **REQUIRES_BENCH_VALIDATION** remains for physical endpoint captures, contact behavior, comparison DUTs and reboot persistence.
+
+### Shared production contract and truthful presentation
+
+The generated `WTK_PRODUCT_MODERN` contract is independent of factory provisioning. Both provisioning choices share continuous K1 ownership, three-frequency classification, seven-point estimates, selected-channel clipping semantics, rich result provenance and row caching. The provisioning flag controls only the full factory wizard/load-only implementation. New deployment manifests enumerate effective feature macros and inspection checks the enumeration against the sealed build config. Historical manifests without the new optional enumeration remain inspectable.
+
+The current full PRODUCT requires the verified unit's 128-KiB engineering preset; generic 64-KiB builds retain their original gates and may fail them. No silent generic memory expansion or reduced measurement behavior is used to make a preset fit. Generic BRINGUP/BRINGUP_CAL remain the diagnostic/recovery route. Host provisioning ON/OFF checks expose the same production behavior while retaining separate factory wizard tests.
+
+Diagnostics now show actual sensor freshness, settings state/errors and lead status. Result detail rows keep full range/RET/attempts, AVG7/3, coverage and both sequence IDs without truncation. Resource labels describe header/table CRC verification, not a nonexistent full-payload qualification. The read-only UART Flash snapshot command is bounded to 108-byte reads, guarded by physical SAFE and bus ownership, and cannot erase/program/start acquisition. Its PC client archives the 40-KiB tail and resource header with identity, raw protocol evidence and hashes. Physical snapshots/deployment remain pending at this checkpoint.
+
+### Hardware deferral
+
+The owner confirms TTL/COM4 and ST-Link with a nominal 470-uH inductor, then reports possible depleted battery while away. Do not flash, reset or start acquisition based on that old fixture confirmation alone. Complete software/artifact/Git work now. Next physical session: confirm stable charged power, preserve tail/assets, flash the sealed UID-bound image, verify READY/SAFE and real UART battery/NTC/OSL, then perform scoped tests. No hardware acceptance is inferred from host tests.

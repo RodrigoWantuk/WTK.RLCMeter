@@ -745,7 +745,7 @@ measurement_attempt_result_t app_measurement_attempt_from_dsp(
         result.selected_channel = dsp->selected_channel;
         result.open_like = dsp->impedance.open_like;
         result.short_like = dsp->impedance.short_like;
-#if WTK_PRODUCT_FACTORY_PROVISIONED
+#if WTK_PRODUCT_MODERN
         /* The DSP already selected an independently validated acquisition path.
            Clipping on the unused HG path remains in ret_evidence diagnostics. */
         result.clipped = (dsp->selected_channel == MEASUREMENT_RETURN_HG ?

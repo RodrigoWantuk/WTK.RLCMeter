@@ -6,7 +6,7 @@
 
 typedef enum {
     APP_LEAD_IDLE=0, APP_LEAD_WAIT_OPEN, APP_LEAD_START, APP_LEAD_WAIT,
-    APP_LEAD_DRAIN, APP_LEAD_WAIT_SHORT, APP_LEAD_REVIEW, APP_LEAD_SAVING,
+    APP_LEAD_DRAIN, APP_LEAD_WAIT_SHORT, APP_LEAD_REVIEW, APP_LEAD_CONFIRM_CLEAR, APP_LEAD_SAVING,
     APP_LEAD_COMPLETE, APP_LEAD_FAILED, APP_LEAD_CANCELING, APP_LEAD_CANCELED
 } app_lead_state_t;
 typedef struct {
@@ -23,6 +23,7 @@ typedef struct {
     bsp_status_t error;
     uint8_t frequency, open_range, attempts;
     bool short_stage, finish_failed, cancel_requested, range_retry;
+    bool supplementary_active; /* WCRV composition is not qualified; do not silently overwrite lead correction. */
 } app_lead_calibration_t;
 bsp_status_t app_lead_init(app_lead_calibration_t *lead, app_calibration_service_t *factory,
     const app_measurement_session_io_t *io, const storage_async_io_t *flash, uint32_t capacity, const uint8_t uid[12]);

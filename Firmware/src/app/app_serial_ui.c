@@ -14,12 +14,12 @@ static void put32(uint8_t *p, uint32_t value)
 }
 
 static app_serial_ui_status_t request_status(app_serial_ui_t *control,
-    const app_pc_link_frame_t *frame, bool telemetry, uint32_t *id)
+    const app_pc_link_frame_t *frame, uint8_t command, uint16_t request_bytes, uint32_t *id)
 {
     *id = frame->payload != NULL && frame->payload_length >= 8u ? get32(frame->payload + 4u) : 0u;
-    const bool command_valid = telemetry ? frame->type == (app_pc_link_frame_type_t)APP_SERIAL_UI_TELEMETRY :
+    const bool command_valid = command!=0u ? frame->type == (app_pc_link_frame_type_t)command :
         (frame->type == (app_pc_link_frame_type_t)APP_SERIAL_UI_STATUS || frame->type == (app_pc_link_frame_type_t)APP_SERIAL_UI_OK_CLICK);
-    if (frame->payload_length != APP_SERIAL_UI_REQUEST_BYTES || frame->payload == NULL ||
+    if (frame->payload_length != request_bytes || frame->payload == NULL ||
         frame->flags != 0u || frame->payload[0] != APP_SERIAL_UI_API || !command_valid ||
         frame->payload[1] != (uint8_t)frame->type || frame->payload[2] != 0u || frame->payload[3] != 0u ||
         *id == 0u || frame->sequence != (uint16_t)*id) return APP_SERIAL_UI_BAD_REQUEST;
@@ -34,7 +34,7 @@ void app_serial_ui_handle(app_serial_ui_t *control, app_product_t *product,
 {
     if (control == NULL || product == NULL || frame == NULL || reply == NULL) return;
     uint32_t id = 0u;
-    app_serial_ui_status_t status = request_status(control, frame, false, &id);
+    app_serial_ui_status_t status = request_status(control, frame, 0u, APP_SERIAL_UI_REQUEST_BYTES, &id);
     if (status == APP_SERIAL_UI_ACCEPTED && frame->type == (app_pc_link_frame_type_t)APP_SERIAL_UI_OK_CLICK)
     {
         if (get32(frame->payload + 8u) != product->session_sequence)
@@ -97,7 +97,7 @@ void app_serial_ui_telemetry(app_serial_ui_t *control, const app_product_t *prod
     memset(reply, 0, APP_SERIAL_UI_TELEMETRY_BYTES);
     reply[0] = APP_SERIAL_UI_API;
     reply[1] = APP_SERIAL_UI_TELEMETRY;
-    reply[2] = (uint8_t)request_status(control, frame, true, &id);
+    reply[2] = (uint8_t)request_status(control, frame, APP_SERIAL_UI_TELEMETRY, APP_SERIAL_UI_REQUEST_BYTES, &id);
     reply[3] = product->view.state;
     put32(reply+4u, id);
     put32(reply+8u, product->session_sequence);
@@ -107,7 +107,7 @@ void app_serial_ui_telemetry(app_serial_ui_t *control, const app_product_t *prod
     put32(reply+24u, product->view.calibration_sequence);
     const uint32_t features = (WTK_ENABLE_SERIAL_UI ? 1u : 0u) | (WTK_ENABLE_MEASUREMENT_TRIMMED ? 2u : 0u) |
         (WTK_ENABLE_FREQUENCY_SURVEY ? 4u : 0u) | (WTK_CAL_FACTORY_LOAD_ONLY ? 8u : 0u) |
-        (WTK_INTERNAL_FLASH_BYTES > 65536u ? 16u : 0u) | (WTK_NTC_FACTORY_CALIBRATION ? 32u : 0u);
+        (WTK_INTERNAL_FLASH_BYTES > 65536u ? 16u : 0u) | (WTK_NTC_FACTORY_CALIBRATION ? 32u : 0u) | (WTK_ENABLE_LEAD_COMPENSATION ? 64u : 0u);
     put32(reply+28u, features);
     put16(reply+32u, battery_valid ? hw_battery_telemetry_mv(s->battery_v, s->battery_state) : UINT16_MAX);
     reply[34] = (uint8_t)s->battery_state;
@@ -134,7 +134,7 @@ void app_serial_ui_telemetry(app_serial_ui_t *control, const app_product_t *prod
     reply[105] = r->frequency;
     reply[106] = UINT8_MAX;
     reply[107] = UINT8_MAX;
-#if WTK_PRODUCT_FACTORY_PROVISIONED
+#if WTK_PRODUCT_MODERN
     reply[106] = r->range_id;
     reply[107] = r->return_channel;
 #if WTK_ENABLE_MEASUREMENT_TRIMMED
@@ -152,4 +152,29 @@ void app_serial_ui_telemetry(app_serial_ui_t *control, const app_product_t *prod
     put32(reply+116u, telemetry->feedback_dropped);
     reply[120] = (uint8_t)telemetry->feedback_error;
     put16(reply+124u, (uint16_t)(WTK_INTERNAL_FLASH_BYTES / 1024u));
+}
+
+void app_serial_ui_flash_read(app_serial_ui_t *control,const app_product_t *product,
+    const app_pc_link_frame_t *frame,uint32_t capacity,bool allowed,
+    bsp_status_t (*read)(uint32_t,void *,size_t,void *),void *user,uint8_t reply[APP_SERIAL_UI_TELEMETRY_BYTES])
+{
+    if(control==NULL || product==NULL || frame==NULL || reply==NULL) return;
+    memset(reply,0,APP_SERIAL_UI_TELEMETRY_BYTES);
+    uint32_t id=0u,address=0u;uint16_t count=0u;
+    app_serial_ui_status_t status=request_status(control,frame,APP_SERIAL_UI_FLASH_READ,20u,&id);
+    bsp_status_t io_status=BSP_STATUS_OK;
+    if(status==APP_SERIAL_UI_ACCEPTED) {
+        address=get32(frame->payload+12u);count=(uint16_t)((uint16_t)frame->payload[16u]|((uint16_t)frame->payload[17u]<<8u));
+        if(frame->payload[18u]!=0u || frame->payload[19u]!=0u || count==0u || count>108u ||
+           address>=capacity || count>capacity-address) status=APP_SERIAL_UI_BAD_REQUEST;
+        else if(get32(frame->payload+8u)!=product->session_sequence) status=APP_SERIAL_UI_SESSION_MISMATCH;
+        else if(!allowed || !app_product_serial_idle(product) || read==NULL) status=APP_SERIAL_UI_NOT_READY;
+        else {
+            io_status=read(address,reply+20u,count,user);
+            if(io_status!=BSP_STATUS_OK) { status=APP_SERIAL_UI_NOT_READY; memset(reply+20u,0,108u); }
+        }
+    }
+    reply[0]=APP_SERIAL_UI_API;reply[1]=APP_SERIAL_UI_FLASH_READ;reply[2]=(uint8_t)status;reply[3]=product->view.state;
+    put32(reply+4u,id);put32(reply+8u,product->session_sequence);put32(reply+12u,address);
+    put16(reply+16u,status==APP_SERIAL_UI_ACCEPTED?count:0u);reply[18u]=(uint8_t)io_status;
 }

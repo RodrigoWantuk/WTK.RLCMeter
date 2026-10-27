@@ -1,6 +1,8 @@
 
 #include "storage/lead_profile_store.h"
-#include <assert.h>
+#include <stdlib.h>
+#undef assert
+#define assert(c) do { if(!(c)) { fprintf(stderr,"assertion failed at line %u: %s\n",(unsigned)__LINE__,#c); exit(1); } } while(0)
 #include <stdio.h>
 #include <string.h>
 enum { CAPACITY=49152, SECTOR=4096, LEAD_A=8192, LEAD_B=12288, LEGACY=16384 };
@@ -59,6 +61,21 @@ static void finish(lead_profile_store_t *s)
 }
 int main(void)
 {
+    const uint32_t capacities[]={32768u,40960u,2097152u,4194304u,8388608u,16777216u};
+    for(unsigned i=0u;i<sizeof(capacities)/sizeof(capacities[0]);++i) {
+        const uint32_t c=capacities[i];storage_partition_t resource,old,la,lb;
+        assert(storage_layout_partition(c,STORAGE_PARTITION_RESOURCE_PACK,&resource));
+        assert(storage_layout_partition(c,STORAGE_PARTITION_CALIBRATION_A,&old) && old.start==c-32768u);
+        if(c<40960u) assert(!storage_layout_partition(c,STORAGE_PARTITION_LEAD_A,&la));
+        else {
+            assert(storage_layout_partition(c,STORAGE_PARTITION_LEAD_A,&la));
+            assert(storage_layout_partition(c,STORAGE_PARTITION_LEAD_B,&lb));
+            assert(resource.start==0u && resource.size==c-40960u && la.start==resource.size &&
+                   la.start+la.size==lb.start && lb.start+lb.size==old.start);
+            assert(!storage_layout_contains(&resource,la.start,1u));
+            assert(storage_layout_contains(&lb,lb.start+4095u,1u) && !storage_layout_contains(&lb,lb.start+4095u,2u));
+        }
+    }
     memset(flash,0xa5,sizeof(flash)); memset(flash+LEAD_A,255,2*SECTOR); memcpy(baseline,flash,sizeof(flash));
     measurement_lead_profile_t p=profile(); lead_profile_store_t s=boot();
     assert(!s.active_valid && s.loaded);

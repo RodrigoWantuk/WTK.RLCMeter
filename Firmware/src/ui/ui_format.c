@@ -100,7 +100,7 @@ static ui_format_status_t write_scaled(float value, float scale, const char *uni
         return UI_FORMAT_STATUS_TRUNCATED;
     }
     const float scaled_abs = absf_local(value) / scale;
-#if WTK_PRODUCT_FACTORY_PROVISIONED
+#if WTK_PRODUCT_MODERN
     /* Binary32 rounding precedes the integer conversion. 2^32 is the first
        unrepresentable uint32_t value; tiny nonzero values must not become zero. */
     const float rounded = scaled_abs * (float)UI_FORMAT_DECIMAL_SCALE + 0.5f;
@@ -196,7 +196,7 @@ ui_format_status_t ui_format_phase_rad(float radians, char *dst, size_t capacity
     {
         return write_unavailable(dst, capacity);
     }
-#if WTK_PRODUCT_FACTORY_PROVISIONED
+#if WTK_PRODUCT_MODERN
     /* The authoritative atan2 impedance phase lies in [-pi, pi]. */
     if (absf_local(radians) > 3.14159274f)
     {

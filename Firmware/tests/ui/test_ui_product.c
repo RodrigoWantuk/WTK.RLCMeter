@@ -514,7 +514,7 @@ static int test_details_phase_label_uses_catalog(void)
     ui_product_request(&ui, &view);
     failures += expect_true(drain_render(&ui, &display) == 0, "details render drains");
     failures += expect_true(rendered_font_text_starts_with(
-#if WTK_PRODUCT_FACTORY_PROVISIONED
+#if WTK_PRODUCT_MODERN
         "R(AC) 1,0"
 #else
         "R 1,0"
@@ -546,14 +546,14 @@ static int test_capacitor_esr_and_invalid_details(void)
         .reactance_ohms = -3386.0f,
         .magnitude_ohms = 3386.0f,
         .derived_valid = true,
-#if WTK_PRODUCT_FACTORY_PROVISIONED
+#if WTK_PRODUCT_MODERN
         .esr_valid = true,
 #endif
     };
     ui_product_request(&ui, &view);
     failures += expect_true(drain_render(&ui, &display) == 0, "capacitor details render");
     failures += expect_true(rendered_font_text_starts_with(
-#if WTK_PRODUCT_FACTORY_PROVISIONED
+#if WTK_PRODUCT_MODERN
         "ESR(AC) 1.6"
 #else
         "ESR 1.6"
@@ -566,7 +566,7 @@ static int test_capacitor_esr_and_invalid_details(void)
     ui_product_request(&ui, &view);
     failures += expect_true(drain_render(&ui, &display) == 0, "small ESR details render");
     failures += expect_true(rendered_font_text_starts_with(
-#if WTK_PRODUCT_FACTORY_PROVISIONED
+#if WTK_PRODUCT_MODERN
         "ESR(AC) 40.0 mΩ"
 #else
         "ESR 40.0 mΩ"
@@ -579,7 +579,7 @@ static int test_capacitor_esr_and_invalid_details(void)
     ui_product_request(&ui, &view);
     failures += expect_true(drain_render(&ui, &display) == 0, "invalid details render");
     failures += expect_true(rendered_font_text_starts_with(
-#if WTK_PRODUCT_FACTORY_PROVISIONED
+#if WTK_PRODUCT_MODERN
         "ESR(AC) n/a"
 #else
         "ESR n/a"
@@ -589,7 +589,7 @@ static int test_capacitor_esr_and_invalid_details(void)
     failures += expect_true(rendered_font_text_starts_with("|Z| n/a"), "invalid magnitude is not a number");
     failures += expect_true(rendered_font_text_starts_with("PHASE n/a"), "invalid phase is not a number");
     failures += expect_true(
-#if WTK_PRODUCT_FACTORY_PROVISIONED
+#if WTK_PRODUCT_MODERN
         g_full_clears == 1u,
 #else
         g_partial_clears == 1u,
@@ -708,7 +708,7 @@ static int test_normal_text_uses_external_font_roles(void)
     return failures;
 }
 
-#if WTK_PRODUCT_FACTORY_PROVISIONED
+#if WTK_PRODUCT_MODERN
 static int test_factory_result_contract(void)
 {
     int failures = 0;
@@ -760,8 +760,8 @@ static int test_factory_result_contract(void)
             reset_render_counters(); view.generation++;
             view.measurement_result.max_error_status=MEASUREMENT_ERROR_QUALIFIED_BOUND_AVAILABLE;
             ui_product_request(&ui,&view); failures += expect_true(drain_render(&ui,&display)==0,"reserved status drains");
-            failures += expect_true(fallback ? rendered_text_starts_with(pt?"nao caracterizado":"not characterized") :
-                rendered_font_text_starts_with(pt?"nao caracterizado":"not characterized"),
+            failures += expect_true(fallback ? rendered_text_starts_with(pt?"Erro: nao caracterizado":"Error: not characterized") :
+                rendered_font_text_starts_with(pt?"Erro: nao caracterizado":"Error: not characterized"),
                 "reserved enum without evidence reader never creates an error bound");
             reset_render_counters(); view.generation++; view.state=UI_PRODUCT_STATE_MEASURING;
             view.page=UI_PRODUCT_PAGE_PRIMARY; view.measurement_result_partial=true;
@@ -778,6 +778,7 @@ static int test_factory_guidance_uses_internal_font_and_no_wizard_prompt(void)
     int failures = 0;
     for (uint8_t language = (uint8_t)UI_LANGUAGE_EN; language <= (uint8_t)UI_LANGUAGE_PT_BR; language++)
     {
+        if(!WTK_PRODUCT_FACTORY_PROVISIONED) continue;
         reset_render_counters();
         ui_product_t ui;
         ili9341_t display = {.ready = true};
@@ -950,16 +951,39 @@ static int test_oversized_face_and_provider_invalidation(void)
 }
 #endif
 
+
+#if WTK_PRODUCT_MODERN
+static int test_result_provenance_and_resource_truth(void)
+{
+    int failures=0;reset_render_counters();ui_product_t ui;ili9341_t display={.ready=true};ui_product_init(&ui);
+    ui_product_view_t view=ready_view(1u);view.state=UI_PRODUCT_STATE_RESULT;view.page=UI_PRODUCT_PAGE_DETAILS;
+    view.has_measurement_result=true;view.measurement_result=(ui_product_measurement_t){.range_id=HW_RANGE_ID_100K,
+        .return_channel=MEASUREMENT_RETURN_HG,.attempt_count=255u,.calibration_sequence=UINT32_MAX,.lead_sequence=UINT32_MAX,
+        .trimmed_applied=true,.frequency_attempted_mask=7u};
+    ui_product_request(&ui,&view);failures+=expect_true(drain_render(&ui,&display)==0,"provenance render");
+    failures+=expect_true(rendered_text_starts_with("100K RET:HG N:255"),"range/path/attempts remain complete");
+    failures+=expect_true(rendered_text_starts_with("AVG7/3 F3/3"),"trim and coverage have their own bounded line");
+    failures+=expect_true(rendered_text_starts_with("OSL4294967295 L4294967295"),"full-width provenance not truncated");
+    reset_render_counters();view.generation++;view.state=UI_PRODUCT_STATE_RESOURCE_STATUS;view.resource_status=RESOURCE_STATUS_CORRUPT;
+    ui_product_request(&ui,&view);failures+=expect_true(drain_render(&ui,&display)==0,"bad resource status render");
+    failures+=expect_true(rendered_text_starts_with("CRC not verified") && !rendered_text_starts_with("Header/table CRC OK"),
+        "failed resource mount never claims a verified CRC");return failures;
+}
+#endif
+
 int main(void)
 {
     int failures = 0;
+#if WTK_PRODUCT_MODERN
+    failures += test_result_provenance_and_resource_truth();
+#endif
 #if WTK_ENABLE_UI_ROW_CACHE
     failures += test_menu_updates_only_changed_rows();
     failures += test_numeric_edit_and_removed_warning();
     failures += test_menu_update_during_clear_and_failure();
     failures += test_oversized_face_and_provider_invalidation();
 #endif
-#if WTK_PRODUCT_FACTORY_PROVISIONED
+#if WTK_PRODUCT_MODERN
     failures += test_factory_result_contract();
     failures += test_factory_guidance_uses_internal_font_and_no_wizard_prompt();
 #endif

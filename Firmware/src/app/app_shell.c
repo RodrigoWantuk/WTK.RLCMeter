@@ -575,6 +575,20 @@ static APP_NOINLINE void product_pc_link_decode_ready_frame(uint32_t now_ms)
         sequence = app_read_le16(&g_pc_link_frame[8]);
     }
 #if WTK_ENABLE_SERIAL_UI
+    if(pc_status==APP_PC_LINK_STATUS_OK && frame.type==(app_pc_link_frame_type_t)APP_SERIAL_UI_FLASH_READ) {
+        uint8_t reply[APP_SERIAL_UI_TELEMETRY_BYTES],header[APP_PC_LINK_HEADER_SIZE];
+        const app_flash_access_snapshot_t access=product_flash_access_snapshot(NULL);
+        const bool allowed=g_flash.detected && !g_resource_update_configured &&
+            app_flash_access_allowed(&access,APP_FLASH_ACCESS_RESOURCE_READ) &&
+            !hw_metrology_measure_active(&g_product_measure) && hw_k1_commanded_state(&g_k1)==HW_K1_STATE_SAFE &&
+            hw_range_get_state(&g_range)==HW_RANGE_FSM_DISABLED;
+        app_serial_ui_flash_read(&g_serial_ui,&g_product,&frame,g_flash.part.capacity_bytes,allowed,
+            g_settings_service.io.read,g_settings_service.io.user,reply);
+        (void)app_pc_link_encode_header(header,(app_pc_link_frame_type_t)APP_SERIAL_UI_FLASH_READ_RESPONSE,
+            0u,sequence,reply,sizeof(reply));
+        product_pc_link_reset_rx();(void)bsp_uart_write((const char *)header,sizeof(header));
+        (void)bsp_uart_write((const char *)reply,sizeof(reply));return;
+    }
     if (pc_status == APP_PC_LINK_STATUS_OK && frame.type == (app_pc_link_frame_type_t)APP_SERIAL_UI_TELEMETRY)
     {
         hw_aux_sensors_snapshot_t snapshot;
@@ -1626,6 +1640,7 @@ static void app_step(void)
             (int32_t)(product_sensor_snapshot.ntc_temperature_c * 1000.0f) :
             0;
     app_product_inputs_t product_inputs = {
+        .sensors = &product_sensor_snapshot,
         .calibration_status = app_calibration_service_status(&g_calibration_service),
         .calibration_active_valid = app_calibration_service_active_valid(&g_calibration_service),
         .calibration_active_sequence = app_calibration_service_active_sequence(&g_calibration_service),
@@ -1852,6 +1867,9 @@ void app_shell_run(void)
         uint8_t lead_uid[12]; bsp_reset_read_device_uid(lead_uid);
         (void)app_lead_init(&g_lead,&g_calibration_service,&g_product_session_io,&settings_io,
                             g_flash.part.capacity_bytes,lead_uid);
+#if WTK_ENABLE_SUPPLEMENTARY_CURVES
+        g_lead.supplementary_active=g_curve_store.active;
+#endif
         app_product_attach_lead_service(&g_product,&g_lead);
         g_resource_status = product_mount_resource_pack();
         APP_VERBOSE_DIAG_TEXT("resources", resource_status_string(g_resource_status));

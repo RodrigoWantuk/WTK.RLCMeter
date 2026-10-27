@@ -10,7 +10,7 @@ static uint32_t raw[HW_METROLOGY_RAW_WORD_COUNT];
 static hw_metrology_block_t block;
 static app_calibration_service_t factory;
 static app_lead_calibration_t lead;
-static struct { bool active,done,draining,short_stage,weak,clip,dut; unsigned captures,releases,connections; } hw;
+static struct { bool active,done,draining,short_stage,weak,clip,dut; unsigned captures,releases,connections,group_captures; } hw;
 static bsp_status_t flash_read(uint32_t a,void *d,size_t n,void *u) { (void)u; assert(a+n<=sizeof(flash));memcpy(d,flash+a,n);return BSP_STATUS_OK; }
 static bsp_status_t flash_erase(uint32_t a,uint32_t t,void *u) { (void)t;(void)u;assert(a==8192u || a==12288u);memset(flash+a,255,4096u);return BSP_STATUS_OK; }
 static bsp_status_t flash_program(uint32_t a,const void *d,size_t n,uint32_t t,void *u) { (void)t;(void)u;assert(a>=8192u && a+n<=16384u);for(size_t i=0;i<n;++i)flash[a+i]&=((const uint8_t*)d)[i];return BSP_STATUS_OK; }
@@ -44,11 +44,11 @@ static void waveform(const hw_metrology_measure_request_t *r)
 }
 static bsp_status_t start(const hw_metrology_measure_request_t *r,uint32_t t,void *u)
 {
-    (void)t;(void)u;assert(hw.captures<100u);if(!hw.active)hw.connections++;
+    (void)t;(void)u;assert(hw.captures<100u);if(!hw.active){hw.connections++;hw.group_captures=0u;}
 #if WTK_ENABLE_MEASUREMENT_TRIMMED
-    assert(r->statistical_capture==((hw.captures%7u)!=0u));
+    assert(r->statistical_capture==(hw.group_captures!=0u));
 #endif
-    waveform(r); hw.captures++; hw.active=true; hw.done=false; return BSP_STATUS_OK;
+    waveform(r); hw.captures++;hw.group_captures++; hw.active=true; hw.done=false; return BSP_STATUS_OK;
 }
 static bsp_status_t step(uint32_t t,void *u) { (void)t;(void)u;if(hw.draining){hw.active=false;hw.draining=false;hw.releases++;}else hw.done=true;return BSP_STATUS_OK; }
 static bool active(void *u) { (void)u;return hw.active; }
@@ -68,7 +68,7 @@ static void run_until(app_lead_state_t target)
 {
     for(uint32_t t=1u;t<2000u && lead.state!=target;++t) {
         app_lead_step(&lead,NULL,BSP_STATUS_OK,true,t);
-        if(lead.state==APP_LEAD_FAILED) { fprintf(stderr,"failed state at %lu samples=%u freq=%u err=%u\n",(unsigned long)t,lead.samples.summary.samples,lead.frequency,(unsigned)lead.error);break; }
+        if(lead.state==APP_LEAD_FAILED && target!=APP_LEAD_FAILED) { fprintf(stderr,"failed state at %lu samples=%u freq=%u err=%u\n",(unsigned long)t,lead.samples.summary.samples,lead.frequency,(unsigned)lead.error);break; }
     }
     assert(lead.state==target);assert(!hw.active);
 }
@@ -99,6 +99,10 @@ int main(void)
     assert(app_lead_active_profile(&lead)==NULL && lead.store.active.sequence==2u);
     assert(app_lead_set_enabled(&lead,true,false,0u)==BSP_STATUS_OK);run_until(APP_LEAD_COMPLETE);
     assert(app_lead_active_profile(&lead)!=NULL);
+    lead.supplementary_active=true;assert(app_lead_active_profile(&lead)==NULL);
+    assert(app_lead_begin(&lead)==BSP_STATUS_NOT_SUPPORTED);
+    assert(app_lead_set_enabled(&lead,true,false,0u)==BSP_STATUS_NOT_SUPPORTED);
+    lead.supplementary_active=false;assert(app_lead_active_profile(&lead)!=NULL);
     hw.dut=true;
     hw_metrology_measure_request_t dut_request={.range_id=HW_RANGE_ID_10R,.frequency=HW_EXCITATION_FREQ_10KHZ,
         .amplitude=HW_EXCITATION_AMP_100MVRMS};
@@ -126,5 +130,17 @@ int main(void)
     app_lead_cancel(&lead);assert(lead.state==APP_LEAD_CANCELING && hw.active);
     app_lead_step(&lead,NULL,BSP_STATUS_OK,true,2u);assert(!hw.active && lead.state==APP_LEAD_CANCELED);
     assert(app_lead_active_profile(&lead)!=NULL);
+    /* Source loss is retried within bounded OPEN groups, then fails SAFE and
+       cannot replace the known good committed profile. */
+    hw.captures=0u;hw.weak=true;
+    assert(app_lead_begin(&lead)==BSP_STATUS_OK);app_lead_confirm(&lead,0u);
+    run_until(APP_LEAD_FAILED);assert(hw.captures==27u && app_lead_active_profile(&lead)!=NULL);
+    hw.weak=false;
+    assert(app_lead_set_enabled(&lead,false,true,0u)==BSP_STATUS_OK);
+    assert(lead.state==APP_LEAD_CONFIRM_CLEAR && !lead_profile_store_busy(&lead.store));
+    app_lead_cancel(&lead);assert(app_lead_active_profile(&lead)!=NULL);
+    assert(app_lead_set_enabled(&lead,false,true,0u)==BSP_STATUS_OK);app_lead_confirm(&lead,0u);
+    run_until(APP_LEAD_COMPLETE);assert(lead.store.active.cleared && app_lead_active_profile(&lead)==NULL);
+    assert(app_lead_set_enabled(&lead,true,false,0u)!=BSP_STATUS_OK);
     puts("lead capture: 42 packed-ADC windows, six SAFE groups, review/commit, cancel, toggle and OSL binding passed");return 0;
 }

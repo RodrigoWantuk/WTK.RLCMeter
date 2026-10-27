@@ -7,6 +7,13 @@ static uint32_t get32(const uint8_t *p)
 {
     return (uint32_t)p[0] | ((uint32_t)p[1]<<8u) | ((uint32_t)p[2]<<16u) | ((uint32_t)p[3]<<24u);
 }
+static unsigned flash_reads;
+static bsp_status_t read_flash(uint32_t address,void *dst,size_t size,void *user)
+{
+    (void)user;flash_reads++;
+    for(size_t i=0u;i<size;++i) ((uint8_t*)dst)[i]=(uint8_t)(address+i);
+    return BSP_STATUS_OK;
+}
 int main(void)
 {
     app_product_t product = {0};
@@ -56,5 +63,22 @@ int main(void)
     assert(!app_product_serial_idle(&product));
     product.view.state = UI_PRODUCT_STATE_FAULT;
     assert(app_product_serial_idle(&product)); /* Diagnostics remain reachable after a fault. */
+    product.view.state=UI_PRODUCT_STATE_READY;product.settings_save_requested=false;
+    uint8_t request[20]={1u,APP_SERIAL_UI_FLASH_READ,0u,0u,100u};request[16]=108u;
+    frame=(app_pc_link_frame_t){.type=(app_pc_link_frame_type_t)APP_SERIAL_UI_FLASH_READ,
+        .payload=request,.payload_length=sizeof(request),.sequence=100u};
+    app_serial_ui_flash_read(&control,&product,&frame,1024u,true,read_flash,NULL,out);
+    assert(out[2]==APP_SERIAL_UI_ACCEPTED && out[16]==108u && out[127]==107u && flash_reads==1u && !product.request_click);
+    app_serial_ui_flash_read(&control,&product,&frame,1024u,true,read_flash,NULL,out);
+    assert(out[2]==APP_SERIAL_UI_STALE_REQUEST && flash_reads==1u);
+    request[4]=101u;frame.sequence=101u;
+    app_serial_ui_flash_read(&control,&product,&frame,1024u,false,read_flash,NULL,out);
+    assert(out[2]==APP_SERIAL_UI_NOT_READY && out[16]==0u && flash_reads==1u);
+    request[4]=102u;frame.sequence=102u;request[16]=109u;
+    app_serial_ui_flash_read(&control,&product,&frame,1024u,true,read_flash,NULL,out);
+    assert(out[2]==APP_SERIAL_UI_BAD_REQUEST && flash_reads==1u);
+    request[4]=103u;frame.sequence=103u;request[16]=108u;memset(request+12u,255,4u);
+    app_serial_ui_flash_read(&control,&product,&frame,1024u,true,read_flash,NULL,out);
+    assert(out[2]==APP_SERIAL_UI_BAD_REQUEST && flash_reads==1u);
     return 0;
 }

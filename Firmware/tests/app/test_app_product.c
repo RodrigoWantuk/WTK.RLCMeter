@@ -645,11 +645,11 @@ static int test_ok_gestures_and_measurement_flow(void)
     failures += expect_u32(fake.start_count, 0u, "start is deferred until session steps");
     app_product_step(&product, &inputs, &clock, BSP_STATUS_OK, 5u);
     failures += expect_u32(fake.start_count, 0u, "auto begin precedes hardware start");
-#if !WTK_PRODUCT_FACTORY_PROVISIONED
+#if !WTK_PRODUCT_MODERN
     click_ok(&product);
 #endif
     app_product_step(&product, &inputs, &clock, BSP_STATUS_OK, 6u);
-    failures += expect_u32(fake.start_count, 1u, "repeated OK while measuring ignored");
+    failures += expect_u32(fake.start_count, 1u, "measurement starts once after AUTO_BEGIN");
     bool saw_partial = false;
     for (uint32_t now = 7u; now < 24u; now++)
     {
@@ -1038,7 +1038,7 @@ static int test_missing_resources_force_pc_link_upload_mode(void)
     return failures;
 }
 
-#if WTK_PRODUCT_FACTORY_PROVISIONED
+#if WTK_PRODUCT_MODERN
 static void ac_fixture(fake_io_t *fake, fake_outcome_t outcome)
 {
     *fake = (fake_io_t){0};
@@ -1254,7 +1254,7 @@ static int test_factory_ac_lifecycle(const char *directory)
 }
 #endif
 
-#if WTK_PRODUCT_FACTORY_PROVISIONED
+#if WTK_PRODUCT_MODERN
 static int test_reactive_value_survives_unresolved_negative_loss(void)
 {
     int failures = 0;
@@ -1479,6 +1479,24 @@ static int test_lead_menu_guards(void)
     return failures;
 }
 
+
+static int test_diagnostic_freshness(void)
+{
+    app_product_t p;fake_io_t fake={0};app_product_inputs_t inputs=inputs_ready();int failures=0;
+    failures+=expect_true(init_product(&p,&fake)==BSP_STATUS_OK,"diagnostic init");boot_to_ready(&p,&inputs);
+    hw_aux_sensors_snapshot_t sensors={.battery_state=HW_BATTERY_OK,.battery_v=3.9f,.battery_age_ms=100u,
+        .ntc_temperature_valid=true,.ntc_temperature_c=23.5f,.ntc_age_ms=100u};
+    inputs.sensors=&sensors;p.view.state=UI_PRODUCT_STATE_DIAGNOSTICS;
+    app_product_step(&p,&inputs,NULL,BSP_STATUS_OK,1000u);
+    failures+=expect_true(p.view.battery_valid && p.view.battery_mv==3900u && p.view.temperature_valid &&
+        p.view.temperature_mC==23500,"diagnostics use actual fresh snapshot");
+    sensors.battery_age_ms=2001u;sensors.ntc_age_ms=5001u;
+    app_product_step(&p,&inputs,NULL,BSP_STATUS_OK,1500u);
+    failures+=expect_true(!p.view.battery_valid && !p.view.temperature_valid && p.view.battery_mv==UINT16_MAX &&
+        p.view.temperature_mC==INT32_MIN,"stale measurements become unavailable instead of zero");
+    return failures;
+}
+
 int main(int argc, char **argv)
 {
     if ((argc == 2) && (strcmp(argv[1], "--sizes") == 0))
@@ -1509,7 +1527,8 @@ int main(int argc, char **argv)
     int failures = 0;
     failures += test_serial_ok_contract();
     failures += test_lead_menu_guards();
-#if WTK_PRODUCT_FACTORY_PROVISIONED
+    failures += test_diagnostic_freshness();
+#if WTK_PRODUCT_MODERN
     const char *directory = argc==3 && strcmp(argv[1],"--ac-snapshots")==0 ? argv[2] : NULL;
     failures += test_factory_ac_results(directory);
     failures += test_factory_ac_lifecycle(directory);
@@ -1519,7 +1538,7 @@ int main(int argc, char **argv)
 #if WTK_ENABLE_FREQUENCY_SURVEY
     failures += test_survey_low_frequency_final_reaches_product_view();
 #endif
-#if WTK_PRODUCT_FACTORY_PROVISIONED
+#if WTK_PRODUCT_MODERN
     failures += test_reactive_value_survives_unresolved_negative_loss();
 #endif
     failures += test_host_resource_maintenance_entry();

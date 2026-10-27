@@ -13,11 +13,13 @@
 #include "app/app_lead_calibration.h"
 #include "drivers/buttons.h"
 #include "hardware/hw_power.h"
+#include "hardware/hw_aux_sensors.h"
 #include "hardware/hw_safety.h"
 #include "ui/ui_product.h"
 
 typedef struct
 {
+    const hw_aux_sensors_snapshot_t *sensors;
     app_cal_service_status_t calibration_status;
     bool calibration_active_valid;
     uint32_t calibration_active_sequence;
@@ -56,6 +58,7 @@ typedef struct
     app_settings_service_t *settings_service;
     app_lead_calibration_t *lead_service;
     uint32_t lead_sequence_seen;
+    uint32_t diagnostic_update_ms;
     measurement_auto_hint_t next_hint;
     app_settings_t edit_entry_settings;
     ui_product_view_t view;

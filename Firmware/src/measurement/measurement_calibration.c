@@ -858,6 +858,7 @@ measurement_cal_curve_status_t measurement_cal_apply_curve(
     const measurement_cal_curve_t *curve)
 {
 #if WTK_ENABLE_SUPPLEMENTARY_CURVES
+    if(result!=NULL && result->provenance.lead_compensated) return MEASUREMENT_CAL_CURVE_NOT_SUPPORTED;
     if ((result == NULL) || (key == NULL) || (curve == NULL) ||
         (result->result.status != MEASUREMENT_STATUS_OK) ||
         !result->output_corrected)

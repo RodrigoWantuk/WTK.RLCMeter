@@ -7,7 +7,7 @@ misleading behavior; complete usable settings/audible feedback; design a native
 quick OPEN/SHORT option after changing leads; account for verified memory.
 The initial [audit and evidence](../docs/review/production-audit-2026-10-27/README.md)
 and execution plan are complete. The owner has now authorized implementation.
-Foundation corrections are being tested; the endpoint wizard remains pending.
+The software packages, including the endpoint wizard, are implemented and undergoing the final profile/artifact checks. Physical acceptance remains pending; the owner reports possible battery depletion while away.
 This plan is not a release qualification or a claim that earlier bench checks
 were invalid: each check retains its narrow scope.
 

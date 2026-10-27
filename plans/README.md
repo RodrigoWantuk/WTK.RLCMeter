@@ -194,5 +194,5 @@ idle/backlight policy, audible feedback, fault/watchdog handling, consistent
 production profiles, bounded UART diagnostics, explicit unit-only 128-KiB
 deployment and native quick OPEN/SHORT lead compensation. The audit is complete;
 the [correction work is now in progress](../docs/review/production-completion-2026-10-27/README.md).
-The new menu is not yet delivered. Existing engineering OSL and
+The native menu is now implemented; final software checks and physical acceptance are tracked separately. Existing engineering OSL and
 owner assets must be preserved, without another factory LOAD campaign.

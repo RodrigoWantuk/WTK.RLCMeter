@@ -14,6 +14,7 @@ import time
 import zlib
 
 from resource_pack_format import PACK_API_VERSION
+from storage_layout import resource_limit
 
 
 MAGIC = 0x31434C50  # "PLC1" little-endian
@@ -76,7 +77,10 @@ def decode_frame(frame: bytes) -> tuple[int, int, bytes]:
     return frame_type, sequence, payload
 
 
-def iter_resource_frames(pack: bytes, chunk_size: int = RESOURCE_CHUNK_DATA_BYTES) -> list[bytes]:
+def iter_resource_frames(pack: bytes, chunk_size: int = RESOURCE_CHUNK_DATA_BYTES,
+                         capacity_bytes: int = 2*1024*1024) -> list[bytes]:
+    if len(pack)>resource_limit(capacity_bytes):
+        raise ValueError("resource pack overlaps protected lead/calibration/settings tail")
     if not pack:
         raise ValueError("resource pack is empty")
     if not 1 <= chunk_size <= RESOURCE_CHUNK_DATA_BYTES:
@@ -134,7 +138,8 @@ def read_status_frame(link) -> tuple[int, int, int, int]:
 
 def send_serial(frames: list[bytes], port: str, baud: int, inter_frame_delay_s: float,
                 inter_byte_delay_s: float = 0.002, settle_after_begin_s: float = 0.25,
-                report_path: Path | None = None, begin_byte_delay_s: float = 0.010) -> dict:
+                report_path: Path | None = None, begin_byte_delay_s: float = 0.010,
+                capacity_bytes: int = 2*1024*1024) -> dict:
     """Stop on any ambiguous ACK; never replay a potentially committed frame."""
     for delay in (inter_frame_delay_s, inter_byte_delay_s, settle_after_begin_s, begin_byte_delay_s):
         if not math.isfinite(delay) or delay < 0:
@@ -143,6 +148,9 @@ def send_serial(frames: list[bytes], port: str, baud: int, inter_frame_delay_s: 
         raise ValueError("report already exists; choose a new evidence path")
     if not frames or decode_frame(frames[0])[0] != FRAME_RESOURCE_BEGIN or decode_frame(frames[-1])[0] != FRAME_RESOURCE_END:
         raise ValueError("complete BEGIN/CHUNK/END stream required")
+    begin_payload=decode_frame(frames[0])[2]
+    if len(begin_payload)!=12 or struct.unpack_from('<I',begin_payload)[0]>resource_limit(capacity_bytes):
+        raise ValueError("resource stream overlaps protected lead/calibration/settings tail")
     for frame in frames:
         decode_frame(frame)
     try:
@@ -197,6 +205,8 @@ def send_serial(frames: list[bytes], port: str, baud: int, inter_frame_delay_s: 
 
 
 def add_serial_options(parser) -> None:
+    parser.add_argument("--flash-capacity-bytes", type=int, default=2*1024*1024,
+                        help="actual W25Q capacity; default smallest supported part (2 MiB)")
     parser.add_argument("--inter-byte-delay-ms", type=float, default=2.0,
                         help="flush each byte and pace polled UART (legacy images may require 10 ms)")
     parser.add_argument("--settle-after-begin-ms", type=float, default=250.0)
@@ -211,18 +221,15 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--out", type=Path, help="write a deterministic framed .wpc stream")
     parser.add_argument("--port", help="optional serial port, for example COM5")
     parser.add_argument("--baud", type=int, default=115200)
-    parser.add_argument("--flash-capacity-bytes", type=int, default=2*1024*1024,
-                        help="actual W25Q capacity; default smallest supported part (2 MiB)")
     parser.add_argument("--chunk-size", type=int, default=RESOURCE_CHUNK_DATA_BYTES)
     parser.add_argument("--inter-frame-delay-ms", type=float, default=2.0)
     add_serial_options(parser)
     args = parser.parse_args(argv)
 
     pack = args.resource_pack.read_bytes()
-    from storage_layout import resource_limit
     if len(pack) > resource_limit(args.flash_capacity_bytes):
         parser.error("resource pack overlaps protected lead/calibration/settings tail")
-    frames = iter_resource_frames(pack, args.chunk_size)
+    frames = iter_resource_frames(pack, args.chunk_size,args.flash_capacity_bytes)
 
     if args.out is not None:
         write_stream(frames, args.out)
@@ -230,7 +237,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.port:
         send_serial(frames, args.port, args.baud, args.inter_frame_delay_ms / 1000.0,
                     args.inter_byte_delay_ms / 1000.0, args.settle_after_begin_ms / 1000.0, args.report,
-                    args.begin_byte_delay_ms / 1000.0)
+                    args.begin_byte_delay_ms / 1000.0,args.flash_capacity_bytes)
 
     if args.out is None and not args.port:
         total = sum(len(frame) for frame in frames)

@@ -4,24 +4,13 @@ WTK.RLCMeter is a portable two-wire RLC meter based on the **STM32F103C8T6**, de
 
 The project combines a custom mixed-signal PCB, an **STM32 Blue Pill** module, an **ILI9341** TFT display, external **W25Q** SPI Flash, a 1-cell Li-ion power subsystem, and dedicated firmware for measurement, safety, user interface, storage, and diagnostics.
 
-> **Current factory PRODUCT status — October 27, 2026:** one continuous K1 transaction covers all three frequencies and the seven-sample estimate with real interleaved power supervision. Guarded serial OK is implemented and tested: the unchanged nominal 470-uH inductor returned 472.656 uH, seven accepted samples and five actual power refreshes, ending SAFE without faults. Physical contact count, independent accuracy, actual 10-mF endpoint and polarized-envelope qualification remain pending. The MCU declares 64 KiB Flash; the installed image uses 61,596 B. See [the current delivery](Firmware/releases/2026-10-27/serial-ok-control/README.md).
+> **Previously installed engineering baseline — October 27, 2026:** one continuous K1 transaction covers all three frequencies and the seven-sample estimate with real interleaved power supervision. Guarded serial OK is implemented and tested: the unchanged nominal 470-uH inductor returned 472.656 uH, seven accepted samples and five actual power refreshes, ending SAFE without faults. Physical contact count, independent accuracy, actual 10-mF endpoint and polarized-envelope qualification remain pending. The MCU declares 64 KiB Flash; the installed image uses 61,596 B. See [the current delivery](Firmware/releases/2026-10-27/serial-ok-control/README.md).
 
-First-unit capacity experiment: despite its 64-KiB factory register, this MCU passed full upper-half erase/program/readback/reset tests and instruction fetching near the 128-KiB boundary. **At least 128 KiB is experimentally usable on this unit.** Original contents and READY/SAFE calibration state are restored; production linkers/budgets remain at 64 KiB. See [the capacity evidence](Firmware/releases/2026-10-27/extended-flash-capacity/README.md).
+First-unit capacity experiment: despite its 64-KiB factory register, this MCU passed full upper-half erase/program/readback/reset tests and instruction fetching near the 128-KiB boundary. **At least 128 KiB is experimentally usable on this unit.** Original contents and READY/SAFE calibration state are restored; generic C8 linkers/budgets remain at 64 KiB; the new first-unit production preset explicitly binds 128 KiB to this verified UID. See [the capacity evidence](Firmware/releases/2026-10-27/extended-flash-capacity/README.md).
 
-**Production audit — October 27:** the instrument is not a completed product.
-Source review and host reproductions confirm broken asynchronous settings
-persistence, edit/save and idle-timeout defects, incomplete audible feedback and
-different feature sets across production presets. The active RLC path uses real
-ADC data. See the [audit, capability inventory and evidence](docs/review/production-audit-2026-10-27/README.md)
-and [ordered completion plan](plans/30-Production-Firmware-Audit-and-Completion.md),
-including separate native OPEN/SHORT lead compensation. Corrections and the new
-menu are planned, not installed by this documentation-only audit.
+**Production completion — October 27:** the audit findings now have implementations: atomic settings saves and legacy migration, real audible feedback, idle display timeout, emergency SAFE/watchdog handling, bounded interrupt UART and genuine telemetry, one production measurement/UI contract, and a native quick OPEN/SHORT lead menu. Lead profiles have independent redundant storage and calibrated complex runtime correction; no new factory LOAD campaign is required. See the [audit](docs/review/production-audit-2026-10-27/README.md), [execution log](docs/review/production-completion-2026-10-27/README.md), and [Plan 30](plans/30-Production-Firmware-Audit-and-Completion.md).
 
-Implementation is now authorized and in progress. The
-[production completion log](docs/review/production-completion-2026-10-27/README.md)
-tracks tested persistence/SAFE/feedback corrections, the explicit first-unit
-128-KiB build and pending serial/lead-wizard integration. Software checks are
-separate from deployment and physical qualification.
+The complete current PRODUCT exceeds generic 64 KiB and uses the explicit `stm32-unit-release` engineering preset for the verified first MCU. Existing calibration, NTC profile and owner splash are preserved by design. Host verification and artifact preparation are in progress; physical deployment/qualification remains pending because the owner reports possible battery depletion while away. The unit has not been silently updated, and software tests do not certify physical accuracy or electrical safety.
 
 > **Historical bring-up checkpoint — October 24, 2026:** basic R/C/L and display/buttons/buzzer observations are recorded. Current CAD includes six RGS gate-toGND pull-downs; shared firmware includes acquisition/phase/relay fixes and mounted display orientation. Calibration and battery/charger/metrology qualification remain pending. See [bring-up consolidation](docs/review/bringup-2026-10-24/README.md).
 
@@ -54,6 +43,7 @@ calibration. A subsequent [nominal 470-uH check](Firmware/releases/2026-10-25/in
 publishes 461.4/472.2 uH as INDUCTIVE with SAFE teardown. Very small inductors
 and independent accuracy/loss validation remain pending; no repeated resistor
 campaign is needed for these app fixes.
+
 
 ## Project goals
 

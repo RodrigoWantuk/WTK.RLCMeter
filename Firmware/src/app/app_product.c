@@ -3,9 +3,7 @@
 
 #include <stddef.h>
 #include "wtk_build_config.h"
-#if WTK_PRODUCT_FACTORY_PROVISIONED
 #include <math.h>
-#endif
 
 #define WTK_NOINLINE
 
@@ -148,7 +146,8 @@ static void sync_settings_view(app_product_t *product)
         (product->view.menu.sound_enabled != settings.sound_enabled) ||
         (product->view.menu.language_id != settings.language_id) ||
         (product->view.menu.calibration_load_preset != product->calibration_load_preset) ||
-        (product->view.menu.save_failed != app_settings_service_save_failed(product->settings_service)))
+        (product->view.menu.save_failed != app_settings_service_save_failed(product->settings_service)) ||
+        (product->view.menu.saving != app_settings_service_busy(product->settings_service)))
     {
         product->view.menu.brightness_percent = settings.brightness_percent;
         product->view.menu.timeout_seconds = timeout_seconds;
@@ -156,6 +155,7 @@ static void sync_settings_view(app_product_t *product)
         product->view.menu.language_id = settings.language_id;
         product->view.menu.calibration_load_preset = product->calibration_load_preset;
         product->view.menu.save_failed = app_settings_service_save_failed(product->settings_service);
+        product->view.menu.saving = app_settings_service_busy(product->settings_service);
         mark_dirty(product);
     }
 }
@@ -517,7 +517,7 @@ static bool drain_runtime_teardown(app_product_t *product,
 
 #endif
     product->runtime_teardown_kind = APP_PRODUCT_RUNTIME_TEARDOWN_NONE;
-#if WTK_PRODUCT_FACTORY_PROVISIONED
+#if WTK_PRODUCT_MODERN
     product->view.measurement_canceling = false;
 #endif
     const ui_product_state_t target = (ui_product_state_t)product->runtime_teardown_target_state;
@@ -554,7 +554,7 @@ static ui_product_measurement_t ui_measurement_from_result(const measurement_ses
     out.derived_valid = publish_values && result->primary_attempt.derived.valid;
     out.capacitance_valid = out.derived_valid && result->primary_attempt.derived.capacitance_valid;
     out.inductance_valid = out.derived_valid && result->primary_attempt.derived.inductance_valid;
-#if WTK_PRODUCT_FACTORY_PROVISIONED
+#if WTK_PRODUCT_MODERN
     const measurement_attempt_result_t *attempt = &result->primary_attempt;
     const measurement_derived_result_t *derived = &attempt->derived;
     const measurement_channel_quality_t *selected =
@@ -631,7 +631,7 @@ static ui_product_measurement_t ui_measurement_from_result(const measurement_ses
     return out;
 }
 
-#if WTK_PRODUCT_FACTORY_PROVISIONED
+#if WTK_PRODUCT_MODERN
 static void invalidate_measurement(app_product_t *product)
 {
     const bool changed = product->view.has_measurement_result ||
@@ -749,7 +749,7 @@ static void update_measurement_result(app_product_t *product, app_measurement_ev
         if (partial != NULL)
         {
             product->view.measurement_result = ui_measurement_from_result(partial);
-#if WTK_PRODUCT_FACTORY_PROVISIONED
+#if WTK_PRODUCT_MODERN
             if (partial->session_sequence != product->session_sequence ||
                 partial->primary_attempt.calibration.set_sequence != product->view.calibration_sequence)
             {
@@ -769,7 +769,7 @@ static void update_measurement_result(app_product_t *product, app_measurement_ev
         if (final != NULL)
         {
             product->view.measurement_result = ui_measurement_from_result(final);
-#if WTK_PRODUCT_FACTORY_PROVISIONED
+#if WTK_PRODUCT_MODERN
             if (final->session_sequence != product->session_sequence ||
                 final->primary_attempt.calibration.set_sequence != product->view.calibration_sequence)
             {
@@ -784,7 +784,7 @@ static void update_measurement_result(app_product_t *product, app_measurement_ev
             product->view.has_measurement_result = true;
             product->view.measurement_result_partial = false;
             product->next_hint = measurement_auto_make_hint(final);
-#if WTK_PRODUCT_FACTORY_PROVISIONED
+#if WTK_PRODUCT_MODERN
             if (!product->view.measurement_result.derived_valid)
             {
                 product->next_hint.valid = false;
@@ -793,7 +793,7 @@ static void update_measurement_result(app_product_t *product, app_measurement_ev
             mark_dirty(product);
         }
     }
-#if WTK_PRODUCT_FACTORY_PROVISIONED
+#if WTK_PRODUCT_MODERN
     else if (event == APP_MEASUREMENT_EVENT_ERROR)
     {
         invalidate_measurement(product);
@@ -1120,11 +1120,13 @@ static void sync_lead_view(app_product_t *product)
     if(product->view.lead_sequence!=stored_sequence || product->view.lead_active!=(active!=NULL) ||
        product->view.lead_state!=(uint8_t)lead->state || product->view.lead_frequency!=lead->frequency ||
        product->view.lead_samples!=lead->samples.summary.samples || product->view.lead_error!=(uint8_t)lead->error ||
-       product->view.lead_short!=lead->short_stage || product->view.lead_uncertain!=lead->store.commit_uncertain) {
+       product->view.lead_short!=lead->short_stage || product->view.lead_uncertain!=lead->store.commit_uncertain ||
+       product->view.lead_curve_conflict!=lead->supplementary_active) {
         product->view.lead_sequence=stored_sequence; product->view.lead_active=active!=NULL;
         product->view.lead_state=(uint8_t)lead->state; product->view.lead_frequency=lead->frequency;
         product->view.lead_samples=lead->samples.summary.samples; product->view.lead_error=(uint8_t)lead->error;
         product->view.lead_short=lead->short_stage; product->view.lead_uncertain=lead->store.commit_uncertain;
+        product->view.lead_curve_conflict=lead->supplementary_active;
         mark_dirty(product);
     }
 }
@@ -1168,7 +1170,7 @@ static bool step_lead_ui(app_product_t *product,const app_product_inputs_t *inpu
         } else if(product->request_click) {
             if(!app_lead_busy(lead)) set_menu(product,UI_PRODUCT_STATE_LEAD_MENU,0u);
             else if(lead->state==APP_LEAD_WAIT_OPEN || lead->state==APP_LEAD_WAIT_SHORT ||
-                    (lead->state==APP_LEAD_REVIEW && !inputs->lead_storage_blocked))
+                    ((lead->state==APP_LEAD_REVIEW || lead->state==APP_LEAD_CONFIRM_CLEAR) && !inputs->lead_storage_blocked))
                 app_lead_confirm(lead,now_ms);
         }
     }
@@ -1192,6 +1194,23 @@ void app_product_step(app_product_t *product,
         return;
     }
 
+    if(product->view.state==UI_PRODUCT_STATE_DIAGNOSTICS && inputs->sensors!=NULL &&
+       (uint32_t)(now_ms-product->diagnostic_update_ms)>=500u) {
+        const hw_aux_sensors_snapshot_t *sensor=inputs->sensors;
+        product->diagnostic_update_ms=now_ms;
+        product->view.battery_valid=(sensor->battery_state==HW_BATTERY_OK || sensor->battery_state==HW_BATTERY_LOW ||
+            sensor->battery_state==HW_BATTERY_CRITICAL) && sensor->battery_age_ms<=2000u &&
+            isfinite(sensor->battery_v) && sensor->battery_v>=0.0f && sensor->battery_v<=HW_BATTERY_MAX_PLAUSIBLE_V;
+        product->view.battery_mv=product->view.battery_valid?(uint16_t)(sensor->battery_v*1000.0f):UINT16_MAX;
+        product->view.battery_age_ms=sensor->battery_age_ms;
+        product->view.temperature_valid=sensor->ntc_temperature_valid && sensor->ntc_age_ms<=5000u &&
+            isfinite(sensor->ntc_temperature_c) && sensor->ntc_temperature_c>=-40.0f && sensor->ntc_temperature_c<=125.0f;
+        product->view.temperature_mC=product->view.temperature_valid?(int32_t)(sensor->ntc_temperature_c*1000.0f):INT32_MIN;
+        product->view.temperature_age_ms=sensor->ntc_age_ms;
+        product->view.settings_phase=(uint8_t)product->settings_service->state;
+        product->view.settings_error=(uint8_t)product->settings_service->last_error;
+        mark_dirty(product);
+    }
     if(step_lead_ui(product,inputs,clock_summary,clock_status,now_ms)) return;
 
     const ui_product_calibration_state_t next_cal =
@@ -1203,7 +1222,7 @@ void app_product_step(app_product_t *product,
     const ui_product_blocker_t next_blocker = schedule_allowed ? UI_PRODUCT_BLOCK_NONE :
         ui_blocker(inputs->safety_result.primary_blocker);
     const bool next_storage_unavailable = inputs->calibration_status == APP_CAL_SERVICE_STORAGE_UNAVAILABLE;
-#if WTK_PRODUCT_FACTORY_PROVISIONED
+#if WTK_PRODUCT_MODERN
     const bool calibration_changed = product->view.calibration_active_valid &&
         (!inputs->calibration_active_valid ||
          product->view.calibration_sequence != inputs->calibration_active_sequence);
@@ -1278,7 +1297,7 @@ void app_product_step(app_product_t *product,
     sync_settings_view(product);
     update_backlight_idle(product, inputs, now_ms);
 
-#if WTK_PRODUCT_FACTORY_PROVISIONED
+#if WTK_PRODUCT_MODERN
     /* Revoke presentation immediately, then drain the existing hardware owner.
        A changed valid OSL sequence also cannot finish an old capture as new. */
     if (product->runtime_kind == APP_PRODUCT_RUNTIME_MEASUREMENT && runtime_active(product) &&
@@ -1647,7 +1666,7 @@ void app_product_step(app_product_t *product,
     if ((product->runtime_kind == APP_PRODUCT_RUNTIME_MEASUREMENT) &&
         app_measurement_session_active(measurement_runtime(product)))
     {
-#if WTK_PRODUCT_FACTORY_PROVISIONED
+#if WTK_PRODUCT_MODERN
         if (product->request_click || product->request_menu)
         {
             invalidate_measurement(product);
@@ -1694,7 +1713,7 @@ void app_product_step(app_product_t *product,
     if (product->view.has_measurement_result && !product->view.measurement_result_partial &&
         (product->view.state == UI_PRODUCT_STATE_RESULT))
     {
-#if WTK_PRODUCT_FACTORY_PROVISIONED
+#if WTK_PRODUCT_MODERN
         if (product->view.page == UI_PRODUCT_PAGE_DETAILS && product->request_click)
         {
             invalidate_measurement(product);
@@ -1750,7 +1769,7 @@ void app_product_step(app_product_t *product,
                                           now_ms);
         if ((start_status == BSP_STATUS_BUSY) || (start_status == BSP_STATUS_OK))
         {
-#if WTK_PRODUCT_FACTORY_PROVISIONED
+#if WTK_PRODUCT_MODERN
             invalidate_measurement(product);
 #endif
             product->view.measurement_result_partial = false;

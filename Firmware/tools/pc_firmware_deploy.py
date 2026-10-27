@@ -169,6 +169,22 @@ def boot_identity(profile,sha_value,version,detailed_bringup=True):
         limitation="PRODUCT banner is only WTK.RLCMeter SAFE_BOOT; UI/bench acceptance separate" if profile.startswith("FACTORY_PRODUCT") else "reported short Git identity is not binary authentication")
 
 
+FEATURE_MACROS = {
+    "modern_production": "WTK_PRODUCT_MODERN",
+    "continuous_session": "WTK_ENABLE_CONTINUOUS_SURVEY",
+    "three_frequency_survey": "WTK_ENABLE_FREQUENCY_SURVEY",
+    "trimmed_seven": "WTK_ENABLE_MEASUREMENT_TRIMMED",
+    "ui_row_cache": "WTK_ENABLE_UI_ROW_CACHE",
+    "serial_ui": "WTK_ENABLE_SERIAL_UI",
+    "lead_compensation": "WTK_ENABLE_LEAD_COMPENSATION",
+    "factory_load_only": "WTK_CAL_FACTORY_LOAD_ONLY",
+    "supplementary_curves": "WTK_ENABLE_SUPPLEMENTARY_CURVES",
+}
+
+def effective_features(flags):
+    return {name: flags.get(macro,"0u")=="1u" for name,macro in FEATURE_MACROS.items()}
+
+
 def manifest(build_dir,out,profile,state,preset):
     build_dir=Path(build_dir); out=Path(out); spec=PROFILES[profile]
     config=read(build_dir/"generated/wtk_build_config.h"); flags=parse_config(config)
@@ -199,7 +215,7 @@ def manifest(build_dir,out,profile,state,preset):
         preset=preset,build_configuration=spec[3],hardware=HARDWARE,firmware_version=flags["WTK_PROJECT_VERSION"],expected_boot=identity,
         toolchain=dict(compiler_path=compiler,compiler_version=version,cmake=command(["cmake","--version"]).splitlines()[0],cache_sha256=sha(cache.encode())),
         memory=dict(flash_base=BASE,flash_bytes=capacity,ram_base=RAM_BASE,ram_bytes=RAM,internal_page_bytes=1024),linked=metrics,
-        binary_size=len(binary),files=files,built_utc=utc())
+        binary_size=len(binary),files=files,built_utc=utc(),features=effective_features(flags))
     value["seal_sha256"]=seal(value); save(out/"manifest.json",value)
     inspect(out/"manifest.json")
     return value
@@ -224,6 +240,8 @@ def inspect(path,profile=None):
     ram_budget=17408 if spec[2] else 18432
     if len(binary)>budget or metrics["ram_accounted_bytes"]>ram_budget or metrics["reserved_stack_bytes"]<2048: raise ValueError("project memory gate violated")
     flags=parse_config(read(root/"build_config.h"))
+    if "features" in value and value["features"]!=effective_features(flags):
+        raise ValueError("manifest features differ from generated configuration")
     validate_memory_binding(value["profile"],flags)
     ntc_factory.validate_binary(value.get("ntc_factory_profile"), binary, flags)
     if (value["schema"]=="WTK_FIRMWARE_2") != (value.get("ntc_factory_profile") is not None):

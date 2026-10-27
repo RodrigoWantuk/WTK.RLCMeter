@@ -646,3 +646,13 @@ No menu confirmation, calibration action, long press, repeat or raw GPIO control
 is provided. Queries do not wake or start measurement. Quiet acquisition defers
 UART parsing/output and discards partial frames; partial RX expires at 250 ms.
 Resource payload bytes are never scanned as UI commands.
+
+## Production completion: native lead compensation
+
+Calibration status -> short OK opens the lead menu. `New OPEN/SHORT` asks for OPEN at the final lead tips, then a firm SHORT at those same tips. Discharge/remove all DUTs and independent sources first. Each endpoint captures seven coherent windows at 10 Hz, 1 kHz and 10 kHz; no LOAD resistor is requested. Standard changes occur only after complete hardware teardown. Review -> short OK saves the candidate; holding OK cancels before saving. A committed save cannot be undone by cancellation. Enable/disable retains coefficients; Clear requires confirmation and writes a disabled tombstone. The prior bound profile remains in use while an unsaved candidate is collected. After save, reboot loads the bound profile without PC/SWD.
+
+This is relative fixture compensation, not a replacement for factory RREF/HG calibration. It corrects signed complex series/shunt deltas relative to that factory plane. It is explicitly engineering/unqualified until endpoint observability, range/amplitude invariance, final leads and independent holdouts pass bench checks. A different MCU or factory OSL sequence/content makes it inactive.
+
+Result details use separate bounded rows for range/RET/attempt count, `AVG7/3`, frequency coverage, factory sequence and applied lead sequence. Diagnostics show fresh BAT/NTC values and age, unavailable sentinels for stale data, settings write phase/error and actual lead status. Resource status distinguishes verified header/table CRC from payload validation; a failed mount never claims CRC OK. Menu/edit changes retain the row cache and erase a disappearing save warning without a full-screen redraw. Read-only UART telemetry and Flash backup remain separate from guarded short-OK activation.
+
+Optional supplementary WCRV composition with lead compensation is not qualified. When a compatible WCRV store is active, the UI explicitly disables lead compensation and refuses new/enable actions; stored lead records are retained. The DSP also refuses a supplementary-curve operation on an already lead-compensated result. This prevents a curve from silently overwriting fixture correction while its provenance still claims application. Default PRODUCT has WCRV runtime OFF.

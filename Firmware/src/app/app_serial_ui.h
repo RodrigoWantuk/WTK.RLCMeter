@@ -10,6 +10,8 @@ enum
     APP_SERIAL_UI_STATUS = 0x30u,
     APP_SERIAL_UI_OK_CLICK = 0x31u,
     APP_SERIAL_UI_TELEMETRY = 0x32u,
+    APP_SERIAL_UI_FLASH_READ = 0x33u,
+    APP_SERIAL_UI_FLASH_READ_RESPONSE = 0xB3u,
     APP_SERIAL_UI_RESPONSE = 0xB0u,
     APP_SERIAL_UI_TELEMETRY_RESPONSE = 0xB2u,
     APP_SERIAL_UI_API = 1u,
@@ -49,6 +51,10 @@ typedef struct
 void app_serial_ui_handle(app_serial_ui_t *control, app_product_t *product,
     const app_pc_link_frame_t *frame, bool can_activate, uint32_t blocker_flags,
     uint32_t now_ms, uint8_t reply[APP_SERIAL_UI_RESPONSE_BYTES]);
+void app_serial_ui_flash_read(app_serial_ui_t *control, const app_product_t *product,
+    const app_pc_link_frame_t *frame,uint32_t capacity,bool allowed,
+    bsp_status_t (*read)(uint32_t,void *,size_t,void *),void *user,
+    uint8_t reply[APP_SERIAL_UI_TELEMETRY_BYTES]);
 void app_serial_ui_telemetry(app_serial_ui_t *control, const app_product_t *product,
     const app_pc_link_frame_t *frame, const app_serial_telemetry_t *telemetry,
     uint8_t reply[APP_SERIAL_UI_TELEMETRY_BYTES]);

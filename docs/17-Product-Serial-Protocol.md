@@ -110,3 +110,11 @@ latency/noise/flood behavior still requires bench validation. Intended TX, actua
 write-reported TX prefix, RX and JSON outcome are retained. A timeout or short
 write never automatically repeats an activation. STATUS/TELEMETRY are read-only;
 the latter is only supported after deploying a build that advertises this API.
+
+## Read-only external Flash preservation
+
+`FLASH_READ=0x33`, response `0xB3`, uses the same CRC-framed transport and increasing request identity. The request is 20 bytes: common API/echo/reserved/request-ID/session fields at 0..11, little-endian address u32 at 12, count u16 at 16, reserved zero u16 at 18. Count must be 1..108 and entirely inside the detected W25Q capacity. A valid request consumes its identity even when access is denied.
+
+The response is always 128 bytes: API/echo/status/UI at 0..3, request ID at 4, current session at 8, address at 12, returned count u16 at 16, BSP read status at 18, reserved zero at 19, and up to 108 data bytes at 20. Failure returns count zero and no data. Status values are shared with the UI protocol. A changed session, busy UI, quiet window, resource/settings/calibration/lead mutation, unknown device or physically active metrology/K1/range denies access. This command has no program/erase/reset/measurement action.
+
+`Firmware/tools/pc_flash_snapshot.py --port COM4 --capacity 4194304 --expected-uid 54ff70068370525760380567 --out <new-directory>` checks telemetry identity and SAFE, captures the resource header and last 40 KiB, and records SHA-256 hashes plus raw TX/RX. It rejects a resource overlap and can require exact equality with a previous `--compare <tail.bin>`. It does not restore or write anything. Obtain the capacity from the detected part; do not assume the BOM's 8 MiB on the actual 4-MiB first unit. This allows preservation before enabling the native lead workflow without reading numeric battery voltage through SWD.

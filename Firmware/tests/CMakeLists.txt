@@ -27,7 +27,7 @@ if(WTK_WARNINGS_AS_ERRORS_HOST)
 endif()
 add_test(NAME wtk_measurement_trimmed_test COMMAND wtk_measurement_trimmed_test)
 
-if(WTK_PRODUCT_FACTORY_PROVISIONED)
+if(WTK_PRODUCT_MODERN_VALUE)
     add_executable(wtk_measurement_survey_test measurement/test_measurement_survey.c)
     target_link_libraries(wtk_measurement_survey_test PRIVATE wtk_firmware_common)
     target_include_directories(wtk_measurement_survey_test PRIVATE "${PROJECT_SOURCE_DIR}/src")
@@ -880,7 +880,7 @@ if(WTK_WARNINGS_AS_ERRORS_HOST)
     wtk_treat_warnings_as_errors(wtk_hw_ntc_factory_test)
 endif()
 add_test(NAME wtk_hw_ntc_factory_test COMMAND wtk_hw_ntc_factory_test)
-if(WTK_PRODUCT_FACTORY_PROVISIONED)
+if(WTK_PRODUCT_MODERN_VALUE)
     add_test(NAME wtk_product_ac_ui_integration
         COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/../tools/verify_product_ac_ui.py
                 --controller $<TARGET_FILE:wtk_app_product_test>
@@ -922,7 +922,7 @@ else()
 endif()
 add_test(NAME wtk_lead_profile_store_test COMMAND wtk_lead_profile_store_test)
 
-if(WTK_PRODUCT_FACTORY_PROVISIONED)
+if(WTK_PRODUCT_MODERN_VALUE)
     add_executable(wtk_app_lead_calibration_test app/test_app_lead_calibration.c)
     target_link_libraries(wtk_app_lead_calibration_test PRIVATE wtk_firmware_common)
     target_include_directories(wtk_app_lead_calibration_test PRIVATE "${PROJECT_SOURCE_DIR}/src")
@@ -939,3 +939,6 @@ if(WTK_PRODUCT_FACTORY_PROVISIONED)
     endif()
     add_test(NAME wtk_app_lead_calibration_test COMMAND wtk_app_lead_calibration_test)
 endif()
+
+add_test(NAME wtk_pc_flash_snapshot_test
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/test_pc_flash_snapshot.py)

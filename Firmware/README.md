@@ -4,7 +4,7 @@ Current shared display/acquisition baseline, calibration hardware0x00010002 and 
 
 The first unit's optional [experimental NTC factory profile](tools/NTC_FACTORY_PROFILE.md)
 must be explicitly selected on rebuild. Generic builds retain the nominal table.
-The profile is UID-bound, unqualified, and independent of unfinished OSL calibration.
+The profile is UID-bound, unqualified, and independent of factory OSL and lead compensation.
 
 For reproducible linked Flash attribution, profile/commit comparisons and the
 current completion budget, see the [A01 report](../docs/review/a01/README.md) and
@@ -64,25 +64,29 @@ cmake --build --preset host-debug
 ctest --preset host-debug
 ```
 
-Embedded debug build:
+Production build for the experimentally verified first unit:
 
 ```bash
 cd Firmware
-cmake --preset stm32-debug
-cmake --build --preset stm32-debug
+cmake --preset stm32-unit-release
+cmake --build --preset stm32-unit-release
 ```
 
-Embedded release build:
+This preset explicitly selects 128 KiB, the verified MCU UID and its preserved experimental NTC profile. It is **not a generic C8 memory upgrade**. Its deployment tool refuses another UID. The full production feature set currently exceeds 64 KiB; generic `stm32-debug`, `stm32-release` and `stm32-factory-*` retain their 64-KiB gates and are budget checks, not deployable current full-product images. Do not enlarge their linker to hide overflow.
+
+Generic C8 factory calibration/recovery remains a separate, bounded image:
 
 ```bash
-cd Firmware
-cmake --preset stm32-release
-cmake --build --preset stm32-release
+cmake --preset stm32-bringup-cal
+cmake --build --preset stm32-bringup-cal
 ```
+
+All PRODUCT builds use the same continuous-session hardware policy, three-frequency classification, seven-point estimates, provenance and row cache. `WTK_PRODUCT_FACTORY_PROVISIONED` now controls only the full factory OSL provisioning/wizard path; it defaults ON. Factory LOAD capture/install remains available in BRINGUP_CAL and through host-tested provisioning tools. The production lead OPEN/SHORT menu is separate and does not repeat factory LOAD calibration. Host builds with this provisioning flag ON and OFF exercise the same measurement/UI contract. An embedded full factory-wizard variant must independently pass RAM/Flash gates; do not infer that it fits because a host variant passes.
+
+Settings schema 4 reads legacy schemas 2/3, protects header and payload with CRC and commits an immutable snapshot to redundant slots. The new lead profile has independent A/B sectors before the old 32-KiB mutable tail; the resource limit is now capacity minus 40 KiB. Existing OSL/settings/WCRV/diagnostic addresses are unchanged. Before first lead-profile use, capture the last 40 KiB with the [read-only UART preservation command](../docs/17-Product-Serial-Protocol.md). See the [completion log and physical validation boundary](../docs/review/production-completion-2026-10-27/README.md).
 
 Supplementary post-OSL curves are optional and default to **OFF** on all targets.
-The ordinary OSL model, full wizard, calibration boot gate and W25Q partitions are
-unchanged. Existing WCRV records remain stored when the runtime is disabled.
+The factory OSL model and boot gate are unchanged; existing WCRV sector offsets are preserved. Existing WCRV records remain stored when the runtime is disabled.
 Use separate build directories to test or re-enable the runtime:
 
 ```bash
