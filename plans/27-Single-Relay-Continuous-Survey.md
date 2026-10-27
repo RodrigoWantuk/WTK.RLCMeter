@@ -1,6 +1,6 @@
 # Single-relay continuous survey with real power supervision
 
-STATUS: IMPLEMENTED_DEPLOYED_REQUIRES_BENCH_VALIDATION
+STATUS: IMPLEMENTED_DEPLOYED_BASIC_INDUCTOR_CHECK_PASS_REQUIRES_PHYSICAL_QUALIFICATION
 
 The owner rejects plan 26's repeated K1 SAFE/re-entry cycles and reasserts one
 engagement and one final release for the entire three-frequency, seven-sample
@@ -78,3 +78,12 @@ single-engagement/release witness remain pending. Prior plan 26 capacitor/induct
 results are historical, not acceptance of this image. No final physical acceptance
 or independent accuracy/polarized/10-mF qualification is claimed. See the
 [delivery and evidence](../Firmware/releases/2026-10-27/single-relay-continuous-survey/README.md).
+
+Plan 28 follow-up: source 9ecaa696ec78 adds guarded serial OK without changing
+the metrology profile or estimator. One actual owner-authorized remote trial on
+the unchanged nominal 470-uH inductor returned 472.656 uH, seven accepted samples,
+coverage 7/7 and five actual power refreshes. Eleven captures (five search plus
+six primary extras) retained the initial permit and finished SAFE with no fault.
+The firmware connected-entry/final-guard interval is 1,617 ms. Owner absence
+prevents a physical contact-count witness; no new capacitor or accuracy test is
+claimed. See the [serial-control delivery](../Firmware/releases/2026-10-27/serial-ok-control/README.md).

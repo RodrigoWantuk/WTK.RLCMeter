@@ -422,8 +422,9 @@ K1, ranges, quiet or workspace ownership. Sampling is scheduled about every
 timestamps renew the existing 1,000-ms battery deadline. Settling resumes at its
 original deadline. Failure always enters normal SAFE cleanup.
 
-The verified factory image accounts for 17,104 B RAM including the 2,052-B
-stack reservation. The existing 17,408-B hard gate remains enforced; inspect
+The plan-27 factory image accounts for 17,104 B RAM including its 2,052-B
+stack reservation; the subsequent serial-control image accounts for 17,116 B
+including a 2,048-B stack reservation. The existing 17,408-B hard gate remains enforced; inspect
 the release matrix for final sizes. No additional ADC buffer, heap, calibration
 record or persistent-format change is introduced.
 
