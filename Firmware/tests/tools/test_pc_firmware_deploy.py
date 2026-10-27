@@ -63,6 +63,29 @@ def image_fixture(root,profile):
 
 
 class DeployTests(unittest.TestCase):
+    def test_atomic_save_transient_windows_lock(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path=Path(folder)/"record.json"; path.write_text('{"old": true}',encoding="utf-8")
+            replace=os.replace; calls=[]
+            def locked_then_replace(source,destination):
+                calls.append(source)
+                if len(calls)<3: raise PermissionError("transient test lock")
+                replace(source,destination)
+            with patch.object(d.os,"replace",side_effect=locked_then_replace), patch.object(d.time,"sleep") as sleep:
+                d.save(path,{"new": True})
+            self.assertEqual(json.loads(path.read_text(encoding="utf-8")),{"new": True})
+            self.assertEqual(len(calls),3); self.assertEqual(sleep.call_count,2)
+            self.assertFalse(list(Path(folder).glob("*.tmp")))
+
+    def test_atomic_save_persistent_lock_keeps_old_record_and_stops(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path=Path(folder)/"record.json"; path.write_text('{"old": true}',encoding="utf-8")
+            with patch.object(d.os,"replace",side_effect=PermissionError("persistent test lock")) as replace, patch.object(d.time,"sleep"):
+                with self.assertRaises(PermissionError): d.save(path,{"new": True})
+            self.assertEqual(replace.call_count,8)
+            self.assertEqual(json.loads(path.read_text(encoding="utf-8")),{"old": True})
+            self.assertEqual(len(list(Path(folder).glob("*.tmp"))),1)
+
     def ntc_image(self):
         import ntc_factory_profile as ntc
         profile=d.load(Path(__file__).resolve().parents[2]/"config/units/54ff70068370525760380567-ntc-engineering.json")

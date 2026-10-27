@@ -56,7 +56,16 @@ def load(path):
 def save(path,value):
     path=Path(path); temporary=path.with_name(path.name+"."+uuid.uuid4().hex+".tmp")
     temporary.write_text(json.dumps(value,indent=2,allow_nan=False)+"\n",encoding="utf-8")
-    os.replace(temporary,path)
+    # Windows scanners can briefly lock the destination. Keep atomic replacement
+    # and bounded retries; a persistent failure still stops before the next
+    # hardware action and leaves the temporary evidence available for inspection.
+    for attempt in range(8):
+        try:
+            os.replace(temporary,path)
+            return
+        except PermissionError:
+            if attempt == 7: raise
+            time.sleep(0.05)
 
 
 def seal(value):
