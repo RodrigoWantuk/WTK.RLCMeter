@@ -6,6 +6,7 @@
 
 #include <stdio.h>
 #include "wtk_build_config.h"
+#include "app/app_serial_ui.h"
 #include <string.h>
 #include <math.h>
 #include <float.h>
@@ -1388,6 +1389,67 @@ static int test_survey_low_frequency_final_reaches_product_view(void)
 }
 #endif
 
+static int test_serial_ok_contract(void)
+{
+    int failures = 0;
+    for (unsigned variant = 0u; variant < 15u; ++variant)
+    {
+        fake_io_t fake = {0};
+        app_product_t product;
+        app_serial_ui_t serial = {0};
+        (void)init_product(&product, &fake);
+        const app_product_inputs_t inputs = inputs_ready();
+        boot_to_ready(&product, &inputs);
+        uint8_t payload[APP_SERIAL_UI_REQUEST_BYTES] = {APP_SERIAL_UI_API, APP_SERIAL_UI_OK_CLICK, 0u, 0u, 2u};
+        uint8_t bytes[APP_PC_LINK_HEADER_SIZE + APP_SERIAL_UI_REQUEST_BYTES];
+        uint8_t reply[APP_SERIAL_UI_RESPONSE_BYTES];
+        app_pc_link_encode_header(bytes, (app_pc_link_frame_type_t)APP_SERIAL_UI_OK_CLICK, 0u, 2u, payload, sizeof(payload));
+        memcpy(bytes + APP_PC_LINK_HEADER_SIZE, payload, sizeof(payload));
+        app_pc_link_frame_t frame;
+        failures += expect_true(app_pc_link_decode_frame(bytes, sizeof(bytes), &frame) == APP_PC_LINK_STATUS_OK,
+            "serial OK uses the existing CRC-checked frame");
+        bool can_activate = true;
+        if (variant == 1u) can_activate = false;
+        if (variant == 2u) serial.last_request = 2u;
+        if (variant == 3u) product.session_sequence = 1u;
+        if (variant == 4u) product.view.state = UI_PRODUCT_STATE_MENU;
+        if (variant == 5u) product.ok_armed = true;
+        if (variant == 6u) product.request_click = true;
+        if (variant == 7u) product.view.state = UI_PRODUCT_STATE_MEASURING;
+        if (variant == 8u) frame.flags = 1u;
+        if (variant == 9u) frame.payload_length--;
+        if (variant == 10u) frame.sequence = 3u;
+        if (variant == 11u) bytes[APP_PC_LINK_HEADER_SIZE + 1u] = APP_SERIAL_UI_STATUS;
+        if (variant == 12u) product.backlight_sleeping = true;
+        if (variant == 13u) product.view.state = UI_PRODUCT_STATE_CALIBRATION_REQUIRED;
+        if (variant == 14u) frame.payload = NULL;
+        app_serial_ui_handle(&serial, &product, &frame, can_activate, can_activate ? 8u : 1u, 100u, reply);
+        const bool accepted = variant == 0u || variant == 12u;
+        failures += expect_true((reply[2] == APP_SERIAL_UI_ACCEPTED || reply[2] == APP_SERIAL_UI_WOKE_ONLY) == accepted,
+            "serial rejects malformed, duplicate, stale-session, unsafe and nonmeasurement UI requests");
+        failures += expect_true(fake.start_count == 0u,
+            "serial acceptance cannot directly start hardware acquisition");
+        if (variant == 0u)
+        {
+            failures += expect_true(product.request_click && !product.ok_armed,
+                "one accepted serial OK uses ordinary PRESS/RELEASE semantics");
+            product.request_click = false;
+            app_serial_ui_handle(&serial, &product, &frame, true, 8u, 101u, reply);
+            failures += expect_true(reply[2] == APP_SERIAL_UI_STALE_REQUEST && !product.request_click,
+                "an uncertain-response retry cannot deliver another click");
+        }
+        if (variant == 1u)
+            failures += expect_true(serial.last_request == 2u && !product.request_click,
+                "a rejected activation is consumed rather than queued until safe");
+        if (variant == 12u)
+            failures += expect_true(reply[2] == APP_SERIAL_UI_WOKE_ONLY && !product.backlight_sleeping && !product.request_click && !product.wake_consume_active,
+                "sleeping UI consumes the first complete serial click as wake only");
+        if (variant != 6u && !accepted)
+            failures += expect_true(!product.request_click, "rejected control cannot inject a click");
+    }
+    return failures;
+}
+
 int main(int argc, char **argv)
 {
     if ((argc == 2) && (strcmp(argv[1], "--sizes") == 0))
@@ -1416,6 +1478,7 @@ int main(int argc, char **argv)
         return 0;
     }
     int failures = 0;
+    failures += test_serial_ok_contract();
 #if WTK_PRODUCT_FACTORY_PROVISIONED
     const char *directory = argc==3 && strcmp(argv[1],"--ac-snapshots")==0 ? argv[2] : NULL;
     failures += test_factory_ac_results(directory);

@@ -791,6 +791,8 @@ if(WTK_WARNINGS_AS_ERRORS_HOST)
     wtk_treat_warnings_as_errors(wtk_pc_osl_bridge)
 endif()
 find_package(Python3 3.9 REQUIRED COMPONENTS Interpreter)
+add_test(NAME wtk_pc_serial_ui_test
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/test_pc_serial_ui.py)
 add_test(NAME wtk_ntc_factory_profile_test
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/test_ntc_factory_profile.py)
 set(WTK_NTC_TEST_GENERATED "${CMAKE_CURRENT_BINARY_DIR}/ntc-factory-generated")

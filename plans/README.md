@@ -177,3 +177,8 @@ with one K1 engagement and final release across the three-frequency/seven-sample
 survey, using real interleaved power sampling and unchanged evidence freshness.
 Legacy captures retain their authorization limits; physical acceptance is
 tracked separately from software tests.
+
+[Plan 28](28-Serial-OK-Control.md) adds explicit bounded PRODUCT serial short-OK
+control through the ordinary UI path for an owner-confirmed unchanged passive
+DUT, preserving real permission, duplicate rejection and quiet acquisition.
+Diagnostic profiles retain their existing protocols.

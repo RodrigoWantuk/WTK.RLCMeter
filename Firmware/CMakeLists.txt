@@ -28,6 +28,7 @@ option(WTK_CAL_INSTALL_SERVICE "Include installation in the calibration service 
 option(WTK_PRODUCT_FACTORY_PROVISIONED
        "Experimental PRODUCT: require PC-provisioned OSL and exclude the embedded wizard" OFF)
 option(WTK_ENABLE_SUPPLEMENTARY_CURVES "Enable optional post-OSL WCRV calibration runtime" OFF)
+option(WTK_ENABLE_SERIAL_UI "Enable guarded short-OK control through the PRODUCT UART protocol" ON)
 option(WTK_BRINGUP_K1_TEST "BRINGUP-only empty-fixture K1 pulse; excludes experimental DC pilot for Flash space" OFF)
 option(WTK_BRINGUP_BENCH_SUPPLY "BRINGUP-only operator-confirmed external 5V supply, without battery" OFF)
 option(WTK_BRINGUP_PERIPHERAL_TEST "BRINGUP-only standalone display/buttons/buzzer diagnostic; no active lab console" OFF)
@@ -84,7 +85,12 @@ if(WTK_PRODUCT_FACTORY_PROVISIONED AND WTK_FIRMWARE_PROFILE STREQUAL "PRODUCT")
     set(WTK_PRODUCT_FACTORY_PROVISIONED_VALUE 1)
 endif()
 
-if(WTK_ENABLE_PRODUCT_RESOURCE_UPDATE OR
+set(WTK_ENABLE_SERIAL_UI_VALUE 0)
+if(WTK_ENABLE_SERIAL_UI AND WTK_FIRMWARE_PROFILE STREQUAL "PRODUCT")
+    set(WTK_ENABLE_SERIAL_UI_VALUE 1)
+endif()
+
+if(WTK_ENABLE_PRODUCT_RESOURCE_UPDATE OR WTK_ENABLE_SERIAL_UI_VALUE OR
    WTK_PRODUCT_FACTORY_PROVISIONED_VALUE OR
    (WTK_FIRMWARE_PROFILE STREQUAL "PRODUCT" AND WTK_BUILD_TYPE STREQUAL "Release"))
     set(WTK_ENABLE_PRODUCT_RESOURCE_UPDATE_VALUE 1)
@@ -154,6 +160,7 @@ set(WTK_COMMON_SOURCES
     src/app/app_io_workspace.c
     src/app/app_measurement_session.c
     src/app/app_pc_link_protocol.c
+    src/app/app_serial_ui.c
     src/app/app_product.c
     src/app/app_resource_update.c
     src/app/app_settings_service.c

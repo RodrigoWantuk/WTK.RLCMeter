@@ -595,6 +595,9 @@ is needed for this indicator.
 
 ## Frequency-survey coverage
 
+Factory continuous relay/power ownership is defined by plan 27. The following
+frequency and seven-point UI metadata remains unchanged.
+
 Factory PRODUCT details append F<n>/3 for attempted frequency coverage, alongside
 AVG7/3 for a successfully completed primary-condition estimator. Separate raw
 attempted/usable masks remain in diagnostic result metadata; F3/3 does not claim
@@ -603,3 +606,43 @@ can take seconds and intentionally use SAFE/fresh-permit relay boundaries.
 Below the ~1-ohm lower engineering target, resistance-dominated uncertain data
 uses IMPEDANCE/unknown instead of asserting RESISTOR. No asset-pack change is
 required for these compact indicators.
+
+## Serial short-OK control
+
+WTK_ENABLE_SERIAL_UI is a CMake option, ON by default for PRODUCT. It enables
+existing PLC1 receiving in Debug as well as Release/factory PRODUCT. BRINGUP
+and BRINGUP_CAL retain their diagnostic protocols; neither has the product UI
+OK action. Their capture commands are not aliased to a relay shortcut. Setting
+-DWTK_ENABLE_SERIAL_UI=OFF removes serial UI control without disabling safety.
+
+Use Firmware/tools/pc_serial_ui.py --port COM4 --out <new-directory> for a
+read-only state query; add --ok for one explicit short click after a fresh query.
+115200 8N1 and deasserted DTR/RTS are shared with existing tools. A timeout is an
+ambiguous activation outcome; the client never retries. Inspect state/results
+before explicitly sending another request. WOKE_ONLY reports a complete first
+click consumed by backlight wake, without starting acquisition. This preserves
+physical-button behavior. Acceptance is not a measurement-completion reply.
+
+PLC1 request types 0x30 (status) and 0x31 (short OK) have exactly 12 payload bytes:
+API u8=1, echoed command u8, reserved u16=0, nonzero increasing request ID u32,
+expected measurement-session sequence u32, all little-endian. Header sequence
+matches the low 16 ID bits; flags must be zero. Payload CRC, command echo and
+identity must match. Status ignores the expected sequence; activation requires
+an exact match. Rejected valid IDs are consumed, so commands cannot wait for
+later admission. No activation replay is allowed within a boot. The tool uses
+fresh increasing IDs and records exact request/reply bytes.
+
+Response type 0xB0 has 16 payload bytes: API u8, echoed command u8, status u8,
+UI state u8, request ID u32, current session sequence u32, safety blocker flags
+u32. Status values are ACCEPTED=0, BAD_REQUEST=1, STALE_REQUEST=2,
+SESSION_MISMATCH=3, NOT_READY=4, SAFETY_BLOCKED=5, WOKE_ONLY=6. Request IDs are
+boot-local and must increase without wrap; they are not authentication tokens.
+Only initialized READY/RESULT presentations can accept a short click. Actual
+hardware must be SAFE, range disabled, source OFF, idle/free of metrology and
+resource ownership, with no charger/fault/supply/residual blocker and active
+calibration. Physical-button/pending UI overlap is rejected. The usual app and
+hardware fresh-permit checks still run after the ordinary PRESS/RELEASE pair.
+No menu confirmation, calibration action, long press, repeat or raw GPIO control
+is provided. Queries do not wake or start measurement. Quiet acquisition defers
+UART parsing/output and discards partial frames; partial RX expires at 250 ms.
+Resource payload bytes are never scanned as UI commands.

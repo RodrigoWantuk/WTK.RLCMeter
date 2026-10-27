@@ -426,3 +426,14 @@ The verified factory image accounts for 17,104 B RAM including the 2,052-B
 stack reservation. The existing 17,408-B hard gate remains enforced; inspect
 the release matrix for final sizes. No additional ADC buffer, heap, calibration
 record or persistent-format change is introduced.
+
+## Serial UI adapter
+
+app_serial_ui validates bounded PRODUCT control frames and request identity,
+then delegates a single short OK to app_product_handle_button_event. It has one
+32-bit boot-local request counter, no queue or peripheral ownership. The board
+adapter supplies actual SAFE/power/ownership/physical-button admission. Existing
+PLC1 decoding/resource frame boundaries remain authoritative; no byte-sniffing
+multiplexer or alternate measurement engine is introduced. The PC client never
+retries activation after an uncertain reply. See plan 28 for the profile and
+validation contract.
