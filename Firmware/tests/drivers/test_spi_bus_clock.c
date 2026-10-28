@@ -48,8 +48,11 @@ int main(void)
           "quiet blocks transfer/configuration");
     quiet = false;
     check(spi_bus_init() == BSP_STATUS_OK,"reinit restores default clock");
-    check(spi_bus_acquire(SPI_BUS_DEVICE_ILI9341) == BSP_STATUS_OK && prescaler == BSP_SPI_PRESCALER_DIV8,
-          "normal TFT restores divider8; slow diagnostic remains explicit");
+    check(spi_bus_acquire(SPI_BUS_DEVICE_ILI9341) == BSP_STATUS_OK && prescaler == BSP_SPI_PRESCALER_DIV4,
+          "normal TFT writes use divider4 (9 MHz)");
     check(spi_bus_release(SPI_BUS_DEVICE_ILI9341) == BSP_STATUS_OK,"release default TFT");
+    check(spi_bus_acquire(SPI_BUS_DEVICE_ILI9341_READ)==BSP_STATUS_OK && prescaler==BSP_SPI_PRESCALER_DIV8,
+          "TFT reads stay at 4.5 MHz independently of writes");
+    check(spi_bus_release(SPI_BUS_DEVICE_ILI9341_READ)==BSP_STATUS_OK,"release read owner");
     return failures == 0 ? 0 : 1;
 }

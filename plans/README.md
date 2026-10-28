@@ -198,3 +198,9 @@ The native menu is now implemented; final software checks and physical acceptanc
 owner assets must be preserved, without another factory LOAD campaign.
 
 Production completion: [sealed software image, memory and acceptance handoff](../Firmware/releases/2026-10-27/production-completion/README.md). Software checks passed; deployment and physical qualification are pending.
+
+[Plan 31](31-Display-Throughput-and-Charging-UX.md) delivers glyph/window batching, normal charging navigation with measurement inhibition, and API 5 bilingual external resources while preserving owner artwork. The [current delivery](../Firmware/releases/2026-10-27/display-charging-ui/README.md) is programmed, fully readback verified and boots READY/SAFE. TFT appearance/speed and charging-menu acceptance remain REQUIRES_BENCH_VALIDATION.
+
+[Plan 32](32-Product-Status-and-Backlight-Feedback.md) follows actual display feedback: About overflow, Celsius diagnostics, direct quick-lead menu discovery and measured backlight-command investigation. The original API 5 pack and splash remain unchanged; actual LED/driver brightness requires further bench evidence.
+
+[Plan 33](33-Persistent-Picture-Controls-and-SPI.md) implements requested persistent RGB565 picture controls, the API 6 catalog and conservative 9-MHz TFT-write/4.5-MHz read separation. The owner resolved apparent brightness as the module's viewing angle. Plan-32 corrections are programmed/verified; picture controls and visual throughput acceptance are tracked separately.

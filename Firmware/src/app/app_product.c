@@ -28,6 +28,11 @@ enum
     APP_PRODUCT_MAIN_COUNT,
     APP_PRODUCT_DISPLAY_BRIGHTNESS = 0,
     APP_PRODUCT_DISPLAY_TIMEOUT,
+    APP_PRODUCT_DISPLAY_GAMMA,
+    APP_PRODUCT_DISPLAY_CONTRAST,
+    APP_PRODUCT_DISPLAY_SATURATION,
+    APP_PRODUCT_DISPLAY_INVERSION,
+    APP_PRODUCT_DISPLAY_RESET,
     APP_PRODUCT_DISPLAY_BACK,
     APP_PRODUCT_DISPLAY_COUNT,
     APP_PRODUCT_SOUND_TOGGLE = 0,
@@ -143,6 +148,10 @@ static void sync_settings_view(app_product_t *product)
     const uint16_t timeout_seconds = (uint16_t)settings.backlight_timeout;
     if ((product->view.menu.brightness_percent != settings.brightness_percent) ||
         (product->view.menu.timeout_seconds != timeout_seconds) ||
+        product->view.menu.picture_gamma!=settings.picture_gamma ||
+        product->view.menu.picture_contrast!=settings.picture_contrast ||
+        product->view.menu.picture_saturation!=settings.picture_saturation ||
+        product->view.menu.picture_inverted!=settings.picture_inverted ||
         (product->view.menu.sound_enabled != settings.sound_enabled) ||
         (product->view.menu.language_id != settings.language_id) ||
         (product->view.menu.calibration_load_preset != product->calibration_load_preset) ||
@@ -151,6 +160,10 @@ static void sync_settings_view(app_product_t *product)
     {
         product->view.menu.brightness_percent = settings.brightness_percent;
         product->view.menu.timeout_seconds = timeout_seconds;
+        product->view.menu.picture_gamma=settings.picture_gamma;
+        product->view.menu.picture_contrast=settings.picture_contrast;
+        product->view.menu.picture_saturation=settings.picture_saturation;
+        product->view.menu.picture_inverted=settings.picture_inverted;
         product->view.menu.sound_enabled = settings.sound_enabled;
         product->view.menu.language_id = settings.language_id;
         product->view.menu.calibration_load_preset = product->calibration_load_preset;
@@ -203,7 +216,7 @@ static bool state_is_menu_like(ui_product_state_t state)
            (state == UI_PRODUCT_STATE_LANGUAGE_MENU) ||
            (state == UI_PRODUCT_STATE_MAINTENANCE) ||
            (state == UI_PRODUCT_STATE_BRIGHTNESS_EDIT) ||
-           (state == UI_PRODUCT_STATE_TIMEOUT_EDIT);
+           (state == UI_PRODUCT_STATE_TIMEOUT_EDIT) || (state == UI_PRODUCT_STATE_PICTURE_EDIT);
 }
 
 static uint8_t clamp_brightness_step(int16_t value)
@@ -872,6 +885,27 @@ static WTK_NOINLINE void handle_display_editor(app_product_t *product, bool brig
     clear_requests(product);
 }
 
+static void handle_picture_editor(app_product_t *product)
+{
+    app_settings_t settings=current_settings(product);
+    if(product->request_page_next || product->request_page_prev) {
+        uint8_t *value=product->menu_index==APP_PRODUCT_DISPLAY_GAMMA?&settings.picture_gamma:
+            product->menu_index==APP_PRODUCT_DISPLAY_CONTRAST?&settings.picture_contrast:&settings.picture_saturation;
+        const uint8_t count=product->menu_index==APP_PRODUCT_DISPLAY_GAMMA?3u:5u;
+        if(product->menu_index==APP_PRODUCT_DISPLAY_INVERSION) settings.picture_inverted=!settings.picture_inverted;
+        else *value=(uint8_t)((*value+(product->request_page_next?1u:(unsigned)count-1u))%count);
+        apply_settings(product,&settings);
+    }
+    if(product->request_menu) {
+        apply_settings(product,&product->edit_entry_settings);
+        set_menu(product,UI_PRODUCT_STATE_DISPLAY_MENU,product->menu_index);
+    } else if(product->request_click) {
+        request_settings_save(product);
+        set_menu(product,UI_PRODUCT_STATE_DISPLAY_MENU,product->menu_index);
+    }
+    clear_requests(product);
+}
+
 static WTK_NOINLINE void service_pending_settings_save(app_product_t *product,
                                           const app_product_inputs_t *inputs,
                                           uint32_t now_ms)
@@ -938,6 +972,17 @@ static bool calibration_forces_awake(const app_product_t *product)
 }
 #endif
 
+/* Navigation policy only. The acquisition scheduler and hardware permits keep
+ * the real charger blocker. Other invalid/unsafe evidence is never hidden. */
+static bool charger_idle_navigation_allowed(const app_product_inputs_t *inputs)
+{
+    const uint32_t flags = inputs->safety_result.blocker_flags;
+    const uint32_t allowed = HW_SAFETY_BLOCK_CHARGER | HW_SAFETY_BLOCK_RANGE;
+    return (flags & HW_SAFETY_BLOCK_CHARGER) != 0u && (flags & ~allowed) == 0u &&
+        ((flags & HW_SAFETY_BLOCK_RANGE) == 0u || inputs->range_disabled) &&
+        inputs->safety_fault_mask == 0u && !inputs->display_fault;
+}
+
 static WTK_NOINLINE void update_backlight_idle(app_product_t *product,
                                   const app_product_inputs_t *inputs,
                                   uint32_t now_ms)
@@ -953,8 +998,9 @@ static WTK_NOINLINE void update_backlight_idle(app_product_t *product,
 #if !WTK_PRODUCT_FACTORY_PROVISIONED
         calibration_forces_awake(product) ||
 #endif
-        !app_product_schedule_allowed(&inputs->safety_result, inputs->range_disabled,
-                                      inputs->residual_refresh_pending, false);
+        (!charger_idle_navigation_allowed(inputs) &&
+         !app_product_schedule_allowed(&inputs->safety_result, inputs->range_disabled,
+                                       inputs->residual_refresh_pending, false));
     if (force_awake)
     {
         if (product->backlight_sleeping)
@@ -1015,6 +1061,8 @@ bsp_status_t app_product_init(app_product_t *product,
         .safety_blocker = UI_PRODUCT_BLOCK_SENSOR,
         .menu = {
             .selected_index = APP_PRODUCT_MAIN_CALIBRATION,
+            .picture_gamma=settings.picture_gamma, .picture_contrast=settings.picture_contrast,
+            .picture_saturation=settings.picture_saturation, .picture_inverted=settings.picture_inverted,
             .brightness_percent = settings.brightness_percent,
             .timeout_seconds = (uint16_t)settings.backlight_timeout,
             .sound_enabled = settings.sound_enabled,
@@ -1153,17 +1201,20 @@ static bool step_lead_ui(app_product_t *product,const app_product_inputs_t *inpu
     }
     if(blocked) app_lead_cancel(lead);
     if(product->view.state==UI_PRODUCT_STATE_LEAD_MENU && !blocked) {
-        if(product->request_menu) set_state(product,UI_PRODUCT_STATE_CALIBRATION_STATUS);
+        if(product->request_menu) set_menu(product,UI_PRODUCT_STATE_MENU,APP_PRODUCT_MAIN_CALIBRATION);
         else if(product->request_page_next || product->request_page_prev) {
-            product->menu_index=(uint8_t)((product->menu_index+(product->request_page_next?1u:3u))%4u);
+            product->menu_index=(uint8_t)((product->menu_index+(product->request_page_next?1u:4u))%5u);
             product->view.menu.selected_index=product->menu_index; mark_dirty(product);
+        } else if(product->request_click && product->menu_index>=3u) {
+            if(product->menu_index==3u) set_state(product,UI_PRODUCT_STATE_CALIBRATION_STATUS);
+            else set_menu(product,UI_PRODUCT_STATE_MENU,APP_PRODUCT_MAIN_CALIBRATION);
         } else if(product->request_click && !product->settings_save_requested &&
                   !app_settings_service_busy(product->settings_service) && !inputs->lead_storage_blocked) {
             bsp_status_t status=BSP_STATUS_OK;
-            if(product->menu_index==0u) status=app_lead_begin(lead);
+            if(product->menu_index==0u) status=product->view.charger_connected?
+                BSP_STATUS_BUSY:app_lead_begin(lead);
             else if(product->menu_index==1u) status=app_lead_set_enabled(lead,!product->view.lead_active,false,now_ms);
             else if(product->menu_index==2u) status=app_lead_set_enabled(lead,false,true,now_ms);
-            else set_state(product,UI_PRODUCT_STATE_CALIBRATION_STATUS);
             if(product->menu_index<3u) {
                 if(status==BSP_STATUS_OK) { product->next_hint=(measurement_auto_hint_t){0};
                     product->view.has_measurement_result=false; set_state(product,UI_PRODUCT_STATE_LEAD_WIZARD); }
@@ -1176,11 +1227,14 @@ static bool step_lead_ui(app_product_t *product,const app_product_inputs_t *inpu
             else set_menu(product,UI_PRODUCT_STATE_LEAD_MENU,0u);
         } else if(product->request_click) {
             if(!app_lead_busy(lead)) set_menu(product,UI_PRODUCT_STATE_LEAD_MENU,0u);
-            else if(lead->state==APP_LEAD_WAIT_OPEN || lead->state==APP_LEAD_WAIT_SHORT ||
+            else if(((lead->state==APP_LEAD_WAIT_OPEN || lead->state==APP_LEAD_WAIT_SHORT) &&
+                      !product->view.charger_connected) ||
                     ((lead->state==APP_LEAD_REVIEW || lead->state==APP_LEAD_CONFIRM_CLEAR) && !inputs->lead_storage_blocked))
                 app_lead_confirm(lead,now_ms);
         }
     }
+    if(product->view.charger_connected && (lead->state==APP_LEAD_START ||
+       lead->state==APP_LEAD_WAIT || lead->state==APP_LEAD_DRAIN)) app_lead_cancel(lead);
     const app_lead_state_t before=lead->state;
     app_lead_step(lead,clock,clock_status,!inputs->lead_storage_blocked,now_ms);
     if(before!=lead->state && lead->state==APP_LEAD_COMPLETE) feedback_event(product,APP_FEEDBACK_SAVED);
@@ -1218,6 +1272,13 @@ void app_product_step(app_product_t *product,
         product->view.settings_error=(uint8_t)product->settings_service->last_error;
         mark_dirty(product);
     }
+    const bool charger_connected =
+        (inputs->safety_result.blocker_flags & HW_SAFETY_BLOCK_CHARGER) != 0u;
+    if (product->view.charger_connected != charger_connected)
+    {
+        product->view.charger_connected = charger_connected;
+        mark_dirty(product);
+    }
     if(step_lead_ui(product,inputs,clock_summary,clock_status,now_ms)) return;
 
     const ui_product_calibration_state_t next_cal =
@@ -1226,6 +1287,8 @@ void app_product_step(app_product_t *product,
         runtime_active(product);
     const bool schedule_allowed = app_product_schedule_allowed(&inputs->safety_result,
         inputs->range_disabled, inputs->residual_refresh_pending, measurement_active);
+    const bool charging_navigation = charger_idle_navigation_allowed(inputs);
+    const bool idle_ui_allowed = schedule_allowed || charging_navigation;
     const ui_product_blocker_t next_blocker = schedule_allowed ? UI_PRODUCT_BLOCK_NONE :
         ui_blocker(inputs->safety_result.primary_blocker);
     const bool next_storage_unavailable = inputs->calibration_status == APP_CAL_SERVICE_STORAGE_UNAVAILABLE;
@@ -1233,13 +1296,14 @@ void app_product_step(app_product_t *product,
     const bool calibration_changed = product->view.calibration_active_valid &&
         (!inputs->calibration_active_valid ||
          product->view.calibration_sequence != inputs->calibration_active_sequence);
-    if (calibration_changed || !schedule_allowed ||
+    if (calibration_changed || !idle_ui_allowed || (measurement_active && !schedule_allowed) ||
         inputs->safety_fault_mask != 0u || inputs->display_fault ||
         resource_status_requires_upload(inputs->resource_status))
     {
         invalidate_measurement(product);
         product->measurement_deferred_for_settings = false;
     }
+    if (!schedule_allowed) product->measurement_deferred_for_settings = false;
 #endif
     if ((product->view.calibration_status != next_cal) ||
         (product->view.safety_blocker != next_blocker) ||
@@ -1310,7 +1374,7 @@ void app_product_step(app_product_t *product,
     if (product->runtime_kind == APP_PRODUCT_RUNTIME_MEASUREMENT && runtime_active(product) &&
         (calibration_changed || !schedule_allowed))
     {
-        const ui_product_state_t target = !schedule_allowed ?
+        const ui_product_state_t target = charging_navigation ? UI_PRODUCT_STATE_READY : !schedule_allowed ?
             UI_PRODUCT_STATE_SAFETY_BLOCKED : inputs->calibration_active_valid ?
             UI_PRODUCT_STATE_READY : UI_PRODUCT_STATE_CALIBRATION_REQUIRED;
         set_state(product, target);
@@ -1347,6 +1411,9 @@ void app_product_step(app_product_t *product,
 
     if (state_is_menu_like((ui_product_state_t)product->view.state))
     {
+        if (product->view.state == UI_PRODUCT_STATE_PICTURE_EDIT) {
+            handle_picture_editor(product); return;
+        }
         if (product->view.state == UI_PRODUCT_STATE_BRIGHTNESS_EDIT)
         {
             handle_display_editor(product, true);
@@ -1378,7 +1445,9 @@ void app_product_step(app_product_t *product,
             {
                 if (product->menu_index == APP_PRODUCT_MAIN_CALIBRATION)
                 {
-                    set_state(product, UI_PRODUCT_STATE_CALIBRATION_STATUS);
+                    if(product->lead_service!=NULL && inputs->calibration_active_valid)
+                        set_menu(product,UI_PRODUCT_STATE_LEAD_MENU,0u);
+                    else set_state(product, UI_PRODUCT_STATE_CALIBRATION_STATUS);
                 }
                 else if (product->menu_index == APP_PRODUCT_MAIN_DISPLAY)
                 {
@@ -1426,8 +1495,16 @@ void app_product_step(app_product_t *product,
                     product->edit_entry_settings = current_settings(product);
                     set_state(product, UI_PRODUCT_STATE_TIMEOUT_EDIT);
                 }
-                else
-                {
+                else if(product->menu_index>=APP_PRODUCT_DISPLAY_GAMMA && product->menu_index<=APP_PRODUCT_DISPLAY_INVERSION) {
+                    product->edit_entry_settings=current_settings(product);
+                    set_state(product,UI_PRODUCT_STATE_PICTURE_EDIT);
+                } else if(product->menu_index==APP_PRODUCT_DISPLAY_RESET) {
+                    app_settings_t settings=current_settings(product);const app_settings_t defaults=app_settings_defaults();
+                    settings.brightness_percent=defaults.brightness_percent;settings.backlight_timeout=defaults.backlight_timeout;
+                    settings.picture_gamma=defaults.picture_gamma;settings.picture_contrast=defaults.picture_contrast;
+                    settings.picture_saturation=defaults.picture_saturation;settings.picture_inverted=defaults.picture_inverted;
+                    apply_settings(product,&settings);request_settings_save(product);
+                } else {
                     set_menu(product, UI_PRODUCT_STATE_MENU, APP_PRODUCT_MAIN_DISPLAY);
                 }
             }
@@ -1546,7 +1623,9 @@ void app_product_step(app_product_t *product,
     {
         if (product->request_menu)
         {
-            set_state(product, UI_PRODUCT_STATE_MENU);
+            if(product->lead_service!=NULL && inputs->calibration_active_valid)
+                set_menu(product,UI_PRODUCT_STATE_LEAD_MENU,3u);
+            else set_menu(product,UI_PRODUCT_STATE_MENU,APP_PRODUCT_MAIN_CALIBRATION);
         }
         else if (product->request_click && product->lead_service!=NULL && inputs->calibration_active_valid)
         {
@@ -1697,7 +1776,7 @@ void app_product_step(app_product_t *product,
         return;
     }
 
-    if (!schedule_allowed)
+    if (!idle_ui_allowed)
     {
         set_state(product, UI_PRODUCT_STATE_SAFETY_BLOCKED);
         product->request_click = false;
@@ -1744,6 +1823,13 @@ void app_product_step(app_product_t *product,
     }
     product->request_page_next = false;
     product->request_page_prev = false;
+
+    if (!schedule_allowed)
+    {
+        /* A click while charging is consumed now, never deferred until unplug. */
+        product->request_click = false;
+        product->measurement_deferred_for_settings = false;
+    }
 
     if (product->request_click &&
         state_accepts_measurement_request((ui_product_state_t)product->view.state) &&
@@ -1812,6 +1898,8 @@ void app_product_make_outputs(const app_product_t *product, app_product_outputs_
     const app_settings_t settings = current_settings(product);
     *outputs = (app_product_outputs_t){
         .backlight_percent = product->backlight_sleeping ? 0u : settings.brightness_percent,
+        .picture={.gamma=settings.picture_gamma,.contrast=settings.picture_contrast,
+                  .saturation=settings.picture_saturation,.inverted=settings.picture_inverted},
         .sound_enabled = settings.sound_enabled,
         .tone_frequency_hz = (product->tone_sequence != 0u) ? 2000u : 0u,
         .tone_duration_ms = (product->tone_sequence != 0u) ? 30u : 0u,

@@ -428,6 +428,20 @@ bsp_status_t ui_font_text_step(const ili9341_t *display, ui_font_text_op_t *op)
     {
         return bsp_from_resource(status);
     }
+    /* Spaces have no bitmap. Every other glyph streams row-major into one
+     * rectangle; no extra pixel buffer or bus lease spans a cooperative step. */
+    if ((glyph.width > 0u) && (glyph.height > 0u))
+    {
+        const bsp_status_t draw_status = ili9341_set_window(display,
+            (uint16_t)(op->cursor_x + (uint16_t)glyph.bearing_x),
+            (uint16_t)(op->y + (uint16_t)(op->catalog->faces[(uint8_t)op->role].ascent -
+                                         (uint8_t)glyph.bearing_y)),
+            glyph.width, glyph.height);
+        if (draw_status != BSP_STATUS_OK)
+        {
+            return draw_status;
+        }
+    }
     for (uint8_t row = 0u; row < glyph.height; row++)
     {
         const uint32_t row_base = (uint32_t)row * glyph.row_stride;
@@ -437,18 +451,7 @@ bsp_status_t ui_font_text_step(const ili9341_t *display, ui_font_text_op_t *op)
             const uint8_t mask = (uint8_t)(1u << (7u - (col & 7u)));
             pixels[col] = ((byte & mask) != 0u) ? op->fg_rgb565 : op->bg_rgb565;
         }
-        bsp_status_t draw_status =
-            ili9341_set_window(display,
-                               (uint16_t)(op->cursor_x + (uint16_t)glyph.bearing_x),
-                               (uint16_t)(op->y + (uint16_t)(op->catalog->faces[(uint8_t)op->role].ascent -
-                                                             (uint8_t)glyph.bearing_y) + row),
-                               glyph.width,
-                               1u);
-        if (draw_status != BSP_STATUS_OK)
-        {
-            return draw_status;
-        }
-        draw_status = ili9341_write_pixels_rgb565(pixels, glyph.width);
+        const bsp_status_t draw_status = ili9341_write_pixels_rgb565(pixels, glyph.width);
         if (draw_status != BSP_STATUS_OK)
         {
             return draw_status;

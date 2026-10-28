@@ -155,6 +155,8 @@ static uint16_t g_product_ccr_table[HW_EXCITATION_LUT_MAX_POINTS];
 static uint32_t g_product_output_tone_sequence = 0u;
 static app_feedback_t g_product_feedback;
 static uint8_t g_product_output_backlight_percent = UINT8_MAX;
+static ili9341_picture_t g_product_picture;
+static bool g_product_picture_valid;
 static bool g_product_output_sound_valid = false;
 static bool g_product_output_sound_enabled = true;
 static bool g_product_display_fault = false;
@@ -1332,6 +1334,17 @@ static void product_apply_outputs(void)
 {
     app_product_outputs_t outputs;
     app_product_make_outputs(&g_product, &outputs);
+    const ili9341_picture_t *picture=&outputs.picture;
+    if(g_display.ready && !g_product_ui.active && !hw_peripherals_quiet_requested() &&
+       (!g_product_picture_valid || g_product_picture.gamma!=picture->gamma ||
+        g_product_picture.contrast!=picture->contrast || g_product_picture.saturation!=picture->saturation ||
+        g_product_picture.inverted!=picture->inverted)) {
+        const bsp_status_t status=ili9341_set_picture(&g_display,picture);
+        if(status==BSP_STATUS_OK) {
+            g_product_picture=*picture;g_product_picture_valid=true;
+            ui_product_invalidate_picture(&g_product_ui);
+        } else if(status!=BSP_STATUS_BUSY) g_product_display_fault=true;
+    }
     if (outputs.backlight_percent != g_product_output_backlight_percent)
     {
         if (hw_backlight_set_percent(outputs.backlight_percent) == BSP_STATUS_OK)
@@ -1806,6 +1819,7 @@ void app_shell_run(void)
     g_product_output_tone_sequence = 0u;
     app_feedback_init(&g_product_feedback);
     g_product_output_backlight_percent = UINT8_MAX;
+    g_product_picture_valid=false;
     g_product_output_sound_valid = false;
     g_product_output_sound_enabled = true;
     const bsp_status_t product_status = product_init_controller();

@@ -203,15 +203,25 @@ static ui_product_view_t make_view(const char *scenario, ui_language_id_t langua
         .state = UI_PRODUCT_STATE_READY,
         .generation = 1u,
         .menu = {.language_id = (uint8_t)language, .selected_index = 2u,
-                 .brightness_percent = 75u, .timeout_seconds = 30u},
+                 .brightness_percent = 75u, .timeout_seconds = 30u, .picture_contrast=2u, .picture_saturation=2u},
     };
-    if (strcmp(scenario, "menu") == 0)
+    if (strcmp(scenario,"charging")==0) { view.charger_connected=true; }
+    else if (strcmp(scenario,"charging-menu")==0) { view.charger_connected=true;view.state=UI_PRODUCT_STATE_MENU; }
+    else if (strcmp(scenario,"leads")==0) { view.state=UI_PRODUCT_STATE_LEAD_MENU; }
+    else if (strcmp(scenario,"leads-open")==0) { view.state=UI_PRODUCT_STATE_LEAD_WIZARD;view.lead_state=UI_PRODUCT_LEAD_WAIT_OPEN; }
+    else if (strcmp(scenario,"leads-charging")==0) { view.state=UI_PRODUCT_STATE_LEAD_MENU;view.charger_connected=true; }
+    else if (strcmp(scenario, "menu") == 0)
     {
         view.state = UI_PRODUCT_STATE_MENU;
     }
     else if (strcmp(scenario, "display") == 0)
     {
         view.state = UI_PRODUCT_STATE_DISPLAY_MENU;
+    }
+    else if (strcmp(scenario,"picture-max")==0) {
+        view.state=UI_PRODUCT_STATE_PICTURE_EDIT;view.menu.selected_index=5u;
+        view.menu.picture_gamma=2u;view.menu.picture_contrast=4u;view.menu.picture_saturation=4u;
+        view.menu.picture_inverted=true;view.menu.save_failed=true;
     }
     else if (strcmp(scenario, "sound") == 0)
     {
@@ -225,6 +235,27 @@ static ui_product_view_t make_view(const char *scenario, ui_language_id_t langua
     else if (strcmp(scenario, "diagnostics") == 0)
     {
         view.state = UI_PRODUCT_STATE_DIAGNOSTICS;
+        view.battery_valid = true;
+        view.battery_mv = 3955u;
+        view.battery_age_ms = 125u;
+        view.temperature_valid = true;
+        view.temperature_mC = 23500;
+        view.temperature_age_ms = 250u;
+    }
+    else if (strcmp(scenario, "diagnostics-negative") == 0)
+    {
+        view.state = UI_PRODUCT_STATE_DIAGNOSTICS;
+        view.temperature_valid = true;
+        view.temperature_mC = -500;
+    }
+    else if (strcmp(scenario, "diagnostics-stale") == 0)
+    {
+        view.state = UI_PRODUCT_STATE_DIAGNOSTICS;
+        view.temperature_age_ms = UINT32_MAX;
+    }
+    else if (strcmp(scenario, "about") == 0)
+    {
+        view.state = UI_PRODUCT_STATE_ABOUT;
     }
     else if (strcmp(scenario, "maintenance") == 0)
     {

@@ -35,6 +35,8 @@ typedef struct
     uint8_t language_id;
     uint8_t calibration_load_preset;
     bool sound_enabled;
+    uint8_t picture_gamma, picture_contrast, picture_saturation;
+    bool picture_inverted;
 } app_settings_t;
 
 typedef enum

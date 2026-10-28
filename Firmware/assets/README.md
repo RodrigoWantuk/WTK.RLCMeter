@@ -128,3 +128,15 @@ bench validation.
   PNG are versioned. Do not edit generated font or RLE JSON by hand.
 - Internal emergency/recovery text remains deliberately small and independent of the
   installed language pack.
+
+## Resource API 5: charging and complete product text
+
+The current pack uses API 5 with 137 dense stable text IDs per EN/PT-BR catalog. IDs 1..0x0059 are unchanged; 48 new IDs cover lead compensation, diagnostics, result validity and the charger notice. New firmware deliberately rejects old API 4 catalogs and offers safe PC-link recovery until the matched pack is uploaded. Packet framing, pack schema 2 and calibration/settings formats are unchanged. Technical profile sequence strings require `#` in every font. Regenerate all three Plex JSON sources after text changes, then build/inspect the pack and keep the 40-KiB mutable tail protected.
+
+Program the verified matching firmware before sending the API 5 pack, with UART available for the maintenance receiver. Preserve a full old pack and mutable-tail snapshot first. Read back the complete new pack and compare the mutable tail afterward. Do not infer display appearance from transfer ACKs alone. The personalized splash and READY art payloads remain byte-identical; splash orientation and 3,000-ms completed-image hold are unchanged.
+
+## Resource API 6: persistent picture controls
+
+API 6 supersedes API 5 with five appended labels (gamma, contrast, saturation, invert colors and restore display) through ID 0x008E: 142 entries per language. All earlier IDs and both images remain unchanged. Gamma/contrast/saturation are bounded software RGB565 adjustments; inversion uses standard DCS. Defaults preserve existing pixels and the boot splash always uses neutral picture values. Regenerate/check the fonts after text changes even when the resulting glyph sources are identical.
+
+The paired-update and full readback/tail preservation procedure above also applies to API 6. New firmware safely rejects an API 5 pack into maintenance until the matching API 6 resources are installed; the wire schema/protocol and mutable partition boundaries do not change. Pixel adjustment happens only after resource validation/decoding and never changes stored image CRCs.

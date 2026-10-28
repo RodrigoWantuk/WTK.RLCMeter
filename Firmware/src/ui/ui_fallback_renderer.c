@@ -24,6 +24,13 @@ static bsp_status_t draw_scaled_char(const ili9341_t *display,
     uint16_t pixels[UI_FALLBACK_GLYPH_WIDTH * 3u];
     uint8_t rows[UI_FALLBACK_GLYPH_HEIGHT] = {0u};
     (void)ui_fallback_font_get_glyph(codepoint, rows);
+    bsp_status_t status = ili9341_set_window(display, x, y,
+        (uint16_t)(UI_FALLBACK_GLYPH_WIDTH * scale),
+        (uint16_t)(UI_FALLBACK_GLYPH_HEIGHT * scale));
+    if (status != BSP_STATUS_OK)
+    {
+        return status;
+    }
     for (uint16_t row = 0u; row < UI_FALLBACK_GLYPH_HEIGHT; row++)
     {
         uint16_t width = 0u;
@@ -38,16 +45,6 @@ static bsp_status_t draw_scaled_char(const ili9341_t *display,
         }
         for (uint8_t sy = 0u; sy < scale; sy++)
         {
-            bsp_status_t status =
-                ili9341_set_window(display,
-                                   x,
-                                   (uint16_t)(y + (row * scale) + sy),
-                                   width,
-                                   1u);
-            if (status != BSP_STATUS_OK)
-            {
-                return status;
-            }
             status = ili9341_write_pixels_rgb565(pixels, width);
             if (status != BSP_STATUS_OK)
             {
@@ -69,6 +66,12 @@ bsp_status_t ui_fallback_draw_codepoint(const ili9341_t *display,
     uint16_t pixels[UI_FALLBACK_GLYPH_WIDTH];
 
     (void)ui_fallback_font_get_glyph(codepoint, rows);
+    bsp_status_t status = ili9341_set_window(display, x, y,
+        UI_FALLBACK_GLYPH_WIDTH, UI_FALLBACK_GLYPH_HEIGHT);
+    if (status != BSP_STATUS_OK)
+    {
+        return status;
+    }
 
     for (uint16_t row = 0u; row < UI_FALLBACK_GLYPH_HEIGHT; row++)
     {
@@ -76,13 +79,6 @@ bsp_status_t ui_fallback_draw_codepoint(const ili9341_t *display,
         {
             const uint8_t mask = (uint8_t)(1u << (UI_FALLBACK_GLYPH_WIDTH - 1u - col));
             pixels[col] = ((rows[row] & mask) != 0u) ? fg_rgb565 : bg_rgb565;
-        }
-
-        bsp_status_t status =
-            ili9341_set_window(display, x, (uint16_t)(y + row), UI_FALLBACK_GLYPH_WIDTH, 1u);
-        if (status != BSP_STATUS_OK)
-        {
-            return status;
         }
 
         status = ili9341_write_pixels_rgb565(pixels, UI_FALLBACK_GLYPH_WIDTH);

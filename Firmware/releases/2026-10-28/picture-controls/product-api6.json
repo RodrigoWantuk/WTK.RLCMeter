@@ -1,0 +1,129 @@
+{
+  "entries": [
+    {
+      "font": null,
+      "format": 1,
+      "image": null,
+      "language_id": 1,
+      "payload_crc32": "0xBDB62A28",
+      "payload_size": 2925,
+      "resource_id": "0x00010001",
+      "resource_type": 1
+    },
+    {
+      "font": null,
+      "format": 1,
+      "image": null,
+      "language_id": 2,
+      "payload_crc32": "0x0D3CF065",
+      "payload_size": 3110,
+      "resource_id": "0x00010002",
+      "resource_type": 1
+    },
+    {
+      "font": {
+        "ascent": 13,
+        "bitmap_bytes": 1014,
+        "descent": 4,
+        "first_codepoint": 32,
+        "glyph_count": 101,
+        "index_bytes": 2020,
+        "index_crc32": 4132233347,
+        "last_codepoint": 57352,
+        "line_height": 17,
+        "max_height": 12,
+        "max_width": 12
+      },
+      "format": 2,
+      "image": null,
+      "language_id": null,
+      "payload_crc32": "0x17B6A9AC",
+      "payload_size": 3066,
+      "resource_id": "0x00020001",
+      "resource_type": 2
+    },
+    {
+      "font": {
+        "ascent": 17,
+        "bitmap_bytes": 1934,
+        "descent": 5,
+        "first_codepoint": 32,
+        "glyph_count": 101,
+        "index_bytes": 2020,
+        "index_crc32": 1827661109,
+        "last_codepoint": 57352,
+        "line_height": 22,
+        "max_height": 16,
+        "max_width": 16
+      },
+      "format": 2,
+      "image": null,
+      "language_id": null,
+      "payload_crc32": "0xAFA25B50",
+      "payload_size": 3986,
+      "resource_id": "0x00020002",
+      "resource_type": 2
+    },
+    {
+      "font": {
+        "ascent": 29,
+        "bitmap_bytes": 5889,
+        "descent": 8,
+        "first_codepoint": 32,
+        "glyph_count": 101,
+        "index_bytes": 2020,
+        "index_crc32": 1240460267,
+        "last_codepoint": 57352,
+        "line_height": 37,
+        "max_height": 27,
+        "max_width": 24
+      },
+      "format": 2,
+      "image": null,
+      "language_id": null,
+      "payload_crc32": "0x05560CED",
+      "payload_size": 7941,
+      "resource_id": "0x00020003",
+      "resource_type": 2
+    },
+    {
+      "font": null,
+      "format": 3,
+      "image": {
+        "command_bytes": 5384,
+        "command_crc32": 1445685228,
+        "decoded_pixels": 76800,
+        "height": 320,
+        "rle_runs": 1346,
+        "width": 240
+      },
+      "language_id": null,
+      "payload_crc32": "0x76CF64B0",
+      "payload_size": 5416,
+      "resource_id": "0x00030002",
+      "resource_type": 4
+    },
+    {
+      "font": null,
+      "format": 3,
+      "image": {
+        "command_bytes": 81544,
+        "command_crc32": 1409095487,
+        "decoded_pixels": 76800,
+        "height": 320,
+        "rle_runs": 20386,
+        "width": 240
+      },
+      "language_id": null,
+      "payload_crc32": "0x2386E3AE",
+      "payload_size": 81576,
+      "resource_id": "0x00030006",
+      "resource_type": 4
+    }
+  ],
+  "entry_count": 7,
+  "resource_api_version": 6,
+  "schema_version": 2,
+  "sha256": "c0aec2d24e11a5594f0b7a1e6144b4df1e9e49a70b81a0bcb703c01cafff0502",
+  "size_bytes": 108288
+}

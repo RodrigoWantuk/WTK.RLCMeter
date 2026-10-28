@@ -409,6 +409,7 @@ static int test_legacy_upgrade_and_power_cuts(void)
         {
             uint8_t *frame = &fake.bytes[service.slots[0].start];
             frame[4] = (uint8_t)(scenario + 2u);
+            memset(frame+20u,0,4u);
             const uint32_t crc = storage_crc32(frame + 24u, 8u);
             for (unsigned i = 0u; i < 4u; ++i) frame[16u+i] = (uint8_t)(crc >> (8u*i));
         }
@@ -432,7 +433,7 @@ static int test_legacy_upgrade_and_power_cuts(void)
             (void)app_settings_service_set(&loaded, &value);
             (void)app_settings_service_save_start(&loaded, 200u);
             failures += expect_true(drain_save(&loaded) == BSP_STATUS_OK, "legacy upgrades through inactive slot");
-            failures += expect_u32(fake.bytes[loaded.slots[(unsigned)loaded.active_slot].start+4u], 4u, "upgrade writes schema 4");
+            failures += expect_u32(fake.bytes[loaded.slots[(unsigned)loaded.active_slot].start+4u], 5u, "upgrade writes schema 5");
         }
     }
     return failures;
@@ -471,9 +472,34 @@ static int test_snapshot_crc_and_timeout(void)
     return failures;
 }
 
+static int test_picture_persistence_and_legacy4(void)
+{
+    int failures=0;fake_flash_t fake;fake_flash_init(&fake);
+    const app_settings_store_io_t io=make_io(&fake);app_settings_service_t service,loaded;
+    (void)app_settings_service_init(&service,&io,FAKE_FLASH_BYTES);
+    app_settings_t value=app_settings_defaults();value.picture_gamma=2u;value.picture_contrast=4u;
+    value.picture_saturation=0u;value.picture_inverted=true;
+    failures+=expect_true(app_settings_service_set(&service,&value)==BSP_STATUS_OK,"picture accepted");
+    (void)app_settings_service_save_start(&service,0u);failures+=expect_true(drain_save(&service)==BSP_STATUS_OK,"picture committed");
+    (void)app_settings_service_init(&loaded,&io,FAKE_FLASH_BYTES);(void)app_settings_service_load(&loaded,NULL);
+    failures+=expect_true(loaded.current.picture_gamma==2u && loaded.current.picture_contrast==4u &&
+        loaded.current.picture_saturation==0u && loaded.current.picture_inverted,"picture survives fresh service load");
+    value.picture_gamma=3u;failures+=expect_true(app_settings_service_set(&service,&value)==BSP_STATUS_INVALID_ARG,"invalid picture rejected");
+    uint8_t *frame=&fake.bytes[service.slots[(unsigned)service.active_slot].start];
+    frame[4]=4u;memset(frame+20u,0,4u);
+    uint32_t crc=storage_crc32_update(STORAGE_CRC32_INIT,frame,16u);
+    crc=storage_crc32_update(crc,frame+20u,12u)^STORAGE_CRC32_XOR_OUT;
+    for(unsigned i=0u;i<4u;++i) frame[16u+i]=(uint8_t)(crc>>(8u*i));
+    (void)app_settings_service_load(&loaded,NULL);
+    failures+=expect_true(loaded.persisted_valid && loaded.current.picture_gamma==0u && loaded.current.picture_contrast==2u &&
+        loaded.current.picture_saturation==2u && !loaded.current.picture_inverted,"schema4 migrates picture to exact neutral");
+    return failures;
+}
+
 int main(void)
 {
     int failures = 0;
+    failures += test_picture_persistence_and_legacy4();
     failures += test_layout_rebalanced();
     failures += test_defaults_validation_and_roundtrip();
     failures += test_failed_replacement_preserves_previous_slot();

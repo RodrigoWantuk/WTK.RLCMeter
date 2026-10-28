@@ -38,6 +38,7 @@ typedef struct
 typedef struct
 {
     uint8_t backlight_percent;
+    ili9341_picture_t picture;
     bool sound_enabled;
     uint16_t tone_frequency_hz;
     uint16_t tone_duration_ms;

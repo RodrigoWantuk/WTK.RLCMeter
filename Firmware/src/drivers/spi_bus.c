@@ -14,6 +14,10 @@ static const bsp_spi_config_t g_mode0_conservative = {
     .cpha = false,
 };
 
+static const bsp_spi_config_t g_mode0_display_write = {
+    .prescaler = BSP_SPI_PRESCALER_DIV4, .cpol = false, .cpha = false,
+};
+
 static const bsp_spi_config_t g_mode0_display_slow = {
     .prescaler = BSP_SPI_PRESCALER_DIV64,
     .cpol = false,
@@ -54,8 +58,11 @@ bsp_status_t spi_bus_acquire(spi_bus_device_t device)
     }
 
     deselect_all();
-    (void)bsp_spi2_configure(device == SPI_BUS_DEVICE_ILI9341 && g_display_slow ?
-        &g_mode0_display_slow : &g_mode0_conservative);
+    const bool tft=device==SPI_BUS_DEVICE_ILI9341 || device==SPI_BUS_DEVICE_ILI9341_READ;
+    const bsp_spi_config_t *config=tft && g_display_slow?&g_mode0_display_slow:
+        device==SPI_BUS_DEVICE_ILI9341?&g_mode0_display_write:&g_mode0_conservative;
+    const bsp_status_t status=bsp_spi2_configure(config);
+    if(status!=BSP_STATUS_OK) return status;
 
     switch (device)
     {
@@ -63,6 +70,7 @@ bsp_status_t spi_bus_acquire(spi_bus_device_t device)
         (void)bsp_gpio_write_output(BSP_GPIO_OUTPUT_FLASH_CS, false);
         break;
     case SPI_BUS_DEVICE_ILI9341:
+    case SPI_BUS_DEVICE_ILI9341_READ:
         (void)bsp_gpio_write_output(BSP_GPIO_OUTPUT_TFT_CS, false);
         break;
     default:

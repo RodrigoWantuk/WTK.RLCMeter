@@ -1,5 +1,9 @@
 # Consolidated Design Decisions
 
+## October 28 product display follow-up
+
+Plans 32/33 supersede historical TFT-speed/status notes below. The owner's apparent backlight issue was the TN viewing angle; no PWM/analog-drive fix is needed. About now fits its full hardware identity, Diagnostics use degrees C and Calibration opens the quick lead menu directly. Picture gamma/contrast/saturation are bounded RGB565 software controls (neutral bit-exact), with standard DCS inversion, schema-5 settings and API-6 bilingual labels. They apply after the unchanged splash. TFT writes are 9 MHz, reads/W25Q 4.5 MHz, retaining quiet and slow recovery. No C++ TFT_eSPI, 27/40-MHz SPI2 claim, framebuffer/sprite or speculative VCOM/power setup is introduced. The [current delivery](../Firmware/releases/2026-10-28/picture-controls/README.md) records actual programming/resource readback and pending physical acceptance.
+
 ## October24 integration baseline
 
 October24 supersedes gate-to-source RGS: all six10k are gate-toGND, hardware calibration identity0x00010002. Common ADC/DMA/phase corrections and K1 operate30ms apply to every metrology profile. All TFT profiles use portrait180/MADCTL88,50ms reset/250ms release and TFT PCLK1/64, Flash/8. Bench-only source exceptions remain excluded from PRODUCT.
@@ -1148,3 +1152,7 @@ remains REQUIRES_BENCH_VALIDATION.
 Production completion adds an independent lead OPEN/SHORT profile relative to factory OSL, bound to MCU UID and factory sequence/content CRC. Two redundant 4-KiB sectors precede the existing 32-KiB mutable tail; old partition offsets remain unchanged. Resource-pack writers reserve 40 KiB. The product uses composed complex ratio correction before derived R/C/L and records the applied lead sequence; two endpoint standards do not recalibrate factory gain. Native capture/review/commit is engineering-only pending physical validation. Compatible active supplementary WCRV disables lead correction explicitly; no unqualified composition or silent provenance mismatch is allowed.
 
 All PRODUCT provisioning variants share the modern measurement/UI contract. The complete current product requires the explicitly UID-bound first-unit 128-KiB engineering preset; generic C8 remains 64 KiB and cannot silently shed safety/measurement features to pass its gate. Factory capture/install/recovery remains separate BRINGUP_CAL. Read-only serial telemetry and bounded external-Flash backup cannot activate acquisition or mutate Flash. Owner-reported uncertain battery power defers physical deployment/tests until stable power is confirmed.
+
+## Display throughput and resource API 5 (plan 31)
+
+The current normal SPI2 profile remains PCLK1/8 (4.5 MHz with the 36-MHz peripheral clock); the explicit diagnostic slow profile is PCLK1/64. Historical October 24 slow-mode notes are not the current default. Plan 31 improves command/character batching at the same clocks, with no display DMA or framebuffer. Normal charger-connected navigation is separate from unchanged measurement inhibition. The matched resource API 5 pack contains 137 external text IDs in each language; old catalog incompatibility routes to the existing safe upload workflow. This consequential resource-contract change is explicit, and all old mutable offsets/calibration bindings and splash payload/timing remain unchanged.

@@ -21,14 +21,14 @@ static void check(bool condition, const char *message)
 }
 bsp_status_t spi_bus_acquire(spi_bus_device_t device)
 {
-    check(device == SPI_BUS_DEVICE_ILI9341, "only TFT selected");
+    check(device == (init_test?SPI_BUS_DEVICE_ILI9341:SPI_BUS_DEVICE_ILI9341_READ), "only TFT selected");
     acquired++;
     selected = acquire_result == BSP_STATUS_OK;
     return acquire_result;
 }
 bsp_status_t spi_bus_release(spi_bus_device_t device)
 {
-    check(selected && device == SPI_BUS_DEVICE_ILI9341, "release selected TFT");
+    check(selected && device == (init_test?SPI_BUS_DEVICE_ILI9341:SPI_BUS_DEVICE_ILI9341_READ), "release selected TFT");
     released++; selected = false; return release_result;
 }
 bsp_status_t bsp_gpio_write_output(bsp_gpio_output_t output, bool high)

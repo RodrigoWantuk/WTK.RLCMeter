@@ -11,10 +11,11 @@ typedef enum
 {
     SPI_BUS_DEVICE_W25Q = 0,
     SPI_BUS_DEVICE_ILI9341,
+    SPI_BUS_DEVICE_ILI9341_READ,
 } spi_bus_device_t;
 
 bsp_status_t spi_bus_init(void);
-/* TFT defaults PCLK1/64 after init; Flash stays PCLK1/8. Faster TFT is unqualified. */
+/* TFT writes PCLK1/4 (9 MHz), reads/Flash PCLK1/8; optional recovery /64. */
 bsp_status_t spi_bus_set_display_slow(bool enabled);
 bool spi_bus_quiet_requested(void);
 bsp_status_t spi_bus_acquire(spi_bus_device_t device);
