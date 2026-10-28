@@ -993,6 +993,12 @@ static int test_charging_navigation_notice(void)
             rendered_font_text_starts_with(lang==(uint8_t)UI_LANGUAGE_PT_BR?"Retire USB para medir":"Unplug USB to measure"),
             "normal charging UI resolves friendly copy from localized provider");
         failures+=expect_true(g_font_start_count==4u,"charging notice and menu hint use normal typography");
+        view.generation++;view.charger_connected=false;ui_product_request(&ui,&view);
+        failures+=expect_true(drain_render(&ui,&display)==0 && g_font_start_count==7u,
+            "live unplug refreshes READY footer instead of being swallowed as metadata");
+        view.generation++;view.charger_connected=true;ui_product_request(&ui,&view);
+        failures+=expect_true(drain_render(&ui,&display)==0 && g_font_start_count==11u,
+            "live insertion refreshes the charging notice on the same READY screen");
         view.generation++;view.state=UI_PRODUCT_STATE_MENU;ui_product_request(&ui,&view);
         failures+=expect_true(drain_render(&ui,&display)==0,"charging menu drains");
         const uint32_t clears=g_full_clears;view.generation++;view.charger_connected=false;

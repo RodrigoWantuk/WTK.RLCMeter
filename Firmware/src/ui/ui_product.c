@@ -2109,10 +2109,10 @@ void ui_product_request(ui_product_t *ui, const ui_product_view_t *view)
         ui->pending.page != view->page ||
         ui->pending.menu.language_id != view->menu.language_id ||
         ui->pending.resource_status != view->resource_status;
-    /* READY contains only its fixed background and two localized labels.
-       Calibration/status metadata changes must not repaint that same screen. */
+    /* Only nonvisual metadata may coalesce: charging changes the visible footer. */
     const bool same_ready = !different_screen && view->state == UI_PRODUCT_STATE_READY &&
-        ui->pending.resource_status == view->resource_status;
+        ui->pending.resource_status == view->resource_status &&
+        ui->pending.charger_connected == view->charger_connected;
     ui->pending = *view;
     if (different_screen) ui->have_rendered = false;
     if (same_ready && ui->have_rendered && !ui->active)
