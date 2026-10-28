@@ -1540,6 +1540,65 @@ static void app_update_safety_state(void)
     }
 }
 
+#if !WTK_ENABLE_BRINGUP_CONSOLE
+/* These phases are sequential. Keep their temporary sensor/view/decoder
+ * frames out of one another's lifetime, including under whole-program LTO. */
+static APP_NOINLINE bool product_step_controller(uint32_t now_ms,
+    const app_flash_access_snapshot_t *flash_access)
+{
+    hw_aux_sensors_snapshot_t product_sensor_snapshot;
+    hw_aux_sensors_snapshot(&g_aux_sensors, now_ms, &product_sensor_snapshot);
+    const int32_t ntc_temperature_mC =
+        product_sensor_snapshot.ntc_temperature_valid ?
+            (int32_t)(product_sensor_snapshot.ntc_temperature_c * 1000.0f) :
+            0;
+    app_product_inputs_t product_inputs = {
+        .sensors = &product_sensor_snapshot,
+        .calibration_status = app_calibration_service_status(&g_calibration_service),
+        .calibration_active_valid = app_calibration_service_active_valid(&g_calibration_service),
+        .calibration_active_sequence = app_calibration_service_active_sequence(&g_calibration_service),
+        .temperature_mC = ntc_temperature_mC,
+        .temperature_valid = product_sensor_snapshot.ntc_temperature_valid,
+        .safety_result = g_safety_result,
+        .range_disabled = hw_range_get_state(&g_range) == HW_RANGE_FSM_DISABLED,
+        .residual_refresh_pending = app_cal_install_aux_refresh_pending(&product_sensor_snapshot),
+        .safety_fault_mask = app_safety_fault_mask(&g_safety_faults),
+        .display_fault = g_product_display_fault || (g_display.init_state == ILI9341_INIT_ERROR),
+        .settings_storage_busy =
+            !app_flash_access_allowed(flash_access, APP_FLASH_ACCESS_SETTINGS_MUTATION),
+        .lead_storage_blocked = !app_flash_access_allowed(flash_access, APP_FLASH_ACCESS_LEAD_MUTATION),
+        .resource_status = g_resource_status,
+    };
+    app_product_step(&g_product,
+                     &product_inputs,
+                     bsp_clock_get_summary(),
+                     g_clock_status,
+                     now_ms);
+    bsp_uart_rx_set_blocked(BSP_UART_RX_APPLICATION,
+        !app_product_serial_idle(&g_product) || hw_metrology_measure_active(&g_product_measure));
+    product_apply_outputs();
+    return !hw_aux_sensors_is_idle(&g_aux_sensors) || product_inputs.residual_refresh_pending;
+}
+static APP_NOINLINE void product_step_display(bool defer_sensor_ui)
+{
+    ui_product_view_t product_view;
+    app_product_make_view(&g_product, &product_view);
+    ui_product_request(&g_product_ui, &product_view);
+    /* Keep polled UART responsive while the resource receiver owns Flash. */
+    bool defer_resource_ui = false;
+#if WTK_ENABLE_PRODUCT_RESOURCE_UPDATE
+    defer_resource_ui = g_resource_update_configured;
+#endif
+    const bsp_status_t ui_status = defer_resource_ui ? BSP_STATUS_BUSY :
+        ui_product_step(&g_product_ui, &g_display,
+            hw_peripherals_quiet_requested() || defer_sensor_ui);
+    if ((ui_status != BSP_STATUS_OK) && (ui_status != BSP_STATUS_BUSY))
+    {
+        g_product_display_fault = true;
+    }
+}
+#endif
+
 static void app_step(void)
 {
     const uint32_t now_ms = bsp_time_now_ms();
@@ -1668,57 +1727,8 @@ static void app_step(void)
     }
 #endif
 #else
-    hw_aux_sensors_snapshot_t product_sensor_snapshot;
-    hw_aux_sensors_snapshot(&g_aux_sensors, now_ms, &product_sensor_snapshot);
-    const int32_t ntc_temperature_mC =
-        product_sensor_snapshot.ntc_temperature_valid ?
-            (int32_t)(product_sensor_snapshot.ntc_temperature_c * 1000.0f) :
-            0;
-    app_product_inputs_t product_inputs = {
-        .sensors = &product_sensor_snapshot,
-        .calibration_status = app_calibration_service_status(&g_calibration_service),
-        .calibration_active_valid = app_calibration_service_active_valid(&g_calibration_service),
-        .calibration_active_sequence = app_calibration_service_active_sequence(&g_calibration_service),
-        .temperature_mC = ntc_temperature_mC,
-        .temperature_valid = product_sensor_snapshot.ntc_temperature_valid,
-        .safety_result = g_safety_result,
-        .range_disabled = hw_range_get_state(&g_range) == HW_RANGE_FSM_DISABLED,
-        .residual_refresh_pending = app_cal_install_aux_refresh_pending(&product_sensor_snapshot),
-        .safety_fault_mask = app_safety_fault_mask(&g_safety_faults),
-        .display_fault = g_product_display_fault || (g_display.init_state == ILI9341_INIT_ERROR),
-        .settings_storage_busy =
-            !app_flash_access_allowed(&flash_access, APP_FLASH_ACCESS_SETTINGS_MUTATION),
-        .lead_storage_blocked = !app_flash_access_allowed(&flash_access, APP_FLASH_ACCESS_LEAD_MUTATION),
-        .resource_status = g_resource_status,
-    };
-    app_product_step(&g_product,
-                     &product_inputs,
-                     bsp_clock_get_summary(),
-                     g_clock_status,
-                     now_ms);
-    ui_product_view_t product_view;
-    app_product_make_view(&g_product, &product_view);
-    bsp_uart_rx_set_blocked(BSP_UART_RX_APPLICATION,
-        !app_product_serial_idle(&g_product) || hw_metrology_measure_active(&g_product_measure));
-    product_apply_outputs();
-    ui_product_request(&g_product_ui, &product_view);
-    /* Keep polled UART responsive while the resource receiver owns Flash. */
-    bool defer_resource_ui = false;
-#if WTK_ENABLE_PRODUCT_RESOURCE_UPDATE
-    defer_resource_ui = g_resource_update_configured;
-#endif
-    /* Polled auxiliary conversions must finish their group before slow TFT
-       work. After a long text draw, reacquire all real safe sweeps first.
-       Actual unsafe/invalid fresh evidence still permits warning rendering. */
-    const bool defer_sensor_ui = !hw_aux_sensors_is_idle(&g_aux_sensors) ||
-        product_inputs.residual_refresh_pending;
-    const bsp_status_t ui_status = defer_resource_ui ? BSP_STATUS_BUSY :
-        ui_product_step(&g_product_ui, &g_display,
-            hw_peripherals_quiet_requested() || defer_sensor_ui);
-    if ((ui_status != BSP_STATUS_OK) && (ui_status != BSP_STATUS_BUSY))
-    {
-        g_product_display_fault = true;
-    }
+    const bool defer_sensor_ui = product_step_controller(now_ms, &flash_access);
+    product_step_display(defer_sensor_ui);
 #if WTK_ENABLE_PRODUCT_RESOURCE_UPDATE
     product_pc_link_step_update(now_ms);
     product_pc_link_step_rx(now_ms);
@@ -1732,7 +1742,11 @@ static void app_step(void)
     hw_buzzer_step(now_ms);
 }
 
+#if WTK_ENABLE_BRINGUP_CONSOLE
 void app_shell_run(void)
+#else
+static APP_NOINLINE void app_initialize(void)
+#endif
 {
     const bsp_reset_reason_t reset_reason = bsp_reset_capture_reason();
 
@@ -1928,6 +1942,7 @@ void app_shell_run(void)
     product_apply_outputs();
 #endif
 
+#if WTK_ENABLE_BRINGUP_CONSOLE
     for (;;)
     {
         app_step();
@@ -1935,3 +1950,16 @@ void app_shell_run(void)
         bsp_watchdog_service();
     }
 }
+#else
+}
+void app_shell_run(void)
+{
+    app_initialize();
+    for (;;)
+    {
+        app_step();
+        bsp_diagnostics_step();
+        bsp_watchdog_service();
+    }
+}
+#endif
