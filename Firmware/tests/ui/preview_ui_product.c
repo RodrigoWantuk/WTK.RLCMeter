@@ -203,7 +203,7 @@ static ui_product_view_t make_view(const char *scenario, ui_language_id_t langua
         .state = UI_PRODUCT_STATE_READY,
         .generation = 1u,
         .menu = {.language_id = (uint8_t)language, .selected_index = 2u,
-                 .brightness_percent = 75u, .timeout_seconds = 30u},
+                 .brightness_percent = 75u, .timeout_seconds = 30u, .picture_contrast=2u, .picture_saturation=2u},
     };
     if (strcmp(scenario,"charging")==0) { view.charger_connected=true; }
     else if (strcmp(scenario,"charging-menu")==0) { view.charger_connected=true;view.state=UI_PRODUCT_STATE_MENU; }
@@ -217,6 +217,11 @@ static ui_product_view_t make_view(const char *scenario, ui_language_id_t langua
     else if (strcmp(scenario, "display") == 0)
     {
         view.state = UI_PRODUCT_STATE_DISPLAY_MENU;
+    }
+    else if (strcmp(scenario,"picture-max")==0) {
+        view.state=UI_PRODUCT_STATE_PICTURE_EDIT;view.menu.selected_index=5u;
+        view.menu.picture_gamma=2u;view.menu.picture_contrast=4u;view.menu.picture_saturation=4u;
+        view.menu.picture_inverted=true;view.menu.save_failed=true;
     }
     else if (strcmp(scenario, "sound") == 0)
     {

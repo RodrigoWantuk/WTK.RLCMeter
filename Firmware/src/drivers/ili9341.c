@@ -7,6 +7,8 @@
 #include "drivers/ili9341_color.h"
 #include "drivers/spi_bus.h"
 
+static ili9341_picture_t g_picture = {.contrast=2u,.saturation=2u};
+
 enum
 {
     ILI9341_CMD_SWRESET = 0x01u,
@@ -98,7 +100,7 @@ bsp_status_t ili9341_read_diagnostic_raw(uint8_t command, uint8_t *response, siz
     {
         return BSP_STATUS_INVALID_ARG;
     }
-    bsp_status_t status = spi_bus_acquire(SPI_BUS_DEVICE_ILI9341);
+    bsp_status_t status = spi_bus_acquire(SPI_BUS_DEVICE_ILI9341_READ);
     if (status != BSP_STATUS_OK)
     {
         return status;
@@ -110,7 +112,7 @@ bsp_status_t ili9341_read_diagnostic_raw(uint8_t command, uint8_t *response, siz
         status = bsp_gpio_write_output(BSP_GPIO_OUTPUT_TFT_DC, true);
     if (status == BSP_STATUS_OK)
         status = spi_bus_transfer(NULL, response, size, ILI9341_SPI_TIMEOUT_MS);
-    const bsp_status_t release_status = spi_bus_release(SPI_BUS_DEVICE_ILI9341);
+    const bsp_status_t release_status = spi_bus_release(SPI_BUS_DEVICE_ILI9341_READ);
     return status == BSP_STATUS_OK ? release_status : status;
 }
 
@@ -121,6 +123,7 @@ void ili9341_init_context(ili9341_t *display)
         return;
     }
 
+    g_picture=(ili9341_picture_t){.contrast=2u,.saturation=2u};
     display->init_state = ILI9341_INIT_IDLE;
     display->init_index = 0u;
     display->wait_until_ms = 0u;
@@ -261,6 +264,14 @@ bsp_status_t ili9341_set_window(const ili9341_t *display,
     return (status == BSP_STATUS_OK) ? release_status : status;
 }
 
+bsp_status_t ili9341_set_picture(const ili9341_t *display, const ili9341_picture_t *picture)
+{
+    if (display==NULL || !display->ready || !ili9341_picture_valid(picture)) return BSP_STATUS_INVALID_ARG;
+    const bsp_status_t status=ili9341_write_command_data(picture->inverted?0x21u:0x20u,NULL,0u);
+    if (status==BSP_STATUS_OK) g_picture=*picture;
+    return status;
+}
+
 bsp_status_t ili9341_write_pixels_rgb565(const uint16_t *pixels, size_t count)
 {
     static uint8_t wire_pixels[ILI9341_FILL_CHUNK_PIXELS * 2u];
@@ -279,7 +290,10 @@ bsp_status_t ili9341_write_pixels_rgb565(const uint16_t *pixels, size_t count)
             chunk = ILI9341_FILL_CHUNK_PIXELS;
         }
 
-        ili9341_rgb565_array_to_wire(&pixels[offset], wire_pixels, chunk);
+        if(g_picture.gamma==0u && g_picture.contrast==2u && g_picture.saturation==2u)
+            ili9341_rgb565_array_to_wire(&pixels[offset], wire_pixels, chunk);
+        else for(size_t i=0u;i<chunk;++i)
+            ili9341_rgb565_to_wire(ili9341_picture_pixel(pixels[offset+i],&g_picture),&wire_pixels[2u*i]);
         const bsp_status_t status = ili9341_write_data(wire_pixels, chunk * 2u);
         if (status != BSP_STATUS_OK)
         {

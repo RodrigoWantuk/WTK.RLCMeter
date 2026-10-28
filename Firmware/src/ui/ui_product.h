@@ -39,6 +39,7 @@ typedef enum
     UI_PRODUCT_STATE_FAULT,
     UI_PRODUCT_STATE_LEAD_MENU,
     UI_PRODUCT_STATE_LEAD_WIZARD,
+    UI_PRODUCT_STATE_PICTURE_EDIT,
 } ui_product_state_t;
 
 /* Presentation-only stage IDs; app mapping is asserted in its translation unit. */
@@ -157,6 +158,8 @@ typedef struct
     uint8_t language_id;
     uint8_t calibration_load_preset;
     bool save_failed, saving;
+    uint8_t picture_gamma, picture_contrast, picture_saturation;
+    bool picture_inverted;
 } ui_product_menu_t;
 
 typedef struct
@@ -211,7 +214,7 @@ typedef resource_status_t (*ui_product_text_resolve_fn)(void *context,
                                                         char *dst,
                                                         size_t capacity);
 
-enum { UI_PRODUCT_CACHED_ROWS = 9u };
+enum { UI_PRODUCT_CACHED_ROWS = 10u };
 
 /* Exact completed-row presentation, independent of font/resource size. */
 typedef struct
@@ -258,6 +261,8 @@ void ui_product_init(ui_product_t *ui);
 void ui_product_set_text_provider(ui_product_t *ui,
                                   ui_product_text_resolve_fn resolve,
                                   void *context);
+/* Call at an idle renderer boundary after a global pixel appearance change. */
+void ui_product_invalidate_picture(ui_product_t *ui);
 void ui_product_set_font_catalog(ui_product_t *ui, ui_font_catalog_t *catalog);
 void ui_product_set_image_catalog(ui_product_t *ui, ui_image_catalog_t *catalog);
 void ui_product_request(ui_product_t *ui, const ui_product_view_t *view);

@@ -28,6 +28,11 @@ enum
     APP_PRODUCT_MAIN_COUNT,
     APP_PRODUCT_DISPLAY_BRIGHTNESS = 0,
     APP_PRODUCT_DISPLAY_TIMEOUT,
+    APP_PRODUCT_DISPLAY_GAMMA,
+    APP_PRODUCT_DISPLAY_CONTRAST,
+    APP_PRODUCT_DISPLAY_SATURATION,
+    APP_PRODUCT_DISPLAY_INVERSION,
+    APP_PRODUCT_DISPLAY_RESET,
     APP_PRODUCT_DISPLAY_BACK,
     APP_PRODUCT_DISPLAY_COUNT,
     APP_PRODUCT_SOUND_TOGGLE = 0,
@@ -143,6 +148,10 @@ static void sync_settings_view(app_product_t *product)
     const uint16_t timeout_seconds = (uint16_t)settings.backlight_timeout;
     if ((product->view.menu.brightness_percent != settings.brightness_percent) ||
         (product->view.menu.timeout_seconds != timeout_seconds) ||
+        product->view.menu.picture_gamma!=settings.picture_gamma ||
+        product->view.menu.picture_contrast!=settings.picture_contrast ||
+        product->view.menu.picture_saturation!=settings.picture_saturation ||
+        product->view.menu.picture_inverted!=settings.picture_inverted ||
         (product->view.menu.sound_enabled != settings.sound_enabled) ||
         (product->view.menu.language_id != settings.language_id) ||
         (product->view.menu.calibration_load_preset != product->calibration_load_preset) ||
@@ -151,6 +160,10 @@ static void sync_settings_view(app_product_t *product)
     {
         product->view.menu.brightness_percent = settings.brightness_percent;
         product->view.menu.timeout_seconds = timeout_seconds;
+        product->view.menu.picture_gamma=settings.picture_gamma;
+        product->view.menu.picture_contrast=settings.picture_contrast;
+        product->view.menu.picture_saturation=settings.picture_saturation;
+        product->view.menu.picture_inverted=settings.picture_inverted;
         product->view.menu.sound_enabled = settings.sound_enabled;
         product->view.menu.language_id = settings.language_id;
         product->view.menu.calibration_load_preset = product->calibration_load_preset;
@@ -203,7 +216,7 @@ static bool state_is_menu_like(ui_product_state_t state)
            (state == UI_PRODUCT_STATE_LANGUAGE_MENU) ||
            (state == UI_PRODUCT_STATE_MAINTENANCE) ||
            (state == UI_PRODUCT_STATE_BRIGHTNESS_EDIT) ||
-           (state == UI_PRODUCT_STATE_TIMEOUT_EDIT);
+           (state == UI_PRODUCT_STATE_TIMEOUT_EDIT) || (state == UI_PRODUCT_STATE_PICTURE_EDIT);
 }
 
 static uint8_t clamp_brightness_step(int16_t value)
@@ -872,6 +885,27 @@ static WTK_NOINLINE void handle_display_editor(app_product_t *product, bool brig
     clear_requests(product);
 }
 
+static void handle_picture_editor(app_product_t *product)
+{
+    app_settings_t settings=current_settings(product);
+    if(product->request_page_next || product->request_page_prev) {
+        uint8_t *value=product->menu_index==APP_PRODUCT_DISPLAY_GAMMA?&settings.picture_gamma:
+            product->menu_index==APP_PRODUCT_DISPLAY_CONTRAST?&settings.picture_contrast:&settings.picture_saturation;
+        const uint8_t count=product->menu_index==APP_PRODUCT_DISPLAY_GAMMA?3u:5u;
+        if(product->menu_index==APP_PRODUCT_DISPLAY_INVERSION) settings.picture_inverted=!settings.picture_inverted;
+        else *value=(uint8_t)((*value+(product->request_page_next?1u:(unsigned)count-1u))%count);
+        apply_settings(product,&settings);
+    }
+    if(product->request_menu) {
+        apply_settings(product,&product->edit_entry_settings);
+        set_menu(product,UI_PRODUCT_STATE_DISPLAY_MENU,product->menu_index);
+    } else if(product->request_click) {
+        request_settings_save(product);
+        set_menu(product,UI_PRODUCT_STATE_DISPLAY_MENU,product->menu_index);
+    }
+    clear_requests(product);
+}
+
 static WTK_NOINLINE void service_pending_settings_save(app_product_t *product,
                                           const app_product_inputs_t *inputs,
                                           uint32_t now_ms)
@@ -1027,6 +1061,8 @@ bsp_status_t app_product_init(app_product_t *product,
         .safety_blocker = UI_PRODUCT_BLOCK_SENSOR,
         .menu = {
             .selected_index = APP_PRODUCT_MAIN_CALIBRATION,
+            .picture_gamma=settings.picture_gamma, .picture_contrast=settings.picture_contrast,
+            .picture_saturation=settings.picture_saturation, .picture_inverted=settings.picture_inverted,
             .brightness_percent = settings.brightness_percent,
             .timeout_seconds = (uint16_t)settings.backlight_timeout,
             .sound_enabled = settings.sound_enabled,
@@ -1375,6 +1411,9 @@ void app_product_step(app_product_t *product,
 
     if (state_is_menu_like((ui_product_state_t)product->view.state))
     {
+        if (product->view.state == UI_PRODUCT_STATE_PICTURE_EDIT) {
+            handle_picture_editor(product); return;
+        }
         if (product->view.state == UI_PRODUCT_STATE_BRIGHTNESS_EDIT)
         {
             handle_display_editor(product, true);
@@ -1456,8 +1495,16 @@ void app_product_step(app_product_t *product,
                     product->edit_entry_settings = current_settings(product);
                     set_state(product, UI_PRODUCT_STATE_TIMEOUT_EDIT);
                 }
-                else
-                {
+                else if(product->menu_index>=APP_PRODUCT_DISPLAY_GAMMA && product->menu_index<=APP_PRODUCT_DISPLAY_INVERSION) {
+                    product->edit_entry_settings=current_settings(product);
+                    set_state(product,UI_PRODUCT_STATE_PICTURE_EDIT);
+                } else if(product->menu_index==APP_PRODUCT_DISPLAY_RESET) {
+                    app_settings_t settings=current_settings(product);const app_settings_t defaults=app_settings_defaults();
+                    settings.brightness_percent=defaults.brightness_percent;settings.backlight_timeout=defaults.backlight_timeout;
+                    settings.picture_gamma=defaults.picture_gamma;settings.picture_contrast=defaults.picture_contrast;
+                    settings.picture_saturation=defaults.picture_saturation;settings.picture_inverted=defaults.picture_inverted;
+                    apply_settings(product,&settings);request_settings_save(product);
+                } else {
                     set_menu(product, UI_PRODUCT_STATE_MENU, APP_PRODUCT_MAIN_DISPLAY);
                 }
             }
@@ -1851,6 +1898,8 @@ void app_product_make_outputs(const app_product_t *product, app_product_outputs_
     const app_settings_t settings = current_settings(product);
     *outputs = (app_product_outputs_t){
         .backlight_percent = product->backlight_sleeping ? 0u : settings.brightness_percent,
+        .picture={.gamma=settings.picture_gamma,.contrast=settings.picture_contrast,
+                  .saturation=settings.picture_saturation,.inverted=settings.picture_inverted},
         .sound_enabled = settings.sound_enabled,
         .tone_frequency_hz = (product->tone_sequence != 0u) ? 2000u : 0u,
         .tone_duration_ms = (product->tone_sequence != 0u) ? 30u : 0u,

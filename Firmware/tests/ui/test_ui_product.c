@@ -869,18 +869,18 @@ static int test_numeric_edit_and_removed_warning(void)
     view.state = UI_PRODUCT_STATE_BRIGHTNESS_EDIT; view.menu.brightness_percent = 5u; view.generation++;
     ui_product_request(&ui, &view);
     failures += expect_true(drain_render(&ui, &display) == 0 && g_full_clears == 1u &&
-                               g_font_start_count == 5u && g_partial_clears == 1u,
+                               g_font_start_count == 10u && g_partial_clears == 1u,
                             "edit entry shares display layout and redraws one numeric row");
     failures += expect_true(strstr(ui.rows[1].text, "5%") != NULL && strstr(ui.rows[1].text, "100") == NULL,
                             "shorter numeric value has no old suffix after whole-row erasure");
     view.menu.save_failed = true; view.generation++;
     ui_product_request(&ui, &view);
-    failures += expect_true(drain_render(&ui, &display) == 0 && ui.rows[4].valid, "save warning row appears");
+    failures += expect_true(drain_render(&ui, &display) == 0 && ui.rows[9].valid, "save warning row appears");
     const uint32_t text_before = g_font_start_count;
     const uint32_t clears_before = g_partial_clears;
     view.menu.save_failed = false; view.generation++;
     ui_product_request(&ui, &view);
-    failures += expect_true(drain_render(&ui, &display) == 0 && !ui.rows[4].valid &&
+    failures += expect_true(drain_render(&ui, &display) == 0 && !ui.rows[9].valid &&
                                g_font_start_count == text_before && g_partial_clears == clears_before + 1u &&
                                g_full_clears == 1u, "removed warning is erased without repainting other rows");
     return failures;

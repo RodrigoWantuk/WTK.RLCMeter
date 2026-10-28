@@ -892,107 +892,36 @@ static const char *timeout_token(const ui_product_t *ui,
     return scratch;
 }
 
-static bool prepare_display_menu_line(const ui_product_t *ui,
-                                      const ui_product_view_t *view,
-                                      uint8_t index,
-                                      ui_product_line_t *line)
+static bool prepare_display_menu_line(const ui_product_t *ui,const ui_product_view_t *view,
+                                      uint8_t index,ui_product_line_t *line)
 {
-    if ((view == NULL) || (line == NULL))
-    {
-        return false;
+    if(index==0u) { line_set_id(ui,view,line,12u,20u,2u,UI_COLOR_CYAN,UI_TEXT_ID_DISPLAY);return true; }
+    if(index==9u && (view->menu.save_failed || view->menu.saving)) {
+        line_set_id(ui,view,line,12u,294u,1u,UI_COLOR_AMBER,
+                    view->menu.save_failed?UI_TEXT_ID_SETTINGS_SAVE_FAILED:UI_TEXT_ID_LEAD_SAVING);return true;
     }
-    if (index == 0u)
-    {
-        line_set_id(ui, view, line, 12u, 20u, 2u, UI_COLOR_CYAN, UI_TEXT_ID_DISPLAY);
-        return true;
-    }
-    char row[32] = {0};
-    size_t used = 0u;
-    if (index == 1u)
-    {
-        char label[20] = {0};
-        const resource_status_t status =
-            resolve_text(ui, (ui_language_id_t)view->menu.language_id, UI_TEXT_ID_BRIGHTNESS,
-                         label, sizeof(label), NULL);
-        if (status == RESOURCE_STATUS_DEFERRED)
-        {
-            line_set(line, 12u, 64u, 2u, UI_COLOR_WHITE, "");
-            line->deferred = true;
-            return true;
-        }
-        if (status != RESOURCE_STATUS_OK)
-        {
-            return line_set_resource_pending(line, 12u, 64u, 2u, UI_COLOR_WHITE, status);
-        }
-        (void)append_text(row, sizeof(row), &used, label);
-        (void)append_char(row, sizeof(row), &used, ' ');
-        (void)ui_format_append_u32(row, sizeof(row), &used, view->menu.brightness_percent);
-        (void)append_char(row, sizeof(row), &used, '%');
-        line_set(line, 12u, 64u, 2u,
-                 (view->menu.selected_index == 0u) ? UI_COLOR_GREEN : UI_COLOR_WHITE, row);
-        return true;
-    }
-    if (index == 2u)
-    {
-        char timeout[8] = {0};
-        char label[18] = {0};
-        resource_status_t timeout_status = RESOURCE_STATUS_OK;
-        const resource_status_t status =
-            resolve_text(ui, (ui_language_id_t)view->menu.language_id, UI_TEXT_ID_TIMEOUT,
-                         label, sizeof(label), NULL);
-        if (status == RESOURCE_STATUS_DEFERRED)
-        {
-            line_set(line, 12u, 108u, 2u, UI_COLOR_WHITE, "");
-            line->deferred = true;
-            return true;
-        }
-        if (status != RESOURCE_STATUS_OK)
-        {
-            return line_set_resource_pending(line, 12u, 108u, 2u, UI_COLOR_WHITE, status);
-        }
-        (void)append_text(row, sizeof(row), &used, label);
-        (void)append_char(row, sizeof(row), &used, ' ');
-        (void)append_text(row, sizeof(row), &used,
-                          timeout_token(ui,
-                                        view,
-                                        view->menu.timeout_seconds,
-                                        timeout,
-                                        sizeof(timeout),
-                                        &timeout_status));
-        if (timeout_status == RESOURCE_STATUS_DEFERRED)
-        {
-            line_set(line, 12u, 108u, 2u, UI_COLOR_WHITE, "");
-            line->deferred = true;
-            return true;
-        }
-        if (timeout_status != RESOURCE_STATUS_OK)
-        {
-            return line_set_resource_pending(line, 12u, 108u, 2u, UI_COLOR_WHITE, timeout_status);
-        }
-        line_set(line, 12u, 108u, 2u,
-                 (view->menu.selected_index == 1u) ? UI_COLOR_GREEN : UI_COLOR_WHITE, row);
-        return true;
-    }
-    if (index == 3u)
-    {
-        line_set_id(ui,
-                    view,
-                    line,
-                    12u,
-                    152u,
-                    2u,
-                    (view->menu.selected_index == 2u) ? UI_COLOR_GREEN : UI_COLOR_WHITE,
-                    UI_TEXT_ID_BACK);
-        return true;
-    }
-    if (index == 4u && (view->menu.save_failed || view->menu.saving))
-    {
-        if(view->menu.save_failed) line_set_id(ui,view,line,12u,222u,1u,UI_COLOR_AMBER,UI_TEXT_ID_SETTINGS_SAVE_FAILED);
-        else line_set(line,12u,222u,1u,UI_COLOR_AMBER,view->menu.saving?
-            (view->menu.language_id==(uint8_t)UI_LANGUAGE_PT_BR?"Salvando...":"Saving..."):"");
-        return true;
-    }
-    return false;
+    if(index>8u) return false;
+    static const ui_text_id_t labels[]={UI_TEXT_ID_BRIGHTNESS,UI_TEXT_ID_TIMEOUT,UI_TEXT_ID_GAMMA,
+        UI_TEXT_ID_CONTRAST,UI_TEXT_ID_SATURATION,UI_TEXT_ID_INVERSION,UI_TEXT_ID_DISPLAY_RESET,UI_TEXT_ID_BACK};
+    char row[40]={0};size_t used=0u;
+    resource_status_t status=append_label(ui,view,labels[index-1u],row,sizeof(row),&used);
+    if(status!=RESOURCE_STATUS_OK)
+        return line_set_resource_pending(line,12u,(uint16_t)(52u+28u*(index-1u)),2u,UI_COLOR_WHITE,status);
+    if(index<7u) (void)append_char(row,sizeof(row),&used,' ');
+    if(index==1u) { (void)ui_format_append_u32(row,sizeof(row),&used,view->menu.brightness_percent);(void)append_char(row,sizeof(row),&used,'%'); }
+    else if(index==2u) {
+        char timeout[8]={0};(void)append_text(row,sizeof(row),&used,timeout_token(ui,view,view->menu.timeout_seconds,timeout,sizeof(timeout),&status));
+    } else if(index==3u) {
+        const char *gamma=view->menu.picture_gamma==1u?"0.8":view->menu.picture_gamma==2u?"1.2":"1.0";
+        (void)append_text(row,sizeof(row),&used,gamma);localize_decimal(row,view->menu.language_id);
+    } else if(index==4u || index==5u) {
+        const uint32_t value=index==4u?50u+25u*view->menu.picture_contrast:50u*view->menu.picture_saturation;
+        (void)ui_format_append_u32(row,sizeof(row),&used,value);(void)append_char(row,sizeof(row),&used,'%');
+    } else if(index==6u) status=append_label(ui,view,view->menu.picture_inverted?UI_TEXT_ID_ON:UI_TEXT_ID_OFF,row,sizeof(row),&used);
+    if(status!=RESOURCE_STATUS_OK)
+        return line_set_resource_pending(line,12u,(uint16_t)(52u+28u*(index-1u)),2u,UI_COLOR_WHITE,status);
+    line_set(line,12u,(uint16_t)(52u+28u*(index-1u)),2u,
+             view->menu.selected_index==index-1u?UI_COLOR_GREEN:UI_COLOR_WHITE,row);return true;
 }
 
 static bool prepare_sound_menu_line(const ui_product_t *ui,
@@ -1794,6 +1723,7 @@ static UI_COMPACT_CALL bool prepare_line(const ui_product_t *ui,
     case UI_PRODUCT_STATE_DISPLAY_MENU:
     case UI_PRODUCT_STATE_BRIGHTNESS_EDIT:
     case UI_PRODUCT_STATE_TIMEOUT_EDIT:
+    case UI_PRODUCT_STATE_PICTURE_EDIT:
         return prepare_display_menu_line(ui, view, index, line);
     case UI_PRODUCT_STATE_SOUND_MENU:
         return prepare_sound_menu_line(ui, view, index, line);
@@ -1904,7 +1834,7 @@ static UI_COMPACT_CALL bool prepare_line(const ui_product_t *ui,
 static uint8_t screen_family(uint8_t state)
 {
 #if WTK_ENABLE_UI_ROW_CACHE
-    return (state == UI_PRODUCT_STATE_BRIGHTNESS_EDIT || state == UI_PRODUCT_STATE_TIMEOUT_EDIT) ?
+    return (state == UI_PRODUCT_STATE_BRIGHTNESS_EDIT || state == UI_PRODUCT_STATE_TIMEOUT_EDIT || state==UI_PRODUCT_STATE_PICTURE_EDIT) ?
         (uint8_t)UI_PRODUCT_STATE_DISPLAY_MENU : state;
 #else
     return state;
@@ -1914,7 +1844,7 @@ static uint8_t screen_family(uint8_t state)
 #if WTK_ENABLE_UI_ROW_CACHE
 static bool cached_menu_state(uint8_t state)
 {
-    return state==UI_PRODUCT_STATE_LEAD_MENU || state==UI_PRODUCT_STATE_LEAD_WIZARD ||
+    return state==UI_PRODUCT_STATE_PICTURE_EDIT || state==UI_PRODUCT_STATE_LEAD_MENU || state==UI_PRODUCT_STATE_LEAD_WIZARD ||
         (state >= UI_PRODUCT_STATE_MENU && state <= UI_PRODUCT_STATE_CALIBRATION_STATUS &&
         state != UI_PRODUCT_STATE_RESOURCE_ERROR);
 }
@@ -2090,6 +2020,11 @@ void ui_product_set_text_provider(ui_product_t *ui,
         invalidate_rows(ui);
         ui->have_rendered = false;
     }
+}
+
+void ui_product_invalidate_picture(ui_product_t *ui)
+{
+    if(ui!=NULL) { invalidate_rows(ui);ui->have_rendered=false; }
 }
 
 void ui_product_set_font_catalog(ui_product_t *ui, ui_font_catalog_t *catalog)
@@ -2407,6 +2342,7 @@ const char *ui_product_state_string(ui_product_state_t state)
         return "RESOURCES";
     case UI_PRODUCT_STATE_ABOUT:
         return "ABOUT";
+    case UI_PRODUCT_STATE_PICTURE_EDIT: return "PICTURE_EDIT";
     case UI_PRODUCT_STATE_RESOURCE_ERROR:
         return "RESOURCE_ERROR";
     case UI_PRODUCT_STATE_LEAD_MENU: return "LEAD_MENU";

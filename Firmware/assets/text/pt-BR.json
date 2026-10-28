@@ -137,6 +137,11 @@
     "0x0086": "NTC: ajuste experimental",
     "0x0087": "NTC: modelo nominal",
     "0x0088": "OK: pontas OPEN/SHORT",
-    "0x0089": "OSL no PC -> SWD: PRODUCT"
+    "0x0089": "OSL no PC -> SWD: PRODUCT",
+    "0x008A": "Gamma",
+    "0x008B": "Contraste",
+    "0x008C": "Saturação",
+    "0x008D": "Inverter cores",
+    "0x008E": "Restaurar tela"
   }
 }

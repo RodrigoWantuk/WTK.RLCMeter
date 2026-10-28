@@ -9,7 +9,7 @@
 
 enum
 {
-    SETTINGS_SCHEMA_VERSION = 4u,
+    SETTINGS_SCHEMA_VERSION = 5u,
     SETTINGS_MIN_SCHEMA_VERSION = 2u,
     SETTINGS_HEADER_SIZE = 24u,
     SETTINGS_PAYLOAD_OFFSET = 24u,
@@ -72,7 +72,9 @@ static bool settings_equal(const app_settings_t *a, const app_settings_t *b)
            (a->backlight_timeout == b->backlight_timeout) &&
            (a->language_id == b->language_id) &&
            (a->calibration_load_preset == b->calibration_load_preset) &&
-           (a->sound_enabled == b->sound_enabled);
+           (a->sound_enabled == b->sound_enabled) &&
+           a->picture_gamma==b->picture_gamma && a->picture_contrast==b->picture_contrast &&
+           a->picture_saturation==b->picture_saturation && a->picture_inverted==b->picture_inverted;
 }
 
 app_settings_t app_settings_defaults(void)
@@ -83,6 +85,7 @@ app_settings_t app_settings_defaults(void)
         .language_id = (uint8_t)UI_LANGUAGE_EN,
         .calibration_load_preset = (uint8_t)APP_SETTINGS_CAL_LOAD_PRESET_NOMINAL,
         .sound_enabled = true,
+        .picture_contrast=2u, .picture_saturation=2u,
     };
 }
 
@@ -154,7 +157,8 @@ bool app_settings_validate(const app_settings_t *settings)
            (settings->brightness_percent <= 100u) &&
            app_backlight_timeout_valid(settings->backlight_timeout) &&
            ui_language_valid(settings->language_id) &&
-           app_settings_calibration_load_preset_valid(settings->calibration_load_preset);
+           app_settings_calibration_load_preset_valid(settings->calibration_load_preset) &&
+           settings->picture_gamma<3u && settings->picture_contrast<5u && settings->picture_saturation<5u;
 }
 
 static void serialize_payload(uint8_t *payload, const app_settings_t *settings)
@@ -175,6 +179,7 @@ static bool decode_payload(const uint8_t *payload, uint16_t schema_version, app_
     *settings = (app_settings_t){
         .brightness_percent = payload[0],
         .sound_enabled = payload[1] != 0u,
+        .picture_contrast=2u, .picture_saturation=2u,
         .language_id = payload[2],
         .calibration_load_preset =
             (schema_version <= 2u) ? (uint8_t)APP_SETTINGS_CAL_LOAD_PRESET_NOMINAL : payload[3],
@@ -204,7 +209,10 @@ static void serialize_frame(uint8_t frame[SETTINGS_FRAME_SIZE],
     put_u16(&frame[8], SETTINGS_FRAME_SIZE);
     put_u16(&frame[10], SETTINGS_PAYLOAD_SIZE);
     put_u32(&frame[12], sequence);
-    put_u32(&frame[20], 0u);
+    /* Schema 5 reuses the CRC-covered reserved word; frame/commit offsets stay fixed. */
+    put_u32(&frame[20], (uint32_t)settings->picture_gamma |
+        (uint32_t)settings->picture_contrast<<2u | (uint32_t)settings->picture_saturation<<5u |
+        (settings->picture_inverted?UINT32_C(0x100):0u));
     memcpy(&frame[SETTINGS_PAYLOAD_OFFSET], payload, SETTINGS_PAYLOAD_SIZE);
     put_u32(&frame[16], frame_crc(frame));
     put_u32(&frame[SETTINGS_COMMIT_OFFSET], committed ? SETTINGS_COMMIT_MARKER : UINT32_MAX);
@@ -243,7 +251,9 @@ static app_settings_slot_status_t inspect_frame(const uint8_t frame[SETTINGS_FRA
     }
     const uint32_t expected_crc = schema_version >= 4u ? frame_crc(frame) :
         storage_crc32(&frame[SETTINGS_PAYLOAD_OFFSET], SETTINGS_PAYLOAD_SIZE);
-    if (get_u32(&frame[16]) != expected_crc || get_u32(&frame[20]) != 0u)
+    if (get_u32(&frame[16]) != expected_crc ||
+        (schema_version<5u && get_u32(&frame[20])!=0u) ||
+        (schema_version>=5u && (get_u32(&frame[20])&~UINT32_C(0x1ff))!=0u))
     {
         return APP_SETTINGS_SLOT_CORRUPT;
     }
@@ -251,6 +261,14 @@ static app_settings_slot_status_t inspect_frame(const uint8_t frame[SETTINGS_FRA
     if (!decode_payload(&frame[SETTINGS_PAYLOAD_OFFSET], schema_version, &decoded))
     {
         return APP_SETTINGS_SLOT_SEMANTIC_INVALID;
+    }
+    if(schema_version>=5u) {
+        const uint32_t picture=get_u32(&frame[20]);
+        decoded.picture_gamma=(uint8_t)(picture&3u);
+        decoded.picture_contrast=(uint8_t)((picture>>2u)&7u);
+        decoded.picture_saturation=(uint8_t)((picture>>5u)&7u);
+        decoded.picture_inverted=(picture&UINT32_C(0x100))!=0u;
+        if(!app_settings_validate(&decoded)) return APP_SETTINGS_SLOT_SEMANTIC_INVALID;
     }
     if (settings != NULL)
     {

@@ -45,7 +45,7 @@ def check(controller, preview, directory):
     for source, suffix in ((str(pack), 'resources'), ('-', 'fallback')):
         for language in ('en', 'pt-BR'):
             for scenario in ('about', 'diagnostics', 'diagnostics-negative',
-                             'diagnostics-stale', 'leads', 'leads-charging', 'calibration'):
+                             'diagnostics-stale', 'leads', 'leads-charging', 'calibration', 'display', 'picture-max'):
                 output = directory / f'{scenario}-{language}-{suffix}.ppm'
                 subprocess.run([str(preview), source, language, scenario, str(output)],
                                check=True, stdout=subprocess.DEVNULL)

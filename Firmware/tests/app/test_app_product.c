@@ -857,6 +857,35 @@ static int test_display_menu_brightness_preview_no_step_persist(void)
     return failures;
 }
 
+static int test_picture_edit_preview_cancel_save(void)
+{
+    int failures=0;fake_io_t fake={0};app_product_t product;app_product_inputs_t inputs=inputs_ready();
+    failures+=expect_true(init_product(&product,&fake)==BSP_STATUS_OK,"picture product init");boot_to_ready(&product,&inputs);
+    for(uint8_t index=2u;index<=5u;++index) {
+        product.view.state=UI_PRODUCT_STATE_DISPLAY_MENU;product.menu_index=index;
+        product.view.menu.selected_index=index;click_ok(&product);
+        app_product_step(&product,&inputs,NULL,BSP_STATUS_OK,100u+index*10u);
+        failures+=expect_true(product.view.state==UI_PRODUCT_STATE_PICTURE_EDIT,"picture field opens editor");
+        send_button(&product,BUTTON_ID_DOWN,BUTTON_EVENT_PRESS);
+        app_product_step(&product,&inputs,NULL,BSP_STATUS_OK,101u+index*10u);
+        app_product_outputs_t output;app_product_make_outputs(&product,&output);
+        failures+=expect_true(ili9341_picture_valid(&output.picture) && app_settings_service_dirty(&g_settings) &&
+            !app_settings_service_busy(&g_settings) && fake.start_count==0u,"picture preview is real bounded output without storage or capture");
+        product.request_menu=true;app_product_step(&product,&inputs,NULL,BSP_STATUS_OK,102u+index*10u);
+        app_product_make_outputs(&product,&output);
+        failures+=expect_true(product.view.state==UI_PRODUCT_STATE_DISPLAY_MENU && product.menu_index==index &&
+            output.picture.gamma==0u && output.picture.contrast==2u && output.picture.saturation==2u &&
+            !output.picture.inverted,"cancel restores the entry picture and selected row");
+    }
+    product.view.state=UI_PRODUCT_STATE_DISPLAY_MENU;product.menu_index=2u;click_ok(&product);
+    app_product_step(&product,&inputs,NULL,BSP_STATUS_OK,200u);
+    send_button(&product,BUTTON_ID_DOWN,BUTTON_EVENT_PRESS);app_product_step(&product,&inputs,NULL,BSP_STATUS_OK,201u);
+    click_ok(&product);app_product_step(&product,&inputs,NULL,BSP_STATUS_OK,202u);
+    failures+=expect_true(product.settings_save_requested && product.view.menu.picture_gamma==1u,
+                          "confirmed gamma requests the ordinary transactional save");
+    return failures;
+}
+
 static int test_backlight_timeout_wake_consumes_ok_gesture(void)
 {
     int failures = 0;
@@ -1634,6 +1663,7 @@ int main(int argc, char **argv)
     failures += test_menu_calibration_status_and_dirty_candidate();
     failures += test_safety_fault_and_pages();
     failures += test_display_menu_brightness_preview_no_step_persist();
+    failures += test_picture_edit_preview_cancel_save();
     failures += test_backlight_timeout_wake_consumes_ok_gesture();
     failures += test_sound_menu_toggle_updates_output();
     failures += test_diagnostics_and_maintenance_menu_pages();

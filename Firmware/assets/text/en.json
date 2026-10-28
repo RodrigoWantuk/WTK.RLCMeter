@@ -137,6 +137,11 @@
     "0x0086": "NTC: engineering adjustment",
     "0x0087": "NTC: nominal model",
     "0x0088": "OK: leads OPEN/SHORT",
-    "0x0089": "PC OSL -> SWD: PRODUCT"
+    "0x0089": "PC OSL -> SWD: PRODUCT",
+    "0x008A": "Gamma",
+    "0x008B": "Contrast",
+    "0x008C": "Saturation",
+    "0x008D": "Invert colors",
+    "0x008E": "Reset display"
   }
 }

@@ -91,5 +91,13 @@ int main(void)
     const uint8_t wire[] = {0xF8u,0u,0u,0x1Fu,0xFFu,0xFFu};
     check(byte_count == sizeof(wire) && memcmp(bytes, wire, sizeof(wire)) == 0,
           "RGB565 wire order is unchanged");
+    reset_trace();
+    ili9341_picture_t picture={.gamma=1u,.contrast=2u,.saturation=2u,.inverted=true};
+    check(ili9341_set_picture(&display,&picture)==BSP_STATUS_OK && byte_count==1u && bytes[0]==0x21u,
+          "picture inversion is a bounded real DCS command");
+    reset_trace();quiet=true;
+    check(ili9341_set_picture(&display,&picture)==BSP_STATUS_BUSY && byte_count==0u,"picture obeys quiet");
+    reset_trace();fail_transfer=1u;
+    check(ili9341_set_picture(&display,&picture)==BSP_STATUS_TIMEOUT && releases==1u,"picture errors release bus");
     return failures == 0 ? 0 : 1;
 }

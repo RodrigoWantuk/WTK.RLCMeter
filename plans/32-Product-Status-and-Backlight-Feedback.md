@@ -1,6 +1,6 @@
 # Product status, lead-menu discovery and backlight feedback
 
-STATUS: IN_PROGRESS
+STATUS: SOFTWARE_COMPLETE_DEPLOYED_REQUIRES_BENCH_VALIDATION
 
 Prerequisites: plans 30/31 are implemented and deployed. The owner reports FAULT 00000000 entering About, NTC not in degrees C, undiscoverable quick lead compensation, and reduced brightness after reset despite 100% selection. The display occupies the UART connector; ST-Link is available. Preserve the installed API 5 pack, splash, factory OSL, settings and experimental NTC model.
 
@@ -23,3 +23,5 @@ About overflow is reproduced with the actual API 5 font at x=240, y=113 (4x12 gl
 66/66 host entries and focused app/UI tests with provisioning OFF pass. Actual controller/renderer integration covers 76 bilingual/fallback measurement renders plus 28 status-page renders. A new unit assertion initially lacked matching fake-provider labels; the fixture was corrected and the full suite passed. Initial failed logs remain distinct.
 
 Actual non-halting register reads at the owner's 100% setting show applied 100, TIM3 ARR 999 / CCR3 1000, PWM1, CH3 enabled, no remap, PB0 high, zero electrical/display faults and SAFE command outputs. The module has a transistor according to the owner. LED/VCC voltage cannot be measured now. Physical brightness diagnosis remains open; no speculative PWM/polarity change. Final sealed build/deployment and owner visual acceptance are next.
+
+October 28 supersedes the final in-progress sentence: the owner identifies the apparent brightness issue as the TN viewing angle. No PWM correction is needed. Clean source 21a9a4115b7f2bf702ce9774cbe6f23d6019d959 is programmed and full internal readback verified: 73,820 Flash / 15,212 accounted RAM bytes. After restart, UART reports READY/SAFE, sequence 1, zero faults and zero acquisitions. The fresh mutable tail matches exactly (SHA-256 8825cacce71cecbc652228bca75e83b042269dbc58d2918dc765e9e6a736fdff). API 5 resources are unchanged. Owner visual confirmation remains pending because the module was swapped for UART; plan 33 now adds the requested persistent picture controls and bounded SPI work.

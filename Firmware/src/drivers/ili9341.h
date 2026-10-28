@@ -7,6 +7,7 @@
 
 #include "bsp/bsp_status.h"
 #include "drivers/ili9341_geometry.h"
+#include "drivers/ili9341_color.h"
 
 enum
 {
@@ -54,6 +55,8 @@ bsp_status_t ili9341_init_step(ili9341_t *display, uint32_t now_ms);
  * Supported commands: 0x04, 0x09..0x0F and 0xD3; 1..5 bytes, one CS interval.
  * A successful SPI transfer does not prove controller presence or identity. */
 bsp_status_t ili9341_read_diagnostic_raw(uint8_t command, uint8_t *response, size_t size);
+/* Apply only at an idle renderer boundary, outside quiet and after splash. */
+bsp_status_t ili9341_set_picture(const ili9341_t *display, const ili9341_picture_t *picture);
 bsp_status_t ili9341_set_rotation(ili9341_t *display, uint8_t rotation);
 bsp_status_t ili9341_set_window(const ili9341_t *display,
                                 uint16_t x,

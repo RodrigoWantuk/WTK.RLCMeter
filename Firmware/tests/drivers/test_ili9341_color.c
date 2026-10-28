@@ -35,5 +35,17 @@ static void test_rgb565_wire_order(void)
 int main(void)
 {
     test_rgb565_wire_order();
+    ili9341_picture_t p={.contrast=2u,.saturation=2u};
+    for(uint32_t pixel=0u;pixel<=UINT16_MAX;++pixel)
+        expect_true(ili9341_picture_pixel((uint16_t)pixel,&p)==pixel,"all 65536 neutral RGB565 colors are exact");
+    p.gamma=1u; const uint16_t lifted=ili9341_picture_pixel(0x7befu,&p);
+    p.gamma=2u; expect_true(lifted>0x7befu && ili9341_picture_pixel(0x7befu,&p)<0x7befu,"gamma changes midtones in the requested direction");
+    p.gamma=0u;p.saturation=0u; const uint16_t gray=ili9341_picture_pixel(0xf800u,&p);
+    const int r=(int)((gray>>11u)&31u)*2,g=(int)((gray>>5u)&63u),b=(int)(gray&31u)*2;
+    expect_true(r-g>=-1 && r-g<=1 && b-g>=-1 && b-g<=1,"zero saturation produces quantized gray");
+    for(p.gamma=0u;p.gamma<3u;++p.gamma) for(p.saturation=0u;p.saturation<5u;++p.saturation) {
+        expect_true(ili9341_picture_pixel(0u,&p)==0u && ili9341_picture_pixel(0xffffu,&p)==0xffffu,"gamma/saturation preserve black/white endpoints");
+    }
+    p.gamma=3u;expect_true(!ili9341_picture_valid(&p),"invalid gamma rejected");
     return (g_failures == 0) ? 0 : 1;
 }
