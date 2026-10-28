@@ -110,9 +110,11 @@ def normalized_budget_name(budget: str) -> str:
     return "product" if budget == "release" else budget
 
 
-def ram_limits_for_budget(budget: str) -> tuple[int | None, int | None]:
+def ram_limits_for_budget(budget: str, flash_bytes: int = FLASH_SILICON_BYTES) -> tuple[int | None, int | None]:
     budget_name = normalized_budget_name(budget)
     if budget_name == "product":
+        if flash_bytes == 131072:
+            return 18 * 1024, 19 * 1024
         return PRODUCT_RAM_PREFERRED_BYTES, PRODUCT_RAM_HARD_BYTES
     if budget_name == "bringup":
         return None, BRINGUP_RAM_HARD_BYTES
@@ -159,7 +161,7 @@ def main() -> int:
     ram_accounted_bytes = ram["ram_accounted_bytes"]
     ram_remaining_bytes = RAM_SILICON_BYTES - ram_accounted_bytes
     budget_name = normalized_budget_name(args.budget)
-    ram_preferred_bytes, ram_hard_bytes = ram_limits_for_budget(budget_name)
+    ram_preferred_bytes, ram_hard_bytes = ram_limits_for_budget(budget_name, args.flash_bytes)
     flash_hard_bytes = flash_hard_limit_for_budget(budget_name, args.flash_bytes)
     report = {
         "elf": str(args.elf),
@@ -184,8 +186,8 @@ def main() -> int:
             "flash_silicon_bytes": args.flash_bytes,
             "factory_declared_flash_bytes": FLASH_SILICON_BYTES,
             "ram_silicon_bytes": RAM_SILICON_BYTES,
-            "product_ram_preferred_bytes": PRODUCT_RAM_PREFERRED_BYTES,
-            "product_ram_hard_bytes": PRODUCT_RAM_HARD_BYTES,
+            "product_ram_preferred_bytes": ram_limits_for_budget("product", args.flash_bytes)[0],
+            "product_ram_hard_bytes": ram_limits_for_budget("product", args.flash_bytes)[1],
             "bringup_ram_hard_bytes": BRINGUP_RAM_HARD_BYTES,
         },
         "gates": {
@@ -255,6 +257,9 @@ def main() -> int:
                 f"{RAM_SILICON_BYTES} B",
                 file=sys.stderr,
             )
+            failed = True
+        if reserved_stack_bytes < 2048:
+            print("error: reserved stack floor is below 2048 B", file=sys.stderr)
             failed = True
 
     return 1 if failed else 0

@@ -16,6 +16,8 @@ class FirmwareSizeToolTest(unittest.TestCase):
         self.assertEqual(firmware_size.flash_hard_limit_for_budget("bringup", 131072), 131072)
         self.assertEqual(firmware_size.flash_hard_limit_for_budget("product"), 64512)
         self.assertEqual(firmware_size.ram_limits_for_budget("product"), (16384, 17408))
+        self.assertEqual(firmware_size.ram_limits_for_budget("product", 131072), (18432, 19456))
+        self.assertEqual(firmware_size.ram_limits_for_budget("bringup", 131072), (None, 18432))
         with self.assertRaises(ValueError): firmware_size.flash_hard_limit_for_budget("product", 262144)
     def test_noload_stack_and_noinit_counted_once(self):
         result = firmware_size.ram_usage({".data": 48, ".bss": 12940,

@@ -438,3 +438,36 @@ PLC1 decoding/resource frame boundaries remain authoritative; no byte-sniffing
 multiplexer or alternate measurement engine is introduced. The PC client never
 retries activation after an uncertain reply. See plan 28 for the profile and
 validation contract.
+
+
+## Volatile waveform ownership (plan 34)
+
+The measurement_waveform module prepares physical ADC pairs without UI/storage
+dependencies. app_waveform_store owns candidate/published slots in the cooperative
+foreground. The session stages only repeats admitted by its existing statistical
+predicate, before raw ownership is released. It publishes only at successful
+terminal SAFE, binding session, condition, channel and factory/lead sequences.
+A missing snapshot never changes a valid numerical result or authorizes hardware.
+
+The product view carries only a const reference and generation. The renderer
+abandons a previous generation before reusing a published slot. The dedicated
+ui_waveform column operation has bounded stack scratch and no ISR/shared-DMA
+ownership. Its 12-byte context plus references and 2176-byte store fit the approved
+2304-byte incremental static budget; linker maps are authoritative for padding.
+
+The explicit first-unit 128-KiB product uses a preferred accounted RAM ceiling of
+18 KiB and a hard ceiling of 19 KiB, including >=2 KiB stack, leaving >=1 KiB
+outside the accounted allocation. Build and package inspection share
+firmware_size.ram_limits_for_budget; generic product/bringup gates stay at
+17/18 KiB. WTK_STACK_WATERMARK=ON is a diagnostic reset-time paint of the top
+2 KiB; surviving prefix evidence measures only exercised paths, not all possible
+stack depths. No production heap or stack reduction is introduced.
+
+The delivered diagnostic first observed 252 B unused stack after resource update.
+Plan 34 therefore separates initialization, control, rendering and serial phases
+with explicit no-inline boundaries under LTO. Startup callbacks/IO contexts are
+copied by their owners before initialization returns. Actual fresh boot/update
+observations leave 940/908 B unused in the same 2048-B reservation. This adds no
+static allocation and changes no hardware permission/order. Acquisition and graph
+stack high-water remain REQUIRES_BENCH_VALIDATION; observed idle paths are not a
+whole-program bound.

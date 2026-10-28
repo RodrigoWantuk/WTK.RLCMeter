@@ -224,3 +224,5 @@ Both end SAFE with unchanged calibration; accuracy/polarized envelope, actual
 10-mF endpoint, physical contact timing and TFT appearance remain pending.
 
 Production completion: [sealed software image, memory and acceptance handoff](../Firmware/releases/2026-10-27/production-completion/README.md). Software checks passed; deployment and physical qualification are pending.
+
+[Plan-34 waveform delivery](../Firmware/releases/2026-10-28/waveform-snapshot/README.md) provides the installed third landscape result page, API 7 pack, exact preservation evidence and measured stack recovery. Physical graph/DUT acceptance remains pending.

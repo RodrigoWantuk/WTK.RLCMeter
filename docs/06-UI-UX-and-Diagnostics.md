@@ -682,3 +682,44 @@ Picture changes wait for the renderer to be idle and for quiet mode to end, then
 Settings schema 5 keeps the 36-byte record, eight-byte payload, CRC coverage and commit-last A/B slots. Its previously reserved header word encodes gamma bits 0..1, contrast bits 2..4, saturation bits 5..7 and inversion bit 8; higher bits and out-of-domain indices are rejected. Schemas 2/3/4 retain their old checks and acquire neutral picture defaults. No settings migration is written until an explicit save. The API 6 bilingual catalog appends five labels through ID 0x008E, retaining every prior ID and both image payloads. Firmware/resources are updated together.
 
 TFT writes use PCLK1/4 (9 MHz at the normal 36-MHz APB1 clock); diagnostic reads and W25Q retain PCLK1/8 (4.5 MHz), with the existing /64 TFT recovery override. Selection/clock changes occur with both chip selects inactive and quiet still blocks ownership. This stays within the ILITEK 100-ns write / 150-ns read cycle limits. Actual display signal integrity, visual changes and throughput remain REQUIRES_BENCH_VALIDATION while UART occupies the module connection. Large sprites/double framebuffers and C++ TFT_eSPI are outside the C17/20-KiB-SRAM design.
+
+
+## Third result page: real ADC waveforms (plan 34)
+
+DOWN cycles value -> electrical details -> waveforms -> value; UP reverses it.
+Short OK on waveforms returns to the value without acquisition. Long OK opens
+the ordinary menu. Waveforms use rotation 3 (320x240); every other product screen
+restores rotation 2 (240x320), including menu and fault exits. Quiet defers both
+rotation and drawing. Splash orientation, image and completed-image three-second
+hold remain unchanged.
+
+Yellow EXC and cyan RET show real ADC codes, cropped to two periods and joined
+by straight segments. Eight time divisions and six voltage divisions share a
+centered zero. Five signed time labels avoid overlap. At 10 Hz/1 kHz/10 kHz the
+windows are 200 ms/2 ms/200 us (25 ms/250 us/25 us per division). Independent
+colored 1–2–5 mV/div scales have a 1 mV/div minimum and 10% peak headroom.
+RET 1X/HG identifies the actual selected path. HG voltage remains at its physical
+ADC plane; it is not divided by nominal gain or complex factory correction.
+Each ADC uses its calibrated affine scale and its corresponding mean VMID.
+ADC phase is the raw RET minus EXC fundamental phase, distinct from impedance
+phase; weak/clipped/no-trigger evidence makes it unavailable.
+
+Both curves receive one interpolated time shift at the positive EXC zero
+crossing nearest block center. Simultaneous rank pairs are EXC1/RET1X or
+EXC2/RETHG. The latest accepted statistical repeat is copied before acknowledging
+the acquisition block, after the autorange primary condition is known. Only a
+completed seven-sample estimate followed by successful SAFE teardown publishes
+it. The page explicitly labels an individual capture; the numeric RLC value is
+still the trimmed estimate. OPEN/SHORT without completed statistics, cancellation,
+failure, metadata mismatch, a new session or changed factory/lead calibration
+leaves a navigable Snapshot unavailable page. No extra measurement or relay cycle
+is requested.
+
+The unit128 product owns two 1024-byte sample arrays plus bounded metadata.
+Generic 64-KiB and BRINGUP images retain their gates and do not reserve these
+slots; a generic waveform page reports unavailable. A column renderer and bounded
+glyph-row streaming transfer at most 64 pixels per graph step. Generation changes
+cancel obsolete work. No framebuffer, heap, new DMA or persistent wave record is
+added. Resource API 7 appends eight EN/PT-BR labels at 0x008F–0x0096 (150 per
+language); both images and settings schema 5 stay unchanged. Appearance, amplitude,
+phase and timing remain REQUIRES_BENCH_VALIDATION.

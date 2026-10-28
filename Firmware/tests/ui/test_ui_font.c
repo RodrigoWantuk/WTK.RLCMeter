@@ -327,6 +327,15 @@ static void test_glyph_window_stream_and_retry(void)
                 "quiet window rejection performs no pixel write");
     g_window_status=BSP_STATUS_OK;
     expect_true(ui_font_text_step(&display,&op)==BSP_STATUS_OK,"whole glyph retries after quiet");
+    reset_pixel_trace();
+    ui_font_text_start(&op,&font,UI_FONT_ROLE_SMALL,12u,14u,"A",0x1234u,0x4321u);
+    expect_true(ui_font_text_step_bounded(&display,&op,6u)==BSP_STATUS_BUSY &&
+        op.row_index==2u && op.byte_index==0u && op.cursor_x==12u && g_writes==2u,
+        "bounded graph text retains glyph ownership after two rows");
+    expect_true(ui_font_text_step_bounded(&display,&op,6u)==BSP_STATUS_OK &&
+        op.row_index==0u && g_windows==2u && g_writes==3u,
+        "bounded graph text resumes remaining real bitmap row");
+    check_tall_pixels(12u,14u);
     for(uint8_t scale=1u;scale<=3u;++scale) {
         reset_pixel_trace();
         expect_true(ui_fallback_draw_text_scaled(&display,2u,3u,"A",scale,0x1234u,0x4321u)==BSP_STATUS_OK,

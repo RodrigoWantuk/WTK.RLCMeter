@@ -64,6 +64,7 @@ typedef struct
     uint16_t fg_rgb565;
     uint16_t bg_rgb565;
     uint8_t byte_index;
+    uint8_t row_index;
     ui_font_role_t role;
     bool active;
 } ui_font_text_op_t;
@@ -94,6 +95,7 @@ void ui_font_text_start(ui_font_text_op_t *op,
                         uint16_t fg_rgb565,
                         uint16_t bg_rgb565);
 bsp_status_t ui_font_text_step(const ili9341_t *display, ui_font_text_op_t *op);
+bsp_status_t ui_font_text_step_bounded(const ili9341_t *display, ui_font_text_op_t *op, uint16_t max_pixels);
 uint32_t ui_font_catalog_context_size_bytes(void);
 uint32_t ui_font_face_size_bytes(void);
 uint32_t ui_font_glyph_size_bytes(void);

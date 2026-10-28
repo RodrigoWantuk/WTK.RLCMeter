@@ -6,10 +6,12 @@
 
 #include "drivers/ili9341.h"
 #include "measurement/measurement_engine.h"
+#include "measurement/measurement_waveform.h"
 #include "ui/ui_fallback_renderer.h"
 #include "ui/ui_font.h"
 #include "ui/ui_image.h"
 #include "ui/ui_text.h"
+#include "ui/ui_waveform.h"
 #include "wtk_build_config.h"
 
 typedef enum
@@ -53,6 +55,7 @@ typedef enum
 {
     UI_PRODUCT_PAGE_PRIMARY = 0,
     UI_PRODUCT_PAGE_DETAILS,
+    UI_PRODUCT_PAGE_WAVEFORM,
     UI_PRODUCT_PAGE_COUNT,
 } ui_product_page_t;
 
@@ -63,6 +66,7 @@ typedef enum
     UI_PRODUCT_RENDER_IMAGE,
     UI_PRODUCT_RENDER_TEXT,
     UI_PRODUCT_RENDER_ROW_CLEAR,
+    UI_PRODUCT_RENDER_WAVEFORM,
 } ui_product_render_state_t;
 
 typedef enum
@@ -184,6 +188,8 @@ typedef struct
     uint8_t calibration_status;
     uint8_t safety_blocker;
     ui_product_measurement_t measurement_result;
+    const measurement_waveform_snapshot_t *waveform;
+    uint32_t waveform_generation;
     ui_product_menu_t menu;
     ui_product_wizard_t wizard;
     bool has_measurement_result;
@@ -232,6 +238,7 @@ typedef struct
 typedef struct
 {
     ili9341_fill_t clear_fill;
+    ui_waveform_t waveform_op;
     ui_product_view_t pending;
     ui_fallback_text_op_t text_op;
     ui_font_text_op_t font_text_op;
@@ -266,7 +273,7 @@ void ui_product_invalidate_picture(ui_product_t *ui);
 void ui_product_set_font_catalog(ui_product_t *ui, ui_font_catalog_t *catalog);
 void ui_product_set_image_catalog(ui_product_t *ui, ui_image_catalog_t *catalog);
 void ui_product_request(ui_product_t *ui, const ui_product_view_t *view);
-bsp_status_t ui_product_step(ui_product_t *ui, const ili9341_t *display, bool quiet);
+bsp_status_t ui_product_step(ui_product_t *ui, ili9341_t *display, bool quiet);
 uint32_t ui_product_context_size_bytes(void);
 const char *ui_product_state_string(ui_product_state_t state);
 

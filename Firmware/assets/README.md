@@ -140,3 +140,12 @@ Program the verified matching firmware before sending the API 5 pack, with UART 
 API 6 supersedes API 5 with five appended labels (gamma, contrast, saturation, invert colors and restore display) through ID 0x008E: 142 entries per language. All earlier IDs and both images remain unchanged. Gamma/contrast/saturation are bounded software RGB565 adjustments; inversion uses standard DCS. Defaults preserve existing pixels and the boot splash always uses neutral picture values. Regenerate/check the fonts after text changes even when the resulting glyph sources are identical.
 
 The paired-update and full readback/tail preservation procedure above also applies to API 6. New firmware safely rejects an API 5 pack into maintenance until the matching API 6 resources are installed; the wire schema/protocol and mutable partition boundaries do not change. Pixel adjustment happens only after resource validation/decoding and never changes stored image CRCs.
+
+
+## API 7 waveform labels
+
+Plan 34 appends IDs 0x008F–0x0096 for waveform title, unavailable capture,
+individual ADC capture, ADC phase, weak signal, clipping, no trigger and return
+hint. Both EN and PT-BR have 150 entries. Fonts include the ADC phase symbols.
+Schema 2 resource framing and settings schema 5 remain unchanged; no waveform
+samples are written to W25Q. Both existing image payloads must remain byte-identical.

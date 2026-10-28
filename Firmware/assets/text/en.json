@@ -142,6 +142,14 @@
     "0x008B": "Contrast",
     "0x008C": "Saturation",
     "0x008D": "Invert colors",
-    "0x008E": "Reset display"
+    "0x008E": "Reset display",
+    "0x008F": "Waveforms",
+    "0x0090": "Snapshot unavailable",
+    "0x0091": "Individual ADC capture",
+    "0x0092": "Δφ ADC",
+    "0x0093": "Weak signal",
+    "0x0094": "Clipping",
+    "0x0095": "No trigger",
+    "0x0096": "OK: value   Hold OK: menu"
   }
 }

@@ -142,6 +142,14 @@
     "0x008B": "Contraste",
     "0x008C": "Saturação",
     "0x008D": "Inverter cores",
-    "0x008E": "Restaurar tela"
+    "0x008E": "Restaurar tela",
+    "0x008F": "Formas de onda",
+    "0x0090": "Snapshot indisponível",
+    "0x0091": "Captura ADC individual",
+    "0x0092": "Δφ ADC",
+    "0x0093": "Sinal fraco",
+    "0x0094": "Saturação",
+    "0x0095": "Sem trigger",
+    "0x0096": "OK: valor   Segure OK: menu"
   }
 }

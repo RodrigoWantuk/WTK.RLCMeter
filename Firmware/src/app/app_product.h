@@ -17,6 +17,11 @@
 #include "hardware/hw_safety.h"
 #include "ui/ui_product.h"
 
+/* Two snapshots, renderer, and two retained view references. Linker evidence
+ * also includes alignment and verifies the actual whole-program delta. */
+_Static_assert(sizeof(app_waveform_store_t) + sizeof(ui_waveform_t) +
+    2u * (sizeof(void *) + sizeof(uint32_t)) <= 2304u, "waveform static allocation budget");
+
 typedef struct
 {
     const hw_aux_sensors_snapshot_t *sensors;

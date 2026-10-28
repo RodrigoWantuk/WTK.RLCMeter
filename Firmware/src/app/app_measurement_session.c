@@ -227,6 +227,7 @@ static void store_policy_event(app_measurement_session_t *session,
         {
             session->have_final = true;
         }
+        app_waveform_publish(session->io->waveform_store, final);
         session->state = APP_MEASUREMENT_SESSION_DONE;
         session->pending_event = APP_MEASUREMENT_EVENT_FINAL_RESULT;
     }
@@ -323,6 +324,7 @@ bsp_status_t app_measurement_session_start(app_measurement_session_t *session,
     {
         return BSP_STATUS_ERROR;
     }
+    app_waveform_invalidate(session->io->waveform_store);
     session->clock_summary = clock_summary;
     session->clock_status = clock_status;
     session->mode = mode;
@@ -523,11 +525,19 @@ app_measurement_event_t app_measurement_session_step(app_measurement_session_t *
             attempt_result.phase05_failed = dsp_status != BSP_STATUS_OK &&
                 session->dsp_result.result.status == MEASUREMENT_STATUS_INVALID_ARG;
 #endif
-        session->io->attempt_acknowledge(session->io->user);
 #if WTK_ENABLE_MEASUREMENT_TRIMMED
         if (session->trimming)
         {
-            if (trim_submit(session, &attempt_result))
+            /* Copy only an admitted statistical repeat while acquisition still
+             * owns the block; acknowledge may overwrite the DMA workspace. */
+            if (trim_sample_usable(&attempt_result, &session->policy.last_result.primary_attempt) &&
+                session->io->waveform_adc != NULL)
+                app_waveform_stage(session->io->waveform_store, block,
+                    session->io->waveform_adc(session->io->user), &session->dsp_result,
+                    &session->current_attempt, session->session_sequence);
+            const bool finished = trim_submit(session, &attempt_result);
+            session->io->attempt_acknowledge(session->io->user);
+            if (finished)
                 store_policy_event(session, MEASUREMENT_AUTO_EVENT_FINAL_RESULT);
             /* A fixed 10-Hz capture is already SAFE: store_policy_event can
              * complete immediately. Deliver its final event before callers
@@ -536,6 +546,7 @@ app_measurement_event_t app_measurement_session_step(app_measurement_session_t *
                                                                           APP_MEASUREMENT_EVENT_NONE;
         }
 #endif
+        session->io->attempt_acknowledge(session->io->user);
         const measurement_auto_event_t policy_event =
             measurement_auto_submit_result(&session->policy, &attempt_result);
         store_policy_event(session, policy_event);

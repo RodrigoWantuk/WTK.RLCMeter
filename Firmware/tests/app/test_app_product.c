@@ -804,8 +804,19 @@ static int test_safety_fault_and_pages(void)
     app_product_step(&product, &inputs, &clock, BSP_STATUS_OK, 16u);
     app_product_make_view(&product, &view);
     failures += expect_true(view.page == UI_PRODUCT_PAGE_DETAILS, "DOWN changes result page");
-    inputs.safety_fault_mask = APP_SAFETY_FAULT_METROLOGY_RUNTIME;
+    send_button(&product, BUTTON_ID_DOWN, BUTTON_EVENT_PRESS);
     app_product_step(&product, &inputs, &clock, BSP_STATUS_OK, 17u);
+    failures += expect_true(product.view.page == UI_PRODUCT_PAGE_WAVEFORM,"DOWN opens third waveform page");
+    const uint8_t captures=fake.start_count;
+    click_ok(&product);
+    app_product_step(&product, &inputs, &clock, BSP_STATUS_OK, 18u);
+    failures += expect_true(product.view.page == UI_PRODUCT_PAGE_PRIMARY && fake.start_count==captures,
+        "short OK on waveform returns to value without acquisition");
+    send_button(&product, BUTTON_ID_UP, BUTTON_EVENT_PRESS);
+    app_product_step(&product, &inputs, &clock, BSP_STATUS_OK, 19u);
+    failures += expect_true(product.view.page == UI_PRODUCT_PAGE_WAVEFORM,"UP wraps backwards to waveform");
+    inputs.safety_fault_mask = APP_SAFETY_FAULT_METROLOGY_RUNTIME;
+    app_product_step(&product, &inputs, &clock, BSP_STATUS_OK, 20u);
     app_product_make_view(&product, &view);
     failures += expect_true(view.state == UI_PRODUCT_STATE_FAULT, "fault overrides result");
     return failures;

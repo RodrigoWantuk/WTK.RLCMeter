@@ -30,6 +30,9 @@ typedef struct
     fake_outcome_t outcomes[MEASUREMENT_AUTO_HISTORY_CAPACITY + MEASUREMENT_TRIMMED_MAX_EXTRA_CAPTURES];
     hw_metrology_measure_request_t requests[MEASUREMENT_AUTO_HISTORY_CAPACITY + MEASUREMENT_TRIMMED_MAX_EXTRA_CAPTURES];
     hw_metrology_block_t block;
+    uint32_t raw[768];
+    measurement_adc_calibration_t adc;
+    app_waveform_store_t waveform;
     uint8_t outcome_count;
     uint8_t start_count;
     uint8_t process_count;
@@ -255,6 +258,7 @@ static void fake_attempt_acknowledge(void *user)
     fake_io_t *fake = (fake_io_t *)user;
     if (fake != NULL)
     {
+        memset(fake->raw, 0, sizeof(fake->raw)); /* Acknowledge revokes raw ownership. */
 #if WTK_ENABLE_MEASURE_SESSION_HOLD
         if (fake->hold_mode && fake->active)
         {
@@ -390,10 +394,34 @@ static bsp_status_t fake_process_block(const hw_metrology_block_t *block,
                                                     },
                                                     outcome->dsp_status);
     result->derived.interpretation = outcome->interpretation;
+    hw_metrology_adc_profile_t profile;
+    (void)hw_metrology_adc_profile(attempt->frequency, &profile);
+    fake->block = (hw_metrology_block_t){.valid=true,.dma_complete=true,.sequence=fake->process_count,
+        .range_id=attempt->range_id,.excitation_frequency_hz=frequency_hz(attempt->frequency),
+        .requested_amplitude_mvrms=hw_excitation_amplitude_mvrms(attempt->amplitude),
+        .sample_count=256u,.words_per_sample=3u,.raw_words=fake->raw,
+        .sample_rate_hz=profile.sample_rate_hz,.samples_per_cycle=profile.samples_per_cycle};
+    for(unsigned i=0u;i<256u;++i) {
+        fake->raw[i*3u]=hw_metrology_pack_word((uint16_t)(2048u+i%64u),2100u);
+        fake->raw[i*3u+1u]=hw_metrology_pack_word(2200u,2300u);
+        fake->raw[i*3u+2u]=hw_metrology_pack_word(2048u,2048u);
+    }
+    result->phasors.valid=true;
+    result->phasors.vexc_1=measurement_complex(outcome->source_peak_v,0.0f);
+    result->phasors.vexc_2=result->phasors.vexc_1;
+    result->phasors.ret_1x=measurement_complex(outcome->ret_1x_peak_v,0.0f);
+    result->phasors.ret_hg=measurement_complex(outcome->ret_hg_peak_v,0.0f);
 #if WTK_ENABLE_FREQUENCY_SURVEY
     if (fake->synthetic_survey && outcome->dsp_status != MEASUREMENT_STATUS_OK) return BSP_STATUS_ERROR;
 #endif
     return BSP_STATUS_OK;
+}
+
+static const measurement_adc_calibration_t *fake_waveform_adc(void *user)
+{
+    fake_io_t *fake=(fake_io_t *)user;
+    fake->adc=measurement_adc_calibration_ideal();
+    return &fake->adc;
 }
 
 static app_measurement_session_io_t make_io(fake_io_t *fake)
@@ -409,6 +437,8 @@ static app_measurement_session_io_t make_io(fake_io_t *fake)
         .attempt_acknowledge = fake_attempt_acknowledge,
         .attempt_abort = fake_attempt_abort,
         .process_block = fake_process_block,
+        .waveform_store = &fake->waveform,
+        .waveform_adc = fake_waveform_adc,
         .user = fake,
     };
 }
@@ -794,9 +824,24 @@ static int test_trimmed_session(void)
         fake.io.finish_session = fake_finish_session;
         fake.io.trimmed_enabled = true;
         uint32_t now = 1u;
+        uint8_t accepted = 0u;
+        uint32_t accepted_block = 0u;
         for (uint32_t i = 0u; i < 128u && !app_measurement_session_final_ready(&session); i++)
         {
+            const uint8_t before = session.trimmed.summary.samples;
+            const uint32_t prior_block = fake.waveform.candidate.block_sequence;
+            const bool prior_valid = fake.waveform.candidate_valid;
             (void)app_measurement_session_step(&session, now++);
+            if (session.trimmed.summary.samples > before && before > 0u)
+            {
+                accepted = session.trimmed.summary.samples;
+                accepted_block = fake.process_count;
+            }
+            if (session.trimmed.summary.samples == before && prior_valid && fake.waveform.candidate_valid)
+                failures += expect_u32(fake.waveform.candidate.block_sequence, prior_block,
+                    "rejected repeat does not replace accepted snapshot");
+            if (fake.active) failures += expect_true(!fake.waveform.published_valid,
+                "no snapshot published before SAFE cleanup");
             if (session.trimming && variant == 3u) (void)app_measurement_session_cancel(&session);
             if (session.trimming && variant == 5u) fake.supervision_fail = true;
             if (variant == 4u && session.state == APP_MEASUREMENT_SESSION_FINISHING) fake.cleanup_fail = true;
@@ -810,6 +855,16 @@ static int test_trimmed_session(void)
                                 session.policy.history[0].z_ohms.re == 1000.0f,
                                 "statistical windows never overwrite raw search history");
         const bool success = variant <= 1u;
+        failures += expect_true(fake.waveform.published_valid == success,
+            "only complete SAFE aggregation publishes waveform");
+        if (success)
+        {
+            failures += expect_u32(accepted,7u,"snapshot follows accepted repeats");
+            failures += expect_u32(fake.waveform.published.block_sequence,accepted_block,
+                "snapshot is latest accepted raw capture");
+            failures += expect_u32(fake.waveform.published.adc[1][0],2100u,
+                "snapshot copied before acknowledge destroyed raw data");
+        }
         failures += expect_true(result->trimmed.applied == success, "only a complete safe estimate is marked applied");
         if (success)
         {
@@ -863,6 +918,10 @@ static int test_trimmed_primary_after_second_frequency(void)
                             result->classification.interpretation == MEASUREMENT_INTERPRET_CAPACITIVE &&
                             result->primary_attempt.derived.capacitance_valid,
                             "C derives from selected primary while secondary evidence remains raw");
+    failures += expect_true(fake.waveform.published_valid &&
+        fake.waveform.published.frequency_hz == 1000u &&
+        fake.waveform.published.block_sequence == 8u,
+        "earlier search winner gets its final-condition statistical snapshot");
     failures += expect_true(fake.requests[1].frequency == HW_EXCITATION_FREQ_10KHZ &&
                             fake.requests[2].frequency == HW_EXCITATION_FREQ_1KHZ &&
                             fake.requests[2].statistical_capture, "first statistical window returns to primary frequency");

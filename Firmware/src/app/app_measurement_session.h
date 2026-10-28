@@ -9,6 +9,7 @@
 #include "hardware/hw_metrology_measure.h"
 #include "measurement/measurement_dsp.h"
 #include "measurement/measurement_engine.h"
+#include "app/app_waveform_store.h"
 
 typedef enum
 {
@@ -65,6 +66,8 @@ typedef struct
                                   const measurement_attempt_config_t *attempt,
                                   measurement_calibrated_result_t *result,
                                   void *user);
+    app_waveform_store_t *waveform_store;
+    const measurement_adc_calibration_t *(*waveform_adc)(void *user);
     void *user;
 } app_measurement_session_io_t;
 
