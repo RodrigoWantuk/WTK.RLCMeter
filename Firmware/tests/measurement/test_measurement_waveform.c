@@ -79,6 +79,14 @@ int main(void)
         block.dma_complete = false;
         CHECK(!measurement_waveform_capture(&store.candidate, &block, &adc, &processed, &condition, 42u));
         block.dma_complete = true;
+        measurement_adc_calibration_t incompatible = adc;
+        incompatible.vexc_1.code_to_volts = 1000.0f;
+        incompatible.vexc_2.code_to_volts = 1000.0f;
+        for (unsigned i = 0u; i < 768u; ++i) raw[i] = hw_metrology_pack_word(2048u,2048u);
+        CHECK(!measurement_waveform_capture(&store.candidate,&block,&incompatible,&processed,&condition,42u));
+        incompatible.vexc_1.code_to_volts = INFINITY;
+        incompatible.vexc_2.code_to_volts = INFINITY;
+        CHECK(!measurement_waveform_capture(&store.candidate,&block,&incompatible,&processed,&condition,42u));
         for (unsigned i = 0u; i < 256u; ++i)
         {
             raw[3u * i] = hw_metrology_pack_word(3000u, 2048u);

@@ -61,8 +61,18 @@ bool measurement_waveform_capture(measurement_waveform_snapshot_t *s,
     }
     s->vmid_v[0] /= 256.0f; s->vmid_v[1] /= 256.0f;
     for (unsigned ch = 0u; ch < 2u; ++ch)
+    {
         if (!isfinite(s->scale[ch].code_to_volts) || s->scale[ch].code_to_volts <= 0.0f ||
             !isfinite(s->scale[ch].offset_volts) || !isfinite(s->vmid_v[ch])) return false;
+        /* This is an ADC-plane visualization, not an extra measurement gate.
+         * Reject impossible/nonfinite display coordinates before any integer
+         * raster conversion. +/-5 V also bounds both signed mV axes to 4 digits. */
+        for (unsigned i = 0u; i < 256u; ++i)
+        {
+            const float mv = measurement_waveform_mv(s, ch, i);
+            if (!isfinite(mv) || fabsf(mv) > 5000.0f) return false;
+        }
+    }
     s->session_sequence = session; s->block_sequence = b->sequence;
     s->sample_rate_hz = b->sample_rate_hz;
     s->frequency_hz = (uint16_t)b->excitation_frequency_hz;
