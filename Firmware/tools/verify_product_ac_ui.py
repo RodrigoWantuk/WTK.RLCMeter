@@ -39,8 +39,19 @@ def check(controller, preview, directory):
                            check=True, stdout=subprocess.DEVNULL)
         if (directory / 'result-updated.ppm').read_bytes() != (directory / 'result-refresh.ppm').read_bytes():
             raise ValueError('same-page refresh leaves stale pixels')
+    # Status pages use the same real glyph rasterizer and strict TFT bounds as
+    # results. About used to overflow on the full hardware compatibility name.
+    status_count = 0
+    for source, suffix in ((str(pack), 'resources'), ('-', 'fallback')):
+        for language in ('en', 'pt-BR'):
+            for scenario in ('about', 'diagnostics', 'diagnostics-negative',
+                             'diagnostics-stale', 'leads', 'leads-charging', 'calibration'):
+                output = directory / f'{scenario}-{language}-{suffix}.ppm'
+                subprocess.run([str(preview), source, language, scenario, str(output)],
+                               check=True, stdout=subprocess.DEVNULL)
+                status_count += 1
     print(f'SYNTHETIC: {len(snapshots)} real controller views; {count} bilingual/fallback renders; '
-          'refresh matches fresh draw. REQUIRES_BENCH_VALIDATION')
+          f'{status_count} status-page renders; refresh matches fresh draw. REQUIRES_BENCH_VALIDATION')
 
 
 def main():

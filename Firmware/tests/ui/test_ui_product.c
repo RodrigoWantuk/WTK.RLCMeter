@@ -315,6 +315,8 @@ static resource_status_t fake_text_provider(void *context,
     else if(id==UI_TEXT_ID_CHARGER_CONNECTED) text=language==UI_LANGUAGE_PT_BR?"USB conectado":"USB connected";
     else if(id==UI_TEXT_ID_UNPLUG_TO_MEASURE) text=language==UI_LANGUAGE_PT_BR?"Retire USB para medir":"Unplug USB to measure";
     else if(id==UI_TEXT_ID_HOLD_OK_MENU) text="Hold OK: menu";
+    else if(id==UI_TEXT_ID_LEAD_NEW) text=language==UI_LANGUAGE_PT_BR?"Novo OPEN/SHORT":"New OPEN/SHORT";
+    else if(id==UI_TEXT_ID_STATUS) text="STATUS";
     if (snprintf(dst, capacity, "%s", text) >= (int)capacity)
     {
         return RESOURCE_STATUS_OUT_OF_RANGE;
@@ -1008,9 +1010,36 @@ static int test_charging_navigation_notice(void)
     return failures;
 }
 
+static int test_status_temperature_and_lead_actions(void)
+{
+    int failures=0;
+    for(uint8_t lang=(uint8_t)UI_LANGUAGE_EN;lang<=(uint8_t)UI_LANGUAGE_PT_BR;++lang) {
+        reset_render_counters();ui_product_t ui;ili9341_t display={.ready=true};ui_product_init(&ui);
+        ui_product_set_text_provider(&ui,fake_text_provider,NULL);
+        ui_product_view_t view=ready_view(1u);view.state=UI_PRODUCT_STATE_DIAGNOSTICS;
+        view.menu.language_id=lang;view.temperature_valid=true;view.temperature_mC=23550;
+        ui_product_request(&ui,&view);failures+=expect_true(drain_render(&ui,&display)==0,"temperature page drains");
+        failures+=expect_true(rendered_text_starts_with(lang==(uint8_t)UI_LANGUAGE_PT_BR?"NTC 23,6 C":"NTC 23.6 C"),
+                              "NTC converts actual millidegrees to rounded localized Celsius");
+        reset_render_counters();view.generation++;view.temperature_mC=-500;
+        ui_product_request(&ui,&view);failures+=expect_true(drain_render(&ui,&display)==0,"negative temperature drains");
+        failures+=expect_true(rendered_text_starts_with(lang==(uint8_t)UI_LANGUAGE_PT_BR?"NTC -0,5 C":"NTC -0.5 C"),
+                              "negative sub-degree temperature retains its sign");
+        reset_render_counters();view.generation++;view.temperature_valid=false;
+        ui_product_request(&ui,&view);failures+=expect_true(drain_render(&ui,&display)==0 && rendered_text_starts_with("NTC n/a"),
+                              "stale NTC remains unavailable instead of displaying a number");
+        reset_render_counters();view.generation++;view.state=UI_PRODUCT_STATE_LEAD_MENU;
+        ui_product_request(&ui,&view);failures+=expect_true(drain_render(&ui,&display)==0 &&
+            rendered_text_starts_with(lang==(uint8_t)UI_LANGUAGE_PT_BR?"Novo OPEN/SHORT":"New OPEN/SHORT") &&
+            rendered_text_starts_with("STATUS"),"lead menu exposes new endpoint capture and factory status");
+    }
+    return failures;
+}
+
 int main(void)
 {
     int failures = 0;
+    failures += test_status_temperature_and_lead_actions();
     failures += test_charging_navigation_notice();
 #if WTK_PRODUCT_MODERN
     failures += test_result_provenance_and_resource_truth();

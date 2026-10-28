@@ -1467,6 +1467,22 @@ static int test_lead_menu_guards(void)
     boot_to_ready(&product,&inputs);
     app_lead_calibration_t lead={.factory=&g_service,.io=&fake.measurement_io};
     app_product_attach_lead_service(&product,&lead);
+    product.view.state=UI_PRODUCT_STATE_MENU;product.menu_index=0u;click_ok(&product);
+    app_product_step(&product,&inputs,NULL,BSP_STATUS_OK,90u);
+    failures+=expect_true(product.view.state==UI_PRODUCT_STATE_LEAD_MENU && product.menu_index==0u && fake.start_count==0u,
+                         "Calibration opens the quick lead menu directly without capture");
+    product.menu_index=3u;product.view.menu.selected_index=3u;click_ok(&product);
+    inputs.lead_storage_blocked=true;
+    app_product_step(&product,&inputs,NULL,BSP_STATUS_OK,91u);
+    failures+=expect_true(product.view.state==UI_PRODUCT_STATE_CALIBRATION_STATUS && fake.start_count==0u,
+                         "factory status remains navigable when lead mutations are blocked");
+    product.request_menu=true;app_product_step(&product,&inputs,NULL,BSP_STATUS_OK,92u);
+    failures+=expect_true(product.view.state==UI_PRODUCT_STATE_LEAD_MENU && product.menu_index==3u,
+                         "factory status returns to its lead-menu row");
+    product.request_menu=true;app_product_step(&product,&inputs,NULL,BSP_STATUS_OK,93u);
+    failures+=expect_true(product.view.state==UI_PRODUCT_STATE_MENU && product.menu_index==0u && fake.start_count==0u,
+                         "holding back leaves lead menu without capture or mutation");
+    inputs.lead_storage_blocked=false;
     product.view.state=UI_PRODUCT_STATE_CALIBRATION_STATUS;click_ok(&product);
     app_product_step(&product,&inputs,NULL,BSP_STATUS_OK,100u);
     failures+=expect_true(product.view.state==UI_PRODUCT_STATE_LEAD_MENU,"native lead menu from calibration status");

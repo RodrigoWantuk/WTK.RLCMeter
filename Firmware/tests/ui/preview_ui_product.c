@@ -230,6 +230,27 @@ static ui_product_view_t make_view(const char *scenario, ui_language_id_t langua
     else if (strcmp(scenario, "diagnostics") == 0)
     {
         view.state = UI_PRODUCT_STATE_DIAGNOSTICS;
+        view.battery_valid = true;
+        view.battery_mv = 3955u;
+        view.battery_age_ms = 125u;
+        view.temperature_valid = true;
+        view.temperature_mC = 23500;
+        view.temperature_age_ms = 250u;
+    }
+    else if (strcmp(scenario, "diagnostics-negative") == 0)
+    {
+        view.state = UI_PRODUCT_STATE_DIAGNOSTICS;
+        view.temperature_valid = true;
+        view.temperature_mC = -500;
+    }
+    else if (strcmp(scenario, "diagnostics-stale") == 0)
+    {
+        view.state = UI_PRODUCT_STATE_DIAGNOSTICS;
+        view.temperature_age_ms = UINT32_MAX;
+    }
+    else if (strcmp(scenario, "about") == 0)
+    {
+        view.state = UI_PRODUCT_STATE_ABOUT;
     }
     else if (strcmp(scenario, "maintenance") == 0)
     {

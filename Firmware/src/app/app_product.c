@@ -1165,10 +1165,13 @@ static bool step_lead_ui(app_product_t *product,const app_product_inputs_t *inpu
     }
     if(blocked) app_lead_cancel(lead);
     if(product->view.state==UI_PRODUCT_STATE_LEAD_MENU && !blocked) {
-        if(product->request_menu) set_state(product,UI_PRODUCT_STATE_CALIBRATION_STATUS);
+        if(product->request_menu) set_menu(product,UI_PRODUCT_STATE_MENU,APP_PRODUCT_MAIN_CALIBRATION);
         else if(product->request_page_next || product->request_page_prev) {
-            product->menu_index=(uint8_t)((product->menu_index+(product->request_page_next?1u:3u))%4u);
+            product->menu_index=(uint8_t)((product->menu_index+(product->request_page_next?1u:4u))%5u);
             product->view.menu.selected_index=product->menu_index; mark_dirty(product);
+        } else if(product->request_click && product->menu_index>=3u) {
+            if(product->menu_index==3u) set_state(product,UI_PRODUCT_STATE_CALIBRATION_STATUS);
+            else set_menu(product,UI_PRODUCT_STATE_MENU,APP_PRODUCT_MAIN_CALIBRATION);
         } else if(product->request_click && !product->settings_save_requested &&
                   !app_settings_service_busy(product->settings_service) && !inputs->lead_storage_blocked) {
             bsp_status_t status=BSP_STATUS_OK;
@@ -1176,7 +1179,6 @@ static bool step_lead_ui(app_product_t *product,const app_product_inputs_t *inpu
                 BSP_STATUS_BUSY:app_lead_begin(lead);
             else if(product->menu_index==1u) status=app_lead_set_enabled(lead,!product->view.lead_active,false,now_ms);
             else if(product->menu_index==2u) status=app_lead_set_enabled(lead,false,true,now_ms);
-            else set_state(product,UI_PRODUCT_STATE_CALIBRATION_STATUS);
             if(product->menu_index<3u) {
                 if(status==BSP_STATUS_OK) { product->next_hint=(measurement_auto_hint_t){0};
                     product->view.has_measurement_result=false; set_state(product,UI_PRODUCT_STATE_LEAD_WIZARD); }
@@ -1404,7 +1406,9 @@ void app_product_step(app_product_t *product,
             {
                 if (product->menu_index == APP_PRODUCT_MAIN_CALIBRATION)
                 {
-                    set_state(product, UI_PRODUCT_STATE_CALIBRATION_STATUS);
+                    if(product->lead_service!=NULL && inputs->calibration_active_valid)
+                        set_menu(product,UI_PRODUCT_STATE_LEAD_MENU,0u);
+                    else set_state(product, UI_PRODUCT_STATE_CALIBRATION_STATUS);
                 }
                 else if (product->menu_index == APP_PRODUCT_MAIN_DISPLAY)
                 {
@@ -1572,7 +1576,9 @@ void app_product_step(app_product_t *product,
     {
         if (product->request_menu)
         {
-            set_state(product, UI_PRODUCT_STATE_MENU);
+            if(product->lead_service!=NULL && inputs->calibration_active_valid)
+                set_menu(product,UI_PRODUCT_STATE_LEAD_MENU,3u);
+            else set_menu(product,UI_PRODUCT_STATE_MENU,APP_PRODUCT_MAIN_CALIBRATION);
         }
         else if (product->request_click && product->lead_service!=NULL && inputs->calibration_active_valid)
         {

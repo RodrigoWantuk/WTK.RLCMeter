@@ -1105,7 +1105,8 @@ static bool prepare_about_line(const ui_product_t *ui,
     }
     if (index == 2u)
     {
-        line_set(line, 12u, 108u, 2u, UI_COLOR_WHITE, WTK_HARDWARE_COMPATIBILITY);
+        /* The complete hardware identity exceeds 240 px in the medium face. */
+        line_set(line, 12u, 108u, 1u, UI_COLOR_WHITE, WTK_HARDWARE_COMPATIBILITY);
         return true;
     }
     if (index == 3u)
@@ -1167,10 +1168,21 @@ static bool prepare_diagnostics_line(const ui_product_t *ui,
         (void)append_text(row,sizeof(row),&used,battery?"BAT ":"NTC ");
         if(!valid) (void)append_text(row,sizeof(row),&used,"n/a");
         else {
-            int32_t value=battery?(int32_t)view->battery_mv:view->temperature_mC;
-            if(value<0) { (void)append_char(row,sizeof(row),&used,'-');value=-value; }
-            (void)ui_format_append_u32(row,sizeof(row),&used,(uint32_t)value);
-            (void)append_text(row,sizeof(row),&used,battery?"mV":"mC");
+            if(battery) {
+                (void)ui_format_append_u32(row,sizeof(row),&used,view->battery_mv);
+                (void)append_text(row,sizeof(row),&used,"mV");
+            } else {
+                const int32_t value=view->temperature_mC;
+                const uint32_t magnitude=value<0?(uint32_t)(-(value+1))+1u:(uint32_t)value;
+                const uint32_t tenths=(magnitude+50u)/100u;
+                if(value<0 && tenths!=0u) (void)append_char(row,sizeof(row),&used,'-');
+                (void)ui_format_append_u32(row,sizeof(row),&used,tenths/10u);
+                (void)append_char(row,sizeof(row),&used,
+                    view->menu.language_id==(uint8_t)UI_LANGUAGE_PT_BR?',':'.');
+                (void)ui_format_append_u32(row,sizeof(row),&used,tenths%10u);
+                (void)append_text(row,sizeof(row),&used,
+                    ui->font_catalog!=NULL && ui_font_catalog_ready(ui->font_catalog)?" \xC2\xB0" "C":" C");
+            }
         }
         (void)append_text(row,sizeof(row),&used," t=");
         (void)ui_format_append_u32(row,sizeof(row),&used,battery?view->battery_age_ms:view->temperature_age_ms);
@@ -1332,11 +1344,11 @@ static bool prepare_lead_line(const ui_product_t *ui,const ui_product_view_t *v,
         (void)ui_format_append_u32(row,sizeof(row),&used,v->lead_sequence);
     } else if (menu) {
         static const ui_text_id_t actions[]={UI_TEXT_ID_LEAD_NEW,UI_TEXT_ID_LEAD_TOGGLE,
-                                            UI_TEXT_ID_LEAD_CLEAR,UI_TEXT_ID_BACK};
-        if(index<6u) id=actions[index-2u];
-        else if(index==6u && v->charger_connected) id=UI_TEXT_ID_UNPLUG_TO_MEASURE;
-        else if(index==6u && v->lead_curve_conflict) id=UI_TEXT_ID_LEAD_WCRV_CONFLICT;
-        else if(index==6u && v->lead_error!=0u) id=UI_TEXT_ID_LEAD_UNAVAILABLE;
+                                            UI_TEXT_ID_LEAD_CLEAR,UI_TEXT_ID_STATUS,UI_TEXT_ID_BACK};
+        if(index<7u) id=actions[index-2u];
+        else if(index==7u && v->charger_connected) id=UI_TEXT_ID_UNPLUG_TO_MEASURE;
+        else if(index==7u && v->lead_curve_conflict) id=UI_TEXT_ID_LEAD_WCRV_CONFLICT;
+        else if(index==7u && v->lead_error!=0u) id=UI_TEXT_ID_LEAD_UNAVAILABLE;
         else return false;
     } else {
         switch(v->lead_state) {
@@ -1370,7 +1382,7 @@ static bool prepare_lead_line(const ui_product_t *ui,const ui_product_view_t *v,
         if(index==6u) id=UI_TEXT_ID_LEAD_ENGINEERING;
         if(index==7u) id=UI_TEXT_ID_LEAD_BACK_HINT;
     }
-    const bool selected=menu && index>=2u && index<6u && v->menu.selected_index==index-2u;
+    const bool selected=menu && index>=2u && index<7u && v->menu.selected_index==index-2u;
     const uint16_t color=index==0u?UI_COLOR_CYAN:selected?UI_COLOR_GREEN:UI_COLOR_WHITE;
     if (id!=0) line_set_id(ui,v,line,8u,y,1u,color,id);
     else line_set(line,8u,y,1u,color,row);
