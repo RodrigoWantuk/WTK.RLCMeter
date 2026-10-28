@@ -1508,6 +1508,65 @@ static int test_diagnostic_freshness(void)
     return failures;
 }
 
+static int test_charger_only_allows_navigation_without_measurement(void)
+{
+    int failures=0;fake_io_t fake={0};app_product_t product;
+    app_product_inputs_t inputs=inputs_ready();inputs.range_disabled=true;
+    hw_safety_input_t electrical={.charger=HW_CHARGER_PRESENT,.residual=HW_RESIDUAL_SAFE,
+        .battery=HW_BATTERY_OK,.range=HW_RANGE_DISABLED};
+    inputs.safety_result=hw_safety_evaluate(&electrical);
+    failures+=expect_true(init_product(&product,&fake)==BSP_STATUS_OK,"charging product init");
+    boot_to_ready(&product,&inputs);
+    failures+=expect_true(product.view.state==UI_PRODUCT_STATE_READY && product.view.charger_connected &&
+        !inputs.safety_result.measure_allowed && fake.start_count==0u,"charged boot is READY UI with no hardware permit");
+    click_ok(&product);app_product_step(&product,&inputs,NULL,BSP_STATUS_OK,10u);
+    failures+=expect_true(fake.start_count==0u && product.session_sequence==0u && !product.request_click &&
+        !product.measurement_deferred_for_settings,"charging click is consumed without a deferred measurement");
+    send_button(&product,BUTTON_ID_OK,BUTTON_EVENT_PRESS);send_button(&product,BUTTON_ID_OK,BUTTON_EVENT_LONG_PRESS);
+    send_button(&product,BUTTON_ID_OK,BUTTON_EVENT_RELEASE);app_product_step(&product,&inputs,NULL,BSP_STATUS_OK,11u);
+    failures+=expect_true(product.view.state==UI_PRODUCT_STATE_MENU,"normal menu opens while charging");
+    send_button(&product,BUTTON_ID_DOWN,BUTTON_EVENT_PRESS);app_product_step(&product,&inputs,NULL,BSP_STATUS_OK,12u);
+    click_ok(&product);app_product_step(&product,&inputs,NULL,BSP_STATUS_OK,13u);
+    failures+=expect_true(product.view.state==UI_PRODUCT_STATE_DISPLAY_MENU,"settings navigation remains available");
+    product.view.state=UI_PRODUCT_STATE_READY;
+    electrical.charger=HW_CHARGER_ABSENT;inputs.safety_result=hw_safety_evaluate(&electrical);
+    app_product_step(&product,&inputs,NULL,BSP_STATUS_OK,14u);
+    failures+=expect_true(!product.view.charger_connected && fake.start_count==0u && product.session_sequence==0u,
+        "unplug does not replay the blocked click");
+    electrical.charger=HW_CHARGER_PRESENT;inputs.safety_result=hw_safety_evaluate(&electrical);
+    app_lead_calibration_t lead={.factory=&g_service,.io=&fake.measurement_io};app_product_attach_lead_service(&product,&lead);
+    product.view.state=UI_PRODUCT_STATE_LEAD_MENU;product.menu_index=0u;click_ok(&product);
+    app_product_step(&product,&inputs,NULL,BSP_STATUS_OK,15u);
+    failures+=expect_true(product.view.state==UI_PRODUCT_STATE_LEAD_MENU && lead.state!=APP_LEAD_START &&
+        fake.start_count==0u,"charger blocks new lead capture without disabling navigation");
+    lead.state=APP_LEAD_WAIT_OPEN;product.view.state=UI_PRODUCT_STATE_LEAD_WIZARD;click_ok(&product);
+    app_product_step(&product,&inputs,NULL,BSP_STATUS_OK,16u);
+    failures+=expect_true(lead.state!=APP_LEAD_START && lead.state!=APP_LEAD_WAIT && fake.start_count==0u,
+        "OPEN confirmation cannot queue a capture during charging");
+    fake=(fake_io_t){0};inputs=inputs_ready();
+    fake.outcome_count=1u;
+    fake.outcomes[0]=good_outcome(measurement_complex(1000.0f,0.0f),MEASUREMENT_INTERPRET_RESISTIVE);
+    failures+=expect_true(init_product(&product,&fake)==BSP_STATUS_OK,"active charge abort init");
+    boot_to_ready(&product,&inputs);
+    const bsp_clock_summary_t clock={.source=BSP_CLOCK_SOURCE_HSE_PLL,.sysclk_hz=72000000u,.hse_ready=true};
+    step_until_attempt_active(&product,&inputs,&clock,20u,&fake);
+    failures+=expect_true(fake.active,"capture active before charger insertion");
+    fake.abort_delay_steps=2u;inputs.range_disabled=true;
+    inputs.safety_result=hw_safety_evaluate(&electrical);
+    for(uint32_t now=30u;now<48u;++now) app_product_step(&product,&inputs,&clock,BSP_STATUS_OK,now);
+    failures+=expect_true(fake.abort_called && !fake.active && product.view.state==UI_PRODUCT_STATE_READY &&
+        !product.view.has_measurement_result,"charger insertion drains active work then returns to normal inhibited READY");
+    for(unsigned reason=0u;reason<3u;++reason) {
+        fake=(fake_io_t){0};failures+=expect_true(init_product(&product,&fake)==BSP_STATUS_OK,"hard charging blocker init");
+        electrical.residual=reason==0u?HW_RESIDUAL_UNSAFE:HW_RESIDUAL_SAFE;
+        electrical.battery=reason==1u?HW_BATTERY_CRITICAL:reason==2u?HW_BATTERY_UNKNOWN:HW_BATTERY_OK;
+        inputs.safety_result=hw_safety_evaluate(&electrical);boot_to_ready(&product,&inputs);
+        failures+=expect_true(product.view.state==UI_PRODUCT_STATE_SAFETY_BLOCKED && fake.start_count==0u,
+            "charging does not hide unsafe residual or critical/unknown supply");
+    }
+    return failures;
+}
+
 int main(int argc, char **argv)
 {
     if ((argc == 2) && (strcmp(argv[1], "--sizes") == 0))
@@ -1536,6 +1595,7 @@ int main(int argc, char **argv)
         return 0;
     }
     int failures = 0;
+    failures += test_charger_only_allows_navigation_without_measurement();
     failures += test_serial_ok_contract();
     failures += test_lead_menu_guards();
     failures += test_diagnostic_freshness();

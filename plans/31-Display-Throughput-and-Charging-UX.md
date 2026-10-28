@@ -24,3 +24,7 @@ Owner request: improve display responsiveness; keep normal boot/navigation with 
 ## Limits
 
 Measured display throughput and electrical signal integrity need bench evidence. Larger fonts/images are not added merely to fill free Flash. Preserve calibration/NTC/settings and existing unqualified metrology/voltage limits. Runtime display work remains outside acquisition quiet windows.
+
+## Current checkpoints
+
+Glyph/window implementation is committed with 72 pixel-identical before/after screens and failure/quiet tests. Charger-only navigation and 48 appended bilingual IDs are implemented; Resource API 5 explicitly signals the required new 137-entry catalog. Fonts include profile `#`; original splash/READY image payloads remain identical. 66/66 current host entries, 532 Python cases (38 optional skips), focused provisioning ON/OFF and nine strict GNU syntax checks pass. Clean-source matrix/sealing and physical deployment/resource readback/display acceptance remain in progress. See the [execution log](../docs/review/display-ux-2026-10-27/README.md).

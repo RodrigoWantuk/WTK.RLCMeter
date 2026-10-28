@@ -128,3 +128,9 @@ bench validation.
   PNG are versioned. Do not edit generated font or RLE JSON by hand.
 - Internal emergency/recovery text remains deliberately small and independent of the
   installed language pack.
+
+## Resource API 5: charging and complete product text
+
+The current pack uses API 5 with 137 dense stable text IDs per EN/PT-BR catalog. IDs 1..0x0059 are unchanged; 48 new IDs cover lead compensation, diagnostics, result validity and the charger notice. New firmware deliberately rejects old API 4 catalogs and offers safe PC-link recovery until the matched pack is uploaded. Packet framing, pack schema 2 and calibration/settings formats are unchanged. Technical profile sequence strings require `#` in every font. Regenerate all three Plex JSON sources after text changes, then build/inspect the pack and keep the 40-KiB mutable tail protected.
+
+Program the verified matching firmware before sending the API 5 pack, with UART available for the maintenance receiver. Preserve a full old pack and mutable-tail snapshot first. Read back the complete new pack and compare the mutable tail afterward. Do not infer display appearance from transfer ACKs alone. The personalized splash and READY art payloads remain byte-identical; splash orientation and 3,000-ms completed-image hold are unchanged.

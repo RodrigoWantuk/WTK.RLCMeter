@@ -12,6 +12,7 @@ import zlib
 
 
 TOOLS = Path(__file__).resolve().parents[2] / "tools"
+sys.path.insert(0, str(TOOLS))
 SPEC = importlib.util.spec_from_file_location("resource_pack_format", TOOLS / "resource_pack_format.py")
 resource_pack_format = importlib.util.module_from_spec(SPEC)
 assert SPEC.loader is not None
@@ -79,7 +80,7 @@ class ResourcePackTests(unittest.TestCase):
         self.assertEqual(splash["channel_bits"], 8)
         self.assertEqual(splash["runs"], prepare_image.rle_encode(pixels, 8))
         pack = resource_pack_format.build_pack(manifest)
-        self.assertEqual(resource_pack_format.inspect_pack(pack)["resource_api_version"], 4)
+        self.assertEqual(resource_pack_format.inspect_pack(pack)["resource_api_version"], 5)
 
     def test_art_quantization_is_deterministic_and_bounded(self):
         source = [(1, 2, 3), (31, 31, 31), (32, 0, 0), (63, 0, 0)]
@@ -195,18 +196,23 @@ class ResourcePackTests(unittest.TestCase):
             self._write_catalog(root, "pt-BR", "pt-BR.json")
             return resource_pack_format.build_pack(self._write_manifest(root))
 
+    def test_profile_sequence_and_technical_tokens_have_glyphs(self):
+        manifest = Path(__file__).resolve().parents[2] / "assets" / "resource_manifest.json"
+        required = resource_pack_format.required_font_codepoints(manifest)
+        self.assertTrue({ord(ch) for ch in "OFF #4294967295 OSL -> SWD"} <= required)
+
     def test_python_constants_match_firmware_headers(self):
         src = Path(__file__).resolve().parents[2] / "src"
         resource_header = (src / "storage" / "resource_store.h").read_text(encoding="utf-8")
         text_header = (src / "ui" / "ui_text.h").read_text(encoding="utf-8")
-        self.assertRegex(resource_header, r"RESOURCE_PACK_API_VERSION\s*=\s*4u")
+        self.assertRegex(resource_header, r"RESOURCE_PACK_API_VERSION\s*=\s*5u")
         self.assertRegex(resource_header, r"RESOURCE_FORMAT_IMAGE_RGB565_RLE_V1\s*=\s*3u")
         self.assertRegex(resource_header, r"RESOURCE_ID_IMAGE_SPLASH\s*=\s*0x00030001u")
         self.assertRegex(resource_header, r"RESOURCE_ID_IMAGE_SCREEN_RESOURCE_UPLOAD\s*=\s*0x00030005u")
         self.assertRegex(resource_header, r"RESOURCE_IMAGE_RGB565_MAX_HEIGHT\s*=\s*320u")
-        self.assertRegex(text_header, r"UI_TEXT_ID_LAST\s*=\s*UI_TEXT_ID_SUPPORTING")
+        self.assertRegex(text_header, r"UI_TEXT_ID_LAST\s*=\s*UI_TEXT_ID_PC_OSL_HINT")
         self.assertRegex(text_header, r"UI_TEXT_MAX_BYTES\s*=\s*31u")
-        last_match = re.search(r"UI_TEXT_ID_SUPPORTING\s*=\s*0x([0-9A-Fa-f]+)u", text_header)
+        last_match = re.search(r"UI_TEXT_ID_PC_OSL_HINT\s*=\s*0x([0-9A-Fa-f]+)u", text_header)
         self.assertIsNotNone(last_match)
         self.assertEqual(int(last_match.group(1), 16), resource_pack_format.TEXT_ID_LAST)
 
@@ -217,10 +223,10 @@ class ResourcePackTests(unittest.TestCase):
         self.assertEqual(first, second)
         info = resource_pack_format.inspect_pack(first)
         self.assertEqual(info["schema_version"], 2)
-        self.assertEqual(info["resource_api_version"], 4)
+        self.assertEqual(info["resource_api_version"], 5)
         self.assertEqual(info["entry_count"], 7)
         self.assertEqual(info["text_id_first"], 0x0001)
-        self.assertEqual(info["text_id_last"], 0x0059)
+        self.assertEqual(info["text_id_last"], 0x0089)
         self.assertEqual(info["text_max_bytes"], 31)
         self.assertEqual(
             [entry["resource_id"] for entry in info["entries"]],
@@ -291,7 +297,7 @@ class ResourcePackTests(unittest.TestCase):
             )
             summary = json.loads(summary_path.read_text(encoding="utf-8"))
             self.assertEqual(summary["schema_version"], 2)
-            self.assertEqual(summary["resource_api_version"], 4)
+            self.assertEqual(summary["resource_api_version"], 5)
             self.assertEqual(summary["size_bytes"], len(pack_path.read_bytes()))
             self.assertEqual(summary["entry_count"], 7)
             self.assertEqual(len(summary["sha256"]), 64)

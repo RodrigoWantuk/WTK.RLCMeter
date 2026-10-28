@@ -23,6 +23,15 @@ bool ui_text_is_emergency(ui_text_id_t id)
 {
     switch (id)
     {
+    case UI_TEXT_ID_NOT_CHARACTERIZED:
+    case UI_TEXT_ID_INVALID_RESULT:
+    case UI_TEXT_ID_NOT_APPLICABLE:
+    case UI_TEXT_ID_ERROR_LABEL:
+    case UI_TEXT_ID_PARTIAL:
+    case UI_TEXT_ID_CRC_UNVERIFIED:
+    case UI_TEXT_ID_CHARGER_CONNECTED:
+    case UI_TEXT_ID_UNPLUG_TO_MEASURE:
+    case UI_TEXT_ID_HOLD_OK_MENU:
     case UI_TEXT_ID_WTK_RLCMETER:
     case UI_TEXT_ID_RESOURCE_ERROR:
     case UI_TEXT_ID_STORAGE_ERROR:
@@ -47,6 +56,15 @@ const char *ui_text_emergency(ui_text_id_t id)
 {
     switch (id)
     {
+    case UI_TEXT_ID_NOT_CHARACTERIZED: return "UNQUALIFIED";
+    case UI_TEXT_ID_INVALID_RESULT: return "INVALID";
+    case UI_TEXT_ID_NOT_APPLICABLE: return "N/A";
+    case UI_TEXT_ID_ERROR_LABEL: return "ERROR:";
+    case UI_TEXT_ID_PARTIAL: return "PARTIAL";
+    case UI_TEXT_ID_CRC_UNVERIFIED: return "CRC UNVERIFIED";
+    case UI_TEXT_ID_CHARGER_CONNECTED: return "USB";
+    case UI_TEXT_ID_UNPLUG_TO_MEASURE: return "UNPLUG USB";
+    case UI_TEXT_ID_HOLD_OK_MENU: return "HOLD OK: MENU";
     case UI_TEXT_ID_WTK_RLCMETER:
         return "WTK RLC";
     case UI_TEXT_ID_RESOURCE_ERROR:

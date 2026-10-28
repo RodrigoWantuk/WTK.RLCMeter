@@ -306,6 +306,15 @@ static resource_status_t fake_text_provider(void *context,
     {
         text = (language == UI_LANGUAGE_PT_BR) ? "TENSAO DETECTADA" : "VOLTAGE DETECTED";
     }
+    if(id==UI_TEXT_ID_NOT_CHARACTERIZED) text=language==UI_LANGUAGE_PT_BR?"Não caracterizado":"Not characterized";
+    else if(id==UI_TEXT_ID_PARTIAL) text=language==UI_LANGUAGE_PT_BR?"PARCIAL":"PARTIAL";
+    else if(id==UI_TEXT_ID_ERROR_LABEL) text=language==UI_LANGUAGE_PT_BR?"Erro:":"Error:";
+    else if(id==UI_TEXT_ID_CRC_UNVERIFIED) text=language==UI_LANGUAGE_PT_BR?"CRC não verificado":"CRC not verified";
+    else if(id==UI_TEXT_ID_HEADER_TABLE_CRC_OK) text="Header/table CRC OK";
+    else if(id==UI_TEXT_ID_CALIBRATION_REQUIRED) text="CAL REQUIRED";
+    else if(id==UI_TEXT_ID_CHARGER_CONNECTED) text=language==UI_LANGUAGE_PT_BR?"USB conectado":"USB connected";
+    else if(id==UI_TEXT_ID_UNPLUG_TO_MEASURE) text=language==UI_LANGUAGE_PT_BR?"Retire USB para medir":"Unplug USB to measure";
+    else if(id==UI_TEXT_ID_HOLD_OK_MENU) text="Hold OK: menu";
     if (snprintf(dst, capacity, "%s", text) >= (int)capacity)
     {
         return RESOURCE_STATUS_OUT_OF_RANGE;
@@ -701,7 +710,7 @@ static int test_normal_text_uses_external_font_roles(void)
     view.state = UI_PRODUCT_STATE_READY;
     ui_product_request(&ui, &view);
     failures += expect_true(drain_render(&ui, &display) == 0, "ready render drains");
-    failures += expect_true(g_font_start_count == 2u, "ready title and action use external font");
+    failures += expect_true(g_font_start_count == 3u, "ready title, action and menu hint use external font");
     failures += expect_true(g_started_font_roles[0] == UI_FONT_ROLE_LARGE, "scale 3 maps to large font");
     failures += expect_true(g_started_font_roles[1] == UI_FONT_ROLE_MEDIUM, "ready action uses medium font");
     failures += expect_true(g_text_start_count == 0u, "ready does not use emergency fallback");
@@ -740,8 +749,8 @@ static int test_factory_result_contract(void)
                 rendered_font_text_starts_with(pt?"1,0":"1.0"),"C uses locale decimal and units");
             failures += expect_true(fallback ? rendered_text_starts_with("1KHZ 500mVrms") :
                 rendered_font_text_starts_with("1KHZ 500mVrms"),"actual excitation condition");
-            failures += expect_true(fallback ? rendered_text_starts_with(pt?"nao caracterizado":"not characterized") :
-                rendered_font_text_starts_with(pt?"nao caracterizado":"not characterized"),"no invented error percentage");
+            failures += expect_true(fallback ? rendered_text_starts_with("UNQUALIFIED") :
+                rendered_font_text_starts_with(pt?"Não caracterizado":"Not characterized"),"no invented error percentage");
             reset_render_counters(); view.generation++; view.page=UI_PRODUCT_PAGE_DETAILS;
             ui_product_request(&ui,&view);
             failures += expect_true(drain_render(&ui,&display)==0,"bilingual details drains");
@@ -760,13 +769,13 @@ static int test_factory_result_contract(void)
             reset_render_counters(); view.generation++;
             view.measurement_result.max_error_status=MEASUREMENT_ERROR_QUALIFIED_BOUND_AVAILABLE;
             ui_product_request(&ui,&view); failures += expect_true(drain_render(&ui,&display)==0,"reserved status drains");
-            failures += expect_true(fallback ? rendered_text_starts_with(pt?"Erro: nao caracterizado":"Error: not characterized") :
-                rendered_font_text_starts_with(pt?"Erro: nao caracterizado":"Error: not characterized"),
+            failures += expect_true(fallback ? rendered_text_starts_with("ERROR: UNQUALIFIED") :
+                rendered_font_text_starts_with(pt?"Erro: Não caracterizado":"Error: Not characterized"),
                 "reserved enum without evidence reader never creates an error bound");
             reset_render_counters(); view.generation++; view.state=UI_PRODUCT_STATE_MEASURING;
             view.page=UI_PRODUCT_PAGE_PRIMARY; view.measurement_result_partial=true;
             ui_product_request(&ui,&view); failures += expect_true(drain_render(&ui,&display)==0,"partial drains");
-            failures += expect_true(fallback ? rendered_text_starts_with(pt?"PARCIAL":"PARTIAL") :
+            failures += expect_true(fallback ? rendered_text_starts_with("PARTIAL") :
                 rendered_font_text_starts_with(pt?"PARCIAL":"PARTIAL"),"partial explicit");
         }
     }
@@ -784,17 +793,18 @@ static int test_factory_guidance_uses_internal_font_and_no_wizard_prompt(void)
         ili9341_t display = {.ready = true};
         ui_product_init(&ui);
         ui_product_set_text_provider(&ui, fake_text_provider, NULL);
+        attach_external_font(&ui);
         ui_product_view_t view = ready_view(50u);
         view.state = UI_PRODUCT_STATE_CALIBRATION_REQUIRED;
         view.calibration_active_valid = false;
         view.menu.language_id = language;
         ui_product_request(&ui, &view);
         failures += expect_true(drain_render(&ui, &display) == 0, "factory guidance drains");
-        failures += expect_true(g_provider_calls == 0u && g_font_start_count == 0u,
-                                "factory guidance uses internal resources only");
-        failures += expect_true(rendered_text_starts_with(language == (uint8_t)UI_LANGUAGE_EN ? "UNCALIBRATED" : "SEM CALIBRACAO"),
-                                "explicit uncalibrated state in both languages");
-        failures += expect_true(rendered_text_starts_with("SWD: BRINGUP_CAL"), "service deployment guidance");
+        failures += expect_true(g_provider_calls > 0u && g_font_start_count > 0u,
+                                "factory guidance resolves external localized copy");
+        failures += expect_true(rendered_font_text_starts_with("CAL REQUIRED"),
+                                "external provider supplies uncalibrated guidance");
+        failures += expect_true(rendered_font_text_starts_with("SWD: BRINGUP_CAL"), "service deployment guidance");
         failures += expect_true(!rendered_text_starts_with("OK"), "no unavailable wizard action");
     }
     return failures;
@@ -966,14 +976,36 @@ static int test_result_provenance_and_resource_truth(void)
     failures+=expect_true(rendered_text_starts_with("OSL4294967295 L4294967295"),"full-width provenance not truncated");
     reset_render_counters();view.generation++;view.state=UI_PRODUCT_STATE_RESOURCE_STATUS;view.resource_status=RESOURCE_STATUS_CORRUPT;
     ui_product_request(&ui,&view);failures+=expect_true(drain_render(&ui,&display)==0,"bad resource status render");
-    failures+=expect_true(rendered_text_starts_with("CRC not verified") && !rendered_text_starts_with("Header/table CRC OK"),
+    failures+=expect_true(rendered_text_starts_with("CRC UNVERIFIED") && !rendered_text_starts_with("Header/table CRC OK"),
         "failed resource mount never claims a verified CRC");return failures;
 }
 #endif
 
+static int test_charging_navigation_notice(void)
+{
+    int failures=0;
+    for(uint8_t lang=(uint8_t)UI_LANGUAGE_EN;lang<=(uint8_t)UI_LANGUAGE_PT_BR;++lang) {
+        reset_render_counters();ui_product_t ui;ili9341_t display={.ready=true};ui_product_init(&ui);
+        ui_product_set_text_provider(&ui,fake_text_provider,NULL);attach_external_font(&ui);
+        ui_product_view_t view=ready_view(1u);view.menu.language_id=lang;view.charger_connected=true;
+        ui_product_request(&ui,&view);failures+=expect_true(drain_render(&ui,&display)==0,"charging READY drains");
+        failures+=expect_true(rendered_font_text_starts_with(lang==(uint8_t)UI_LANGUAGE_PT_BR?"USB conectado":"USB connected") &&
+            rendered_font_text_starts_with(lang==(uint8_t)UI_LANGUAGE_PT_BR?"Retire USB para medir":"Unplug USB to measure"),
+            "normal charging UI resolves friendly copy from localized provider");
+        failures+=expect_true(g_font_start_count==4u,"charging notice and menu hint use normal typography");
+        view.generation++;view.state=UI_PRODUCT_STATE_MENU;ui_product_request(&ui,&view);
+        failures+=expect_true(drain_render(&ui,&display)==0,"charging menu drains");
+        const uint32_t clears=g_full_clears;view.generation++;view.charger_connected=false;
+        ui_product_request(&ui,&view);failures+=expect_true(drain_render(&ui,&display)==0 && g_full_clears==clears,
+            "charger metadata alone does not repaint the menu background");
+    }
+    return failures;
+}
+
 int main(void)
 {
     int failures = 0;
+    failures += test_charging_navigation_notice();
 #if WTK_PRODUCT_MODERN
     failures += test_result_provenance_and_resource_truth();
 #endif

@@ -198,6 +198,7 @@ typedef struct
     uint32_t battery_age_ms, temperature_age_ms;
     uint8_t settings_phase, settings_error;
     bool battery_valid, temperature_valid;
+    bool charger_connected; /* Detected VBUS, not measured charging current. */
     uint32_t lead_sequence;
     uint8_t lead_state, lead_frequency, lead_samples, lead_error;
     bool lead_active, lead_short, lead_uncertain, lead_curve_conflict;

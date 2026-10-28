@@ -205,7 +205,12 @@ static ui_product_view_t make_view(const char *scenario, ui_language_id_t langua
         .menu = {.language_id = (uint8_t)language, .selected_index = 2u,
                  .brightness_percent = 75u, .timeout_seconds = 30u},
     };
-    if (strcmp(scenario, "menu") == 0)
+    if (strcmp(scenario,"charging")==0) { view.charger_connected=true; }
+    else if (strcmp(scenario,"charging-menu")==0) { view.charger_connected=true;view.state=UI_PRODUCT_STATE_MENU; }
+    else if (strcmp(scenario,"leads")==0) { view.state=UI_PRODUCT_STATE_LEAD_MENU; }
+    else if (strcmp(scenario,"leads-open")==0) { view.state=UI_PRODUCT_STATE_LEAD_WIZARD;view.lead_state=UI_PRODUCT_LEAD_WAIT_OPEN; }
+    else if (strcmp(scenario,"leads-charging")==0) { view.state=UI_PRODUCT_STATE_LEAD_MENU;view.charger_connected=true; }
+    else if (strcmp(scenario, "menu") == 0)
     {
         view.state = UI_PRODUCT_STATE_MENU;
     }
