@@ -1,0 +1,38 @@
+{
+  "diagnostic-firmware.zip": {
+    "bytes": 711382,
+    "sha256": "8d8e6f46e4f1bdd91ebdfe58ff17cd7418a881f5d4e658f44faf6fc8052af64a"
+  },
+  "evidence.zip": {
+    "bytes": 1435199,
+    "sha256": "8df56c85268b2af83f1880e9d09fa12e05f65640cb38e65b2350da055ac0ba25"
+  },
+  "firmware.zip": {
+    "bytes": 136981,
+    "sha256": "4d09b6ffb466327be14f15566c7b3c7bf21b429a60a3c2ff156aae872bebcc87"
+  },
+  "product-api7-summary.json": {
+    "bytes": 3187,
+    "sha256": "c87789c12d33627a10d44d4e70a752bd99e3cfecf25101f171613e6506f69293"
+  },
+  "product-api7.wrp2": {
+    "bytes": 108975,
+    "sha256": "e488ff36fa78f962e3aaec7b495e358ae89f37456e30029c6ee41b56d65bdf41"
+  },
+  "README.md": {
+    "bytes": 6442,
+    "sha256": "3c0129d20a4e36dfe79478b711a5bef1f7aa407a7c43db09dfb708ba4a7ed397"
+  },
+  "report.json": {
+    "bytes": 5462,
+    "sha256": "44a50e8ab9dfde4d57ebfd1a4cabe3039b07f0d7b8f0363de28320efc9b78df5"
+  },
+  "waveform-preview.png": {
+    "bytes": 4136,
+    "sha256": "8589c91eb0b036f19e908a4e194f8bee328c2eadc88e88dcaff1bdc090b07aab"
+  },
+  "waveform-previews.png": {
+    "bytes": 17798,
+    "sha256": "37d57f04cfe3fd03e79d78983ab6650a9b81fa7f0e68e55bd84b861c94da67ae"
+  }
+}

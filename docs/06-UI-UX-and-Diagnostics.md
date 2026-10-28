@@ -716,7 +716,7 @@ leaves a navigable Snapshot unavailable page. No extra measurement or relay cycl
 is requested.
 
 The unit128 product owns two 1024-byte sample arrays plus bounded metadata.
-Generic 64-KiB and diagnostic images retain their gates and do not reserve these
+Generic 64-KiB and BRINGUP images retain their gates and do not reserve these
 slots; a generic waveform page reports unavailable. A column renderer and bounded
 glyph-row streaming transfer at most 64 pixels per graph step. Generation changes
 cancel obsolete work. No framebuffer, heap, new DMA or persistent wave record is

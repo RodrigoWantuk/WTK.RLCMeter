@@ -462,3 +462,12 @@ firmware_size.ram_limits_for_budget; generic product/bringup gates stay at
 17/18 KiB. WTK_STACK_WATERMARK=ON is a diagnostic reset-time paint of the top
 2 KiB; surviving prefix evidence measures only exercised paths, not all possible
 stack depths. No production heap or stack reduction is introduced.
+
+The delivered diagnostic first observed 252 B unused stack after resource update.
+Plan 34 therefore separates initialization, control, rendering and serial phases
+with explicit no-inline boundaries under LTO. Startup callbacks/IO contexts are
+copied by their owners before initialization returns. Actual fresh boot/update
+observations leave 940/908 B unused in the same 2048-B reservation. This adds no
+static allocation and changes no hardware permission/order. Acquisition and graph
+stack high-water remain REQUIRES_BENCH_VALIDATION; observed idle paths are not a
+whole-program bound.

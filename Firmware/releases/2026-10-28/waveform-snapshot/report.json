@@ -1,0 +1,194 @@
+{
+  "status": "IMPLEMENTED_REQUIRES_BENCH_VALIDATION",
+  "source": {
+    "git_sha": "3f9e1a65ca0a078fe1febd00c3fc3c911a8eae1a",
+    "dirty": false,
+    "git_status": "",
+    "input_sha256": "479259a194b97012a9d061ac1821672f2d2bd7a7a0e61225cad092ba578cc66c"
+  },
+  "uid": "54ff70068370525760380567",
+  "firmware": {
+    "bytes": 79644,
+    "sha256": "2af412eb90cb32f9d977f779c19b042a1e0ccdf82e017a9529ac76065bd375d5",
+    "readback": "PASS"
+  },
+  "resources": {
+    "api": 7,
+    "bytes": 108975,
+    "sha256": "e488ff36fa78f962e3aaec7b495e358ae89f37456e30029c6ee41b56d65bdf41",
+    "frames": 911,
+    "readback": "BYTE_IDENTICAL",
+    "images": {
+      "0x30002": {
+        "bytes": 5416,
+        "sha256": "b8484d91f0adfad9ee60724827989c07d868c6646c76f6dc13b4679162ccf72e"
+      },
+      "0x30006": {
+        "bytes": 81576,
+        "sha256": "affd353bdefbf1e0bff93b2c71007323e93124e4effd8942988eb66477c561a8"
+      }
+    }
+  },
+  "memory": {
+    "flash_bytes": 79644,
+    "bss": 15392,
+    "ram_static_bytes": 15448,
+    "noinit_bytes": 0,
+    "reserved_stack_bytes": 2048,
+    "ram_accounted_bytes": 17496
+  },
+  "memory_baseline_accounted": 15288,
+  "incremental_accounted_bytes": 2208,
+  "stack": {
+    "before_fix_unused_bytes": 252,
+    "after_boot_unused_bytes": 940,
+    "after_update_unused_bytes": 908,
+    "reserve_bytes": 2048,
+    "required_margin_bytes": 512,
+    "remaining_paths": "REQUIRES_BENCH_VALIDATION: acquisition, waveform page, menus and broader fault paths"
+  },
+  "preserved": {
+    "tail_sha256": "8825cacce71cecbc652228bca75e83b042269dbc58d2918dc765e9e6a736fdff",
+    "tail_byte_identical": true,
+    "factory_osl_sequence": 1,
+    "factory_osl_records": 33,
+    "ntc_profile_sha256": "9b3826a20b3c621a9e92be0035431b140c45d7a23acaba8ec237a63e4e8cad44",
+    "settings_schema": 5
+  },
+  "validation": {
+    "host_entries": 67,
+    "host_provisioning_off_entries": 4,
+    "python_cases": 532,
+    "python_optional_skips": 38,
+    "strict_waveform_previews": 28,
+    "embedded_matrix": [
+      {
+        "profile": "unit-release",
+        "outcome": "PASS",
+        "flash": 79644,
+        "ram": 17496,
+        "stack": 2048,
+        "flash_capacity": 131072
+      },
+      {
+        "profile": "unit-debug",
+        "outcome": "PASS",
+        "flash": 79352,
+        "ram": 17416,
+        "stack": 2048,
+        "flash_capacity": 131072
+      },
+      {
+        "profile": "unit-curves",
+        "outcome": "PASS",
+        "flash": 82376,
+        "ram": 19328,
+        "stack": 2048,
+        "flash_capacity": 131072
+      },
+      {
+        "profile": "unit-no-serial",
+        "outcome": "PASS",
+        "flash": 77540,
+        "ram": 17476,
+        "stack": 2052,
+        "flash_capacity": 131072
+      },
+      {
+        "profile": "bringup",
+        "outcome": "PASS",
+        "flash": 65456,
+        "ram": 15720,
+        "stack": 2048,
+        "flash_capacity": 65536
+      },
+      {
+        "profile": "bringup-cal",
+        "outcome": "PASS",
+        "flash": 38796,
+        "ram": 14020,
+        "stack": 2048,
+        "flash_capacity": 65536
+      },
+      {
+        "profile": "bringup-k1",
+        "outcome": "PASS",
+        "flash": 61580,
+        "ram": 15736,
+        "stack": 2048,
+        "flash_capacity": 65536
+      },
+      {
+        "profile": "bringup-bench",
+        "outcome": "PASS",
+        "flash": 61916,
+        "ram": 15792,
+        "stack": 2048,
+        "flash_capacity": 65536
+      },
+      {
+        "profile": "bringup-peripheral",
+        "outcome": "PASS",
+        "flash": 15856,
+        "ram": 12536,
+        "stack": 2048,
+        "flash_capacity": 65536
+      },
+      {
+        "profile": "generic-product-budget",
+        "outcome": "EXPECTED_64K_BUDGET_STOP"
+      }
+    ],
+    "source_equivalence": "evidence.zip/host-source-equivalence.json"
+  },
+  "final_telemetry": {
+    "status": "ACCEPTED",
+    "request_id": 2211168798,
+    "ui_state": 4,
+    "session_sequence": 0,
+    "uptime_ms": 8118,
+    "safety_blocker_flags": 8,
+    "fault_mask": 0,
+    "factory_calibration_sequence": 1,
+    "capability_flags": 127,
+    "uid": "54ff70068370525760380567",
+    "git": "3f9e1a65ca0a",
+    "battery_mv": 4020,
+    "battery_v": 4.02,
+    "battery_state": 0,
+    "battery_age_ms": 328,
+    "charger_state": 0,
+    "ntc_temperature_c": 26.665,
+    "ntc_age_ms": 316,
+    "ntc_experimental": true,
+    "battery_raw": 2494,
+    "ntc_raw": 1907,
+    "uart_errors": 0,
+    "uart_overflows": 0,
+    "lead_active": false,
+    "lead_sequence": 0,
+    "settings_status": 1,
+    "settings_error": 0,
+    "k1_commanded_state": 1,
+    "range_state": 0,
+    "feedback_dropped": 0,
+    "feedback_error": 0,
+    "primary_accepted_samples": 0,
+    "frequency_attempted_mask": 0,
+    "configured_flash_kib": 128,
+    "last_result": {
+      "valid": false,
+      "resistance_ohms": null,
+      "reactance_ohms": null,
+      "capacitance_f": null,
+      "inductance_h": null,
+      "frequency_id": 0,
+      "range_id": 0,
+      "return_channel": 0
+    },
+    "measurement_completion_observed": false,
+    "limitations": "Nominal VDDA conversion; loaded engineering OSL and experimental NTC are not independent accuracy qualification"
+  },
+  "activation_requested": false,
+  "calibration_campaign_repeated": false
+}

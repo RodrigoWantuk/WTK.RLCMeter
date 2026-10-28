@@ -1,6 +1,6 @@
 # 34 — Measurement waveform snapshot
 
-STATUS: IN_PROGRESS
+STATUS: IMPLEMENTED_REQUIRES_BENCH_VALIDATION
 
 ## Authorized scope and prerequisites
 
@@ -54,3 +54,46 @@ resource catalog/fonts, memory tooling, tests and relevant documentation.
   REQUIRES_BENCH_VALIDATION until exercised with the owner. Stack high-water must
   leave >=512 B in exercised diagnostic scenarios; unexercised paths cannot be
   claimed qualified.
+
+
+## Implemented and delivered evidence (2026-10-28)
+
+Production source 3f9e1a65ca0a and the matched API 7 resources are installed.
+See [the delivery](../Firmware/releases/2026-10-28/waveform-snapshot/README.md)
+for sealed artifacts, exact readbacks and 266 indexed evidence files.
+
+- 67/67 host entries, 532 Python cases (38 optional skips), four provisioning-OFF
+  focused entries and 28 strict EN/PT-BR real-resource/fallback previews pass.
+- Nine supported embedded profiles pass, including supplementary curves and
+  stack instrumentation; generic full product stops at its expected 64-KiB gate.
+- Default Flash/RAM/stack: 79,644/17,496/2,048 B. Incremental accounted RAM:
+  2,208 B. Largest optional-curve RAM: 19,328 B, below the 19-KiB hard gate.
+- Actual diagnostic stack observation first failed the requested margin at
+  252 B. Separating initialization/control/render/serial temporary lifetimes
+  under LTO recovered 940 B after boot and 908 B after resource update, without
+  increasing static storage or reducing stack. The failed checkpoint is retained.
+- Complete internal programming/readback and all 911 resource ACKs pass. Full
+  external pack readback, both prior image payload identities and the entire
+  fresh 40-KiB mutable tail match exactly. OSL sequence 1/all 33, lead slots,
+  schema-5 settings and compiled experimental NTC identity are preserved.
+- Final boot is READY/SAFE, fault-free, calibration active, settings loaded and
+  zero acquisition sessions. No DUT capture, serial OK or new LOAD campaign ran.
+
+The foreground-only stack correction follows the host-checked source without
+changing pure/session/product/UI logic or assets. Its full embedded matrix and
+actual diagnostic boot/update/high-water observations are included. Initialization
+IO records copy their callbacks/context, so returning from initialization does
+not retain pointers to its stack objects.
+
+Remaining REQUIRES_BENCH_VALIDATION: resistor, 103J100 and 470-uH appearance,
+voltage/phase sign, axes, timing, navigation, actual session-to-graph/SAFE behavior,
+and >=512-B diagnostic stack margin during acquisition, waveform rendering, menus
+and broader faults. The owner was absent with UART occupying the display connector.
+Software and installation are complete; those physical acceptance criteria remain
+open. No numeric battery reading was made through SWD.
+
+Plan clarifications: generic 64-KiB and BRINGUP profiles retain their old gates and
+do not allocate sample slots; the instrumented unit128 PRODUCT does allocate them.
+Snapshot-only validation rejects nonfinite/implausible ADC-plane coordinates before
+rasterization, leaving a valid numeric result untouched. No safety, calibration
+math, measurement permission, splash or settings-schema deviation was required.

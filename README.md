@@ -273,3 +273,5 @@ now records nine passing strict profiles and verified factory PRODUCT deployment
 56,260 B Flash / 16,040 B accounted RAM, actual READY/SAFE boot with OSL sequence 1
 and all 33 records preserved. No unattended DUT capture was triggered; physical
 relay-session and menu appearance checks remain pending.
+
+Current first-unit delivery: [real two-channel ADC waveform page and API 7 resources](Firmware/releases/2026-10-28/waveform-snapshot/README.md). Firmware/resources are installed and readback verified; graph/DUT bench acceptance remains separate.
