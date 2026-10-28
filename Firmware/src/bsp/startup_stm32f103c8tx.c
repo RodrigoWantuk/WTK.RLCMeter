@@ -1,5 +1,6 @@
 #include <stdint.h>
 #include "bsp/bsp_gpio.h"
+#include "wtk_build_config.h"
 
 extern uint32_t _estack;
 extern uint32_t _sidata;
@@ -152,6 +153,15 @@ void Reset_Handler(void)
         destination++;
     }
 
+#if WTK_STACK_WATERMARK
+    /* Diagnostic only. Leave the current reset frame and 64 B below MSP alone.
+     * The measured reservation is the top 2 KiB, independent of linker padding.
+     * SWD can read the surviving prefix without halting or formatting in ISR. */
+    uintptr_t reset_sp;
+    __asm volatile ("mrs %0, msp" : "=r" (reset_sp));
+    volatile uint32_t *paint = (volatile uint32_t *)((uintptr_t)&_estack - 2048u);
+    while ((uintptr_t)paint + 64u < reset_sp) *paint++ = 0xA55AA55Au;
+#endif
     SystemInit();
     (void)main();
 

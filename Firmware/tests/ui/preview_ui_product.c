@@ -1,11 +1,13 @@
 #include "ui/ui_product.h"
 
 #include <stdio.h>
+#include <math.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "ui/ui_text_catalog.h"
 
+static uint16_t g_frame_width = 240u, g_frame_height = 320u;
 static uint16_t g_frame[ILI9341_WIDTH * ILI9341_HEIGHT];
 static uint8_t *g_pack;
 static size_t g_pack_size;
@@ -14,6 +16,7 @@ static uint16_t g_window_y;
 static uint16_t g_window_width;
 static uint16_t g_window_height;
 static uint32_t g_window_cursor;
+static uint32_t g_step_pixels;
 static ui_text_catalog_t g_text_en;
 static ui_text_catalog_t g_text_pt;
 
@@ -39,16 +42,23 @@ static resource_status_t resolve_text(void *context,
                                    id, dst, capacity);
 }
 
+bsp_status_t ili9341_set_rotation(ili9341_t *display, uint8_t rotation)
+{
+    display->rotation = rotation;
+    return BSP_STATUS_OK;
+}
+
 bsp_status_t ili9341_set_window(const ili9341_t *display,
                                 uint16_t x,
                                 uint16_t y,
                                 uint16_t width,
                                 uint16_t height)
 {
-    (void)display;
+    const ili9341_size_t size = ili9341_logical_size(display->rotation);
+    g_frame_width = size.width; g_frame_height = size.height;
     if ((width == 0u) || (height == 0u) ||
-        ((uint32_t)x + width > ILI9341_WIDTH) ||
-        ((uint32_t)y + height > ILI9341_HEIGHT))
+        ((uint32_t)x + width > g_frame_width) ||
+        ((uint32_t)y + height > g_frame_height))
     {
         (void)fprintf(stderr, "offscreen window: %u,%u %ux%u\n", x, y, width, height);
         return BSP_STATUS_INVALID_ARG;
@@ -68,12 +78,13 @@ bsp_status_t ili9341_write_pixels_rgb565(const uint16_t *pixels, size_t count)
     {
         return BSP_STATUS_INVALID_ARG;
     }
+    g_step_pixels += (uint32_t)count;
     for (size_t i = 0u; i < count; i++)
     {
         const uint32_t pixel = g_window_cursor++;
         const uint32_t x = (uint32_t)g_window_x + (pixel % g_window_width);
         const uint32_t y = (uint32_t)g_window_y + (pixel / g_window_width);
-        g_frame[(y * ILI9341_WIDTH) + x] = pixels[i];
+        g_frame[(y * g_frame_width) + x] = pixels[i];
     }
     return BSP_STATUS_OK;
 }
@@ -179,8 +190,8 @@ static bool save_ppm(const char *path)
         return false;
     }
 #endif
-    (void)fprintf(file, "P6\n%u %u\n255\n", ILI9341_WIDTH, ILI9341_HEIGHT);
-    for (size_t i = 0u; i < (size_t)ILI9341_WIDTH * ILI9341_HEIGHT; i++)
+    (void)fprintf(file, "P6\n%u %u\n255\n", g_frame_width, g_frame_height);
+    for (size_t i = 0u; i < (size_t)g_frame_width * g_frame_height; i++)
     {
         const uint16_t color = g_frame[i];
         const uint8_t rgb[3] = {
@@ -205,7 +216,30 @@ static ui_product_view_t make_view(const char *scenario, ui_language_id_t langua
         .menu = {.language_id = (uint8_t)language, .selected_index = 2u,
                  .brightness_percent = 75u, .timeout_seconds = 30u, .picture_contrast=2u, .picture_saturation=2u},
     };
-    if (strcmp(scenario,"charging")==0) { view.charger_connected=true; }
+    if (strncmp(scenario,"waveform",8u)==0)
+    {
+        static measurement_waveform_snapshot_t snapshot;
+        view.state=UI_PRODUCT_STATE_RESULT; view.page=UI_PRODUCT_PAGE_WAVEFORM;
+        view.has_measurement_result=true;
+        if(strcmp(scenario,"waveform-unavailable")==0) return view;
+        snapshot=(measurement_waveform_snapshot_t){.sample_rate_hz=64000u,.frequency_hz=1000u,
+            .trigger_sample=128.0f,.triggered=true,.phase_valid=true,.phase_rad=-0.8f,
+            .channel=MEASUREMENT_RETURN_HG,.range_id=HW_RANGE_ID_1K,
+            .scale={{3.3f/4095.0f,0.0f},{3.3f/4095.0f,0.0f}},.vmid_v={1.65f,1.65f}};
+        if(strstr(scenario,"10hz")!=NULL) { snapshot.frequency_hz=10u; snapshot.sample_rate_hz=640u; }
+        if(strstr(scenario,"10khz")!=NULL) { snapshot.frequency_hz=10000u; snapshot.sample_rate_hz=160000u; }
+        const float period=(float)snapshot.sample_rate_hz/(float)snapshot.frequency_hz;
+        for(unsigned i=0u;i<256u;++i) {
+            const float t=6.283185307f*((float)i-128.0f)/period;
+            snapshot.adc[0][i]=(uint16_t)lroundf((1.65f+0.7f*sinf(t))*4095.0f/3.3f);
+            snapshot.adc[1][i]=(uint16_t)lroundf((1.65f+0.009f*sinf(t-0.8f))*4095.0f/3.3f);
+        }
+        if(strstr(scenario,"weak")!=NULL) snapshot.phase_valid=false;
+        if(strstr(scenario,"no-trigger")!=NULL) { snapshot.phase_valid=false;snapshot.triggered=false; }
+        if(strstr(scenario,"clipped")!=NULL) { snapshot.phase_valid=false;snapshot.clipped=true; }
+        view.waveform=&snapshot;
+    }
+    else if (strcmp(scenario,"charging")==0) { view.charger_connected=true; }
     else if (strcmp(scenario,"charging-menu")==0) { view.charger_connected=true;view.state=UI_PRODUCT_STATE_MENU; }
     else if (strcmp(scenario,"leads")==0) { view.state=UI_PRODUCT_STATE_LEAD_MENU; }
     else if (strcmp(scenario,"leads-open")==0) { view.state=UI_PRODUCT_STATE_LEAD_WIZARD;view.lead_state=UI_PRODUCT_LEAD_WAIT_OPEN; }
@@ -337,12 +371,16 @@ static ui_product_view_t make_view(const char *scenario, ui_language_id_t langua
     return view;
 }
 
-static bool render_until_done(ui_product_t *ui, const ili9341_t *display, uint32_t *steps)
+static bool render_until_done(ui_product_t *ui, ili9341_t *display, uint32_t *steps)
 {
     while (ui->active && *steps < 100000u)
     {
         (*steps)++;
+        g_step_pixels=0u;
         const bsp_status_t status = ui_product_step(ui, display, false);
+        if (ui->pending.page==UI_PRODUCT_PAGE_WAVEFORM && g_step_pixels>64u) {
+            (void)fprintf(stderr,"waveform step exceeded 64 pixels: %u\n",g_step_pixels); return false;
+        }
         if ((status != BSP_STATUS_OK) && (status != BSP_STATUS_BUSY))
         {
             (void)fprintf(stderr, "render failed: %d\n", (int)status);
@@ -415,7 +453,7 @@ int main(int argc, char **argv)
         view.measurement_result.frequency = HW_EXCITATION_FREQ_10KHZ;
     }
     ui_product_request(&ui, &view);
-    const ili9341_t display = {.ready = true};
+    ili9341_t display = {.ready = true};
     uint32_t steps = 0u;
     if (!render_until_done(&ui, &display, &steps))
     {

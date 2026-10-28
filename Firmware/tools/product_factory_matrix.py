@@ -74,7 +74,8 @@ def current_matrix(firmware, out):
     (out/'current-matrix.json').write_text('[]\n',encoding='utf-8')
     ntc=firmware/'config/units/54ff70068370525760380567-ntc-engineering.json'
     cases=[('unit-release','stm32-unit-release',[],False),
-           ('unit-debug','stm32-unit-release',['-DCMAKE_BUILD_TYPE=Debug','-DCMAKE_C_FLAGS_DEBUG=-g3'],False),
+           ('unit-debug','stm32-unit-release',['-DCMAKE_BUILD_TYPE=Debug','-DCMAKE_C_FLAGS_DEBUG=-g3','-DWTK_STACK_WATERMARK=ON'],False),
+           ('unit-curves','stm32-unit-release',['-DWTK_ENABLE_SUPPLEMENTARY_CURVES=ON'],False),
            ('unit-no-serial','stm32-unit-release',['-DWTK_ENABLE_SERIAL_UI=OFF'],False),
            ('bringup','stm32-bringup',[],False),
            ('bringup-cal','stm32-bringup-cal',[],False),

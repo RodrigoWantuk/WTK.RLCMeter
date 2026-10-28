@@ -237,7 +237,8 @@ def inspect(path,profile=None):
     if binary!=read(root/"firmware.bin",capacity) or value["linked"]!=metrics or len(binary)!=value["binary_size"] or len(binary)%2:
         raise ValueError("manifest/ELF/BIN/size mismatch")
     budget=capacity-1024 if spec[2] else capacity
-    ram_budget=17408 if spec[2] else 18432
+    from firmware_size import ram_limits_for_budget
+    _, ram_budget = ram_limits_for_budget("product" if spec[2] else "bringup", capacity)
     if len(binary)>budget or metrics["ram_accounted_bytes"]>ram_budget or metrics["reserved_stack_bytes"]<2048: raise ValueError("project memory gate violated")
     flags=parse_config(read(root/"build_config.h"))
     if "features" in value and value["features"]!=effective_features(flags):

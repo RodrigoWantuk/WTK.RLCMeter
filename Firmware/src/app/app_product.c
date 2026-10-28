@@ -647,6 +647,8 @@ static ui_product_measurement_t ui_measurement_from_result(const measurement_ses
 #if WTK_PRODUCT_MODERN
 static void invalidate_measurement(app_product_t *product)
 {
+    app_waveform_invalidate(product->measurement_io->waveform_store);
+    product->view.waveform = NULL;
     const bool changed = product->view.has_measurement_result ||
         product->view.measurement_result_partial || product->next_hint.valid ||
         product->view.page != UI_PRODUCT_PAGE_PRIMARY ||
@@ -782,6 +784,12 @@ static void update_measurement_result(app_product_t *product, app_measurement_ev
         if (final != NULL)
         {
             product->view.measurement_result = ui_measurement_from_result(final);
+            const app_waveform_store_t *waves = product->measurement_io->waveform_store;
+            product->view.waveform = waves != NULL && waves->published_valid &&
+                final->session_sequence == product->session_sequence &&
+                final->primary_attempt.calibration.set_sequence == product->view.calibration_sequence ?
+                &waves->published : NULL;
+            product->view.waveform_generation = waves != NULL ? waves->generation : 0u;
 #if WTK_PRODUCT_MODERN
             if (final->session_sequence != product->session_sequence ||
                 final->primary_attempt.calibration.set_sequence != product->view.calibration_sequence)
@@ -1161,6 +1169,8 @@ static void sync_lead_view(app_product_t *product)
     const uint32_t seq=active!=NULL?active->sequence:0u;
     if(product->lead_sequence_seen!=seq) {
         product->lead_sequence_seen=seq;
+        app_waveform_invalidate(product->measurement_io->waveform_store);
+        product->view.waveform = NULL;
         product->next_hint=(measurement_auto_hint_t){0};
         product->view.has_measurement_result=false;
     }
@@ -1313,6 +1323,12 @@ void app_product_step(app_product_t *product,
         (product->view.calibration_active_valid != inputs->calibration_active_valid) ||
         (product->view.calibration_sequence != inputs->calibration_active_sequence))
     {
+        if (product->view.calibration_sequence != inputs->calibration_active_sequence ||
+            !inputs->calibration_active_valid)
+        {
+            app_waveform_invalidate(product->measurement_io->waveform_store);
+            product->view.waveform = NULL;
+        }
         product->view.calibration_status = (uint8_t)next_cal;
         product->view.safety_blocker = (uint8_t)next_blocker;
         product->view.safety_fault_mask = inputs->safety_fault_mask;
@@ -1800,6 +1816,12 @@ void app_product_step(app_product_t *product,
         (product->view.state == UI_PRODUCT_STATE_RESULT))
     {
 #if WTK_PRODUCT_MODERN
+        if (product->view.page == UI_PRODUCT_PAGE_WAVEFORM && product->request_click)
+        {
+            set_page(product, UI_PRODUCT_PAGE_PRIMARY);
+            clear_requests(product);
+            return;
+        }
         if (product->view.page == UI_PRODUCT_PAGE_DETAILS && product->request_click)
         {
             invalidate_measurement(product);
@@ -1811,14 +1833,12 @@ void app_product_step(app_product_t *product,
         if (product->request_page_next)
         {
             set_page(product,
-                     (product->view.page == UI_PRODUCT_PAGE_PRIMARY) ? UI_PRODUCT_PAGE_DETAILS :
-                                                                       UI_PRODUCT_PAGE_PRIMARY);
+                     (ui_product_page_t)((product->view.page + 1u) % UI_PRODUCT_PAGE_COUNT));
         }
         if (product->request_page_prev)
         {
             set_page(product,
-                     (product->view.page == UI_PRODUCT_PAGE_PRIMARY) ? UI_PRODUCT_PAGE_DETAILS :
-                                                                       UI_PRODUCT_PAGE_PRIMARY);
+                     (ui_product_page_t)((product->view.page + UI_PRODUCT_PAGE_COUNT - 1u) % UI_PRODUCT_PAGE_COUNT));
         }
     }
     product->request_page_next = false;

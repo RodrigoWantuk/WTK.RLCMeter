@@ -18,6 +18,7 @@ static ui_font_role_t g_started_font_roles[64];
 static bool g_font_ready;
 static bool g_fill_fail;
 static bool g_font_fail;
+static bool g_spi_fail, g_rotation_fail;
 
 static resource_status_t g_provider_status;
 static uint32_t g_provider_calls;
@@ -32,23 +33,26 @@ static int expect_true(bool condition, const char *message)
     return 0;
 }
 
+bsp_status_t ili9341_set_rotation(ili9341_t *display, uint8_t rotation)
+{
+    if (g_rotation_fail) return BSP_STATUS_ERROR;
+    display->rotation = rotation;
+    return BSP_STATUS_OK;
+}
+
 bsp_status_t ili9341_set_window(const ili9341_t *display,
                                 uint16_t x,
                                 uint16_t y,
                                 uint16_t width,
                                 uint16_t height)
 {
-    (void)display;
-    (void)x;
-    (void)y;
-    (void)width;
-    (void)height;
-    return BSP_STATUS_OK;
+    return ili9341_rect_is_valid(display->rotation,x,y,width,height) ? BSP_STATUS_OK : BSP_STATUS_INVALID_ARG;
 }
 
 bsp_status_t ili9341_write_pixels_rgb565(const uint16_t *pixels, size_t count)
 {
     (void)pixels;
+    if (g_spi_fail) return BSP_STATUS_ERROR;
     g_pixels_written += (uint32_t)count;
     return BSP_STATUS_OK;
 }
@@ -235,6 +239,12 @@ bsp_status_t ui_font_text_step(const ili9341_t *display, ui_font_text_op_t *op)
     return BSP_STATUS_BUSY;
 }
 
+bsp_status_t ui_font_text_step_bounded(const ili9341_t *display, ui_font_text_op_t *op, uint16_t max_pixels)
+{
+    (void)max_pixels;
+    return ui_font_text_step(display, op);
+}
+
 static ui_product_view_t ready_view(uint32_t generation)
 {
     return (ui_product_view_t){
@@ -348,7 +358,7 @@ static bool rendered_font_text_starts_with(const char *prefix)
     return false;
 }
 
-static int drain_render(ui_product_t *ui, const ili9341_t *display)
+static int drain_render(ui_product_t *ui, ili9341_t *display)
 {
     for (uint32_t i = 0u; i < 2000u; i++)
     {
@@ -723,7 +733,7 @@ static int test_normal_text_uses_external_font_roles(void)
 static int test_factory_result_contract(void)
 {
     int failures = 0;
-    const ili9341_t display = {.ready = true};
+    ili9341_t display = {.ready = true};
     for (uint8_t language = (uint8_t)UI_LANGUAGE_EN; language <= (uint8_t)UI_LANGUAGE_PT_BR; language++)
     {
         for (uint8_t fallback = 0u; fallback < 2u; fallback++)
@@ -1036,9 +1046,76 @@ static int test_status_temperature_and_lead_actions(void)
     return failures;
 }
 
+static int test_waveform_lifecycle(void)
+{
+    int failures=0;
+    reset_render_counters();
+    ui_product_t ui;
+    ui_product_init(&ui);
+    ili9341_t display={.ready=true,.rotation=2u};
+    static measurement_waveform_snapshot_t snapshot;
+    snapshot=(measurement_waveform_snapshot_t){.sample_rate_hz=64000u,.frequency_hz=1000u,
+        .trigger_sample=128.0f,.triggered=true,.channel=MEASUREMENT_RETURN_1X,
+        .scale={{3.3f/4095.0f,0.0f},{3.3f/4095.0f,0.0f}},.vmid_v={1.65f,1.65f}};
+    for(unsigned i=0u;i<256u;++i) { snapshot.adc[0][i]=2048u; snapshot.adc[1][i]=2100u; }
+    ui_product_view_t view=ready_view(100u);
+    view.state=UI_PRODUCT_STATE_RESULT;view.page=UI_PRODUCT_PAGE_WAVEFORM;
+    view.has_measurement_result=true;view.waveform=&snapshot;
+    ui_product_request(&ui,&view);
+    failures+=expect_true(ui_product_step(&ui,&display,true)==BSP_STATUS_BUSY && display.rotation==2u,
+        "quiet prevents landscape rotation and drawing");
+    failures+=expect_true(ui_product_step(&ui,&display,false)==BSP_STATUS_BUSY && display.rotation==3u,
+        "graph enters landscape via normal driver");
+    for(unsigned i=0u;i<1300u && ui.render_state!=UI_PRODUCT_RENDER_WAVEFORM;++i)
+        (void)ui_product_step(&ui,&display,false);
+    failures+=expect_true(ui.render_state==UI_PRODUCT_RENDER_WAVEFORM,"landscape clear reaches column renderer");
+    (void)ui_product_step(&ui,&display,false);
+    const ui_waveform_t prior=ui.waveform_op;
+    const uint32_t pixels=g_pixels_written;
+    (void)ui_product_step(&ui,&display,true);
+    failures+=expect_true(memcmp(&prior,&ui.waveform_op,sizeof(prior))==0 && pixels==g_pixels_written,
+        "quiet pauses an in-progress column without SPI traffic");
+    ++view.generation; ++view.waveform_generation;
+    ui_product_request(&ui,&view);
+    (void)ui_product_step(&ui,&display,false);
+    failures+=expect_true(ui.waveform_op.column==0u && ui.waveform_op.row==0u,
+        "new generation cancels obsolete column work");
+    failures+=expect_true(drain_render(&ui,&display)==0,"waveform completes");
+    ++view.generation;view.waveform=NULL;
+    ui_product_request(&ui,&view);
+    failures+=expect_true(drain_render(&ui,&display)==0 && rendered_text_starts_with("Snapshot unavailable"),
+        "unavailable snapshot retains a navigable landscape page");
+    ++view.generation;view.state=UI_PRODUCT_STATE_MENU;
+    ui_product_request(&ui,&view);
+    (void)ui_product_step(&ui,&display,true);
+    failures+=expect_true(display.rotation==3u,"quiet defers portrait restoration");
+    (void)ui_product_step(&ui,&display,false);
+    failures+=expect_true(display.rotation==2u && drain_render(&ui,&display)==0,"menu restores portrait");
+    ++view.generation;view.state=UI_PRODUCT_STATE_RESULT;view.waveform=&snapshot;
+    ui_product_request(&ui,&view);
+    (void)ui_product_step(&ui,&display,false);
+    for(unsigned i=0u;i<1300u && ui.render_state!=UI_PRODUCT_RENDER_WAVEFORM;++i)
+        (void)ui_product_step(&ui,&display,false);
+    g_spi_fail=true;
+    failures+=expect_true(ui_product_step(&ui,&display,false)==BSP_STATUS_ERROR && !ui.active,
+        "graph SPI failure uses existing render error path");
+    g_spi_fail=false;
+    ++view.generation;view.state=UI_PRODUCT_STATE_FAULT;
+    ui_product_request(&ui,&view);
+    g_rotation_fail=true;
+    failures+=expect_true(ui_product_step(&ui,&display,false)==BSP_STATUS_ERROR && display.rotation==3u,
+        "failed rotation cannot claim portrait");
+    g_rotation_fail=false;
+    ++view.generation;ui_product_request(&ui,&view);
+    failures+=expect_true(drain_render(&ui,&display)==0 && display.rotation==2u,
+        "fault screen restores portrait after recoverable SPI error");
+    return failures;
+}
+
 int main(void)
 {
     int failures = 0;
+    failures += test_waveform_lifecycle();
     failures += test_status_temperature_and_lead_actions();
     failures += test_charging_navigation_notice();
 #if WTK_PRODUCT_MODERN

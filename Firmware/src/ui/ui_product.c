@@ -1615,6 +1615,98 @@ static bool prepare_wizard_line(const ui_product_t *ui,
 }
 #endif
 
+static bool prepare_waveform_line(const ui_product_t *ui, const ui_product_view_t *view,
+                                  uint8_t index, ui_product_line_t *line)
+{
+    const measurement_waveform_snapshot_t *s = view->waveform;
+    if (index == 0u)
+    {
+        line_set_id(ui, view, line, 2u, 0u, 1u, UI_COLOR_WHITE, UI_TEXT_ID_WAVEFORM_TITLE);
+        return true;
+    }
+    if (s == NULL)
+    {
+        if (index == 1u)
+            line_set_id(ui, view, line, 20u, 92u, 1u, UI_COLOR_WHITE, UI_TEXT_ID_WAVEFORM_UNAVAILABLE);
+        else if (index == 2u)
+            line_set_id(ui, view, line, 10u, 223u, 1u, UI_COLOR_WHITE, UI_TEXT_ID_WAVEFORM_BACK);
+        else return false;
+        return true;
+    }
+    char text[UI_FALLBACK_TEXT_MAX_CHARS] = {0};
+    size_t used = 0u;
+    if (index == 1u)
+        line_set_id(ui, view, line, 150u, 0u, 1u, UI_COLOR_WHITE, UI_TEXT_ID_WAVEFORM_INDIVIDUAL);
+    else if (index == 2u)
+    {
+        (void)ui_format_append_u32(text, sizeof(text), &used, s->frequency_hz);
+        (void)append_text(text, sizeof(text), &used, " Hz  RREF ");
+        (void)append_text(text, sizeof(text), &used, range_prompt_text((hw_range_id_t)s->range_id));
+        line_set(line, 40u, 17u, 1u, UI_COLOR_WHITE, text);
+    }
+    else if (index <= 4u)
+    {
+        const unsigned ch = index - 3u;
+        (void)append_text(text, sizeof(text), &used, ch == 0u ? "EXC " :
+            (s->channel == MEASUREMENT_RETURN_HG ? "RET HG " : "RET 1X "));
+        (void)ui_format_append_u32(text, sizeof(text), &used, (uint32_t)ui->waveform_op.mv_div[ch]);
+        (void)append_text(text, sizeof(text), &used, " mV/div");
+        line_set(line, ch == 0u ? 2u : 166u, 36u, 1u, ch == 0u ? 0xFFE0u : 0x07FFu, text);
+    }
+    else if (index <= 18u)
+    {
+        const unsigned ch = (index - 5u) / 7u;
+        const unsigned tick = (index - 5u) % 7u;
+        const int multiple = 3 - (int)tick;
+        if (multiple > 0) (void)append_char(text, sizeof(text), &used, '+');
+        if (multiple < 0) (void)append_char(text, sizeof(text), &used, '-');
+        const unsigned magnitude = (unsigned)(multiple < 0 ? -multiple : multiple);
+        (void)ui_format_append_u32(text, sizeof(text), &used,
+            magnitude * (uint32_t)ui->waveform_op.mv_div[ch]);
+        line_set(line, ch == 0u ? 0u : 284u, (uint16_t)(54u + tick * 18u),
+            1u, ch == 0u ? 0xFFE0u : 0x07FFu, text);
+    }
+    else if (index <= 23u)
+    {
+        const int multiple = (int)index - 21;
+        if (multiple > 0) (void)append_char(text, sizeof(text), &used, '+');
+        if (multiple < 0) (void)append_char(text, sizeof(text), &used, '-');
+        const uint32_t half_period = s->frequency_hz == 10u ? 50u :
+                                    (s->frequency_hz == 1000u ? 500u : 50u);
+        (void)ui_format_append_u32(text, sizeof(text), &used,
+            (uint32_t)(multiple < 0 ? -multiple : multiple) * half_period);
+        line_set(line, (uint16_t)(26u + (unsigned)(index - 19u) * 60u), 184u,
+            1u, UI_COLOR_WHITE, text);
+    }
+    else if (index == 24u)
+    {
+        (void)append_text(text, sizeof(text), &used, s->frequency_hz == 1000u ? "250" : "25");
+        (void)append_text(text, sizeof(text), &used, s->frequency_hz == 10u ? " ms/div" : " us/div");
+        line_set(line, 2u, 204u, 1u, UI_COLOR_WHITE, text);
+    }
+    else if (index == 25u)
+    {
+        const ui_text_id_t id = s->clipped ? UI_TEXT_ID_WAVEFORM_CLIPPED :
+            (!s->triggered ? UI_TEXT_ID_WAVEFORM_NO_TRIGGER :
+             (!s->phase_valid ? UI_TEXT_ID_WAVEFORM_WEAK : UI_TEXT_ID_WAVEFORM_ADC_PHASE));
+        line_set_id(ui, view, line, 128u, 204u, 1u, UI_COLOR_WHITE, id);
+        if (!line->deferred && !line->failed)
+        {
+            used = strlen(line->text);
+            (void)append_text(line->text, sizeof(line->text), &used, ": ");
+            char phase[16];
+            if (s->phase_valid) (void)ui_format_phase_rad(s->phase_rad, phase, sizeof(phase));
+            else (void)write_literal("n/a", phase, sizeof(phase));
+            localize_decimal(phase, view->menu.language_id);
+            (void)append_text(line->text, sizeof(line->text), &used, phase);
+        }
+    }
+    else if (index == 26u)
+        line_set_id(ui, view, line, 10u, 223u, 1u, UI_COLOR_WHITE, UI_TEXT_ID_WAVEFORM_BACK);
+    else return false;
+    return true;
+}
+
 static UI_COMPACT_CALL bool prepare_line(const ui_product_t *ui,
                          const ui_product_view_t *view,
                          uint8_t index,
@@ -1779,6 +1871,7 @@ static UI_COMPACT_CALL bool prepare_line(const ui_product_t *ui,
                    false;
 #endif
     case UI_PRODUCT_STATE_RESULT:
+        if (view->page == UI_PRODUCT_PAGE_WAVEFORM) return prepare_waveform_line(ui, view, index, line);
         if (!view->has_measurement_result)
         {
             if (index == 0u)
@@ -1915,6 +2008,7 @@ static void start_render(ui_product_t *ui)
     ui->image_op.active = false;
     ui->clear_started = false;
     ui->image_started = false;
+    ui_waveform_start(&ui->waveform_op, ui->pending.waveform);
     bool patch_menu = false;
 #if WTK_ENABLE_UI_ROW_CACHE
     ui->painting_row_pending = false;
@@ -1938,11 +2032,12 @@ static bool state_has_image(const ui_product_t *ui)
 #endif
 }
 
-static void start_clear_region(ui_product_t *ui)
+static void start_clear_region(ui_product_t *ui, const ili9341_t *display)
 {
+    const ili9341_size_t size = ili9341_logical_size(display->rotation);
     if (requires_full_clear(ui))
     {
-        ili9341_fill_start(&ui->clear_fill, 0u, 0u, ILI9341_WIDTH, ILI9341_HEIGHT, UI_COLOR_BLACK);
+        ili9341_fill_start(&ui->clear_fill, 0u, 0u, size.width, size.height, UI_COLOR_BLACK);
     }
     else
     {
@@ -1950,7 +2045,7 @@ static void start_clear_region(ui_product_t *ui)
         if (ui->pending.state == UI_PRODUCT_STATE_RESULT ||
             ui->pending.state == UI_PRODUCT_STATE_MEASURING)
         {
-            ili9341_fill_start(&ui->clear_fill, 0u, 0u, ILI9341_WIDTH, ILI9341_HEIGHT, UI_COLOR_BLACK);
+            ili9341_fill_start(&ui->clear_fill, 0u, 0u, size.width, size.height, UI_COLOR_BLACK);
         }
         else
 #endif
@@ -2048,12 +2143,14 @@ void ui_product_set_image_catalog(ui_product_t *ui, ui_image_catalog_t *catalog)
 void ui_product_request(ui_product_t *ui, const ui_product_view_t *view)
 {
     if ((ui == NULL) || (view == NULL) ||
-        (ui->have_rendered && ui->rendered_generation == view->generation))
+        (ui->have_rendered && ui->rendered_generation == view->generation &&
+         ui->pending.waveform_generation == view->waveform_generation))
     {
         return;
     }
     const bool different_screen = screen_family(ui->pending.state) != screen_family(view->state) ||
         ui->pending.page != view->page ||
+        ui->pending.waveform_generation != view->waveform_generation ||
         ui->pending.menu.language_id != view->menu.language_id ||
         ui->pending.resource_status != view->resource_status;
     /* Only nonvisual metadata may coalesce: charging changes the visible footer. */
@@ -2079,18 +2176,42 @@ void ui_product_request(ui_product_t *ui, const ui_product_view_t *view)
     }
 }
 
-bsp_status_t ui_product_step(ui_product_t *ui, const ili9341_t *display, bool quiet)
+bsp_status_t ui_product_step(ui_product_t *ui, ili9341_t *display, bool quiet)
 {
     if ((ui == NULL) || (display == NULL))
     {
         return BSP_STATUS_INVALID_ARG;
     }
-    if (!ui->active || !display->ready)
+    if (!display->ready)
     {
         return BSP_STATUS_OK;
     }
     if (quiet)
     {
+        return BSP_STATUS_BUSY;
+    }
+    const bool waveform = ui->pending.state == UI_PRODUCT_STATE_RESULT &&
+        ui->pending.page == UI_PRODUCT_PAGE_WAVEFORM;
+    const uint8_t rotation = waveform ? 3u : 2u;
+    if (display->rotation != rotation)
+    {
+        const bsp_status_t status = ili9341_set_rotation(display, rotation);
+        if (status != BSP_STATUS_OK) return render_failed(ui, status);
+        ui->have_rendered = false;
+        start_render(ui);
+        return BSP_STATUS_BUSY;
+    }
+    if (!ui->active) return BSP_STATUS_OK;
+    if (ui->pending.generation != ui->rendering_generation)
+    {
+        start_render(ui);
+        return BSP_STATUS_BUSY;
+    }
+    if (ui->render_state == UI_PRODUCT_RENDER_WAVEFORM)
+    {
+        const bsp_status_t status = ui_waveform_step(&ui->waveform_op, display, ui->pending.waveform);
+        if (status != BSP_STATUS_OK && status != BSP_STATUS_BUSY) return render_failed(ui, status);
+        if (status == BSP_STATUS_OK) ui->render_state = UI_PRODUCT_RENDER_TEXT;
         return BSP_STATUS_BUSY;
     }
 #if WTK_ENABLE_UI_ROW_CACHE
@@ -2109,7 +2230,7 @@ bsp_status_t ui_product_step(ui_product_t *ui, const ili9341_t *display, bool qu
     {
         if (!ui->clear_started)
         {
-            start_clear_region(ui);
+            start_clear_region(ui, display);
         }
         const bsp_status_t clear_status = ili9341_fill_step(display,
                                                             &ui->clear_fill,
@@ -2122,7 +2243,8 @@ bsp_status_t ui_product_step(ui_product_t *ui, const ili9341_t *display, bool qu
         {
             return BSP_STATUS_BUSY;
         }
-        ui->render_state = state_has_image(ui) ? UI_PRODUCT_RENDER_IMAGE : UI_PRODUCT_RENDER_TEXT;
+        ui->render_state = waveform ? UI_PRODUCT_RENDER_WAVEFORM :
+            (state_has_image(ui) ? UI_PRODUCT_RENDER_IMAGE : UI_PRODUCT_RENDER_TEXT);
 #if WTK_ENABLE_UI_ROW_CACHE
         if (cached_menu(ui))
         {
@@ -2194,7 +2316,8 @@ bsp_status_t ui_product_step(ui_product_t *ui, const ili9341_t *display, bool qu
 
     if (ui->font_text_op.active)
     {
-        const bsp_status_t text_status = ui_font_text_step(display, &ui->font_text_op);
+        const bsp_status_t text_status = waveform ? ui_font_text_step_bounded(display, &ui->font_text_op, 64u) :
+            ui_font_text_step(display, &ui->font_text_op);
         if ((text_status != BSP_STATUS_OK) && (text_status != BSP_STATUS_BUSY))
         {
             return render_failed(ui, text_status);
@@ -2259,7 +2382,7 @@ bsp_status_t ui_product_step(ui_product_t *ui, const ili9341_t *display, bool qu
     ui_font_role_t role = font_role_from_scale(line.scale);
 #if WTK_PRODUCT_MODERN
     if ((ui->pending.state == UI_PRODUCT_STATE_RESULT || ui->pending.state == UI_PRODUCT_STATE_MEASURING) &&
-        !fit_result_line(ui, &line, &role)) return BSP_STATUS_BUSY;
+        !waveform && !fit_result_line(ui, &line, &role)) return BSP_STATUS_BUSY;
 #endif
 #if WTK_ENABLE_UI_ROW_CACHE
     if (prepare_cached_row(ui, &line, role)) return BSP_STATUS_BUSY;

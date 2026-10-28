@@ -204,3 +204,10 @@ Production completion: [sealed software image, memory and acceptance handoff](..
 [Plan 32](32-Product-Status-and-Backlight-Feedback.md) follows actual display feedback: About overflow, Celsius diagnostics, direct quick-lead menu discovery and measured backlight-command investigation. The original API 5 pack and splash remain unchanged; actual LED/driver brightness requires further bench evidence.
 
 [Plan 33](33-Persistent-Picture-Controls-and-SPI.md) implements requested persistent RGB565 picture controls, the API 6 catalog and conservative 9-MHz TFT-write/4.5-MHz read separation. The owner resolved apparent brightness as the module's viewing angle. Plan-32 corrections are programmed/verified; picture controls and visual throughput acceptance are tracked separately.
+
+
+[Plan 34](34-Measurement-Waveform-Snapshot.md) adds the third landscape result
+page using the latest accepted final-condition statistical ADC block, independent
+physical mV scales and shared time/phase alignment. It introduces no extra DUT
+capture or relay actuation. API 7 resources and unit128 memory/stack evidence are
+delivered together; physical display/metrology acceptance is tracked separately.

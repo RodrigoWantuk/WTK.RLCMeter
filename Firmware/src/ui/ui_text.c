@@ -23,6 +23,14 @@ bool ui_text_is_emergency(ui_text_id_t id)
 {
     switch (id)
     {
+    case UI_TEXT_ID_WAVEFORM_TITLE:
+    case UI_TEXT_ID_WAVEFORM_UNAVAILABLE:
+    case UI_TEXT_ID_WAVEFORM_INDIVIDUAL:
+    case UI_TEXT_ID_WAVEFORM_ADC_PHASE:
+    case UI_TEXT_ID_WAVEFORM_WEAK:
+    case UI_TEXT_ID_WAVEFORM_CLIPPED:
+    case UI_TEXT_ID_WAVEFORM_NO_TRIGGER:
+    case UI_TEXT_ID_WAVEFORM_BACK:
     case UI_TEXT_ID_NOT_CHARACTERIZED:
     case UI_TEXT_ID_INVALID_RESULT:
     case UI_TEXT_ID_NOT_APPLICABLE:
@@ -56,6 +64,15 @@ const char *ui_text_emergency(ui_text_id_t id)
 {
     switch (id)
     {
+    case UI_TEXT_ID_WAVEFORM_TITLE: return "Waveforms";
+    case UI_TEXT_ID_WAVEFORM_UNAVAILABLE: return "Snapshot unavailable";
+    case UI_TEXT_ID_WAVEFORM_INDIVIDUAL: return "Individual ADC capture";
+    case UI_TEXT_ID_WAVEFORM_ADC_PHASE: return "ADC phase";
+    case UI_TEXT_ID_WAVEFORM_WEAK: return "Weak signal";
+    case UI_TEXT_ID_WAVEFORM_CLIPPED: return "Clipping";
+    case UI_TEXT_ID_WAVEFORM_NO_TRIGGER: return "No trigger";
+    case UI_TEXT_ID_WAVEFORM_BACK: return "OK: value   Hold OK: menu";
+
     case UI_TEXT_ID_NOT_CHARACTERIZED: return "UNQUALIFIED";
     case UI_TEXT_ID_INVALID_RESULT: return "INVALID";
     case UI_TEXT_ID_NOT_APPLICABLE: return "N/A";

@@ -17,6 +17,7 @@ find_package(Python3 COMPONENTS Interpreter QUIET)
 include(FactoryNtc)
 
 set(WTK_INTERNAL_FLASH_KIB "64" CACHE STRING "Internal Flash: generic 64 or verified first-unit 128 KiB")
+option(WTK_STACK_WATERMARK "Paint the top 2-KiB stack reservation at reset for diagnostic SWD observation" OFF)
 set_property(CACHE WTK_INTERNAL_FLASH_KIB PROPERTY STRINGS 64 128)
 set(WTK_EXTENDED_FLASH_UID "" CACHE STRING "UID bound to the verified 128-KiB engineering profile")
 if(NOT WTK_INTERNAL_FLASH_KIB MATCHES "^(64|128)$")
@@ -183,6 +184,8 @@ set(WTK_COMMON_SOURCES
     src/app/app_calibration_workflow.c
     src/app/app_flash_access.c
     src/app/app_io_workspace.c
+    src/app/app_waveform_store.c
+    src/measurement/measurement_waveform.c
     src/app/app_measurement_session.c
     src/app/app_pc_link_protocol.c
     src/app/app_serial_ui.c
@@ -233,6 +236,7 @@ set(WTK_COMMON_SOURCES
     src/ui/ui_format.c
     src/ui/ui_image.c
     src/ui/ui_boot_splash.c
+    src/ui/ui_waveform.c
     src/ui/ui_product.c
     src/ui/ui_text_catalog.c
     src/ui/ui_text.c
@@ -425,8 +429,7 @@ elseif(WTK_TARGET_PLATFORM STREQUAL "stm32")
     set(WTK_SIZE_BUDGET "none")
     if(WTK_FIRMWARE_PROFILE STREQUAL "BRINGUP" OR WTK_FIRMWARE_PROFILE STREQUAL "BRINGUP_CAL")
         set(WTK_SIZE_BUDGET "bringup")
-    elseif(WTK_FIRMWARE_PROFILE STREQUAL "PRODUCT" AND
-           NOT WTK_BUILD_TYPE STREQUAL "Debug")
+    elseif(WTK_FIRMWARE_PROFILE STREQUAL "PRODUCT")
         set(WTK_SIZE_BUDGET "product")
     endif()
 

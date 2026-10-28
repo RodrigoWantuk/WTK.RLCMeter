@@ -1255,7 +1255,21 @@ static bsp_status_t product_auto_process_block(const hw_metrology_block_t *block
 #endif
 }
 
+/* The UID-bound 128-KiB product reserves the two snapshot slots. */
+#if WTK_INTERNAL_FLASH_BYTES > 65536u
+static app_waveform_store_t g_product_waveform;
+static const measurement_adc_calibration_t *product_waveform_adc(void *user)
+{
+    (void)user;
+    const measurement_cal_set_t *set = app_calibration_service_active_set(&g_calibration_service);
+    return set != NULL && set->adc_valid ? &set->adc : NULL;
+}
+#endif
 static const app_measurement_session_io_t g_product_session_io = {
+#if WTK_INTERNAL_FLASH_BYTES > 65536u
+    .waveform_store = &g_product_waveform,
+    .waveform_adc = product_waveform_adc,
+#endif
     .start_attempt = product_auto_start_attempt,
     .step_attempt = product_auto_step_attempt,
     .attempt_active = product_auto_attempt_active,

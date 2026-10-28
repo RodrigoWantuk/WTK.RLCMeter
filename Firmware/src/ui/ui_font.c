@@ -390,7 +390,7 @@ void ui_font_text_start(ui_font_text_op_t *op,
     op->active = op->text[0] != '\0';
 }
 
-bsp_status_t ui_font_text_step(const ili9341_t *display, ui_font_text_op_t *op)
+bsp_status_t ui_font_text_step_bounded(const ili9341_t *display, ui_font_text_op_t *op, uint16_t max_pixels)
 {
     if ((display == NULL) || (op == NULL) || !op->active || (op->catalog == NULL))
     {
@@ -428,6 +428,10 @@ bsp_status_t ui_font_text_step(const ili9341_t *display, ui_font_text_op_t *op)
     {
         return bsp_from_resource(status);
     }
+    uint8_t end_row = glyph.height;
+    if (glyph.width > 0u && max_pixels / glyph.width < (uint16_t)(glyph.height - op->row_index))
+        end_row = (uint8_t)(op->row_index + max_pixels / glyph.width);
+    if (glyph.width > 0u && end_row == op->row_index && glyph.height > 0u) return BSP_STATUS_INVALID_ARG;
     /* Spaces have no bitmap. Every other glyph streams row-major into one
      * rectangle; no extra pixel buffer or bus lease spans a cooperative step. */
     if ((glyph.width > 0u) && (glyph.height > 0u))
@@ -435,14 +439,14 @@ bsp_status_t ui_font_text_step(const ili9341_t *display, ui_font_text_op_t *op)
         const bsp_status_t draw_status = ili9341_set_window(display,
             (uint16_t)(op->cursor_x + (uint16_t)glyph.bearing_x),
             (uint16_t)(op->y + (uint16_t)(op->catalog->faces[(uint8_t)op->role].ascent -
-                                         (uint8_t)glyph.bearing_y)),
-            glyph.width, glyph.height);
+                                         (uint8_t)glyph.bearing_y) + op->row_index),
+            glyph.width, (uint16_t)(end_row - op->row_index));
         if (draw_status != BSP_STATUS_OK)
         {
             return draw_status;
         }
     }
-    for (uint8_t row = 0u; row < glyph.height; row++)
+    for (uint8_t row = op->row_index; row < end_row; row++)
     {
         const uint32_t row_base = (uint32_t)row * glyph.row_stride;
         for (uint8_t col = 0u; col < glyph.width; col++)
@@ -457,6 +461,9 @@ bsp_status_t ui_font_text_step(const ili9341_t *display, ui_font_text_op_t *op)
             return draw_status;
         }
     }
+    op->row_index = end_row;
+    if (op->row_index < glyph.height) return BSP_STATUS_BUSY;
+    op->row_index = 0u;
     op->cursor_x = (uint16_t)(op->cursor_x + (uint16_t)glyph.advance_x);
     op->byte_index = (uint8_t)offset;
     if ((op->byte_index >= (sizeof(op->text) - 1u)) || (op->text[op->byte_index] == '\0'))
@@ -465,6 +472,11 @@ bsp_status_t ui_font_text_step(const ili9341_t *display, ui_font_text_op_t *op)
         return BSP_STATUS_OK;
     }
     return BSP_STATUS_BUSY;
+}
+
+bsp_status_t ui_font_text_step(const ili9341_t *display, ui_font_text_op_t *op)
+{
+    return ui_font_text_step_bounded(display, op, UINT16_MAX);
 }
 
 uint32_t ui_font_catalog_context_size_bytes(void)
