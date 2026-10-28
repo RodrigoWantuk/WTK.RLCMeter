@@ -210,7 +210,7 @@ class ResourcePackTests(unittest.TestCase):
         self.assertRegex(resource_header, r"RESOURCE_ID_IMAGE_SPLASH\s*=\s*0x00030001u")
         self.assertRegex(resource_header, r"RESOURCE_ID_IMAGE_SCREEN_RESOURCE_UPLOAD\s*=\s*0x00030005u")
         self.assertRegex(resource_header, r"RESOURCE_IMAGE_RGB565_MAX_HEIGHT\s*=\s*320u")
-        self.assertRegex(text_header, r"UI_TEXT_ID_LAST\s*=\s*UI_TEXT_ID_PC_OSL_HINT")
+        self.assertRegex(text_header, r"UI_TEXT_ID_LAST\s*=\s*UI_TEXT_ID_DISPLAY_RESET")
         self.assertRegex(text_header, r"UI_TEXT_MAX_BYTES\s*=\s*31u")
         last_match = re.search(r"UI_TEXT_ID_DISPLAY_RESET\s*=\s*0x([0-9A-Fa-f]+)u", text_header)
         self.assertIsNotNone(last_match)
