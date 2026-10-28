@@ -1188,3 +1188,11 @@ Power-state/timestamp/VMID failures and existing dynamic hard blockers abort.
 Legacy opt-out requests, fixed captures, acquisition profiles, OSL model and
 unit NTC constants retain their contracts. See plan 27 and its release evidence
 for software checks and pending physical qualification.
+
+## Persistent picture and status correction (plans 32/33)
+
+The current product fixes About's off-screen medium-font hardware identity, displays fresh NTC values as localized tenths of a degree C, and opens the lead OPEN/SHORT menu directly from Calibration. Factory status remains a separate action. No capture starts during navigation.
+
+Screen picture edits are application settings, distinct from metrology coefficients. Gamma/contrast/saturation use a bounded pure integer RGB565 transform with a 128-byte fixed LUT; identity preserves every RGB565 value. DCS inversion is the only controller appearance command added. Settings schema 5 uses nine bits of the formerly reserved CRC-covered header word while retaining the 36-byte frame/commit offsets; schemas 2/3/4 receive neutral defaults. No automatic migration write occurs. Current/persisted/in-flight ownership and commit-last redundant slots remain unchanged.
+
+The board adapter applies picture changes only after the optional splash, outside quiet and at an idle renderer boundary; successful changes invalidate all affected cached pixels. The renderer's completed-row capacity is ten, one more row for the expanded screen menu warning. The current image accounts for 15,288 RAM bytes including its 2,052-byte aligned stack reserve; there is no framebuffer or new heap/DMA dependency. TFT write ownership selects PCLK1/4 (9 MHz), read ownership and W25Q PCLK1/8 (4.5 MHz), with all chip selects inactive during clock changes. The slow TFT override remains available. Physical visual/timing/persistence qualification is separate from actual programmed/readback-verified READY/SAFE boot; see the [delivery](../Firmware/releases/2026-10-28/picture-controls/README.md).

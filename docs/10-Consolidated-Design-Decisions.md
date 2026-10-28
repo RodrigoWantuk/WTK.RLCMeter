@@ -1,5 +1,9 @@
 # Consolidated Design Decisions
 
+## October 28 product display follow-up
+
+Plans 32/33 supersede historical TFT-speed/status notes below. The owner's apparent backlight issue was the TN viewing angle; no PWM/analog-drive fix is needed. About now fits its full hardware identity, Diagnostics use degrees C and Calibration opens the quick lead menu directly. Picture gamma/contrast/saturation are bounded RGB565 software controls (neutral bit-exact), with standard DCS inversion, schema-5 settings and API-6 bilingual labels. They apply after the unchanged splash. TFT writes are 9 MHz, reads/W25Q 4.5 MHz, retaining quiet and slow recovery. No C++ TFT_eSPI, 27/40-MHz SPI2 claim, framebuffer/sprite or speculative VCOM/power setup is introduced. The [current delivery](../Firmware/releases/2026-10-28/picture-controls/README.md) records actual programming/resource readback and pending physical acceptance.
+
 ## October24 integration baseline
 
 October24 supersedes gate-to-source RGS: all six10k are gate-toGND, hardware calibration identity0x00010002. Common ADC/DMA/phase corrections and K1 operate30ms apply to every metrology profile. All TFT profiles use portrait180/MADCTL88,50ms reset/250ms release and TFT PCLK1/64, Flash/8. Bench-only source exceptions remain excluded from PRODUCT.

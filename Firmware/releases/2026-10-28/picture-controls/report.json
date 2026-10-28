@@ -1,0 +1,342 @@
+{
+  "schema": "WTK_PICTURE_DELIVERY_1",
+  "assembled_utc": "2026-10-28T11:04:02.765602+00:00",
+  "status": "DEPLOYED_READY_SAFE_REQUIRES_BENCH_VISUAL_VALIDATION",
+  "source": {
+    "git_sha": "9c14a6c8496f5a8b97ca0d76878cca2f89389a8d",
+    "dirty": false,
+    "git_status": "",
+    "input_sha256": "b8aea9c437862a8b69f926734f976af69cdb8060fce97f8dfa2323bc88812771"
+  },
+  "profile": "FACTORY_PRODUCT_UNIT128",
+  "memory": {
+    "flash_used": 75156,
+    "capacity": 131072,
+    "flash_free": 55916,
+    "flash_hard_gate_margin": 54892,
+    "ram_static": 13236,
+    "stack_reserved_aligned": 2052,
+    "ram_accounted": 15288,
+    "ram_hard_gate_margin": 2120
+  },
+  "binary_sha256": "a6462652c2ab703ab451876635340d3bb94b4f2a32dc7dd7b381bcb99629f011",
+  "internal_readback_sha256": "e08ae10e6791a0a00de5ab40b1d2e9c9431444aa0af93582ca9fe7850d6cc548",
+  "resources": {
+    "operation": "READ_ONLY_FULL_RESOURCE_READBACK",
+    "bytes": 108288,
+    "sha256": "c0aec2d24e11a5594f0b7a1e6144b4df1e9e49a70b81a0bcb703c01cafff0502",
+    "exact_match": true,
+    "api": 6,
+    "telemetry": {
+      "status": "ACCEPTED",
+      "request_id": 2183907505,
+      "ui_state": 4,
+      "session_sequence": 0,
+      "uptime_ms": 124194,
+      "safety_blocker_flags": 8,
+      "fault_mask": 0,
+      "factory_calibration_sequence": 1,
+      "capability_flags": 127,
+      "uid": "54ff70068370525760380567",
+      "git": "9c14a6c8496f",
+      "battery_mv": 4136,
+      "battery_v": 4.136,
+      "battery_state": 0,
+      "battery_age_ms": 204,
+      "charger_state": 0,
+      "ntc_temperature_c": 17.726,
+      "ntc_age_ms": 73,
+      "ntc_experimental": true,
+      "battery_raw": 2566,
+      "ntc_raw": 2041,
+      "uart_errors": 0,
+      "uart_overflows": 0,
+      "lead_active": false,
+      "lead_sequence": 0,
+      "settings_status": 1,
+      "settings_error": 0,
+      "k1_commanded_state": 1,
+      "range_state": 0,
+      "feedback_dropped": 0,
+      "feedback_error": 0,
+      "primary_accepted_samples": 0,
+      "frequency_attempted_mask": 0,
+      "configured_flash_kib": 128,
+      "last_result": {
+        "valid": false,
+        "resistance_ohms": null,
+        "reactance_ohms": null,
+        "capacitance_f": null,
+        "inductance_h": null,
+        "frequency_id": 255,
+        "range_id": 255,
+        "return_channel": 0
+      },
+      "measurement_completion_observed": false,
+      "limitations": "Nominal VDDA conversion; loaded engineering OSL and experimental NTC are not independent accuracy qualification"
+    },
+    "flash_written": false,
+    "activation_requested": false
+  },
+  "tail_preservation": {
+    "utc": "2026-10-28T11:01:29.133111+00:00",
+    "operation": "READ_ONLY_W25Q_SNAPSHOT",
+    "port": "COM3",
+    "capacity": 4194304,
+    "reset_requested": false,
+    "activation_requested": false,
+    "flash_written": false,
+    "automatic_retry": false,
+    "telemetry": {
+      "status": "ACCEPTED",
+      "request_id": 2183926701,
+      "ui_state": 4,
+      "session_sequence": 0,
+      "uptime_ms": 143436,
+      "safety_blocker_flags": 8,
+      "fault_mask": 0,
+      "factory_calibration_sequence": 1,
+      "capability_flags": 127,
+      "uid": "54ff70068370525760380567",
+      "git": "9c14a6c8496f",
+      "battery_mv": 4144,
+      "battery_v": 4.144,
+      "battery_state": 0,
+      "battery_age_ms": 405,
+      "charger_state": 0,
+      "ntc_temperature_c": 17.533,
+      "ntc_age_ms": 277,
+      "ntc_experimental": true,
+      "battery_raw": 2571,
+      "ntc_raw": 2044,
+      "uart_errors": 0,
+      "uart_overflows": 0,
+      "lead_active": false,
+      "lead_sequence": 0,
+      "settings_status": 1,
+      "settings_error": 0,
+      "k1_commanded_state": 1,
+      "range_state": 0,
+      "feedback_dropped": 0,
+      "feedback_error": 0,
+      "primary_accepted_samples": 0,
+      "frequency_attempted_mask": 0,
+      "configured_flash_kib": 128,
+      "last_result": {
+        "valid": false,
+        "resistance_ohms": null,
+        "reactance_ohms": null,
+        "capacitance_f": null,
+        "inductance_h": null,
+        "frequency_id": 255,
+        "range_id": 255,
+        "return_channel": 0
+      },
+      "measurement_completion_observed": false,
+      "limitations": "Nominal VDDA conversion; loaded engineering OSL and experimental NTC are not independent accuracy qualification"
+    },
+    "resource_pack_end": 108288,
+    "resource_limit": 4153344,
+    "sha256": "8825cacce71cecbc652228bca75e83b042269dbc58d2918dc765e9e6a736fdff",
+    "legacy_tail_sha256": "18facf425f00615ba0c3968a4353836f17ef4a6773c5ef67ffa3fcf85f9bc29d",
+    "lead_sectors_sha256": "7d2c7ac4888bfd75cd5f56e8d61f69595121183afc81556c876732fd3782c62f",
+    "resource_header_sha256": "5fed84e248f9b80f2cd1eb74cd354373d361bbe27772d27a87cbb3bd9ef7b647",
+    "comparison_equal": true,
+    "outcome": "SNAPSHOT_VERIFIED"
+  },
+  "boot": {
+    "safe_boot_banners": 1,
+    "telemetry": {
+      "status": "ACCEPTED",
+      "request_id": 2183943128,
+      "ui_state": 4,
+      "session_sequence": 0,
+      "uptime_ms": 8120,
+      "safety_blocker_flags": 8,
+      "fault_mask": 0,
+      "factory_calibration_sequence": 1,
+      "capability_flags": 127,
+      "uid": "54ff70068370525760380567",
+      "git": "9c14a6c8496f",
+      "battery_mv": 4134,
+      "battery_v": 4.134,
+      "battery_state": 0,
+      "battery_age_ms": 334,
+      "charger_state": 0,
+      "ntc_temperature_c": 17.533,
+      "ntc_age_ms": 324,
+      "ntc_experimental": true,
+      "battery_raw": 2565,
+      "ntc_raw": 2044,
+      "uart_errors": 0,
+      "uart_overflows": 0,
+      "lead_active": false,
+      "lead_sequence": 0,
+      "settings_status": 1,
+      "settings_error": 0,
+      "k1_commanded_state": 1,
+      "range_state": 0,
+      "feedback_dropped": 0,
+      "feedback_error": 0,
+      "primary_accepted_samples": 0,
+      "frequency_attempted_mask": 0,
+      "configured_flash_kib": 128,
+      "last_result": {
+        "valid": false,
+        "resistance_ohms": null,
+        "reactance_ohms": null,
+        "capacitance_f": null,
+        "inductance_h": null,
+        "frequency_id": 0,
+        "range_id": 0,
+        "return_channel": 0
+      },
+      "measurement_completion_observed": false,
+      "limitations": "Nominal VDDA conversion; loaded engineering OSL and experimental NTC are not independent accuracy qualification"
+    },
+    "activation_requested": false
+  },
+  "images": {
+    "old_api": 5,
+    "api": 6,
+    "image_payloads": [
+      {
+        "resource_id": 196610,
+        "bytes": 5416,
+        "sha256": "b8484d91f0adfad9ee60724827989c07d868c6646c76f6dc13b4679162ccf72e",
+        "unchanged": true
+      },
+      {
+        "resource_id": 196614,
+        "bytes": 81576,
+        "sha256": "affd353bdefbf1e0bff93b2c71007323e93124e4effd8942988eb66477c561a8",
+        "unchanged": true
+      }
+    ]
+  },
+  "matrix": [
+    {
+      "profile": "unit-release",
+      "outcome": "PASS",
+      "flash": 75156,
+      "ram": 15288,
+      "stack": 2052,
+      "flash_capacity": 131072
+    },
+    {
+      "profile": "unit-debug",
+      "outcome": "PASS",
+      "flash": 74768,
+      "ram": 15208,
+      "stack": 2052,
+      "flash_capacity": 131072
+    },
+    {
+      "profile": "unit-no-serial",
+      "outcome": "PASS",
+      "flash": 73048,
+      "ram": 15276,
+      "stack": 2052,
+      "flash_capacity": 131072
+    },
+    {
+      "profile": "bringup",
+      "outcome": "PASS",
+      "flash": 65320,
+      "ram": 15712,
+      "stack": 2048,
+      "flash_capacity": 65536
+    },
+    {
+      "profile": "bringup-cal",
+      "outcome": "PASS",
+      "flash": 38796,
+      "ram": 14020,
+      "stack": 2048,
+      "flash_capacity": 65536
+    },
+    {
+      "profile": "bringup-k1",
+      "outcome": "PASS",
+      "flash": 61592,
+      "ram": 15728,
+      "stack": 2048,
+      "flash_capacity": 65536
+    },
+    {
+      "profile": "bringup-bench",
+      "outcome": "PASS",
+      "flash": 61840,
+      "ram": 15784,
+      "stack": 2048,
+      "flash_capacity": 65536
+    },
+    {
+      "profile": "bringup-peripheral",
+      "outcome": "PASS",
+      "flash": 15832,
+      "ram": 12536,
+      "stack": 2048,
+      "flash_capacity": 65536
+    },
+    {
+      "profile": "generic-product-budget",
+      "outcome": "EXPECTED_64K_BUDGET_STOP"
+    }
+  ],
+  "software_checks": {
+    "host_entries": 66,
+    "python_cases": 532,
+    "python_skips": 38,
+    "measurement_renders": 76,
+    "status_renders": 36,
+    "neutral_colors_exact": 65536,
+    "provisioning_off_focused": 3
+  },
+  "settings": {
+    "writer_schema": 5,
+    "reader_schemas": [
+      2,
+      3,
+      4,
+      5
+    ],
+    "record_bytes": 36,
+    "migration_written": false,
+    "physical_picture_save_tested": false
+  },
+  "spi": {
+    "tft_write_hz": 9000000,
+    "tft_read_hz": 4500000,
+    "w25q_hz": 4500000,
+    "physical_signal_integrity_qualified": false
+  },
+  "no_dut_measurement_requested": true,
+  "qualification_limitations": [
+    "Physical LCD appearance and throughput require owner validation; display disconnected",
+    "Nonneutral picture/settings-reboot path and actual LED/quiet/electrical behavior remain bench pending",
+    "No independent RLC accuracy, polarized-envelope, 10-mF endpoint or stack high-water qualification"
+  ],
+  "artifacts": {
+    "firmware.zip": {
+      "bytes": 129504,
+      "sha256": "3095a503b765f65878fc8d73b8636f9c1ead9981ce706710603d5acdebd2e213"
+    },
+    "evidence.zip": {
+      "bytes": 1876349,
+      "sha256": "2d53c3598c968fcbec980b7a492c12d81d5b7809f4e3a16c069839a6fbcbc355"
+    },
+    "product-api6.wrp2": {
+      "bytes": 108288,
+      "sha256": "c0aec2d24e11a5594f0b7a1e6144b4df1e9e49a70b81a0bcb703c01cafff0502"
+    },
+    "product-api6.json": {
+      "bytes": 3187,
+      "sha256": "f119ba157e67c88d4546916888d37ae46140c95f8adb69473530f33b38f69a8a"
+    },
+    "picture-preview.png": {
+      "bytes": 19403,
+      "sha256": "48cf2ee0ee26e4c26b15c463c3c575c8a155ae5a56701f9b00bf4a993ecf2b10"
+    }
+  }
+}
