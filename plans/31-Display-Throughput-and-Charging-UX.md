@@ -1,6 +1,6 @@
 # Display throughput, charging UX and external text completion
 
-STATUS: IMPLEMENTATION_IN_PROGRESS
+STATUS: SOFTWARE_COMPLETE_DEPLOYED_REQUIRES_BENCH_VALIDATION
 
 Owner request: improve display responsiveness; keep normal boot/navigation with the charger connected, block measurement with a friendly notice, audit external multilingual strings/resources. Preserve the existing owner splash image, orientation and three-second hold exactly. Existing plans 03/08 and plan 30 provide drivers, resource/UI and safety prerequisites.
 
@@ -28,3 +28,5 @@ Measured display throughput and electrical signal integrity need bench evidence.
 ## Current checkpoints
 
 Glyph/window implementation is committed with 72 pixel-identical before/after screens and failure/quiet tests. Charger-only navigation and 48 appended bilingual IDs are implemented; Resource API 5 explicitly signals the required new 137-entry catalog. Fonts include profile `#`; original splash/READY image payloads remain identical. 66/66 current host entries, 532 Python cases (38 optional skips), focused provisioning ON/OFF and nine strict GNU syntax checks pass. Clean-source matrix/sealing and physical deployment/resource readback/display acceptance remain in progress. See the [execution log](../docs/review/display-ux-2026-10-27/README.md).
+
+Final checkpoint supersedes the in-progress sentence above: source a578bb5 is actually programmed and full internal readback verified. API 5 upload has 903 acknowledgements and complete byte-identical readback; the entire mutable tail is unchanged. Restart reaches READY/SAFE with calibration sequence 1, zero faults and zero acquisitions. Eight supported profiles passed at 651ea7c; the final UI-only live-VBUS correction was rebuilt for release/debug/serial-OFF PRODUCT and retested with both provisioning choices. The installed image uses 73,688 Flash / 15,212 accounted RAM bytes. Owner display/charger/menu/speed acceptance is still pending, so physical acceptance is not marked complete. See the [delivery](../Firmware/releases/2026-10-27/display-charging-ui/README.md).
